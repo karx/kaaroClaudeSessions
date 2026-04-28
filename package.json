@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Live Claude Code session graph — a kaaroViewer companion tool",
+  "keywords": ["claude-code", "sessions", "graph", "visualization", "d3"],
+  "engines": { "node": ">=18.0.0" },
   "bin": {
     "kaaro-sessions": "./serve.mjs"
   },

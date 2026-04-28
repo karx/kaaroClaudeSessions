@@ -3,6 +3,8 @@
 A live graph visualizer for your [Claude Code](https://claude.ai/code) session history.
 
 Reads `~/.claude/projects/`, builds an interactive force-directed graph of projects, sessions, and files, and serves it on a local HTTP server. The graph hot-reloads whenever a session file changes.
+<img width="2510" height="1315" alt="Screenshot 2026-04-28 at 11-19-17 Claude Code Sessions — kaaro-sessions" src="https://github.com/user-attachments/assets/d43cf02f-feb2-4eb1-8fc3-5fd6802a9a75" />
+
 
 ## Requirements
 

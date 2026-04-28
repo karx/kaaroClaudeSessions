@@ -1,0 +1,14 @@
+{
+  "name": "kaaro-sessions",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Live Claude Code session graph — a kaaroViewer companion tool",
+  "bin": {
+    "kaaro-sessions": "./serve.mjs"
+  },
+  "scripts": {
+    "start": "node serve.mjs",
+    "analyze": "node analyze.mjs",
+    "build": "node build.mjs"
+  }
+}

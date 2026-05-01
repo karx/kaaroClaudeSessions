@@ -37,13 +37,37 @@ const EXT_COLORS = {
   py: '#88cc44', txt: '#888888', sh: '#44ffaa',
 };
 
+// ── Recency scoring ───────────────────────────────────────────────────────────
+// recencyLevel: 0 = no pulse, 1 = dim (< 2 days), 2 = low (< 15 min), 3 = fast bright (< 5 min)
+const generatedAt  = new Date(DATA.meta.generated_at).getTime();
+const MAX_AGE_MS   = 2 * 24 * 3600 * 1000;
+const recencyScore = ts => ts ? Math.max(0, 1 - (generatedAt - new Date(ts).getTime()) / MAX_AGE_MS) : 0;
+const recencyLevel = ts => {
+  if (!ts) return 0;
+  const age = generatedAt - new Date(ts).getTime();
+  if (age <  5 * 60 * 1000)        return 3;
+  if (age < 15 * 60 * 1000)        return 2;
+  if (age <  2 * 24 * 3600 * 1000) return 1;
+  return 0;
+};
+
+// Project → most-recent session timestamp
+const projLastTs = {};
+for (const s of DATA.sessions) {
+  const ts = s.last_timestamp || s.first_timestamp;
+  if (ts && (!projLastTs[s.project_id] || ts > projLastTs[s.project_id]))
+    projLastTs[s.project_id] = ts;
+}
+
 // ── Build nodes & edges ───────────────────────────────────────────────────────
 
 const nodes = [];
 const edges = [];
 
 for (const proj of DATA.projects) {
-  const t = proj.tokens;
+  const t        = proj.tokens;
+  const pLastTs  = projLastTs[proj.id] || null;
+  const pRecency = recencyScore(pLastTs);
   nodes.push({
     id:            proj.id,
     type:          'project',
@@ -53,6 +77,9 @@ for (const proj of DATA.projects) {
     tokens_total:  t.input + t.cache_create + t.cache_read + t.output,
     tokens_work:   t.output + t.cache_create,
     skills:        proj.skills,
+    last_activity: pLastTs,
+    recency:       pRecency,
+    recencyLevel:  recencyLevel(pLastTs),
   });
 }
 
@@ -92,6 +119,9 @@ for (const sess of DATA.sessions) {
     model:            sess.model,
     sizeNorm:         Math.sqrt(tokens_work / MAX_WORK),
     errorLevel:       sess.tool_errors >= 8 ? 2 : sess.tool_errors >= 3 ? 1 : 0,
+    last_activity:    sess.last_timestamp || sess.first_timestamp || null,
+    recency:          recencyScore(sess.last_timestamp || sess.first_timestamp),
+    recencyLevel:     recencyLevel(sess.last_timestamp || sess.first_timestamp),
   });
   edges.push({ source: sess.session_id, target: sess.project_id, type: 'membership' });
 }
@@ -115,16 +145,30 @@ const MAX_FILE_W  = Math.max(1, ...globalFiles.map(f => f.write + f.edit));
 const sessById    = {};
 DATA.sessions.forEach(s => sessById[s.session_id] = s);
 
+// File → last-touched session timestamp
+const fileLastTs = {};
+for (const f of globalFiles) {
+  fileLastTs[f.path] = f.sessions.map(sid => {
+    const s = sessById[sid];
+    return s ? (s.last_timestamp || s.first_timestamp) : null;
+  }).filter(Boolean).sort().pop() || null;
+}
+
 for (const f of globalFiles) {
   if (f.sessions.length < MIN_FILE_SESSIONS) continue;
   if (f.write + f.edit === 0) continue;
   const ext      = (f.path.split('.').pop() || '').toLowerCase().split('?')[0];
   const sizeNorm = Math.sqrt((f.write + f.edit) / MAX_FILE_W);
+  const fLastTs  = fileLastTs[f.path] || null;
+  const fRecency = recencyScore(fLastTs);
   nodes.push({
     id: f.path, type: 'file', label: f.path.split('/').pop(),
     full_path: f.path, color: EXT_COLORS[ext] || '#666666', ext,
     read: f.read, write: f.write, edit: f.edit,
     session_count: f.sessions.length, sizeNorm,
+    last_activity: fLastTs,
+    recency:       fRecency,
+    recencyLevel:  recencyLevel(fLastTs),
   });
   for (const sessId of f.sessions) {
     const sess = sessById[sessId];
@@ -194,6 +238,13 @@ body { background: #080810; color: #9aa0b8; font-family: 'Courier New',monospace
 .line { width:22px; height:2px; flex-shrink:0; }
 .dash { width:22px; height:1px; border-top:2px dashed; flex-shrink:0; }
 .sep  { border-top: 1px solid #1c1c34; margin: 8px 0; }
+@keyframes pulse-ring {
+  0%   { transform:scale(1);   opacity:var(--po,.7); }
+  100% { transform:scale(2.6); opacity:0; }
+}
+.pring { fill:none; stroke-width:1.5; pointer-events:none;
+  animation:pulse-ring linear infinite;
+  transform-box:fill-box; transform-origin:center; }
 #controls { position: fixed; top: 16px; right: 16px; background: rgba(8,8,16,.9);
   border: 1px solid #1c1c34; padding: 12px 16px; min-width: 220px; }
 #controls h3 { color: #4455cc; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
@@ -336,6 +387,16 @@ GRAPH.nodes.forEach(n => nodeById[n.id] = n);
 
 function renderNodeContent(el, d) {
   const r = nodeR(d);
+  if (d.recencyLevel > 0) {
+    const spd=['','4s','2.4s','1.4s'][d.recencyLevel];
+    const opa=['','0.2','0.45','0.75'][d.recencyLevel];
+    const pr=d.type==='project'?PROJ_R+6:r+5;
+    el.append('circle').attr('class','pring').attr('r',pr).attr('stroke',d.color)
+      .style('animation-duration',spd).style('--po',opa);
+    if (d.recencyLevel===3)
+      el.append('circle').attr('class','pring').attr('r',pr).attr('stroke',d.color)
+        .style('animation-duration',spd).style('animation-delay','-0.7s').style('--po',opa);
+  }
   if (d.type === 'project') {
     el.append('circle').attr('r',PROJ_R).attr('fill','#080814').attr('stroke',d.color).attr('stroke-width',2.5);
     el.append('circle').attr('r',PROJ_R-7).attr('fill',d.color).attr('fill-opacity',.1);
@@ -390,6 +451,7 @@ function attachTooltip(sel) {
     } else if (d.type==='session') {
       tip.innerHTML=\`<strong style="color:\${d.color}">\${d.label}</strong>
         <div class="meta">\${d.date_str||'?'} · \${d.duration_min!=null?d.duration_min+'min':'?'} · \${d.model||'?'}</div>
+        \${d.recencyLevel>0?'<div class="meta" style="color:'+(['','#446','#88a','#adf'][d.recencyLevel])+'">● '+(['','< 2 days','< 15 min','< 5 min'][d.recencyLevel])+'</div>':''}
         <div class="meta">branch: \${d.git_branch||'?'}</div>
         <div class="meta">AI work: \${fmtT(d.tokens_work)} · cache: \${fmtT(d.tokens_cached)} (\${d.cache_hit_rate}%)</div>
         <div class="meta">\${d.tool_calls} calls · \${d.tool_errors} errors · \${d.tool_diversity} tool types</div>
@@ -447,6 +509,7 @@ function showPanel(d) {
     html=\`<h3 style="color:\${d.color}">\${d.label}</h3>
       <div class="prow"><span class="pk">Date</span><span class="pv">\${d.date_str||'?'}</span></div>
       <div class="prow"><span class="pk">Duration</span><span class="pv">\${d.duration_min!=null?d.duration_min+' min':'?'}</span></div>
+      \${d.last_activity?'<div class="prow"><span class="pk">Last active</span><span class="pv">'+d.last_activity.slice(0,16).replace('T',' ')+'</span></div>':''}
       <div class="prow"><span class="pk">Model</span><span class="pv">\${d.model||'?'}</span></div>
       <div class="prow"><span class="pk">Branch</span><span class="pv">\${d.git_branch||'?'}</span></div>
       <div class="psep"></div>

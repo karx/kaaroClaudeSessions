@@ -46,12 +46,26 @@ function normPath(raw) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function parseJsonlFile(filePath) {
-  const lines = fs.readFileSync(filePath, 'utf8').split('\n').filter(l => l.trim());
+  const raw = fs.readFileSync(filePath, 'utf8');
   const records = [];
-  for (const line of lines) {
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
     try { records.push(JSON.parse(line)); } catch { /* skip malformed */ }
   }
-  return records;
+  return { records, sizeBytes: Buffer.byteLength(raw, 'utf8') };
+}
+
+function categorizeBash(cmd) {
+  if (!cmd) return 'other';
+  const c = cmd.trimStart();
+  return c.startsWith('git ')    ? 'git'
+       : c.startsWith('npm ')    ? 'npm'
+       : c.startsWith('npx ')    ? 'npx'
+       : c.startsWith('node ')   ? 'node'
+       : c.startsWith('py ') || c.startsWith('python') ? 'python'
+       : /^(ls|cat|head|tail|mkdir|rm |cp |mv )/.test(c) ? 'fs'
+       : c.startsWith('curl ')   ? 'curl'
+       : 'other';
 }
 
 function extractTextFromContent(content) {
@@ -67,14 +81,14 @@ function extractSkills(text) {
 // ── Per-session analysis ──────────────────────────────────────────────────────
 
 function analyzeSession(projectId, filePath) {
-  const records  = parseJsonlFile(filePath);
+  const { records, sizeBytes } = parseJsonlFile(filePath);
   const sessionId = path.basename(filePath, '.jsonl');
 
   const session = {
     session_id:      sessionId,
     project_id:      projectId,
     project_label:   deriveLabel(projectId),
-    file_size_bytes: fs.statSync(filePath).size,
+    file_size_bytes: sizeBytes,
 
     first_timestamp: null,
     last_timestamp:  null,
@@ -196,15 +210,7 @@ function analyzeSession(projectId, filePath) {
           }
 
           if (name === 'Bash' && block.input?.command) {
-            const cmd = block.input.command.trimStart();
-            const cat = cmd.startsWith('git ')    ? 'git'
-                      : cmd.startsWith('npm ')    ? 'npm'
-                      : cmd.startsWith('npx ')    ? 'npx'
-                      : cmd.startsWith('node ')   ? 'node'
-                      : cmd.startsWith('py ')     || cmd.startsWith('python') ? 'python'
-                      : /^(ls|cat|head|tail|mkdir|rm |cp |mv )/.test(cmd)    ? 'fs'
-                      : cmd.startsWith('curl ')   ? 'curl'
-                      : 'other';
+            const cat = categorizeBash(block.input.command);
             session.bash_categories[cat] = (session.bash_categories[cat] || 0) + 1;
           }
         }
@@ -294,23 +300,27 @@ function buildGlobalRollup(sessions) {
   };
 }
 
-export { deriveLabel, normPath, extractTextFromContent, extractSkills, buildProjectSummary, buildGlobalRollup };
+export { deriveLabel, normPath, extractTextFromContent, extractSkills, buildProjectSummary, buildGlobalRollup, parseJsonlFile, categorizeBash };
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 function main() {
-  if (!fs.existsSync(PROJECTS_ROOT)) {
-    console.error(`Projects directory not found: ${PROJECTS_ROOT}`);
-    console.error('Is Claude Code installed?');
-    process.exit(1);
+  let projectEntries;
+  try {
+    projectEntries = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true });
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      console.error(`Projects directory not found: ${PROJECTS_ROOT}`);
+      console.error('Is Claude Code installed?');
+      process.exit(1);
+    }
+    throw err;
   }
 
   console.log('Scanning', PROJECTS_ROOT, '...');
 
   const allSessions = [];
-  const projectDirs = fs.readdirSync(PROJECTS_ROOT)
-    .filter(d => fs.statSync(path.join(PROJECTS_ROOT, d)).isDirectory())
-    .sort();
+  const projectDirs = projectEntries.filter(d => d.isDirectory()).map(d => d.name).sort();
 
   for (const projectId of projectDirs) {
     const pdir  = path.join(PROJECTS_ROOT, projectId);
@@ -362,7 +372,7 @@ function main() {
       total_projects: projects.length,
       date_range: {
         first: allSessions.find(s => s.first_timestamp)?.first_timestamp ?? null,
-        last:  [...allSessions].reverse().find(s => s.last_timestamp)?.last_timestamp ?? null,
+        last:  allSessions.findLast(s => s.last_timestamp)?.last_timestamp ?? null,
       },
     },
     projects,

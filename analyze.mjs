@@ -12,6 +12,7 @@
 import fs   from 'fs';
 import path from 'path';
 import os   from 'os';
+import { fileURLToPath } from 'url';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -293,6 +294,8 @@ function buildGlobalRollup(sessions) {
   };
 }
 
+export { deriveLabel, normPath, extractTextFromContent, extractSkills, buildProjectSummary, buildGlobalRollup };
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 function main() {
@@ -375,4 +378,4 @@ function main() {
   console.log(`Output: ${OUT_FILE}`);
 }
 
-main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) main();

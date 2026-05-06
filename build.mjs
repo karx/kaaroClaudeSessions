@@ -11,209 +11,249 @@
 
 import fs   from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const CWD  = process.cwd();
-const DATA = JSON.parse(fs.readFileSync(path.join(CWD, 'sessions-data.json'), 'utf8'));
-const MIN_FILE_SESSIONS = parseInt(process.argv.find(a => a.startsWith('--min-sessions='))?.split('=')[1] ?? '2');
+const CWD = process.cwd();
 
-// ── Dynamic color assignment ──────────────────────────────────────────────────
-// Projects sorted alphabetically for stable colour assignment across runs.
+// ── Pure exports (used by tests) ─────────────────────────────────────────────
 
-const PALETTE = [
+export const MAX_AGE_MS = 2 * 24 * 3600 * 1000;
+
+export const PALETTE = [
   '#00aaff', '#ff4488', '#cc44ff', '#ff8800',
   '#00ff88', '#ffcc00', '#00cccc', '#ff6666',
   '#44ffaa', '#ff88cc', '#8844ff', '#88ccff',
 ];
-const PROJECT_COLORS = {};
-const COLOR_TO_INDEX = {};
-[...DATA.projects].sort((a, b) => a.id < b.id ? -1 : 1).forEach((p, i) => {
-  PROJECT_COLORS[p.id]      = PALETTE[i % PALETTE.length];
-  COLOR_TO_INDEX[PALETTE[i % PALETTE.length]] = i;
-});
 
-const EXT_COLORS = {
+export const EXT_COLORS = {
   mjs: '#00cccc', js: '#00aaff', ts: '#6688ff', svelte: '#ff8844',
   json: '#ffcc00', md: '#cc44ff', html: '#ff4488', css: '#33ee88',
   py: '#88cc44', txt: '#888888', sh: '#44ffaa',
 };
 
-// ── Recency scoring ───────────────────────────────────────────────────────────
-// recencyLevel: 0 = no pulse, 1 = dim (< 2 days), 2 = low (< 15 min), 3 = fast bright (< 5 min)
-const generatedAt  = new Date(DATA.meta.generated_at).getTime();
-const MAX_AGE_MS   = 2 * 24 * 3600 * 1000;
-const recencyScore = ts => ts ? Math.max(0, 1 - (generatedAt - new Date(ts).getTime()) / MAX_AGE_MS) : 0;
-const recencyLevel = ts => {
+export function calcRecencyScore(ts, referenceMs) {
   if (!ts) return 0;
-  const age = generatedAt - new Date(ts).getTime();
+  return Math.max(0, 1 - (referenceMs - new Date(ts).getTime()) / MAX_AGE_MS);
+}
+
+export function calcRecencyLevel(ts, referenceMs) {
+  if (!ts) return 0;
+  const age = referenceMs - new Date(ts).getTime();
   if (age <  5 * 60 * 1000)        return 3;
   if (age < 15 * 60 * 1000)        return 2;
   if (age <  2 * 24 * 3600 * 1000) return 1;
   return 0;
-};
-
-// Project → most-recent session timestamp
-const projLastTs = {};
-for (const s of DATA.sessions) {
-  const ts = s.last_timestamp || s.first_timestamp;
-  if (ts && (!projLastTs[s.project_id] || ts > projLastTs[s.project_id]))
-    projLastTs[s.project_id] = ts;
 }
 
-// ── Build nodes & edges ───────────────────────────────────────────────────────
-
-const nodes = [];
-const edges = [];
-
-for (const proj of DATA.projects) {
-  const t        = proj.tokens;
-  const pLastTs  = projLastTs[proj.id] || null;
-  const pRecency = recencyScore(pLastTs);
-  nodes.push({
-    id:            proj.id,
-    type:          'project',
-    label:         proj.label,
-    color:         PROJECT_COLORS[proj.id] || '#888888',
-    session_count: proj.session_count,
-    tokens_total:  t.input + t.cache_create + t.cache_read + t.output,
-    tokens_work:   t.output + t.cache_create,
-    skills:        proj.skills,
-    last_activity: pLastTs,
-    recency:       pRecency,
-    recencyLevel:  recencyLevel(pLastTs),
+// Projects sorted alphabetically for stable colour assignment across runs.
+export function assignProjectColors(projects, palette) {
+  const PROJECT_COLORS = {};
+  const COLOR_TO_INDEX = {};
+  [...projects].sort((a, b) => a.id < b.id ? -1 : 1).forEach((p, i) => {
+    PROJECT_COLORS[p.id]                  = palette[i % palette.length];
+    COLOR_TO_INDEX[palette[i % palette.length]] = i;
   });
+  return { PROJECT_COLORS, COLOR_TO_INDEX };
 }
 
-const MAX_WORK = Math.max(1, ...DATA.sessions.map(s =>
-  (s.tokens?.output || 0) + (s.tokens?.cache_create || 0)
-));
-
-for (const sess of DATA.sessions) {
-  const t           = sess.tokens || {};
-  const tokens_work = (t.output || 0) + (t.cache_create || 0);
-  nodes.push({
-    id:               sess.session_id,
-    type:             'session',
-    label:            sess.slug || sess.session_id.slice(0, 8),
-    color:            PROJECT_COLORS[sess.project_id] || '#888888',
-    project_id:       sess.project_id,
-    git_branch:       sess.git_branch || null,
-    tokens_work,
-    tokens_cached:    t.cache_read || 0,
-    tokens_output:    t.output || 0,
-    tokens_total:     t.total || 0,
-    cache_hit_rate:   sess.cache_hit_rate,
-    tool_calls:       sess.tool_calls,
-    tool_errors:      sess.tool_errors,
-    tool_diversity:   sess.tool_diversity,
-    message_count:    sess.message_count,
-    user_turns:       sess.user_turns,
-    assistant_turns:  sess.assistant_turns,
-    thinking_count:   (sess.content_blocks?.thinking || 0),
-    hit_max_tokens:   (sess.stop_reasons?.max_tokens || 0) > 0,
-    bash_git:         (sess.bash_categories?.git || 0),
-    skills:           sess.skills || [],
-    date_str:         sess.date_str,
-    first_timestamp:  sess.first_timestamp,
-    duration_min:     sess.duration_min,
-    first_user_message: sess.first_user_message,
-    model:            sess.model,
-    sizeNorm:         Math.sqrt(tokens_work / MAX_WORK),
-    errorLevel:       sess.tool_errors >= 8 ? 2 : sess.tool_errors >= 3 ? 1 : 0,
-    last_activity:    sess.last_timestamp || sess.first_timestamp || null,
-    recency:          recencyScore(sess.last_timestamp || sess.first_timestamp),
-    recencyLevel:     recencyLevel(sess.last_timestamp || sess.first_timestamp),
-  });
-  edges.push({ source: sess.session_id, target: sess.project_id, type: 'membership' });
+export function parseMinSessions(argv) {
+  return parseInt(argv.find(a => a.startsWith('--min-sessions='))?.split('=')[1] ?? '1');
 }
 
-// Branch lineage edges
-const branchGroups = {};
-for (const sess of DATA.sessions) {
-  const b = sess.git_branch || '__unknown__';
-  (branchGroups[b] = branchGroups[b] || []).push(sess);
-}
-for (const [, group] of Object.entries(branchGroups)) {
-  if (group.length < 2) continue;
-  const sorted = [...group].sort((a, b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1);
-  for (let i = 0; i < sorted.length - 1; i++)
-    edges.push({ source: sorted[i].session_id, target: sorted[i+1].session_id, type: 'branch', branch: sorted[i].git_branch });
-}
-
-// File nodes
-const globalFiles = DATA.rollup?.files || [];
-const MAX_FILE_W  = Math.max(1, ...globalFiles.map(f => f.write + f.edit));
-const sessById    = {};
-DATA.sessions.forEach(s => sessById[s.session_id] = s);
-
-// File → last-touched session timestamp
-const fileLastTs = {};
-for (const f of globalFiles) {
-  fileLastTs[f.path] = f.sessions.map(sid => {
-    const s = sessById[sid];
-    return s ? (s.last_timestamp || s.first_timestamp) : null;
-  }).filter(Boolean).sort().pop() || null;
-}
-
-for (const f of globalFiles) {
-  if (f.sessions.length < MIN_FILE_SESSIONS) continue;
-  if (f.write + f.edit === 0) continue;
-  const ext      = (f.path.split('.').pop() || '').toLowerCase().split('?')[0];
-  const sizeNorm = Math.sqrt((f.write + f.edit) / MAX_FILE_W);
-  const fLastTs  = fileLastTs[f.path] || null;
-  const fRecency = recencyScore(fLastTs);
-  nodes.push({
-    id: f.path, type: 'file', label: f.path.split('/').pop(),
-    full_path: f.path, color: EXT_COLORS[ext] || '#666666', ext,
-    read: f.read, write: f.write, edit: f.edit,
-    session_count: f.sessions.length, sizeNorm,
-    last_activity: fLastTs,
-    recency:       fRecency,
-    recencyLevel:  recencyLevel(fLastTs),
-  });
-  for (const sessId of f.sessions) {
-    const sess = sessById[sessId];
-    if (!sess?.file_ops?.[f.path]) continue;
-    const ops    = sess.file_ops[f.path];
-    const opType = ops.write > 0 ? 'write' : ops.edit > 0 ? 'edit' : 'read';
-    edges.push({ source: sessId, target: f.path, type: opType, weight: ops.write + ops.edit + ops.read });
+export function buildFileNodesAndEdges(globalFiles, sessById, { minSessions = 1, referenceMs = Date.now() } = {}) {
+  const nodes = [];
+  const edges = [];
+  if (globalFiles.length === 0) return { nodes, edges };
+  const MAX_FILE_W = Math.max(1, ...globalFiles.map(f => f.write + f.edit));
+  const fileLastTs = {};
+  for (const f of globalFiles) {
+    fileLastTs[f.path] = f.sessions.map(sid => {
+      const s = sessById[sid];
+      return s ? (s.last_timestamp || s.first_timestamp) : null;
+    }).filter(Boolean).sort().pop() || null;
   }
+  for (const f of globalFiles) {
+    if (f.sessions.length < minSessions) continue;
+    const ext      = (f.path.split('.').pop() || '').toLowerCase().split('?')[0];
+    const sizeNorm = Math.sqrt((f.write + f.edit) / MAX_FILE_W);
+    const fLastTs  = fileLastTs[f.path] || null;
+    nodes.push({
+      id: f.path, type: 'file', label: f.path.split('/').pop(),
+      full_path: f.path, color: EXT_COLORS[ext] || '#666666', ext,
+      read: f.read, write: f.write, edit: f.edit,
+      session_count: f.sessions.length, sizeNorm,
+      last_activity: fLastTs,
+      recency:       calcRecencyScore(fLastTs, referenceMs),
+      recencyLevel:  calcRecencyLevel(fLastTs, referenceMs),
+    });
+    for (const sessId of f.sessions) {
+      const sess = sessById[sessId];
+      if (!sess?.file_ops?.[f.path]) continue;
+      const ops    = sess.file_ops[f.path];
+      const opType = ops.write > 0 ? 'write' : ops.edit > 0 ? 'edit' : 'read';
+      edges.push({ source: sessId, target: f.path, type: opType, weight: ops.write + ops.edit + ops.read });
+    }
+  }
+  return { nodes, edges };
 }
 
-const pN = nodes.filter(n => n.type === 'project').length;
-const sN = nodes.filter(n => n.type === 'session').length;
-const fN = nodes.filter(n => n.type === 'file').length;
-console.log(`Graph: ${nodes.length} nodes (${pN} project · ${sN} session · ${fN} file)`);
-console.log(`Edges: ${edges.length} (${edges.filter(e=>e.type==='membership').length} membership · ${edges.filter(e=>e.type==='branch').length} branch · ${edges.filter(e=>e.type==='write').length} write · ${edges.filter(e=>e.type==='edit').length} edit)`);
+export function filterSessionsByDateRange(sessions, fromTs = null, toTs = null) {
+  return sessions.filter(s => {
+    const ts = s.first_timestamp;
+    if (!ts) return true;
+    if (fromTs && ts < fromTs) return false;
+    if (toTs   && ts > toTs)   return false;
+    return true;
+  });
+}
 
-// Timeline data
-const timelineSessions = DATA.sessions
-  .filter(s => s.date_str)
-  .sort((a, b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1)
-  .map(s => ({
-    id:          s.session_id,
-    date_str:    s.date_str,
-    ts:          s.first_timestamp,
-    color:       PROJECT_COLORS[s.project_id] || '#888',
-    project:     s.project_label || s.project_id,
-    slug:        s.slug || s.session_id.slice(0, 8),
-    tokens_work: (s.tokens?.output || 0) + (s.tokens?.cache_create || 0),
-    tool_errors: s.tool_errors,
-    skills:      s.skills || [],
-  }));
+// ── Main pipeline ─────────────────────────────────────────────────────────────
 
-// ── Generate HTML ─────────────────────────────────────────────────────────────
+function run() {
+  const DATA = JSON.parse(fs.readFileSync(path.join(CWD, 'sessions-data.json'), 'utf8'));
+  const MIN_FILE_SESSIONS = parseMinSessions(process.argv);
 
-const graphJson       = JSON.stringify({ nodes, edges, meta: DATA.meta });
-const timelineJson    = JSON.stringify(timelineSessions);
-const colorIndexJson  = JSON.stringify(COLOR_TO_INDEX);
+  const { PROJECT_COLORS, COLOR_TO_INDEX } = assignProjectColors(DATA.projects, PALETTE);
 
-fs.writeFileSync(
-  path.join(CWD, 'graph-data.json'),
-  JSON.stringify({ nodes, edges, meta: DATA.meta, timeline: timelineSessions }),
-  'utf8'
-);
+  // ── Recency scoring ─────────────────────────────────────────────────────────
+  // recencyLevel: 0 = no pulse, 1 = dim (< 2 days), 2 = low (< 15 min), 3 = fast bright (< 5 min)
+  const generatedAt  = new Date(DATA.meta.generated_at).getTime();
+  const recencyScore = ts => calcRecencyScore(ts, generatedAt);
+  const recencyLevel = ts => calcRecencyLevel(ts, generatedAt);
 
-const html = `<!DOCTYPE html>
+  // Project → most-recent session timestamp
+  const projLastTs = {};
+  for (const s of DATA.sessions) {
+    const ts = s.last_timestamp || s.first_timestamp;
+    if (ts && (!projLastTs[s.project_id] || ts > projLastTs[s.project_id]))
+      projLastTs[s.project_id] = ts;
+  }
+
+  // ── Build nodes & edges ─────────────────────────────────────────────────────
+
+  const nodes = [];
+  const edges = [];
+
+  for (const proj of DATA.projects) {
+    const t        = proj.tokens;
+    const pLastTs  = projLastTs[proj.id] || null;
+    const pRecency = recencyScore(pLastTs);
+    nodes.push({
+      id:            proj.id,
+      type:          'project',
+      label:         proj.label,
+      color:         PROJECT_COLORS[proj.id] || '#888888',
+      session_count: proj.session_count,
+      tokens_total:  t.input + t.cache_create + t.cache_read + t.output,
+      tokens_work:   t.output + t.cache_create,
+      skills:        proj.skills,
+      last_activity: pLastTs,
+      recency:       pRecency,
+      recencyLevel:  recencyLevel(pLastTs),
+    });
+  }
+
+  const MAX_WORK = Math.max(1, ...DATA.sessions.map(s =>
+    (s.tokens?.output || 0) + (s.tokens?.cache_create || 0)
+  ));
+
+  for (const sess of DATA.sessions) {
+    const t           = sess.tokens || {};
+    const tokens_work = (t.output || 0) + (t.cache_create || 0);
+    nodes.push({
+      id:               sess.session_id,
+      type:             'session',
+      label:            sess.slug || sess.session_id.slice(0, 8),
+      color:            PROJECT_COLORS[sess.project_id] || '#888888',
+      project_id:       sess.project_id,
+      git_branch:       sess.git_branch || null,
+      tokens_work,
+      tokens_cached:    t.cache_read || 0,
+      tokens_output:    t.output || 0,
+      tokens_total:     t.total || 0,
+      cache_hit_rate:   sess.cache_hit_rate,
+      tool_calls:       sess.tool_calls,
+      tool_errors:      sess.tool_errors,
+      tool_diversity:   sess.tool_diversity,
+      message_count:    sess.message_count,
+      user_turns:       sess.user_turns,
+      assistant_turns:  sess.assistant_turns,
+      thinking_count:   (sess.content_blocks?.thinking || 0),
+      hit_max_tokens:   (sess.stop_reasons?.max_tokens || 0) > 0,
+      bash_git:         (sess.bash_categories?.git || 0),
+      skills:           sess.skills || [],
+      date_str:         sess.date_str,
+      first_timestamp:  sess.first_timestamp,
+      duration_min:     sess.duration_min,
+      first_user_message: sess.first_user_message,
+      model:            sess.model,
+      sizeNorm:         Math.sqrt(tokens_work / MAX_WORK),
+      errorLevel:       sess.tool_errors >= 8 ? 2 : sess.tool_errors >= 3 ? 1 : 0,
+      last_activity:    sess.last_timestamp || sess.first_timestamp || null,
+      recency:          recencyScore(sess.last_timestamp || sess.first_timestamp),
+      recencyLevel:     recencyLevel(sess.last_timestamp || sess.first_timestamp),
+    });
+    edges.push({ source: sess.session_id, target: sess.project_id, type: 'membership' });
+  }
+
+  // Branch lineage edges
+  const branchGroups = {};
+  for (const sess of DATA.sessions) {
+    const b = sess.git_branch || '__unknown__';
+    (branchGroups[b] = branchGroups[b] || []).push(sess);
+  }
+  for (const [, group] of Object.entries(branchGroups)) {
+    if (group.length < 2) continue;
+    const sorted = [...group].sort((a, b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1);
+    for (let i = 0; i < sorted.length - 1; i++)
+      edges.push({ source: sorted[i].session_id, target: sorted[i+1].session_id, type: 'branch', branch: sorted[i].git_branch });
+  }
+
+  // File nodes
+  const globalFiles = DATA.rollup?.files || [];
+  const sessById    = {};
+  DATA.sessions.forEach(s => sessById[s.session_id] = s);
+
+  const { nodes: fileNodes, edges: fileEdges } =
+    buildFileNodesAndEdges(globalFiles, sessById, { minSessions: MIN_FILE_SESSIONS, referenceMs: generatedAt });
+  nodes.push(...fileNodes);
+  edges.push(...fileEdges);
+
+  const pN = nodes.filter(n => n.type === 'project').length;
+  const sN = nodes.filter(n => n.type === 'session').length;
+  const fN = nodes.filter(n => n.type === 'file').length;
+  console.log(`Graph: ${nodes.length} nodes (${pN} project · ${sN} session · ${fN} file)`);
+  console.log(`Edges: ${edges.length} (${edges.filter(e=>e.type==='membership').length} membership · ${edges.filter(e=>e.type==='branch').length} branch · ${edges.filter(e=>e.type==='write').length} write · ${edges.filter(e=>e.type==='edit').length} edit)`);
+
+  // Timeline data
+  const timelineSessions = DATA.sessions
+    .filter(s => s.date_str)
+    .sort((a, b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1)
+    .map(s => ({
+      id:          s.session_id,
+      date_str:    s.date_str,
+      ts:          s.first_timestamp,
+      color:       PROJECT_COLORS[s.project_id] || '#888',
+      project:     s.project_label || s.project_id,
+      slug:        s.slug || s.session_id.slice(0, 8),
+      tokens_work: (s.tokens?.output || 0) + (s.tokens?.cache_create || 0),
+      tool_errors: s.tool_errors,
+      skills:      s.skills || [],
+    }));
+
+  // ── Generate HTML ───────────────────────────────────────────────────────────
+
+  const graphJson       = JSON.stringify({ nodes, edges, meta: DATA.meta });
+  const timelineJson    = JSON.stringify(timelineSessions);
+  const colorIndexJson  = JSON.stringify(COLOR_TO_INDEX);
+
+  fs.writeFileSync(
+    path.join(CWD, 'graph-data.json'),
+    JSON.stringify({ nodes, edges, meta: DATA.meta, timeline: timelineSessions }),
+    'utf8'
+  );
+
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -297,13 +337,16 @@ button.btn:hover { background:#1e1e40; }
 <div id="controls">
   <h3>◆ DISPLAY</h3>
   <div class="ctrl"><input type="checkbox" id="cb-files" checked><label for="cb-files">File nodes</label></div>
+  <div class="ctrl"><input type="checkbox" id="cb-ro-files" checked><label for="cb-ro-files">Read-only files</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-branch" checked><label for="cb-branch">Branch lineage edges</label></div>
-  <div class="ctrl"><input type="checkbox" id="cb-reads"><label for="cb-reads">Read-only edges</label></div>
+  <div class="ctrl"><input type="checkbox" id="cb-reads"><label for="cb-reads">Read edges</label></div>
   <div class="ctrl">
     <label for="sl-min">File min sessions:</label>
     <input type="range" id="sl-min" min="1" max="12" value="${MIN_FILE_SESSIONS}">
     <span class="val" id="sl-min-val">${MIN_FILE_SESSIONS}</span>
   </div>
+  <div class="sep"></div>
+  <div class="ctrl"><label style="flex-shrink:0;color:#556">From:</label><input type="date" id="tf-from" style="flex:1;min-width:0;background:#0c0c1e;border:1px solid #2a2a50;color:#8899cc;padding:2px 6px;font-family:inherit;font-size:10px"><button class="btn" id="tf-clear" style="padding:3px 7px">✕</button></div>
   <div class="ctrl"><button class="btn" id="btn-shake">⟳ Shake</button>&nbsp;<button class="btn" id="btn-reset">⌂ Reset</button></div>
 </div>
 <div id="stats"></div>
@@ -545,21 +588,59 @@ function showPanel(d) {
 function closePanel() { document.getElementById('panel').style.display='none'; }
 window.closePanel = closePanel;
 
-document.getElementById('cb-files').addEventListener('change', function() {
-  nodeSel.filter(n=>n.type==='file').attr('display',this.checked?null:'none');
-  edgeSel.filter(e=>nodeById[e.target?.id??e.target]?.type==='file').attr('display',this.checked?null:'none');
-});
-document.getElementById('cb-branch').addEventListener('change', function() { edgeSel.filter(e=>e.type==='branch').attr('display',this.checked?null:'none'); });
-document.getElementById('cb-reads').addEventListener('change', function() { edgeSel.filter(e=>e.type==='read').attr('display',this.checked?null:'none'); });
+let tlFrom = null;
+
+function applyFilters() {
+  const showFiles   = document.getElementById('cb-files').checked;
+  const showRoFiles = document.getElementById('cb-ro-files').checked;
+  const showBranch  = document.getElementById('cb-branch').checked;
+  const showReads   = document.getElementById('cb-reads').checked;
+  const minSess     = +document.getElementById('sl-min').value;
+
+  const hiddenNodes = new Set();
+  nodeSel.attr('display', d => {
+    if (d.type === 'session') {
+      if (tlFrom && d.date_str && d.date_str < tlFrom) { hiddenNodes.add(d.id); return 'none'; }
+      return null;
+    }
+    if (d.type === 'file') {
+      if (!showFiles)                                    { hiddenNodes.add(d.id); return 'none'; }
+      if (d.session_count < minSess)                     { hiddenNodes.add(d.id); return 'none'; }
+      if (!showRoFiles && d.write === 0 && d.edit === 0) { hiddenNodes.add(d.id); return 'none'; }
+      return null;
+    }
+    return null;
+  });
+  edgeSel.attr('display', e => {
+    const src = e.source?.id ?? e.source;
+    const tgt = e.target?.id ?? e.target;
+    if (hiddenNodes.has(src) || hiddenNodes.has(tgt)) return 'none';
+    if (e.type === 'read'   && !showReads)  return 'none';
+    if (e.type === 'branch' && !showBranch) return 'none';
+    return null;
+  });
+}
+
+document.getElementById('cb-files').addEventListener('change',    applyFilters);
+document.getElementById('cb-ro-files').addEventListener('change', applyFilters);
+document.getElementById('cb-branch').addEventListener('change',   applyFilters);
+document.getElementById('cb-reads').addEventListener('change',    applyFilters);
 document.getElementById('sl-min').addEventListener('input', function() {
-  const val=+this.value; document.getElementById('sl-min-val').textContent=val;
-  const hide=new Set(GRAPH.nodes.filter(n=>n.type==='file'&&n.session_count<val).map(n=>n.id));
-  nodeSel.filter(n=>n.type==='file').attr('display',n=>hide.has(n.id)?'none':null);
-  edgeSel.attr('display',e=>{ const t=e.target?.id??e.target; return hide.has(t)?'none':null; });
+  document.getElementById('sl-min-val').textContent = this.value;
+  applyFilters();
+});
+document.getElementById('tf-from').addEventListener('change', function() {
+  tlFrom = this.value || null;
+  applyFilters();
+});
+document.getElementById('tf-clear').addEventListener('click', () => {
+  document.getElementById('tf-from').value = '';
+  tlFrom = null;
+  applyFilters();
 });
 document.getElementById('btn-shake').addEventListener('click', ()=> simulation.alpha(.4).restart());
 document.getElementById('btn-reset').addEventListener('click', ()=> svg.transition().duration(600).call(zoom.transform, initialTransform));
-edgeSel.filter(e=>e.type==='read').attr('display','none');
+applyFilters();
 
 function updateStats() {
   const dr=GRAPH.meta.date_range;
@@ -617,9 +698,7 @@ window.updateGraph = function(newData) {
     .attr('font-size',9).attr('letter-spacing',1).attr('pointer-events','none').text(d=>d.label.toUpperCase());
   simulation.alpha(.18).restart();
   buildTimeline(); updateStats();
-  if(!document.getElementById('cb-files').checked){nodeSel.filter(n=>n.type==='file').attr('display','none');edgeSel.filter(e=>nodeById[e.target?.id??e.target]?.type==='file').attr('display','none');}
-  if(!document.getElementById('cb-branch').checked){edgeSel.filter(e=>e.type==='branch').attr('display','none');}
-  edgeSel.filter(e=>e.type==='read').attr('display','none');
+  applyFilters();
 };
 
 if (window.location.protocol==='http:'||window.location.protocol==='https:') {
@@ -643,6 +722,9 @@ window.addEventListener('resize',()=>{ W=window.innerWidth;H=window.innerHeight-
 </body>
 </html>`;
 
-const outPath = path.join(CWD, 'graph.html');
-fs.writeFileSync(outPath, html, 'utf8');
-console.log(`Written: ${outPath}  (${(html.length/1024).toFixed(0)} KB)`);
+  const outPath = path.join(CWD, 'graph.html');
+  fs.writeFileSync(outPath, html, 'utf8');
+  console.log(`Written: ${outPath}  (${(html.length/1024).toFixed(0)} KB)`);
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) run();

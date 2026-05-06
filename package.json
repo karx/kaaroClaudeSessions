@@ -12,6 +12,6 @@
     "start": "node serve.mjs",
     "analyze": "node analyze.mjs",
     "build": "node build.mjs",
-    "test": "node --test test/*.test.mjs"
+"test": "node --test test/*.test.mjs"
   }
 }

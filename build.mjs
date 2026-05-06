@@ -97,6 +97,14 @@ export function buildFileNodesAndEdges(globalFiles, sessById, { minSessions = 1,
   return { nodes, edges };
 }
 
+export const IN_FLIGHT_COLOR = '#00ffcc';
+
+export function isSessionInFlight(session, referenceMs = Date.now(), thresholdMs = 2 * 60 * 1000) {
+  if (!session.last_timestamp) return false;
+  const age = referenceMs - new Date(session.last_timestamp).getTime();
+  return age >= 0 && age < thresholdMs;
+}
+
 export function filterSessionsByDateRange(sessions, fromTs = null, toTs = null) {
   return sessions.filter(s => {
     const ts = s.first_timestamp;
@@ -192,6 +200,7 @@ function run() {
       last_activity:    sess.last_timestamp || sess.first_timestamp || null,
       recency:          recencyScore(sess.last_timestamp || sess.first_timestamp),
       recencyLevel:     recencyLevel(sess.last_timestamp || sess.first_timestamp),
+      inFlight:         isSessionInFlight(sess, Date.now()),
     });
     edges.push({ source: sess.session_id, target: sess.project_id, type: 'membership' });
   }
@@ -444,10 +453,11 @@ function renderNodeContent(el, d) {
     el.append('circle').attr('r',PROJ_R).attr('fill','#080814').attr('stroke',d.color).attr('stroke-width',2.5);
     el.append('circle').attr('r',PROJ_R-7).attr('fill',d.color).attr('fill-opacity',.1);
   } else if (d.type === 'session') {
+    if (d.inFlight) el.append('circle').attr('class','pring').attr('r',r+8).attr('stroke','${IN_FLIGHT_COLOR}').attr('stroke-width',2).attr('stroke-opacity',.9).style('animation-duration','0.8s');
     if (d.errorLevel===2) el.append('circle').attr('r',r+6).attr('fill','none').attr('stroke','#ff2244').attr('stroke-width',1.5).attr('stroke-opacity',.7);
     else if (d.errorLevel===1) el.append('circle').attr('r',r+4).attr('fill','none').attr('stroke','#ff6633').attr('stroke-width',1).attr('stroke-opacity',.5);
     if (d.skills?.length) el.append('circle').attr('r',r+4).attr('fill','none').attr('stroke','#ffcc00').attr('stroke-width',1).attr('stroke-opacity',.6).attr('stroke-dasharray','3 2');
-    el.append('circle').attr('r',r).attr('fill',d.color).attr('fill-opacity',.83).attr('stroke','#000').attr('stroke-width',.4);
+    el.append('circle').attr('r',r).attr('fill',d.color).attr('fill-opacity',.83).attr('stroke', d.inFlight ? '${IN_FLIGHT_COLOR}' : '#000').attr('stroke-width', d.inFlight ? 1.5 : .4);
     if (d.thinking_count>0) el.append('circle').attr('r',2.5).attr('fill','#fff').attr('fill-opacity',.9);
     if (d.hit_max_tokens) el.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('font-size',r*.8).attr('fill','#ff4444').attr('pointer-events','none').text('✕');
   } else {
@@ -500,6 +510,7 @@ function attachTooltip(sel) {
         <div class="meta">\${d.tool_calls} calls · \${d.tool_errors} errors · \${d.tool_diversity} tool types</div>
         \${d.thinking_count?'<div class="meta">thinking: '+d.thinking_count+'</div>':''}
         \${d.hit_max_tokens?'<div class="meta" style="color:#ff4444">⚠ hit max_tokens</div>':''}
+        \${d.inFlight?'<div class="meta" style="color:${IN_FLIGHT_COLOR}">⬤ in flight</div>':''}
         \${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}
         \${d.first_user_message?'<div class="body">'+d.first_user_message.slice(0,130)+'</div>':''}\`;
     } else {

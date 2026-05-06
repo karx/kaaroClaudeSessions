@@ -219,6 +219,8 @@ function analyzeSession(projectId, filePath) {
   }
 
   if (!session.slug) session.slug = session.session_id.slice(0, 8);
+  session.tool_timeline = extractToolTimeline(records);
+  enrichSession(session);
   return session;
 }
 
@@ -300,11 +302,131 @@ function buildGlobalRollup(sessions) {
   };
 }
 
+// ── Tool timeline ─────────────────────────────────────────────────────────────
+
+const FILE_OP_TOOLS = new Set(['Read', 'Write', 'Edit']);
+
+export function extractToolTimeline(records) {
+  const timeline = [];
+  let turn = 0;
+  for (const rec of records) {
+    if (rec.type !== 'assistant' || !rec.message?.content) continue;
+    turn++;
+    for (const block of rec.message.content) {
+      if (block.type !== 'tool_use') continue;
+      const name  = block.name || 'unknown';
+      const input = block.input || {};
+      let where = null;
+      if (FILE_OP_TOOLS.has(name) && input.file_path) {
+        where = input.file_path;
+      } else if ((name === 'Bash' || name === 'PowerShell') && input.command) {
+        where = String(input.command).slice(0, 120);
+      } else if ((name === 'Grep' || name === 'Glob') && input.pattern) {
+        where = input.pattern;
+      }
+      timeline.push({
+        ts:   rec.timestamp || null,
+        turn,
+        name,
+        where,
+        why:  input.description || null,
+      });
+    }
+  }
+  return timeline;
+}
+
+// ── Incremental analysis ──────────────────────────────────────────────────────
+
+export function parseSessionFlag(argv) {
+  const arg = argv.find(a => a.startsWith('--session='));
+  if (!arg) return null;
+  const val = arg.slice('--session='.length);
+  const slash = val.indexOf('/');
+  if (slash === -1) {
+    console.warn(`[analyze] malformed --session arg (no /): ${val}`);
+    return null;
+  }
+  const projectId  = val.slice(0, slash);
+  const rawSession = val.slice(slash + 1);
+  const sessionId  = rawSession.replace(/\.jsonl$/, '');
+  return { projectId, sessionId };
+}
+
+export function mergeSessionIntoData(existingData, updatedSession) {
+  const projectId = updatedSession.project_id;
+
+  // Replace or append session
+  const sessions = existingData.sessions.filter(s => s.session_id !== updatedSession.session_id);
+  sessions.push(updatedSession);
+
+  // Rebuild project summary for the affected project only
+  const projectSessions = sessions.filter(s => s.project_id === projectId);
+  const newProjectSummary = buildProjectSummary(projectId, projectSessions);
+
+  const projects = existingData.projects
+    .filter(p => p.id !== projectId)
+    .concat(newProjectSummary)
+    .sort((a, b) => a.id < b.id ? -1 : 1);
+
+  // Recompute rollup
+  const rollup = buildGlobalRollup(sessions);
+
+  return {
+    ...existingData,
+    sessions,
+    projects,
+    rollup,
+    meta: {
+      ...existingData.meta,
+      total_sessions: sessions.length,
+      total_projects: projects.length,
+    },
+  };
+}
+
 export { deriveLabel, normPath, extractTextFromContent, extractSkills, buildProjectSummary, buildGlobalRollup, parseJsonlFile, categorizeBash };
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+function enrichSession(sess) {
+  const t = sess.tokens;
+  t.total = t.input + t.cache_create + t.cache_read + t.output;
+  const inputSide = t.input + t.cache_create + t.cache_read;
+  sess.cache_hit_rate = inputSide > 0 ? +(t.cache_read / inputSide * 100).toFixed(1) : 0;
+  sess.duration_min   = sess.duration_ms != null ? +(sess.duration_ms / 60000).toFixed(1) : null;
+  sess.tool_diversity = Object.keys(sess.tools).length;
+  if (sess.first_timestamp) {
+    const d = new Date(sess.first_timestamp);
+    sess.day_of_week = d.getUTCDay();
+    sess.hour_of_day = d.getUTCHours();
+    sess.date_str    = sess.first_timestamp.slice(0, 10);
+  }
+}
+
 function main() {
+  const sessionFlag = parseSessionFlag(process.argv);
+  if (sessionFlag) {
+    const { projectId, sessionId } = sessionFlag;
+    const filePath = path.join(PROJECTS_ROOT, projectId, `${sessionId}.jsonl`);
+    let existingData;
+    try {
+      existingData = JSON.parse(fs.readFileSync(OUT_FILE, 'utf8'));
+    } catch {
+      console.log('No existing data — falling back to full scan');
+      return fullScan();
+    }
+    const updated = analyzeSession(projectId, filePath);
+    const result = mergeSessionIntoData(existingData, updated);
+    result.meta.generated_at = new Date().toISOString();
+    fs.writeFileSync(OUT_FILE, JSON.stringify(result, null, 2), 'utf8');
+    console.log(`Incremental: updated ${projectId}/${sessionId}`);
+    return;
+  }
+  fullScan();
+}
+
+function fullScan() {
   let projectEntries;
   try {
     projectEntries = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true });
@@ -348,21 +470,6 @@ function main() {
     .map(([id, sessions]) => buildProjectSummary(id, sessions));
 
   const rollup = buildGlobalRollup(allSessions);
-
-  for (const sess of allSessions) {
-    const t = sess.tokens;
-    t.total = t.input + t.cache_create + t.cache_read + t.output;
-    const inputSide = t.input + t.cache_create + t.cache_read;
-    sess.cache_hit_rate  = inputSide > 0 ? +(t.cache_read / inputSide * 100).toFixed(1) : 0;
-    sess.duration_min    = sess.duration_ms != null ? +(sess.duration_ms / 60000).toFixed(1) : null;
-    sess.tool_diversity  = Object.keys(sess.tools).length;
-    if (sess.first_timestamp) {
-      const d = new Date(sess.first_timestamp);
-      sess.day_of_week = d.getUTCDay();
-      sess.hour_of_day = d.getUTCHours();
-      sess.date_str    = sess.first_timestamp.slice(0, 10);
-    }
-  }
 
   const output = {
     meta: {

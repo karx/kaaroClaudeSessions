@@ -46,9 +46,9 @@ let pendingRebuild = false;
 let debounceTimer  = null;
 let lastBuilt      = null;
 
-function run(script) {
+function run(script, extraArgs = []) {
   return new Promise((resolve, reject) => {
-    execFile(process.execPath, [script], { cwd: __dirname }, (err, stdout, stderr) => {
+    execFile(process.execPath, [script, ...extraArgs], { cwd: __dirname }, (err, stdout, stderr) => {
       if (stdout) process.stdout.write(stdout);
       if (stderr) process.stderr.write(stderr);
       if (err) reject(err); else resolve();
@@ -56,15 +56,24 @@ function run(script) {
   });
 }
 
-async function rebuild() {
-  if (rebuilding) { pendingRebuild = true; return; }
+let pendingSessionArg = null;
+
+async function rebuild(sessionArg = null) {
+  if (rebuilding) {
+    pendingRebuild = true;
+    // If any queued change needs a full scan (null) or two different sessions changed → full scan
+    pendingSessionArg = (sessionArg === null || pendingSessionArg === null || pendingSessionArg !== sessionArg)
+      ? null : sessionArg;
+    return;
+  }
   rebuilding = true;
   const t0 = Date.now();
   console.log(`\n[${new Date().toLocaleTimeString()}] Rebuilding…`);
   notify('status', 'rebuilding');
 
   try {
-    await run(ANALYZE_SCRIPT);
+    const analyzeArgs = sessionArg ? [sessionArg] : [];
+    await run(ANALYZE_SCRIPT, analyzeArgs);
     await run(BUILD_SCRIPT);
     lastBuilt = new Date();
     console.log(`Done in ${((Date.now() - t0) / 1000).toFixed(1)}s — ${clients.size} client(s) connected`);
@@ -74,13 +83,17 @@ async function rebuild() {
     notify('error', e.message.slice(0, 200));
   } finally {
     rebuilding = false;
-    if (pendingRebuild) { pendingRebuild = false; rebuild(); }
+    if (pendingRebuild) {
+      const arg = pendingSessionArg;
+      pendingRebuild = false; pendingSessionArg = null;
+      rebuild(arg);
+    }
   }
 }
 
-function scheduleRebuild() {
+function scheduleRebuild(sessionArg = null) {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(rebuild, 1500);
+  debounceTimer = setTimeout(() => rebuild(sessionArg), 1500);
 }
 
 // ── File watcher ──────────────────────────────────────────────────────────────
@@ -95,7 +108,11 @@ try {
   fs.watch(PROJECTS_DIR, { recursive: true }, (_, filename) => {
     if (filename?.endsWith('.jsonl')) {
       console.log(`  changed: ${filename}`);
-      scheduleRebuild();
+      const parts = filename.replace(/\\/g, '/').split('/');
+      const sessionArg = parts.length === 2
+        ? `--session=${parts[0]}/${parts[1]}`
+        : null;
+      scheduleRebuild(sessionArg);
     }
   });
   console.log(`Watching: ${PROJECTS_DIR}`);

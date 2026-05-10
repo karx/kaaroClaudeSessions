@@ -127,7 +127,7 @@ test('buildFileNodesAndEdges — sizeNorm', async t => {
 });
 
 test('buildFileNodesAndEdges — edge types', async t => {
-  await t.test('emits write edge when session wrote the file', () => {
+  await t.test('write-only session emits exactly one write edge', () => {
     const f = makeFile('src/out.js', { write: 2, sessions: ['s1'] });
     const sessById = { s1: makeSess('s1', { 'src/out.js': { read: 0, write: 2, edit: 0 } }) };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
@@ -137,36 +137,95 @@ test('buildFileNodesAndEdges — edge types', async t => {
     assert.equal(edges[0].target, 'src/out.js');
   });
 
-  await t.test('emits edit edge when session edited but did not write', () => {
+  await t.test('edit-only session emits exactly one edit edge', () => {
     const f = makeFile('src/out.js', { edit: 3, sessions: ['s1'] });
     const sessById = { s1: makeSess('s1', { 'src/out.js': { read: 0, write: 0, edit: 3 } }) };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 1);
     assert.equal(edges[0].type, 'edit');
   });
 
-  await t.test('emits read edge for a read-only session interaction', () => {
+  await t.test('read-only session emits exactly one read edge', () => {
     const f = makeFile('src/ro.js', { read: 2, sessions: ['s1'] });
     const sessById = { s1: makeSess('s1', { 'src/ro.js': { read: 2, write: 0, edit: 0 } }) };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 1);
     assert.equal(edges[0].type, 'read');
   });
 
-  await t.test('edge weight equals total ops (write+edit+read)', () => {
+  await t.test('each edge carries per-op weight, not total', () => {
     const f = makeFile('src/x.js', { read: 1, write: 2, edit: 3, sessions: ['s1'] });
     const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 1, write: 2, edit: 3 } }) };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
-    assert.equal(edges[0].weight, 6);
+    const byType = Object.fromEntries(edges.map(e => [e.type, e.weight]));
+    assert.equal(byType.write, 2);
+    assert.equal(byType.edit,  3);
+    assert.equal(byType.read,  1);
   });
 
   await t.test('skips edge when session has no file_ops entry for this file', () => {
     const f = makeFile('src/x.js', { write: 1, sessions: ['s1', 's2'] });
     const sessById = {
       s1: makeSess('s1', { 'src/x.js': { read: 0, write: 1, edit: 0 } }),
-      s2: makeSess('s2', {}), // no entry for src/x.js
+      s2: makeSess('s2', {}),
     };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
     assert.equal(edges.length, 1);
     assert.equal(edges[0].source, 's1');
+  });
+});
+
+test('buildFileNodesAndEdges — multi-op edges per session', async t => {
+  await t.test('write+read session emits both a write and a read edge', () => {
+    const f = makeFile('src/x.js', { read: 3, write: 2, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 3, write: 2, edit: 0 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 2);
+    assert.deepEqual(edges.map(e => e.type).sort(), ['read', 'write']);
+  });
+
+  await t.test('edit+read session emits both an edit and a read edge', () => {
+    const f = makeFile('src/x.js', { read: 2, edit: 4, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 2, write: 0, edit: 4 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 2);
+    assert.deepEqual(edges.map(e => e.type).sort(), ['edit', 'read']);
+  });
+
+  await t.test('write+edit+read session emits three edges', () => {
+    const f = makeFile('src/x.js', { read: 1, write: 2, edit: 3, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 1, write: 2, edit: 3 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 3);
+    assert.deepEqual(edges.map(e => e.type).sort(), ['edit', 'read', 'write']);
+  });
+
+  await t.test('write edge weight equals write count only', () => {
+    const f = makeFile('src/x.js', { read: 1, write: 2, edit: 3, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 1, write: 2, edit: 3 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.find(e => e.type === 'write').weight, 2);
+  });
+
+  await t.test('edit edge weight equals edit count only', () => {
+    const f = makeFile('src/x.js', { read: 1, write: 2, edit: 3, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 1, write: 2, edit: 3 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.find(e => e.type === 'edit').weight, 3);
+  });
+
+  await t.test('read edge weight equals read count only', () => {
+    const f = makeFile('src/x.js', { read: 1, write: 2, edit: 3, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 1, write: 2, edit: 3 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.find(e => e.type === 'read').weight, 1);
+  });
+
+  await t.test('all edges share the same source and target', () => {
+    const f = makeFile('src/x.js', { read: 1, write: 2, edit: 3, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 1, write: 2, edit: 3 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.ok(edges.every(e => e.source === 's1' && e.target === 'src/x.js'));
   });
 });
 

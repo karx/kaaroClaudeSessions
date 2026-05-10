@@ -89,9 +89,10 @@ export function buildFileNodesAndEdges(globalFiles, sessById, { minSessions = 1,
     for (const sessId of f.sessions) {
       const sess = sessById[sessId];
       if (!sess?.file_ops?.[f.path]) continue;
-      const ops    = sess.file_ops[f.path];
-      const opType = ops.write > 0 ? 'write' : ops.edit > 0 ? 'edit' : 'read';
-      edges.push({ source: sessId, target: f.path, type: opType, weight: ops.write + ops.edit + ops.read });
+      const ops = sess.file_ops[f.path];
+      if (ops.write > 0) edges.push({ source: sessId, target: f.path, type: 'write', weight: ops.write });
+      if (ops.edit  > 0) edges.push({ source: sessId, target: f.path, type: 'edit',  weight: ops.edit  });
+      if (ops.read  > 0) edges.push({ source: sessId, target: f.path, type: 'read',  weight: ops.read  });
     }
   }
   return { nodes, edges };
@@ -232,7 +233,7 @@ function run() {
   const sN = nodes.filter(n => n.type === 'session').length;
   const fN = nodes.filter(n => n.type === 'file').length;
   console.log(`Graph: ${nodes.length} nodes (${pN} project · ${sN} session · ${fN} file)`);
-  console.log(`Edges: ${edges.length} (${edges.filter(e=>e.type==='membership').length} membership · ${edges.filter(e=>e.type==='branch').length} branch · ${edges.filter(e=>e.type==='write').length} write · ${edges.filter(e=>e.type==='edit').length} edit)`);
+  console.log(`Edges: ${edges.length} (${edges.filter(e=>e.type==='membership').length} membership · ${edges.filter(e=>e.type==='branch').length} branch · ${edges.filter(e=>e.type==='write').length} write · ${edges.filter(e=>e.type==='edit').length} edit · ${edges.filter(e=>e.type==='read').length} read)`);
 
   // Timeline data
   const timelineSessions = DATA.sessions
@@ -287,6 +288,9 @@ body { background: #080810; color: #9aa0b8; font-family: 'Courier New',monospace
 .line { width:22px; height:2px; flex-shrink:0; }
 .dash { width:22px; height:1px; border-top:2px dashed; flex-shrink:0; }
 .sep  { border-top: 1px solid #1c1c34; margin: 8px 0; }
+.widget-toggle { float:right; cursor:pointer; color:#334; font-size:16px; line-height:1; margin-top:-1px; }
+.widget-toggle:hover { color:#8899cc; }
+.widget.collapsed .widget-body { display:none; }
 @keyframes pulse-ring {
   0%   { transform:scale(1);   opacity:var(--po,.7); }
   100% { transform:scale(2.6); opacity:0; }
@@ -327,14 +331,16 @@ button.btn:hover { background:#1e1e40; }
 <body>
 <svg id="canvas"></svg>
 <div id="tip"></div>
-<div id="legend">
-  <h3>◆ LEGEND</h3>
+<div id="legend" class="widget">
+  <h3>◆ LEGEND <span class="widget-toggle" onclick="toggleWidget('legend')">−</span></h3>
+  <div class="widget-body">
   <div class="leg"><div class="dot" style="background:#08081a;border:2px solid #aaa;box-sizing:border-box"></div>Project cluster</div>
   <div class="leg"><div class="dot" style="background:#00aaff;opacity:.85"></div>Session (size = AI work)</div>
   <div class="leg"><div class="dia" style="background:#00cccc"></div>File (size = edits)</div>
   <div class="sep"></div>
   <div class="leg"><div class="line" style="background:#00ff88;opacity:.7"></div>write op</div>
   <div class="leg"><div class="line" style="background:#ffcc00;opacity:.7"></div>edit op</div>
+  <div class="leg"><div class="dash" style="border-color:#1e4a66;opacity:.9;border-style:dotted"></div>read op</div>
   <div class="leg"><div class="line" style="background:#19304a;opacity:1"></div>membership</div>
   <div class="leg"><div class="dash" style="border-color:#557;opacity:.8"></div>branch lineage</div>
   <div class="sep"></div>
@@ -342,9 +348,13 @@ button.btn:hover { background:#1e1e40; }
   <div class="leg"><div class="ring" style="border-color:#ffcc00"></div>custom skill used</div>
   <div class="leg"><div class="dot" style="background:#fff;width:7px;height:7px;margin:2px 2px"></div>thinking blocks</div>
   <div class="leg"><span style="color:#ff4444;font-size:12px;line-height:1">✕</span>&nbsp;hit max_tokens</div>
+  <div class="sep"></div>
+  <div class="leg" style="color:#556;font-size:10px">edge thickness = visit frequency</div>
+  </div>
 </div>
-<div id="controls">
-  <h3>◆ DISPLAY</h3>
+<div id="controls" class="widget">
+  <h3>◆ DISPLAY <span class="widget-toggle" onclick="toggleWidget('controls')">−</span></h3>
+  <div class="widget-body">
   <div class="ctrl"><input type="checkbox" id="cb-files" checked><label for="cb-files">File nodes</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-ro-files" checked><label for="cb-ro-files">Read-only files</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-branch" checked><label for="cb-branch">Branch lineage edges</label></div>
@@ -357,6 +367,7 @@ button.btn:hover { background:#1e1e40; }
   <div class="sep"></div>
   <div class="ctrl"><label style="flex-shrink:0;color:#556">From:</label><input type="date" id="tf-from" style="flex:1;min-width:0;background:#0c0c1e;border:1px solid #2a2a50;color:#8899cc;padding:2px 6px;font-family:inherit;font-size:10px"><button class="btn" id="tf-clear" style="padding:3px 7px">✕</button></div>
   <div class="ctrl"><button class="btn" id="btn-shake">⟳ Shake</button>&nbsp;<button class="btn" id="btn-reset">⌂ Reset</button></div>
+  </div>
 </div>
 <div id="stats"></div>
 <div id="panel"><span id="panel-x" onclick="closePanel()">✕</span><div id="panel-content"></div></div>
@@ -367,6 +378,7 @@ button.btn:hover { background:#1e1e40; }
 let GRAPH    = ${graphJson};
 let TIMELINE = ${timelineJson};
 const COLOR_TO_INDEX = ${colorIndexJson};
+let MAX_WEIGHT = Math.max(1, ...GRAPH.edges.map(e => e.weight || 0));
 
 const TL_H = 60;
 let W = window.innerWidth, H = window.innerHeight - TL_H;
@@ -420,14 +432,16 @@ const simulation = d3.forceSimulation(GRAPH.nodes)
   .force('collision', d3.forceCollide(d=>nodeR(d)+4).strength(0.85))
   .alphaDecay(0.006).velocityDecay(0.38);
 
-const EC = {membership:'#162035',write:'#00ff88',edit:'#ffcc00',read:'#102030',branch:'#334455'};
+const EC = {membership:'#162035',write:'#00ff88',edit:'#ffcc00',read:'#1e4a66',branch:'#334455'};
 const EO = {membership:.55,write:.65,edit:.65,read:.28,branch:.4};
 const EW = {membership:1.4,write:1,edit:1,read:.7,branch:.8};
 const edgeKey = e => \`\${e.source?.id??e.source}::\${e.type}::\${e.target?.id??e.target}\`;
 
+function edgeO(d) { const b=EO[d.type]||.3; if(!d.weight) return b; const wn=Math.sqrt(d.weight/MAX_WEIGHT); return Math.min(1,b*(0.5+1.5*wn)); }
+function edgeW(d) { const b=EW[d.type]||1; if(!d.weight) return b; const wn=Math.sqrt(d.weight/MAX_WEIGHT); return b*(0.5+2*wn); }
 function styleEdge(sel) {
-  return sel.attr('stroke',d=>EC[d.type]||'#222').attr('stroke-opacity',d=>EO[d.type]||.3)
-    .attr('stroke-width',d=>EW[d.type]||1).attr('stroke-dasharray',d=>d.type==='branch'?'5 3':null)
+  return sel.attr('stroke',d=>EC[d.type]||'#222').attr('stroke-opacity',d=>edgeO(d))
+    .attr('stroke-width',d=>edgeW(d)).attr('stroke-dasharray',d=>d.type==='branch'?'5 3':d.type==='read'?'2 4':null)
     .attr('class',d=>'e-'+d.type);
 }
 
@@ -533,10 +547,10 @@ function neighbours(id) {
   return s;
 }
 function highlight(id) {
-  if (!id) { nodeSel.attr('opacity',1); edgeSel.attr('stroke-opacity',d=>EO[d.type]||.3); d3.selectAll('.tl-dot').attr('opacity',1); return; }
+  if (!id) { nodeSel.attr('opacity',1); edgeSel.call(styleEdge); d3.selectAll('.tl-dot').attr('opacity',1); return; }
   const nb=neighbours(id);
   nodeSel.attr('opacity',d=>nb.has(d.id)?1:.05);
-  edgeSel.attr('stroke-opacity',e=>{ const a=e.source?.id??e.source,b=e.target?.id??e.target; return (a===id||b===id)?Math.min(1,(EO[e.type]||.3)*2):.025; });
+  edgeSel.attr('stroke-opacity',e=>{ const a=e.source?.id??e.source,b=e.target?.id??e.target; return (a===id||b===id)?Math.min(1,edgeO(e)*2):.025; });
   d3.selectAll('.tl-dot').attr('opacity',d=>d.id===id?1:.2);
 }
 
@@ -690,6 +704,12 @@ function buildTimeline() {
         const t=d3.zoomTransform(svg.node()),nx=node.x*t.k+t.x,ny=node.y*t.k+t.y;
         svg.transition().duration(500).call(zoom.translateBy,(W/2-nx)/t.k,(H/2-ny)/t.k); } });
 }
+function toggleWidget(id) {
+  const el=document.getElementById(id);
+  const col=el.classList.toggle('collapsed');
+  el.querySelector('.widget-toggle').textContent=col?'+':'−';
+}
+
 buildTimeline();
 nodeSel.call(drag);
 
@@ -699,6 +719,7 @@ window.updateGraph = function(newData) {
   newData.nodes.forEach(n=>{ if(posById[n.id]) Object.assign(n,posById[n.id]); });
   seedPositions(newData);
   GRAPH=newData; TIMELINE=newData.timeline||TIMELINE;
+  MAX_WEIGHT=Math.max(1,...GRAPH.edges.map(e=>e.weight||0));
   GRAPH.nodes.forEach(n=>nodeById[n.id]=n);
   simulation.nodes(GRAPH.nodes);
   simulation.force('link').links(GRAPH.edges);

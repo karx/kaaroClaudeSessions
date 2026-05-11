@@ -124,21 +124,16 @@ function run() {
 
   const { PROJECT_COLORS, COLOR_TO_INDEX } = assignProjectColors(DATA.projects, PALETTE);
 
-  // ── Recency scoring ─────────────────────────────────────────────────────────
-  // recencyLevel: 0 = no pulse, 1 = dim (< 2 days), 2 = low (< 15 min), 3 = fast bright (< 5 min)
   const generatedAt  = new Date(DATA.meta.generated_at).getTime();
   const recencyScore = ts => calcRecencyScore(ts, generatedAt);
   const recencyLevel = ts => calcRecencyLevel(ts, generatedAt);
 
-  // Project → most-recent session timestamp
   const projLastTs = {};
   for (const s of DATA.sessions) {
     const ts = s.last_timestamp || s.first_timestamp;
     if (ts && (!projLastTs[s.project_id] || ts > projLastTs[s.project_id]))
       projLastTs[s.project_id] = ts;
   }
-
-  // ── Build nodes & edges ─────────────────────────────────────────────────────
 
   const nodes = [];
   const edges = [];
@@ -206,7 +201,6 @@ function run() {
     edges.push({ source: sess.session_id, target: sess.project_id, type: 'membership' });
   }
 
-  // Branch lineage edges
   const branchGroups = {};
   for (const sess of DATA.sessions) {
     const b = sess.git_branch || '__unknown__';
@@ -219,7 +213,6 @@ function run() {
       edges.push({ source: sorted[i].session_id, target: sorted[i+1].session_id, type: 'branch', branch: sorted[i].git_branch });
   }
 
-  // File nodes
   const globalFiles = DATA.rollup?.files || [];
   const sessById    = {};
   DATA.sessions.forEach(s => sessById[s.session_id] = s);
@@ -235,7 +228,6 @@ function run() {
   console.log(`Graph: ${nodes.length} nodes (${pN} project · ${sN} session · ${fN} file)`);
   console.log(`Edges: ${edges.length} (${edges.filter(e=>e.type==='membership').length} membership · ${edges.filter(e=>e.type==='branch').length} branch · ${edges.filter(e=>e.type==='write').length} write · ${edges.filter(e=>e.type==='edit').length} edit · ${edges.filter(e=>e.type==='read').length} read)`);
 
-  // Timeline data
   const timelineSessions = DATA.sessions
     .filter(s => s.date_str)
     .sort((a, b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1)
@@ -250,8 +242,6 @@ function run() {
       tool_errors: s.tool_errors,
       skills:      s.skills || [],
     }));
-
-  // ── Generate HTML ───────────────────────────────────────────────────────────
 
   const graphJson       = JSON.stringify({ nodes, edges, meta: DATA.meta });
   const timelineJson    = JSON.stringify(timelineSessions);
@@ -271,15 +261,29 @@ function run() {
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #080810; color: #9aa0b8; font-family: 'Courier New',monospace; font-size: 11px; overflow: hidden; user-select: none; }
-#canvas { display: block; }
+#canvas { display: block; position: fixed; top: 0; left: 0; }
+#matrix-view { position: fixed; top: 0; left: 0; right: 0; bottom: 60px; overflow: auto; background: #080810; display: none; }
+#three-view  { position: fixed; top: 0; left: 0; right: 0; bottom: 60px; display: none; }
+
+/* layout switcher */
+#layout-bar { position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 3px; background: rgba(8,8,16,.92); border: 1px solid #1c1c34;
+  padding: 5px 8px; z-index: 500; }
+.lay-btn { background: #0e0e22; border: 1px solid #252548; color: #556688;
+  padding: 4px 13px; cursor: pointer; font-family: inherit; font-size: 9px;
+  letter-spacing: 1.5px; text-transform: uppercase; transition: background 0.15s; }
+.lay-btn:hover  { background: #1a1a36; color: #8899cc; }
+.lay-btn.active { background: #1e1e44; color: #aabbff; border-color: #4455cc; }
+
 #tip { position: fixed; pointer-events: none; background: #0c0c1e; border: 1px solid #252540;
   padding: 10px 14px; max-width: 320px; display: none; line-height: 1.6; z-index: 300;
   box-shadow: 0 4px 24px rgba(0,0,0,.7); }
 #tip strong { color: #fff; display: block; margin-bottom: 2px; font-size: 12px; }
 #tip .meta  { color: #5566aa; }
 #tip .body  { color: #8899bb; margin-top: 6px; font-size: 10px; line-height: 1.4; }
-#legend { position: fixed; top: 16px; left: 16px; background: rgba(8,8,16,.9);
-  border: 1px solid #1c1c34; padding: 12px 16px; min-width: 200px; }
+
+#legend { position: fixed; top: 48px; left: 16px; background: rgba(8,8,16,.9);
+  border: 1px solid #1c1c34; padding: 12px 16px; min-width: 200px; z-index: 200; }
 #legend h3 { color: #4455cc; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
 .leg { display: flex; align-items: center; gap: 8px; margin: 5px 0; color: #667; }
 .dot  { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
@@ -298,8 +302,8 @@ body { background: #080810; color: #9aa0b8; font-family: 'Courier New',monospace
 .pring { fill:none; stroke-width:1.5; pointer-events:none;
   animation:pulse-ring linear infinite;
   transform-box:fill-box; transform-origin:center; }
-#controls { position: fixed; top: 16px; right: 16px; background: rgba(8,8,16,.9);
-  border: 1px solid #1c1c34; padding: 12px 16px; min-width: 220px; }
+#controls { position: fixed; top: 48px; right: 16px; background: rgba(8,8,16,.9);
+  border: 1px solid #1c1c34; padding: 12px 16px; min-width: 230px; z-index: 200; }
 #controls h3 { color: #4455cc; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
 .ctrl { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
 .ctrl label { flex: 1; cursor: pointer; color: #778; }
@@ -312,7 +316,7 @@ button.btn:hover { background:#1e1e40; }
 #stats { position: fixed; bottom: 74px; left: 16px; color: #2a2a44; font-size: 10px; letter-spacing: 1px; pointer-events: none; }
 #panel { position: fixed; top: 0; right: 0; bottom: 60px; width: 300px;
   background: rgba(8,8,16,.96); border-left: 1px solid #1c1c34;
-  padding: 20px 18px; display: none; overflow-y: auto; }
+  padding: 20px 18px; display: none; overflow-y: auto; z-index: 250; }
 #panel-x { position:absolute; top:12px; right:14px; cursor:pointer; color:#334; font-size:18px; }
 #panel-x:hover { color: #fff; }
 #panel h3 { font-size:13px; margin-bottom:14px; word-break:break-all; }
@@ -324,12 +328,30 @@ button.btn:hover { background:#1e1e40; }
 .psep { border-top:1px solid #1c1c34; margin:10px 0; }
 .pmsg { margin-top:8px; color:#6677aa; font-size:10px; line-height:1.5; }
 #timeline { position: fixed; bottom: 0; left: 0; right: 0; height: 60px;
-  background: #06060e; border-top: 1px solid #14142a; overflow: hidden; }
+  background: #06060e; border-top: 1px solid #14142a; overflow: hidden; z-index: 100; }
 #tl-svg { display: block; width: 100%; height: 100%; }
+
+/* matrix layout */
+.mx-empty { color: #2a2a44; padding: 60px; text-align: center; font-size: 13px; }
+.mx-legend { display: flex; gap: 16px; padding: 10px 16px; border-bottom: 1px solid #14142a;
+  position: sticky; top: 0; background: #080810; z-index: 10; }
+.mx-leg-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #556; }
+.mx-leg-swatch { width: 14px; height: 14px; }
 </style>
 </head>
 <body>
 <svg id="canvas"></svg>
+<div id="matrix-view"></div>
+<div id="three-view"></div>
+
+<div id="layout-bar">
+  <button class="lay-btn active" data-layout="force">Force</button>
+  <button class="lay-btn" data-layout="swimlane">Swimlane</button>
+  <button class="lay-btn" data-layout="arc">Arc</button>
+  <button class="lay-btn" data-layout="matrix">Matrix</button>
+  <button class="lay-btn" data-layout="3d">3D</button>
+</div>
+
 <div id="tip"></div>
 <div id="legend" class="widget">
   <h3>◆ LEGEND <span class="widget-toggle" onclick="toggleWidget('legend')">−</span></h3>
@@ -359,6 +381,7 @@ button.btn:hover { background:#1e1e40; }
   <div class="ctrl"><input type="checkbox" id="cb-ro-files" checked><label for="cb-ro-files">Read-only files</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-branch" checked><label for="cb-branch">Branch lineage edges</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-reads"><label for="cb-reads">Read edges</label></div>
+  <div class="ctrl"><input type="checkbox" id="cb-group"><label for="cb-group">Group by project (force)</label></div>
   <div class="ctrl">
     <label for="sl-min">File min sessions:</label>
     <input type="range" id="sl-min" min="1" max="12" value="${MIN_FILE_SESSIONS}">
@@ -366,7 +389,7 @@ button.btn:hover { background:#1e1e40; }
   </div>
   <div class="sep"></div>
   <div class="ctrl"><label style="flex-shrink:0;color:#556">From:</label><input type="date" id="tf-from" style="flex:1;min-width:0;background:#0c0c1e;border:1px solid #2a2a50;color:#8899cc;padding:2px 6px;font-family:inherit;font-size:10px"><button class="btn" id="tf-clear" style="padding:3px 7px">✕</button></div>
-  <div class="ctrl"><button class="btn" id="btn-shake">⟳ Shake</button>&nbsp;<button class="btn" id="btn-reset">⌂ Reset</button></div>
+  <div class="ctrl"><button class="btn" id="btn-shake">⟳ Shake</button>&nbsp;<button class="btn" id="btn-reset">⌂ Reset</button>&nbsp;<button class="btn" id="btn-fit">⊡ Fit</button></div>
   </div>
 </div>
 <div id="stats"></div>
@@ -374,7 +397,9 @@ button.btn:hover { background:#1e1e40; }
 <div id="timeline"><svg id="tl-svg"></svg></div>
 
 <script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/3d-force-graph@1/dist/3d-force-graph.min.js" defer></script>
 <script>
+// ── Shared data ───────────────────────────────────────────────────────────────
 let GRAPH    = ${graphJson};
 let TIMELINE = ${timelineJson};
 const COLOR_TO_INDEX = ${colorIndexJson};
@@ -390,6 +415,14 @@ function nodeR(d) {
   return FR_MIN + (FR_MAX - FR_MIN) * (d.sizeNorm || 0);
 }
 
+const EC = { membership:'#162035', write:'#00ff88', edit:'#ffcc00', read:'#1e4a66', branch:'#334455' };
+const EO = { membership:.55, write:.65, edit:.65, read:.28, branch:.4 };
+const EW = { membership:1.4, write:1, edit:1, read:.7, branch:.8 };
+
+function edgeOpacity(d) { const b=EO[d.type]||.3; if(!d.weight) return b; const wn=Math.sqrt(d.weight/MAX_WEIGHT); return Math.min(1,b*(0.5+1.5*wn)); }
+function edgeWidth(d)   { const b=EW[d.type]||1; if(!d.weight) return b; const wn=Math.sqrt(d.weight/MAX_WEIGHT); return b*(0.5+2*wn); }
+
+// ── SVG canvas ────────────────────────────────────────────────────────────────
 const svg  = d3.select('#canvas').attr('width', W).attr('height', H);
 const root = svg.append('g');
 const zoom = d3.zoom().scaleExtent([0.05, 16]).on('zoom', e => root.attr('transform', e.transform));
@@ -397,10 +430,12 @@ svg.call(zoom);
 const initialTransform = d3.zoomIdentity.translate(W * 0.12, H * 0.05).scale(0.88);
 svg.call(zoom.transform, initialTransform);
 
+const decorLayer = root.append('g').attr('id', 'decor');
 const edgeLayer  = root.append('g').attr('id', 'edges');
 const nodeLayer  = root.append('g').attr('id', 'nodes');
 const labelLayer = root.append('g').attr('id', 'labels');
 
+// ── D3 simulation (force layout) ──────────────────────────────────────────────
 const projPos = {};
 function seedPositions(graphData) {
   const pnodes = graphData.nodes.filter(n => n.type === 'project');
@@ -424,33 +459,65 @@ function seedPositions(graphData) {
 }
 seedPositions(GRAPH);
 
-const simulation = d3.forceSimulation(GRAPH.nodes)
-  .force('link', d3.forceLink(GRAPH.edges).id(d=>d.id)
+function makeForceLink() {
+  return d3.forceLink(GRAPH.edges).id(d=>d.id)
     .distance(d=>d.type==='membership'?125:d.type==='branch'?95:d.type==='read'?80:60)
-    .strength(d=>d.type==='membership'?.65:d.type==='branch'?.15:d.type==='read'?.08:.3))
-  .force('charge', d3.forceManyBody().strength(d=>d.type==='project'?-700:d.type==='session'?-130:-55))
+    .strength(d=>d.type==='membership'?.65:d.type==='branch'?.15:d.type==='read'?.08:.3);
+}
+
+const simulation = d3.forceSimulation(GRAPH.nodes)
+  .force('link',      makeForceLink())
+  .force('charge',    d3.forceManyBody().strength(d=>d.type==='project'?-700:d.type==='session'?-130:-55))
   .force('collision', d3.forceCollide(d=>nodeR(d)+4).strength(0.85))
   .alphaDecay(0.006).velocityDecay(0.38);
 
-const EC = {membership:'#162035',write:'#00ff88',edit:'#ffcc00',read:'#1e4a66',branch:'#334455'};
-const EO = {membership:.55,write:.65,edit:.65,read:.28,branch:.4};
-const EW = {membership:1.4,write:1,edit:1,read:.7,branch:.8};
-const edgeKey = e => \`\${e.source?.id??e.source}::\${e.type}::\${e.target?.id??e.target}\`;
+// ── Edge rendering (paths, so arc layout can curve them) ──────────────────────
+let currentLayout = 'force';
 
-function edgeO(d) { const b=EO[d.type]||.3; if(!d.weight) return b; const wn=Math.sqrt(d.weight/MAX_WEIGHT); return Math.min(1,b*(0.5+1.5*wn)); }
-function edgeW(d) { const b=EW[d.type]||1; if(!d.weight) return b; const wn=Math.sqrt(d.weight/MAX_WEIGHT); return b*(0.5+2*wn); }
-function styleEdge(sel) {
-  return sel.attr('stroke',d=>EC[d.type]||'#222').attr('stroke-opacity',d=>edgeO(d))
-    .attr('stroke-width',d=>edgeW(d)).attr('stroke-dasharray',d=>d.type==='branch'?'5 3':d.type==='read'?'2 4':null)
-    .attr('class',d=>'e-'+d.type);
+function edgePathD(d) {
+  const sx = d.source.x ?? 0, sy = d.source.y ?? 0;
+  const tx = d.target.x ?? 0, ty = d.target.y ?? 0;
+  if (currentLayout === 'arc') {
+    if (d.type === 'branch') {
+      const mx = (sx + tx) / 2;
+      const span = Math.abs(tx - sx);
+      const h = Math.min(span * 0.45, 140);
+      return \`M\${sx},\${sy} Q\${mx},\${sy - h} \${tx},\${ty}\`;
+    }
+    if (d.type === 'write' || d.type === 'edit' || d.type === 'read') {
+      const mx = (sx + tx) / 2;
+      const span = Math.abs(tx - sx) + Math.abs(ty - sy);
+      const h = Math.min(span * 0.3, 90);
+      return \`M\${sx},\${sy} Q\${mx},\${sy + h} \${tx},\${ty}\`;
+    }
+  }
+  if (currentLayout === 'swimlane' && d.type === 'branch') {
+    const mx = (sx + tx) / 2;
+    const h = Math.min(Math.abs(tx - sx) * 0.25, 50);
+    return \`M\${sx},\${sy} Q\${mx},\${sy - h} \${tx},\${ty}\`;
+  }
+  return \`M\${sx},\${sy} L\${tx},\${ty}\`;
 }
 
-let edgeSel = edgeLayer.selectAll('line').data(GRAPH.edges, edgeKey)
-  .join(enter => enter.append('line').call(styleEdge));
+const edgeKey = e => \`\${e.source?.id??e.source}::\${e.type}::\${e.target?.id??e.target}\`;
+
+function styleEdge(sel) {
+  return sel
+    .attr('stroke',         d => EC[d.type] || '#222')
+    .attr('stroke-opacity', d => edgeOpacity(d))
+    .attr('stroke-width',   d => edgeWidth(d))
+    .attr('stroke-dasharray', d => d.type==='branch'?'5 3':d.type==='read'?'2 4':null)
+    .attr('fill', 'none')
+    .attr('class', d => 'e-' + d.type);
+}
+
+let edgeSel = edgeLayer.selectAll('path').data(GRAPH.edges, edgeKey)
+  .join(enter => enter.append('path').call(styleEdge));
 
 const nodeById = {};
 GRAPH.nodes.forEach(n => nodeById[n.id] = n);
 
+// ── Node rendering ────────────────────────────────────────────────────────────
 function renderNodeContent(el, d) {
   const r = nodeR(d);
   if (d.recencyLevel > 0) {
@@ -493,17 +560,20 @@ let projLabelSel = labelLayer.selectAll('text.pl').data(GRAPH.nodes.filter(n=>n.
   .join('text').attr('class','pl').attr('text-anchor','middle').attr('fill',d=>d.color)
   .attr('font-size',9).attr('letter-spacing',1).attr('pointer-events','none').text(d=>d.label.toUpperCase());
 
-const drag = d3.drag()
-  .on('start',(ev,d)=>{ if(!ev.active) simulation.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; })
-  .on('drag', (ev,d)=>{ d.fx=ev.x; d.fy=ev.y; })
-  .on('end',  (ev,d)=>{ if(!ev.active) simulation.alphaTarget(0); if(d.type!=='project'){d.fx=null;d.fy=null;} });
-
+// ── Simulation tick ───────────────────────────────────────────────────────────
 simulation.on('tick', () => {
-  edgeSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+  edgeSel.attr('d', edgePathD);
   nodeSel.attr('transform', d=>\`translate(\${d.x},\${d.y})\`);
   projLabelSel.attr('x',d=>d.x).attr('y',d=>d.y+PROJ_R+13);
 });
 
+// ── Drag ──────────────────────────────────────────────────────────────────────
+const drag = d3.drag()
+  .on('start',(ev,d)=>{ if(!ev.active && currentLayout==='force') simulation.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; })
+  .on('drag', (ev,d)=>{ d.fx=ev.x; d.fy=ev.y; })
+  .on('end',  (ev,d)=>{ if(!ev.active && currentLayout==='force') simulation.alphaTarget(0); if(d.type!=='project'&&currentLayout==='force'){d.fx=null;d.fy=null;} });
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
 const tip = document.getElementById('tip');
 const fmtT = n => n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':n;
 
@@ -540,6 +610,7 @@ function attachTooltip(sel) {
 }
 attachTooltip(nodeSel);
 
+// ── Highlight & click ─────────────────────────────────────────────────────────
 let selectedId = null;
 function neighbours(id) {
   const s=new Set([id]);
@@ -550,7 +621,7 @@ function highlight(id) {
   if (!id) { nodeSel.attr('opacity',1); edgeSel.call(styleEdge); d3.selectAll('.tl-dot').attr('opacity',1); return; }
   const nb=neighbours(id);
   nodeSel.attr('opacity',d=>nb.has(d.id)?1:.05);
-  edgeSel.attr('stroke-opacity',e=>{ const a=e.source?.id??e.source,b=e.target?.id??e.target; return (a===id||b===id)?Math.min(1,edgeO(e)*2):.025; });
+  edgeSel.attr('stroke-opacity',e=>{ const a=e.source?.id??e.source,b=e.target?.id??e.target; return (a===id||b===id)?Math.min(1,edgeOpacity(e)*2):.025; });
   d3.selectAll('.tl-dot').attr('opacity',d=>d.id===id?1:.2);
 }
 
@@ -560,6 +631,7 @@ function attachClick(sel) {
 attachClick(nodeSel);
 svg.on('click',()=>{ selectedId=null;highlight(null);closePanel(); });
 
+// ── Detail panel ──────────────────────────────────────────────────────────────
 function showPanel(d) {
   document.getElementById('panel').style.display='block';
   const nb=neighbours(d.id); let html='';
@@ -613,9 +685,422 @@ function showPanel(d) {
 function closePanel() { document.getElementById('panel').style.display='none'; }
 window.closePanel = closePanel;
 
+// ── Layout: force ─────────────────────────────────────────────────────────────
+function restoreForceLayout() {
+  GRAPH.nodes.forEach(n => { if (n.type !== 'project') { n.fx = null; n.fy = null; } });
+  GRAPH.nodes.filter(n => n.type === 'project').forEach(p => {
+    const pos = projPos[p.id];
+    if (pos) { p.fx = pos.x; p.fy = pos.y; }
+  });
+  simulation
+    .force('link',      makeForceLink())
+    .force('charge',    d3.forceManyBody().strength(d=>d.type==='project'?-700:d.type==='session'?-130:-55))
+    .force('collision', d3.forceCollide(d=>nodeR(d)+4).strength(0.85));
+  const grouped = document.getElementById('cb-group').checked;
+  if (grouped) {
+    simulation
+      .force('gx', d3.forceX(d => { const p = projPos[d.project_id]; return p?.x ?? W/2; }).strength(d => d.type==='project'?0:0.06))
+      .force('gy', d3.forceY(d => { const p = projPos[d.project_id]; return p?.y ?? H/2; }).strength(d => d.type==='project'?0:0.06));
+  } else {
+    simulation.force('gx', null).force('gy', null);
+  }
+}
+
+// ── Layout: swimlane ──────────────────────────────────────────────────────────
+let swimXScale = null;
+
+function computeSwimlanePositions() {
+  const projects = GRAPH.nodes.filter(n => n.type === 'project');
+  const sessions = GRAPH.nodes.filter(n => n.type === 'session');
+  const files    = GRAPH.nodes.filter(n => n.type === 'file');
+
+  const ML = 150, MT = 55;
+  const laneH = Math.min(110, Math.max(55, (H - MT - 80) / Math.max(1, projects.length)));
+
+  const tsSess = sessions.filter(s => s.first_timestamp);
+  const tMin = tsSess.length ? new Date(d3.min(tsSess, s=>s.first_timestamp)) : new Date(Date.now()-7*864e5);
+  const tMax = tsSess.length ? new Date(d3.max(tsSess, s=>s.first_timestamp)) : new Date();
+  swimXScale = d3.scaleTime().domain([tMin, tMax]).range([ML, W - 50]).nice();
+
+  const laneY = {};
+  projects.forEach((p, i) => {
+    const cy = MT + laneH * i + laneH / 2;
+    laneY[p.id] = cy;
+    p.x = 60; p.y = cy; p.fx = p.x; p.fy = p.y;
+  });
+
+  // Within each lane: bucket sessions by X pixel, distribute vertically within lane
+  const projSessions = {};
+  sessions.forEach(s => (projSessions[s.project_id] = projSessions[s.project_id] || []).push(s));
+  for (const [pid, ss] of Object.entries(projSessions)) {
+    const cy = laneY[pid] ?? H / 2;
+    const byBucket = {};
+    ss.forEach(s => {
+      const x = s.first_timestamp ? swimXScale(new Date(s.first_timestamp)) : W / 2;
+      s.x = x; s.fx = x;
+      const bk = Math.round(x / 10);
+      (byBucket[bk] = byBucket[bk] || []).push(s);
+    });
+    const inner = laneH * 0.5;
+    for (const bucket of Object.values(byBucket)) {
+      const n = bucket.length;
+      bucket.forEach((s, i) => {
+        const off = n === 1 ? 0 : (i / (n - 1) - 0.5) * inner;
+        s.y = cy + off; s.fy = s.y;
+      });
+    }
+  }
+
+  // Files: below all lanes, X = avg connected session X
+  const fileY = MT + laneH * projects.length + 40;
+  files.forEach(f => {
+    const xs = GRAPH.edges
+      .filter(e => { const t=e.target?.id??e.target; return t===f.id; })
+      .map(e => nodeById[e.source?.id??e.source])
+      .filter(n=>n?.type==='session'&&n.x!=null)
+      .map(n=>n.x);
+    f.x = xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : W/2;
+    f.y = fileY; f.fx = f.x; f.fy = f.y;
+  });
+}
+
+function drawSwimlaneDecor() {
+  decorLayer.selectAll('*').remove();
+  const projects = GRAPH.nodes.filter(n => n.type === 'project');
+  const ML = 150, MT = 55;
+  const laneH = Math.min(110, Math.max(55, (H - MT - 80) / Math.max(1, projects.length)));
+
+  // Lane separator lines
+  projects.forEach((p, i) => {
+    const y = MT + laneH * i;
+    decorLayer.append('line').attr('x1',0).attr('x2',W).attr('y1',y).attr('y2',y)
+      .attr('stroke','#12122a').attr('stroke-width',1);
+  });
+  const yLast = MT + laneH * projects.length;
+  decorLayer.append('line').attr('x1',0).attr('x2',W).attr('y1',yLast).attr('y2',yLast)
+    .attr('stroke','#12122a').attr('stroke-width',1);
+
+  // Time axis ticks at top
+  if (swimXScale) {
+    const ticks = swimXScale.ticks(8);
+    ticks.forEach(t => {
+      const x = swimXScale(t);
+      decorLayer.append('line').attr('x1',x).attr('x2',x).attr('y1',MT-2).attr('y2',yLast+2)
+        .attr('stroke','#16162e').attr('stroke-width',1);
+      decorLayer.append('text').attr('x',x).attr('y',MT-6).attr('text-anchor','middle')
+        .attr('font-size',8).attr('fill','#2a2a44').attr('font-family','Courier New,monospace')
+        .text(d3.timeFormat('%m/%d')(t));
+    });
+  }
+
+  // Files lane label
+  const fileY = MT + laneH * projects.length + 40;
+  decorLayer.append('text').attr('x',ML-6).attr('y',fileY+4).attr('text-anchor','end')
+    .attr('font-size',8).attr('fill','#2a2a44').attr('font-family','Courier New,monospace').attr('letter-spacing',1)
+    .text('FILES');
+}
+
+// ── Layout: arc ───────────────────────────────────────────────────────────────
+let arcXScale = null;
+
+function computeArcPositions() {
+  const sessions = GRAPH.nodes.filter(n => n.type === 'session');
+  const projects = GRAPH.nodes.filter(n => n.type === 'project');
+  const files    = GRAPH.nodes.filter(n => n.type === 'file');
+
+  const axisY = H * 0.52;
+  const tsSess = sessions.filter(s => s.first_timestamp);
+  const tMin = tsSess.length ? new Date(d3.min(tsSess, s=>s.first_timestamp)) : new Date(Date.now()-7*864e5);
+  const tMax = tsSess.length ? new Date(d3.max(tsSess, s=>s.first_timestamp)) : new Date();
+  arcXScale = d3.scaleTime().domain([tMin, tMax]).range([60, W - 60]).nice();
+
+  sessions.forEach(s => {
+    s.x = s.first_timestamp ? arcXScale(new Date(s.first_timestamp)) : W / 2;
+    s.y = axisY; s.fx = s.x; s.fy = s.y;
+  });
+
+  // Projects: above axis at centroid of their sessions
+  const projXs = {};
+  sessions.forEach(s => (projXs[s.project_id] = projXs[s.project_id] || []).push(s.x));
+  projects.forEach(p => {
+    const xs = projXs[p.id] || [W/2];
+    p.x = xs.reduce((a,b)=>a+b,0)/xs.length; p.y = axisY - 130;
+    p.fx = p.x; p.fy = p.y;
+  });
+
+  // Files: below axis at centroid of connected sessions
+  const fileY = axisY + 100;
+  files.forEach(f => {
+    const xs = GRAPH.edges
+      .filter(e => (e.target?.id??e.target)===f.id)
+      .map(e => nodeById[e.source?.id??e.source])
+      .filter(n=>n?.type==='session'&&n.x!=null)
+      .map(n=>n.x);
+    f.x = xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : W/2;
+    f.y = fileY; f.fx = f.x; f.fy = f.y;
+  });
+}
+
+function drawArcDecor() {
+  decorLayer.selectAll('*').remove();
+  if (!arcXScale) return;
+  const axisY = H * 0.52;
+
+  // Main horizontal axis baseline
+  decorLayer.append('line').attr('x1',50).attr('x2',W-50).attr('y1',axisY).attr('y2',axisY)
+    .attr('stroke','#1a1a30').attr('stroke-width',1.5);
+
+  // Date ticks
+  arcXScale.ticks(10).forEach(t => {
+    const x = arcXScale(t);
+    decorLayer.append('line').attr('x1',x).attr('x2',x).attr('y1',axisY-4).attr('y2',axisY+4)
+      .attr('stroke','#2a2a44').attr('stroke-width',1);
+    decorLayer.append('text').attr('x',x).attr('y',axisY+16).attr('text-anchor','middle')
+      .attr('font-size',8).attr('fill','#2a2a44').attr('font-family','Courier New,monospace')
+      .text(d3.timeFormat('%m/%d')(t));
+  });
+}
+
+// ── Apply static node positions ───────────────────────────────────────────────
+function applyStaticPositions() {
+  GRAPH.nodes.forEach(n => { if (n.fx != null) n.x = n.fx; if (n.fy != null) n.y = n.fy; });
+  nodeSel.attr('transform', d=>\`translate(\${d.x??0},\${d.y??0})\`);
+  edgeSel.attr('d', edgePathD);
+  projLabelSel.attr('x', d=>d.x??0).attr('y', d=>(d.y??0)+PROJ_R+13);
+}
+
+// ── Layout: matrix ────────────────────────────────────────────────────────────
 let tlFrom = null;
 
+function renderMatrix() {
+  const mv = document.getElementById('matrix-view');
+  mv.innerHTML = '';
+
+  const minSess = +document.getElementById('sl-min').value;
+  const showRo  = document.getElementById('cb-ro-files').checked;
+  let files = GRAPH.nodes.filter(n => n.type === 'file' && n.session_count >= minSess);
+  if (!showRo) files = files.filter(f => f.write > 0 || f.edit > 0);
+  let sessions = GRAPH.nodes.filter(n => n.type === 'session')
+    .filter(n => !tlFrom || !n.date_str || n.date_str >= tlFrom)
+    .sort((a,b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1);
+
+  if (!files.length || !sessions.length) {
+    mv.innerHTML = '<div class="mx-empty">No data — adjust filters</div>';
+    return;
+  }
+  files.sort((a,b) => (b.write + b.edit) - (a.write + a.edit));
+
+  // Build op lookup: opMap[sessId][fileId] = {read,write,edit}
+  const opMap = {};
+  GRAPH.edges.forEach(e => {
+    if (!['write','edit','read'].includes(e.type)) return;
+    const sId = e.source?.id??e.source, fId = e.target?.id??e.target;
+    if (!opMap[sId]) opMap[sId] = {};
+    if (!opMap[sId][fId]) opMap[sId][fId] = {read:0,write:0,edit:0};
+    opMap[sId][fId][e.type] = (opMap[sId][fId][e.type]||0) + (e.weight||1);
+  });
+
+  const LABEL_W = 180, HEADER_H = 84, CELL_H = 18;
+  const CELL_W = Math.max(10, Math.min(36, (W - LABEL_W - 20) / sessions.length));
+  const svgW = LABEL_W + sessions.length * CELL_W + 4;
+  const svgH = HEADER_H + files.length * CELL_H + 20;
+
+  // Sticky legend bar
+  const bar = document.createElement('div');
+  bar.className = 'mx-legend';
+  bar.innerHTML = \`
+    <span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#ffcc00" fill-opacity=".75"/></svg>edit</span>
+    <span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#00ff88" fill-opacity=".75"/></svg>write</span>
+    <span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#1e4a66" fill-opacity=".8"/></svg>read only</span>
+    <span style="margin-left:auto;color:#2a2a44;font-size:10px">\${files.length} files × \${sessions.length} sessions</span>
+  \`;
+  mv.appendChild(bar);
+
+  const msvg = d3.select(mv).append('svg')
+    .attr('width', svgW).attr('height', svgH).style('display','block');
+
+  // Session column headers (rotated)
+  const hg = msvg.append('g').attr('transform',\`translate(\${LABEL_W},0)\`);
+  sessions.forEach((s, si) => {
+    const x = si * CELL_W + CELL_W / 2;
+    hg.append('text').attr('x',x).attr('y',HEADER_H-4)
+      .attr('transform',\`rotate(-45,\${x},\${HEADER_H-4})\`)
+      .attr('text-anchor','end').attr('font-size',8).attr('fill',s.color)
+      .attr('font-family','Courier New,monospace')
+      .text(s.date_str||s.label);
+  });
+
+  // File rows
+  const rg = msvg.append('g').attr('transform',\`translate(0,\${HEADER_H})\`);
+  files.forEach((f, fi) => {
+    const gy = fi * CELL_H;
+    if (fi % 2 === 0)
+      rg.append('rect').attr('x',0).attr('y',gy).attr('width',svgW).attr('height',CELL_H).attr('fill','#0a0a18');
+
+    rg.append('text').attr('x',LABEL_W-6).attr('y',gy+CELL_H/2+3)
+      .attr('text-anchor','end').attr('font-size',9).attr('fill',f.color)
+      .attr('font-family','Courier New,monospace').text(f.label)
+      .append('title').text(f.full_path);
+
+    sessions.forEach((s, si) => {
+      const ops = opMap[s.id]?.[f.id];
+      let fill = 'transparent', opacity = 1;
+      if (ops) {
+        if (ops.edit  > 0) { fill = '#ffcc00'; opacity = 0.75; }
+        else if (ops.write > 0) { fill = '#00ff88'; opacity = 0.75; }
+        else if (ops.read  > 0) { fill = '#1e4a66'; opacity = 0.8; }
+      }
+      const cell = rg.append('rect')
+        .attr('x', LABEL_W + si * CELL_W).attr('y', gy + 1)
+        .attr('width', CELL_W - 1).attr('height', CELL_H - 2)
+        .attr('fill', fill).attr('fill-opacity', opacity)
+        .style('cursor', ops ? 'pointer' : 'default');
+
+      if (ops) {
+        const opsStr = [ops.write?\`\${ops.write}w\`:'', ops.edit?\`\${ops.edit}e\`:'', ops.read?\`\${ops.read}r\`:''].filter(Boolean).join(' ');
+        cell
+          .on('mouseover', ev => {
+            tip.style.display='block';
+            tip.innerHTML=\`<strong style="color:\${s.color}">\${s.label}</strong><div class="meta">\${f.label}</div><div class="meta">\${opsStr}</div>\`;
+            tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY-20)+'px';
+          })
+          .on('mousemove', ev => { tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY-20)+'px'; })
+          .on('mouseout', () => tip.style.display='none')
+          .on('click', ev => { ev.stopPropagation(); selectedId=s.id; showPanel(s); highlight(s.id); });
+      }
+    });
+  });
+}
+
+// ── Layout: 3D ────────────────────────────────────────────────────────────────
+const layout3D = {
+  _g: null,
+  enter() {
+    document.getElementById('canvas').style.display='none';
+    document.getElementById('matrix-view').style.display='none';
+    document.getElementById('three-view').style.display='block';
+    simulation.stop();
+    if (typeof ForceGraph3D === 'undefined') {
+      document.getElementById('three-view').innerHTML=
+        '<div style="color:#445;padding:60px;text-align:center;font-family:monospace;font-size:13px">Loading 3D library…<br>Try switching back and forth once loaded.</div>';
+      return;
+    }
+    const nodes3d = GRAPH.nodes.map(n=>({...n}));
+    const links3d = GRAPH.edges.map(e=>({
+      source: e.source?.id??e.source, target: e.target?.id??e.target,
+      type: e.type, weight: e.weight
+    }));
+    // Filter per current checkboxes
+    const showBranch = document.getElementById('cb-branch').checked;
+    const showReads  = document.getElementById('cb-reads').checked;
+    const showFiles  = document.getElementById('cb-files').checked;
+    const minSess    = +document.getElementById('sl-min').value;
+    const hiddenIds  = new Set(GRAPH.nodes.filter(n =>
+      (n.type==='file' && (!showFiles || n.session_count < minSess)) ||
+      (n.type==='session' && tlFrom && n.date_str && n.date_str < tlFrom)
+    ).map(n=>n.id));
+    const links3dF = links3d.filter(e => {
+      if (hiddenIds.has(e.source)||hiddenIds.has(e.target)) return false;
+      if (e.type==='branch' && !showBranch) return false;
+      if (e.type==='read'   && !showReads)  return false;
+      return true;
+    });
+    const nodes3dF = nodes3d.filter(n=>!hiddenIds.has(n.id));
+
+    this._g = ForceGraph3D({ controlType:'orbit' })(document.getElementById('three-view'))
+      .width(W).height(H)
+      .backgroundColor('#080810')
+      .graphData({ nodes: nodes3dF, links: links3dF })
+      .nodeId('id').nodeLabel('label')
+      .nodeColor(d=>d.color)
+      .nodeVal(d=>nodeR(d)*1.8)
+      .nodeOpacity(0.85)
+      .linkColor(e=>EC[e.type]||'#444')
+      .linkOpacity(0.4)
+      .linkWidth(e=>edgeWidth(e))
+      .onNodeClick((node,ev)=>{
+        ev.stopPropagation();
+        selectedId=node.id;
+        const orig=nodeById[node.id]; if(orig) showPanel(orig);
+      })
+      .onBackgroundClick(()=>{ selectedId=null; closePanel(); });
+  },
+  exit() {
+    document.getElementById('three-view').style.display='none';
+    document.getElementById('canvas').style.display='block';
+    if (this._g) { document.getElementById('three-view').innerHTML=''; this._g=null; }
+  }
+};
+
+// ── Layout manager ────────────────────────────────────────────────────────────
+const LAYOUT_HANDLERS = {
+  force: {
+    enter() {
+      document.getElementById('canvas').style.display='block';
+      document.getElementById('matrix-view').style.display='none';
+      document.getElementById('three-view').style.display='none';
+      decorLayer.selectAll('*').remove();
+      restoreForceLayout();
+      simulation.alpha(0.25).restart();
+      nodeSel.call(drag);
+    },
+    exit() {}
+  },
+  swimlane: {
+    enter() {
+      document.getElementById('canvas').style.display='block';
+      document.getElementById('matrix-view').style.display='none';
+      document.getElementById('three-view').style.display='none';
+      simulation.stop();
+      computeSwimlanePositions();
+      drawSwimlaneDecor();
+      applyStaticPositions();
+      nodeSel.on('.drag', null); // disable drag in static layouts
+    },
+    exit() { decorLayer.selectAll('*').remove(); }
+  },
+  arc: {
+    enter() {
+      document.getElementById('canvas').style.display='block';
+      document.getElementById('matrix-view').style.display='none';
+      document.getElementById('three-view').style.display='none';
+      simulation.stop();
+      computeArcPositions();
+      drawArcDecor();
+      applyStaticPositions();
+      nodeSel.on('.drag', null);
+    },
+    exit() { decorLayer.selectAll('*').remove(); }
+  },
+  matrix: {
+    enter() {
+      document.getElementById('canvas').style.display='none';
+      document.getElementById('matrix-view').style.display='block';
+      document.getElementById('three-view').style.display='none';
+      simulation.stop();
+      renderMatrix();
+    },
+    exit() {}
+  },
+  '3d': layout3D
+};
+
+function setLayout(name) {
+  if (name === currentLayout) return;
+  LAYOUT_HANDLERS[currentLayout]?.exit?.();
+  currentLayout = name;
+  document.querySelectorAll('[data-layout]').forEach(b=>b.classList.toggle('active', b.dataset.layout===name));
+  LAYOUT_HANDLERS[currentLayout]?.enter?.();
+  applyFilters();
+}
+
+document.querySelectorAll('[data-layout]').forEach(b=>b.addEventListener('click',()=>setLayout(b.dataset.layout)));
+
+// ── Filters ───────────────────────────────────────────────────────────────────
 function applyFilters() {
+  if (currentLayout === 'matrix') { renderMatrix(); return; }
+  if (currentLayout === '3d')     { layout3D.exit(); layout3D.enter(); return; }
+
   const showFiles   = document.getElementById('cb-files').checked;
   const showRoFiles = document.getElementById('cb-ro-files').checked;
   const showBranch  = document.getElementById('cb-branch').checked;
@@ -637,19 +1122,22 @@ function applyFilters() {
     return null;
   });
   edgeSel.attr('display', e => {
-    const src = e.source?.id ?? e.source;
-    const tgt = e.target?.id ?? e.target;
+    const src = e.source?.id??e.source, tgt = e.target?.id??e.target;
     if (hiddenNodes.has(src) || hiddenNodes.has(tgt)) return 'none';
     if (e.type === 'read'   && !showReads)  return 'none';
     if (e.type === 'branch' && !showBranch) return 'none';
     return null;
   });
+  projLabelSel.attr('display', null);
 }
 
 document.getElementById('cb-files').addEventListener('change',    applyFilters);
 document.getElementById('cb-ro-files').addEventListener('change', applyFilters);
 document.getElementById('cb-branch').addEventListener('change',   applyFilters);
 document.getElementById('cb-reads').addEventListener('change',    applyFilters);
+document.getElementById('cb-group').addEventListener('change', () => {
+  if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.3).restart(); }
+});
 document.getElementById('sl-min').addEventListener('input', function() {
   document.getElementById('sl-min-val').textContent = this.value;
   applyFilters();
@@ -657,16 +1145,32 @@ document.getElementById('sl-min').addEventListener('input', function() {
 document.getElementById('tf-from').addEventListener('change', function() {
   tlFrom = this.value || null;
   applyFilters();
+  if (currentLayout === 'swimlane') { computeSwimlanePositions(); drawSwimlaneDecor(); applyStaticPositions(); }
+  if (currentLayout === 'arc')      { computeArcPositions(); drawArcDecor(); applyStaticPositions(); }
 });
 document.getElementById('tf-clear').addEventListener('click', () => {
-  document.getElementById('tf-from').value = '';
-  tlFrom = null;
+  document.getElementById('tf-from').value = ''; tlFrom = null;
   applyFilters();
 });
-document.getElementById('btn-shake').addEventListener('click', ()=> simulation.alpha(.4).restart());
-document.getElementById('btn-reset').addEventListener('click', ()=> svg.transition().duration(600).call(zoom.transform, initialTransform));
+document.getElementById('btn-shake').addEventListener('click', ()=> {
+  if (currentLayout === 'force') simulation.alpha(.4).restart();
+});
+document.getElementById('btn-reset').addEventListener('click', ()=>
+  svg.transition().duration(600).call(zoom.transform, initialTransform)
+);
+document.getElementById('btn-fit').addEventListener('click', () => {
+  // zoom to fit all visible nodes
+  const vis = GRAPH.nodes.filter(n=>n.x!=null&&n.y!=null&&n.type!=='project'||n.type==='project');
+  if (!vis.length) return;
+  const x0=d3.min(vis,d=>d.x)-30, x1=d3.max(vis,d=>d.x)+30;
+  const y0=d3.min(vis,d=>d.y)-30, y1=d3.max(vis,d=>d.y)+30;
+  const scale = Math.min(8, 0.9 / Math.max((x1-x0)/W, (y1-y0)/H));
+  const tx = W/2 - scale*(x0+x1)/2, ty = H/2 - scale*(y0+y1)/2;
+  svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+});
 applyFilters();
 
+// ── Stats ──────────────────────────────────────────────────────────────────────
 function updateStats() {
   const dr=GRAPH.meta.date_range;
   document.getElementById('stats').textContent=
@@ -674,10 +1178,12 @@ function updateStats() {
 }
 updateStats();
 
+// ── Timeline ──────────────────────────────────────────────────────────────────
 function buildTimeline() {
   const tlSvg=d3.select('#tl-svg'), tw=window.innerWidth, th=TL_H;
   tlSvg.attr('width',tw).attr('height',th);
   const dates=TIMELINE.map(d=>new Date(d.ts));
+  if (!dates.length) return;
   const xScale=d3.scaleTime().domain([d3.min(dates),d3.max(dates)]).range([40,tw-40]);
   const days=d3.timeDay.range(d3.min(dates),d3.timeDay.offset(d3.max(dates),1));
   tlSvg.selectAll('line.tl-tick').data(days).join('line').attr('class','tl-tick')
@@ -701,9 +1207,14 @@ function buildTimeline() {
     .on('click',(ev,d)=>{ ev.stopPropagation(); const node=nodeById[d.id]; if(!node) return;
       if(selectedId===d.id){selectedId=null;highlight(null);closePanel();}
       else { selectedId=d.id;highlight(d.id);showPanel(node);
-        const t=d3.zoomTransform(svg.node()),nx=node.x*t.k+t.x,ny=node.y*t.k+t.y;
-        svg.transition().duration(500).call(zoom.translateBy,(W/2-nx)/t.k,(H/2-ny)/t.k); } });
+        if (currentLayout==='force'||currentLayout==='swimlane'||currentLayout==='arc') {
+          const t=d3.zoomTransform(svg.node()),nx=node.x*t.k+t.x,ny=node.y*t.k+t.y;
+          svg.transition().duration(500).call(zoom.translateBy,(W/2-nx)/t.k,(H/2-ny)/t.k);
+        }
+      }
+    });
 }
+
 function toggleWidget(id) {
   const el=document.getElementById(id);
   const col=el.classList.toggle('collapsed');
@@ -713,6 +1224,7 @@ function toggleWidget(id) {
 buildTimeline();
 nodeSel.call(drag);
 
+// ── Live graph updates (SSE) ───────────────────────────────────────────────────
 window.updateGraph = function(newData) {
   const posById={};
   simulation.nodes().forEach(n=>{ posById[n.id]={x:n.x,y:n.y,vx:n.vx||0,vy:n.vy||0,fx:n.fx,fy:n.fy}; });
@@ -723,16 +1235,19 @@ window.updateGraph = function(newData) {
   GRAPH.nodes.forEach(n=>nodeById[n.id]=n);
   simulation.nodes(GRAPH.nodes);
   simulation.force('link').links(GRAPH.edges);
-  edgeSel=edgeLayer.selectAll('line').data(GRAPH.edges,edgeKey).join(enter=>enter.append('line').call(styleEdge),update=>update,exit=>exit.remove());
+  edgeSel=edgeLayer.selectAll('path').data(GRAPH.edges,edgeKey)
+    .join(enter=>enter.append('path').call(styleEdge), update=>update, exit=>exit.remove());
   nodeSel=joinNodes(GRAPH); nodeSel.call(drag); attachTooltip(nodeSel); attachClick(nodeSel);
   projLabelSel=labelLayer.selectAll('text.pl').data(GRAPH.nodes.filter(n=>n.type==='project'),d=>d.id)
     .join('text').attr('class','pl').attr('text-anchor','middle').attr('fill',d=>d.color)
     .attr('font-size',9).attr('letter-spacing',1).attr('pointer-events','none').text(d=>d.label.toUpperCase());
-  simulation.alpha(.18).restart();
+  // Re-enter the current layout to recompute positions with fresh data
+  LAYOUT_HANDLERS[currentLayout]?.enter?.();
   buildTimeline(); updateStats();
   applyFilters();
 };
 
+// ── Live status badge ──────────────────────────────────────────────────────────
 if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   const badge=document.createElement('div');
   badge.style.cssText='position:fixed;top:8px;right:12px;background:#00ff88;color:#000;font:bold 10px monospace;padding:3px 8px;border-radius:3px;z-index:9999;cursor:default;user-select:none;transition:background 0.3s';
@@ -749,7 +1264,15 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   es.onopen=()=>setBadge('⬤ LIVE','#00ff88');
 }
 
-window.addEventListener('resize',()=>{ W=window.innerWidth;H=window.innerHeight-TL_H; svg.attr('width',W).attr('height',H); d3.select('#tl-svg').attr('width',W); });
+window.addEventListener('resize',()=>{
+  W=window.innerWidth; H=window.innerHeight-TL_H;
+  svg.attr('width',W).attr('height',H);
+  d3.select('#tl-svg').attr('width',W);
+  if (currentLayout==='3d' && layout3D._g) layout3D._g.width(W).height(H);
+  if (currentLayout==='swimlane') { computeSwimlanePositions(); drawSwimlaneDecor(); applyStaticPositions(); }
+  if (currentLayout==='arc')      { computeArcPositions(); drawArcDecor(); applyStaticPositions(); }
+  if (currentLayout==='matrix')   renderMatrix();
+});
 </script>
 </body>
 </html>`;

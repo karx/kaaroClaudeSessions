@@ -84,6 +84,11 @@ button.btn:hover { background:#1e1e40; }
   position: sticky; top: 0; background: #080810; z-index: 10; }
 .mx-leg-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #556; }
 .mx-leg-swatch { width: 14px; height: 14px; }
+.arc-hub-row { padding: 2px 0; cursor: pointer; font-size: 9px; line-height: 1.7;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arc-hub-row:hover { opacity: 0.7; }
+.arc-hub-active { font-weight: bold; text-decoration: underline dotted; }
+.arc-hub-cnt { color: #2a3a5a; display: inline-block; min-width: 22px; }
 </style>
 </head>
 <body>
@@ -190,6 +195,38 @@ button.btn:hover { background:#1e1e40; }
         <option value="msg">First message</option>
         <option value="off">Off</option>
       </select>
+    </div>
+  </div>
+
+  <div id="arc-options" style="display:none">
+    <div class="sep"></div>
+    <div class="sl-section-hd">◆ ARC VIEW</div>
+    <div class="ctrl"><label for="arc-mode">Mode</label>
+      <select id="arc-mode" class="ctrl-sel">
+        <option value="file-shared">File co-access</option>
+        <option value="branch">Branch lineage</option>
+        <option value="sequence">Session sequence</option>
+      </select>
+    </div>
+    <div class="ctrl"><label for="arc-color-by">Color by</label>
+      <select id="arc-color-by" class="ctrl-sel">
+        <option value="file">Shared file</option>
+        <option value="project">Project</option>
+        <option value="uniform">Uniform</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label for="arc-min-shared">Min shared: <span id="arc-min-val">1</span></label>
+      <input type="range" id="arc-min-shared" min="1" max="8" value="1">
+    </div>
+    <div class="ctrl">
+      <label for="arc-max-span">Max span: <span id="arc-span-val">All</span></label>
+      <input type="range" id="arc-max-span" min="1" max="365" value="365">
+    </div>
+    <div class="ctrl"><input type="checkbox" id="arc-group-proj"><label for="arc-group-proj">Group by project</label></div>
+    <div id="arc-file-hub" style="display:none">
+      <div class="sl-section-hd" style="margin-top:8px">◆ FILE HUBS <span style="color:#2a3a5a;font-size:8px">(click to filter)</span></div>
+      <div id="arc-file-hub-list"></div>
     </div>
   </div>
   </div>

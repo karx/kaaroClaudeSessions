@@ -3,6 +3,17 @@ function applyFilters() {
   if (currentLayout === 'matrix')   { renderMatrix();   return; }
   if (currentLayout === '3d')       { layout3D.exit(); layout3D.enter(); return; }
   if (currentLayout === 'swimlane') { renderSwimlane(); return; }
+  if (currentLayout === 'arc') {
+    nodeSel.attr('display', d => {
+      if (d.type !== 'session') return 'none';
+      if (tlFrom && d.date_str && d.date_str < tlFrom) return 'none';
+      return null;
+    });
+    edgeSel.attr('display', 'none');
+    projLabelSel.attr('display', 'none');
+    if (arcXScale) drawArcArcs();
+    return;
+  }
 
   const showFiles   = document.getElementById('cb-files').checked;
   const showRoFiles = document.getElementById('cb-ro-files').checked;
@@ -124,6 +135,27 @@ function toggleWidget(id) {
   const col=el.classList.toggle('collapsed');
   el.querySelector('.widget-toggle').textContent=col?'+':'−';
 }
+
+// ── Arc-specific controls ─────────────────────────────────────────────────────
+function refreshArc() {
+  if (currentLayout !== 'arc') return;
+  computeArcPositions(); drawArcDecor(); applyStaticPositions(); applyFilters();
+}
+
+document.getElementById('arc-mode')?.addEventListener('change', () => {
+  focusedArcFileId = null; refreshArc();
+});
+document.getElementById('arc-color-by')?.addEventListener('change', refreshArc);
+document.getElementById('arc-group-proj')?.addEventListener('change', refreshArc);
+
+document.getElementById('arc-min-shared')?.addEventListener('input', function() {
+  document.getElementById('arc-min-val').textContent = this.value; refreshArc();
+});
+document.getElementById('arc-max-span')?.addEventListener('input', function() {
+  const v = +this.value;
+  document.getElementById('arc-span-val').textContent = v >= 365 ? 'All' : v + 'd';
+  refreshArc();
+});
 
 buildTimeline();
 nodeSel.call(drag);

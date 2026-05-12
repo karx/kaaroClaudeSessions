@@ -37,15 +37,27 @@ const LAYOUT_HANDLERS = {
   arc: {
     enter() {
       slLayer.style('display','none');
-      edgeLayer.style('display',null); nodeLayer.style('display',null); labelLayer.style('display',null);
+      edgeLayer.style('display','none'); nodeLayer.style('display',null); labelLayer.style('display','none');
+      arcArcLayer.style('display',null);
       document.getElementById('canvas').style.display='block';
       document.getElementById('matrix-view').style.display='none';
       document.getElementById('three-view').style.display='none';
       document.getElementById('sl-options').style.display='none';
-      simulation.stop(); computeArcPositions(); drawArcDecor(); applyStaticPositions();
+      document.getElementById('arc-options').style.display='';
+      simulation.stop();
+      computeArcPositions(); drawArcDecor(); applyStaticPositions(); drawArcArcs();
       nodeSel.on('.drag', null);
     },
-    exit() { decorLayer.selectAll('*').remove(); }
+    exit() {
+      arcArcLayer.style('display','none');
+      edgeLayer.style('display',null); labelLayer.style('display',null);
+      nodeSel.attr('display', null);
+      projLabelSel.attr('display', null);
+      edgeSel.attr('display', null);
+      document.getElementById('arc-options').style.display='none';
+      focusedArcFileId = null;
+      decorLayer.selectAll('*').remove();
+    }
   },
   matrix: {
     enter() {

@@ -283,6 +283,34 @@ test('parsePiRecords — tool calls', async t => {
     const session = parsePiRecords(records, SESSION_ID, PROJECT_ID);
     assert.equal(session.bash_categories['other'], 1);
   });
+
+  await t.test('categorizes npx bash command', () => {
+    const content = [rec.toolCall('bash', { command: 'npx tsc --noEmit' })];
+    const records = [rec.session(), rec.userMsg('go'), rec.assistantMsg(content)];
+    const session = parsePiRecords(records, SESSION_ID, PROJECT_ID);
+    assert.equal(session.bash_categories['npx'], 1);
+  });
+
+  await t.test('categorizes python bash command', () => {
+    const content = [rec.toolCall('bash', { command: 'python main.py' })];
+    const records = [rec.session(), rec.userMsg('go'), rec.assistantMsg(content)];
+    const session = parsePiRecords(records, SESSION_ID, PROJECT_ID);
+    assert.equal(session.bash_categories['python'], 1);
+  });
+
+  await t.test('categorizes fs bash command (ls)', () => {
+    const content = [rec.toolCall('bash', { command: 'ls -la' })];
+    const records = [rec.session(), rec.userMsg('go'), rec.assistantMsg(content)];
+    const session = parsePiRecords(records, SESSION_ID, PROJECT_ID);
+    assert.equal(session.bash_categories['fs'], 1);
+  });
+
+  await t.test('categorizes curl bash command', () => {
+    const content = [rec.toolCall('bash', { command: 'curl https://example.com' })];
+    const records = [rec.session(), rec.userMsg('go'), rec.assistantMsg(content)];
+    const session = parsePiRecords(records, SESSION_ID, PROJECT_ID);
+    assert.equal(session.bash_categories['curl'], 1);
+  });
 });
 
 // ── parsePiRecords — file ops ─────────────────────────────────────────────────

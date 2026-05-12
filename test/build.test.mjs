@@ -41,6 +41,13 @@ test('calcRecencyScore', async t => {
     const score = calcRecencyScore(ts, now);
     assert.ok(Math.abs(score - 0.5) < 0.001, `expected ~0.5, got ${score}`);
   });
+  await t.test('future timestamp returns value > 1 (no upper clamp in the formula)', () => {
+    // Math.max(0, …) only clamps at 0; a future ts makes the numerator negative
+    // so 1 - (negative) > 1. Documenting observed behaviour.
+    const ts = new Date(now + 60_000).toISOString();
+    const score = calcRecencyScore(ts, now);
+    assert.ok(score > 1, `expected > 1 for future ts, got ${score}`);
+  });
 });
 
 // ── calcRecencyLevel ──────────────────────────────────────────────────────────

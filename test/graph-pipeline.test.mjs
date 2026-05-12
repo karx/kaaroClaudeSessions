@@ -106,17 +106,176 @@ test('buildGraph', async t => {
     const s = result.nodes.find(n => n.id === 's1');
     assert.equal(s.source, 'claude-code');
   });
+});
 
-  await t.test('session with explicit source preserves it', () => {
-    const data2 = makeData();
-    data2.sessions[0].source = 'pi';
-    const r = buildGraph(data2, { referenceMs: Date.now() });
-    assert.equal(r.nodes.find(n => n.id === 's1').source, 'pi');
+// ── session source field ──────────────────────────────────────────────────────
+test('buildGraph — session source field', async t => {
+  await t.test('defaults to "claude-code" when session has no source property', () => {
+    const result = buildGraph(makeData(), { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').source, 'claude-code');
+  });
+
+  await t.test('preserves explicit source value set on the session', () => {
+    const d = makeData();
+    d.sessions[0].source = 'pi';
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').source, 'pi');
+  });
+});
+
+// ── project node fields ───────────────────────────────────────────────────────
+test('buildGraph — project node fields', async t => {
+  const REF = new Date('2026-05-11T00:00:00.000Z').getTime();
+  const result = buildGraph(makeData(), { referenceMs: REF });
+  const proj = result.nodes.find(n => n.type === 'project');
+
+  await t.test('project color is a hex string', () => {
+    assert.match(proj.color, /^#[0-9a-f]{6}$/i);
+  });
+
+  await t.test('project tokens_work = output + cache_create', () => {
+    // makeData project: output=200, cache_create=50
+    assert.equal(proj.tokens_work, 250);
+  });
+
+  await t.test('project session_count matches sessions array length', () => {
+    assert.equal(proj.session_count, 2);
+  });
+
+  await t.test('project recency is 0 when last activity is older than MAX_AGE_MS', () => {
+    // sessions are from 2026-05-01 and 05; ref is 2026-05-11 → > 2 days
+    assert.equal(proj.recency, 0);
+  });
+
+  await t.test('project recencyLevel is 0 for stale data', () => {
+    assert.equal(proj.recencyLevel, 0);
+  });
+});
+
+// ── session node fields ───────────────────────────────────────────────────────
+test('buildGraph — session sizeNorm', async t => {
+  const result = buildGraph(makeData(), { referenceMs: Date.now() });
+
+  await t.test('session with maximum tokens_work has sizeNorm 1.0', () => {
+    // s2 has output=120, cache_create=30 → tokens_work=150 = MAX_WORK
+    const s2 = result.nodes.find(n => n.id === 's2');
+    assert.equal(s2.sizeNorm, 1.0);
+  });
+
+  await t.test('session with lower tokens_work has 0 < sizeNorm < 1', () => {
+    // s1 has output=80, cache_create=20 → tokens_work=100 < 150
+    const s1 = result.nodes.find(n => n.id === 's1');
+    assert.ok(s1.sizeNorm > 0 && s1.sizeNorm < 1,
+      `expected 0 < sizeNorm < 1, got ${s1.sizeNorm}`);
+  });
+});
+
+test('buildGraph — session errorLevel', async t => {
+  function withErrors(errorCount) {
+    const d = makeData();
+    d.sessions[0].tool_errors = errorCount;
+    return buildGraph(d, { referenceMs: Date.now() }).nodes.find(node => node.id === 's1');
+  }
+
+  await t.test('errorLevel 0 when tool_errors is 0',  () => assert.equal(withErrors(0).errorLevel, 0));
+  await t.test('errorLevel 0 when tool_errors is 2',  () => assert.equal(withErrors(2).errorLevel, 0));
+  await t.test('errorLevel 1 at boundary of 3',       () => assert.equal(withErrors(3).errorLevel, 1));
+  await t.test('errorLevel 1 when tool_errors is 7',  () => assert.equal(withErrors(7).errorLevel, 1));
+  await t.test('errorLevel 2 at boundary of 8',       () => assert.equal(withErrors(8).errorLevel, 2));
+  await t.test('errorLevel 2 when tool_errors is 20', () => assert.equal(withErrors(20).errorLevel, 2));
+});
+
+test('buildGraph — session thinking_count', async t => {
+  await t.test('thinking_count is 0 when no content_blocks on session', () => {
+    const result = buildGraph(makeData(), { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').thinking_count, 0);
+  });
+
+  await t.test('thinking_count reflects content_blocks.thinking', () => {
+    const d = makeData();
+    d.sessions[0].content_blocks = { thinking: 4, text: 2 };
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').thinking_count, 4);
+  });
+});
+
+test('buildGraph — session hit_max_tokens', async t => {
+  await t.test('false when stop_reasons is absent', () => {
+    const result = buildGraph(makeData(), { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').hit_max_tokens, false);
+  });
+
+  await t.test('true when stop_reasons.max_tokens > 0', () => {
+    const d = makeData();
+    d.sessions[0].stop_reasons = { max_tokens: 2 };
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').hit_max_tokens, true);
+  });
+
+  await t.test('false when stop_reasons.max_tokens is 0', () => {
+    const d = makeData();
+    d.sessions[0].stop_reasons = { max_tokens: 0, end_turn: 3 };
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').hit_max_tokens, false);
+  });
+});
+
+test('buildGraph — session inFlight', async t => {
+  // NOTE: buildGraph calls isSessionInFlight(sess, Date.now()) — it does NOT thread
+  // referenceMs through to the inFlight check, so referenceMs has no effect on it.
+  // isSessionInFlight itself is covered exhaustively in build-live.test.mjs.
+
+  await t.test('inFlight is false for a session with an old last_timestamp', () => {
+    // far-past timestamp → age >> 2 min threshold → always false
+    const result = buildGraph(makeData(), { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').inFlight, false);
+  });
+
+  await t.test('inFlight is true for a session whose last_timestamp is right now', () => {
+    const d = makeData();
+    d.sessions[0].last_timestamp = new Date().toISOString(); // age ≈ 0ms < 2 min
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').inFlight, true);
+  });
+});
+
+// ── branch lineage ────────────────────────────────────────────────────────────
+test('buildGraph — branch lineage', async t => {
+  await t.test('sessions on different branches produce no branch edges between them', () => {
+    const d = makeData();
+    d.sessions[0].git_branch = 'main';
+    d.sessions[1].git_branch = 'feature/xyz';
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    assert.equal(result.edges.filter(e => e.type === 'branch').length, 0);
+  });
+
+  await t.test('branch edge carries the branch name', () => {
+    // makeData has both sessions on 'main'
+    const result = buildGraph(makeData(), { referenceMs: Date.now() });
+    const edge = result.edges.find(e => e.type === 'branch');
+    assert.equal(edge.branch, 'main');
+  });
+
+  await t.test('branch edge points from earlier to later session by timestamp', () => {
+    // s1 first_timestamp < s2 first_timestamp
+    const result = buildGraph(makeData(), { referenceMs: Date.now() });
+    const edge = result.edges.find(e => e.type === 'branch');
+    assert.equal(edge.source, 's1');
+    assert.equal(edge.target, 's2');
+  });
+
+  await t.test('single session on a branch produces no branch edge', () => {
+    const d = makeData();
+    d.sessions[0].git_branch = 'main';
+    d.sessions[1].git_branch = 'solo';
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    // 'main' has only s1, 'solo' has only s2 → no branch edges
+    assert.equal(result.edges.filter(e => e.type === 'branch').length, 0);
   });
 });
 
 // ── file nodes ────────────────────────────────────────────────────────────────
-test('buildGraph with file nodes', async t => {
+function makeDataWithFile() {
   const data = makeData({
     rollup: {
       files: [{
@@ -125,11 +284,13 @@ test('buildGraph with file nodes', async t => {
       }],
     },
   });
-  // sessions need file_ops
   data.sessions[0].file_ops = { 'src/index.js': { read: 1, write: 1, edit: 2 } };
   data.sessions[1].file_ops = { 'src/index.js': { read: 1, write: 0, edit: 1 } };
+  return data;
+}
 
-  const result = buildGraph(data, { minSessions: 1, referenceMs: Date.now() });
+test('buildGraph with file nodes', async t => {
+  const result = buildGraph(makeDataWithFile(), { minSessions: 1, referenceMs: Date.now() });
 
   await t.test('creates one file node', () => {
     const files = result.nodes.filter(n => n.type === 'file');
@@ -145,7 +306,26 @@ test('buildGraph with file nodes', async t => {
   });
 
   await t.test('minSessions filter excludes files below threshold', () => {
-    const r = buildGraph(data, { minSessions: 3, referenceMs: Date.now() });
+    const r = buildGraph(makeDataWithFile(), { minSessions: 3, referenceMs: Date.now() });
     assert.equal(r.nodes.filter(n => n.type === 'file').length, 0);
+  });
+});
+
+test('buildGraph with file nodes — edge stats', async t => {
+  const result = buildGraph(makeDataWithFile(), { minSessions: 1, referenceMs: Date.now() });
+
+  await t.test('stats.write counts sessions that performed writes', () => {
+    // only s1 has write > 0
+    assert.equal(result.stats.write, 1);
+  });
+
+  await t.test('stats.edit counts sessions that performed edits', () => {
+    // both s1 and s2 have edit > 0
+    assert.equal(result.stats.edit, 2);
+  });
+
+  await t.test('stats.read counts sessions that performed reads', () => {
+    // both sessions have read > 0
+    assert.equal(result.stats.read, 2);
   });
 });

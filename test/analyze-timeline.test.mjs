@@ -152,8 +152,10 @@ test('extractToolTimeline — multiple tools across turns', async t => {
 // ── parseSessionFlag ──────────────────────────────────────────────────────────
 
 test('parseSessionFlag', async t => {
-  await t.test('returns null when no --session arg', () => {
+  await t.test('returns null for empty argv', () => {
     assert.equal(parseSessionFlag([]), null);
+  });
+  await t.test('returns null when argv has unrelated args but no --session', () => {
     assert.equal(parseSessionFlag(['node', 'analyze.mjs']), null);
   });
 
@@ -281,5 +283,34 @@ test('mergeSessionIntoData — meta updated', async t => {
     const data = makeMinimalData([], []);
     const result = mergeSessionIntoData(data, makeSession('s1', 'proj-new'));
     assert.equal(result.meta.total_projects, 1);
+  });
+});
+
+test('mergeSessionIntoData — rollup recomputed', async t => {
+  await t.test('rollup tokens reflect the updated session values', () => {
+    const old  = makeSession('s1', 'proj-A', { input: 100, output: 50 });
+    const data = makeMinimalData([old], []);
+    const updated = makeSession('s1', 'proj-A', { input: 300, output: 120 });
+    const result = mergeSessionIntoData(data, updated);
+    assert.equal(result.rollup.tokens.input,  300);
+    assert.equal(result.rollup.tokens.output, 120);
+  });
+
+  await t.test('rollup total_errors updates when error count changes', () => {
+    const old  = { ...makeSession('s1', 'proj-A'), tool_errors: 2 };
+    const data = makeMinimalData([old], []);
+    const updated = { ...makeSession('s1', 'proj-A'), tool_errors: 7 };
+    const result = mergeSessionIntoData(data, updated);
+    assert.equal(result.rollup.total_errors, 7);
+  });
+
+  await t.test('rollup includes tools from the merged session', () => {
+    const old  = makeSession('s1', 'proj-A');
+    const data = makeMinimalData([old], []);
+    const updated = { ...makeSession('s1', 'proj-A'), tools: { Read: { calls: 5, errors: 0 } } };
+    const result = mergeSessionIntoData(data, updated);
+    const readEntry = result.rollup.tools.find(t => t.name === 'Read');
+    assert.ok(readEntry, 'Read should appear in rollup.tools');
+    assert.equal(readEntry.calls, 5);
   });
 });

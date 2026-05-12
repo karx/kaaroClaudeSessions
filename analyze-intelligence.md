@@ -352,6 +352,77 @@ Full scan (`fullScan()`) is the fallback when no `--session` arg is given or whe
 
 ---
 
+## 12. Sub-agent Session Storage (Current Gap)
+
+When Claude Code spawns sub-agents via the `Agent` tool, the resulting sessions are **not** stored as top-level JSONL files in the project directory. Instead they nest two levels deep:
+
+```
+~/.claude/projects/<projectId>/
+├── <parent-uuid>.jsonl                        ← main session (picked up by analyze.mjs)
+└── <parent-uuid>/                             ← sibling directory (ignored by walker)
+    ├── subagents/
+    │   ├── agent-<id>.jsonl                   ← sub-agent session (MISSED)
+    │   └── agent-<id>.meta.json               ← sub-agent metadata (MISSED)
+    └── tool-results/
+        └── <id>.txt                           ← serialised tool results (MISSED)
+```
+
+### Sub-agent meta.json schema
+
+```json
+{ "agentType": "general-purpose", "description": "Short description passed to Agent tool" }
+```
+
+### Sub-agent JSONL — extra top-level fields vs main sessions
+
+| Field | Meaning |
+|---|---|
+| `agentId` | Unique identifier for this sub-agent invocation |
+| `attributionAgent` | Links back to parent agent context |
+
+All other record types (`user`, `assistant`, tool calls, etc.) follow the same schema as main sessions.
+
+### How the parent session records Agent tool calls
+
+In the parent JSONL, each `Agent` spawn appears as a `tool_use` block in an `assistant` record:
+
+```json
+{
+  "type": "tool_use",
+  "name": "Agent",
+  "input": {
+    "description": "Short task description",
+    "subagent_type": "general-purpose",
+    "prompt": "Full prompt text (can be very large)"
+  }
+}
+```
+
+What `analyze.mjs` currently captures from the parent session:
+- `tools['Agent'] = { calls: N, errors: N }` — counted like any tool ✓
+- `tool_calls` counter incremented ✓
+- `tool_timeline` entry: `{ name: 'Agent', why: input.description, where: null }` ✓
+- `input.subagent_type` — **silently dropped** ✗
+- No link to the sub-agent's session JSONL ✗
+
+### Why sub-agent sessions are missed
+
+`fullScan()` uses `fs.readdirSync(pdir).filter(f => f.endsWith('.jsonl'))`, which reads only the immediate children of the project directory. The sibling directory `<parent-uuid>/` is a directory (not a `.jsonl` file) and is skipped by the filter. Sub-agent JSONewlines are never reached.
+
+### Ignored record types (all sessions)
+
+Beyond the sub-agent gap, these record types appear in JSONL files but are not parsed:
+
+| `rec.type` | What it carries |
+|---|---|
+| `ai-title` | Auto-generated session title |
+| `last-prompt` | Snapshot of the last user prompt |
+| `file-history-snapshot` | File state snapshots for context |
+| `queue-operation` | Internal orchestration events |
+| `attachment` | File/image attachments in user turns |
+
+---
+
 ## 11. Key Invariants
 
 - **File paths are always normalised** before storage: backslashes → forward slashes, double slashes collapsed.

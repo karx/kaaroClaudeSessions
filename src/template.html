@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claude Code Sessions — kaaro-sessions</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #080810; color: #9aa0b8; font-family: 'Courier New',monospace; font-size: 11px; overflow: hidden; user-select: none; }
+#canvas { display: block; position: fixed; top: 0; left: 0; }
+#matrix-view { position: fixed; top: 0; left: 0; right: 0; bottom: 60px; overflow: auto; background: #080810; display: none; }
+#three-view  { position: fixed; top: 0; left: 0; right: 0; bottom: 60px; display: none; }
+
+#layout-bar { position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 3px; background: rgba(8,8,16,.92); border: 1px solid #1c1c34;
+  padding: 5px 8px; z-index: 500; }
+.lay-btn { background: #0e0e22; border: 1px solid #252548; color: #556688;
+  padding: 4px 13px; cursor: pointer; font-family: inherit; font-size: 9px;
+  letter-spacing: 1.5px; text-transform: uppercase; transition: background 0.15s; }
+.lay-btn:hover  { background: #1a1a36; color: #8899cc; }
+.lay-btn.active { background: #1e1e44; color: #aabbff; border-color: #4455cc; }
+
+#tip { position: fixed; pointer-events: none; background: #0c0c1e; border: 1px solid #252540;
+  padding: 10px 14px; max-width: 320px; display: none; line-height: 1.6; z-index: 300;
+  box-shadow: 0 4px 24px rgba(0,0,0,.7); }
+#tip strong { color: #fff; display: block; margin-bottom: 2px; font-size: 12px; }
+#tip .meta  { color: #5566aa; }
+#tip .body  { color: #8899bb; margin-top: 6px; font-size: 10px; line-height: 1.4; }
+
+#legend { position: fixed; top: 48px; left: 16px; background: rgba(8,8,16,.9);
+  border: 1px solid #1c1c34; padding: 12px 16px; min-width: 200px; z-index: 200; }
+#legend h3 { color: #4455cc; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+.leg { display: flex; align-items: center; gap: 8px; margin: 5px 0; color: #667; }
+.dot  { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+.dia  { width:10px; height:10px; transform:rotate(45deg); flex-shrink:0; }
+.ring { width:12px; height:12px; border-radius:50%; border:2px solid; background:transparent; flex-shrink:0; }
+.line { width:22px; height:2px; flex-shrink:0; }
+.dash { width:22px; height:1px; border-top:2px dashed; flex-shrink:0; }
+.sep  { border-top: 1px solid #1c1c34; margin: 8px 0; }
+.widget-toggle { float:right; cursor:pointer; color:#334; font-size:16px; line-height:1; margin-top:-1px; }
+.widget-toggle:hover { color:#8899cc; }
+.widget.collapsed .widget-body { display:none; }
+@keyframes pulse-ring {
+  0%   { transform:scale(1);   opacity:var(--po,.7); }
+  100% { transform:scale(2.6); opacity:0; }
+}
+.pring { fill:none; stroke-width:1.5; pointer-events:none;
+  animation:pulse-ring linear infinite;
+  transform-box:fill-box; transform-origin:center; }
+#controls { position: fixed; top: 48px; right: 16px; background: rgba(8,8,16,.9);
+  border: 1px solid #1c1c34; padding: 12px 16px; min-width: 230px; z-index: 200;
+  max-height: calc(100vh - 130px); overflow-y: auto; }
+#controls h3 { color: #4455cc; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+.ctrl { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+.ctrl label { flex: 1; cursor: pointer; color: #778; }
+input[type=checkbox] { accent-color: #4455cc; cursor: pointer; }
+input[type=range]    { flex: 1; accent-color: #4455cc; cursor: pointer; }
+select.ctrl-sel { flex:1; background:#0c0c1e; border:1px solid #2a2a50; color:#8899cc;
+  padding:2px 4px; font-family:inherit; font-size:10px; cursor:pointer; }
+select.ctrl-sel:focus { outline: none; border-color: #4455cc; }
+.val { min-width: 18px; text-align: right; color: #9ab; }
+button.btn { background:#12122a; border:1px solid #2a2a50; color:#8899cc;
+  padding:3px 12px; cursor:pointer; font-family:inherit; font-size:11px; }
+button.btn:hover { background:#1e1e40; }
+.sl-section-hd { color:#4455cc; font-size:9px; letter-spacing:2px; margin:8px 0 6px 0; }
+#stats { position: fixed; bottom: 74px; left: 16px; color: #2a2a44; font-size: 10px; letter-spacing: 1px; pointer-events: none; }
+#panel { position: fixed; top: 0; right: 0; bottom: 60px; width: 300px;
+  background: rgba(8,8,16,.96); border-left: 1px solid #1c1c34;
+  padding: 20px 18px; display: none; overflow-y: auto; z-index: 250; }
+#panel-x { position:absolute; top:12px; right:14px; cursor:pointer; color:#334; font-size:18px; }
+#panel-x:hover { color: #fff; }
+#panel h3 { font-size:13px; margin-bottom:14px; word-break:break-all; }
+.prow { display:flex; justify-content:space-between; gap:8px; margin:5px 0; }
+.pk { color:#445566; flex-shrink:0; }
+.pv { color:#c0cce0; text-align:right; word-break:break-all; }
+.ptag { display:inline-block; background:#1a1a30; border:1px solid #2a2a50;
+  padding:1px 6px; margin:2px 2px 0 0; font-size:10px; color:#8899cc; }
+.psep { border-top:1px solid #1c1c34; margin:10px 0; }
+.pmsg { margin-top:8px; color:#6677aa; font-size:10px; line-height:1.5; }
+#timeline { position: fixed; bottom: 0; left: 0; right: 0; height: 60px;
+  background: #06060e; border-top: 1px solid #14142a; overflow: hidden; z-index: 100; }
+#tl-svg { display: block; width: 100%; height: 100%; }
+.mx-empty { color: #2a2a44; padding: 60px; text-align: center; font-size: 13px; }
+.mx-legend { display: flex; gap: 16px; padding: 10px 16px; border-bottom: 1px solid #14142a;
+  position: sticky; top: 0; background: #080810; z-index: 10; }
+.mx-leg-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #556; }
+.mx-leg-swatch { width: 14px; height: 14px; }
+.arc-hub-row { padding: 2px 0; cursor: pointer; font-size: 9px; line-height: 1.7;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arc-hub-row:hover { opacity: 0.7; }
+.arc-hub-active { font-weight: bold; text-decoration: underline dotted; }
+.arc-hub-cnt { color: #2a3a5a; display: inline-block; min-width: 22px; }
+</style>
+</head>
+<body>
+<svg id="canvas"></svg>
+<div id="matrix-view"></div>
+<div id="three-view"></div>
+
+<div id="layout-bar">
+  <button class="lay-btn active" data-layout="force">Force</button>
+  <button class="lay-btn" data-layout="swimlane">Swimlane</button>
+  <button class="lay-btn" data-layout="arc">Arc</button>
+  <button class="lay-btn" data-layout="matrix">Matrix</button>
+  <button class="lay-btn" data-layout="3d">3D</button>
+</div>
+
+<div id="tip"></div>
+<div id="legend" class="widget">
+  <h3>◆ LEGEND <span class="widget-toggle" onclick="toggleWidget('legend')">−</span></h3>
+  <div class="widget-body">
+  <div class="leg"><div class="dot" style="background:#08081a;border:2px solid #aaa;box-sizing:border-box"></div>Project cluster</div>
+  <div class="leg"><div class="dot" style="background:#00aaff;opacity:.85"></div>Session (size = AI work)</div>
+  <div class="leg"><div class="dia" style="background:#00cccc"></div>File (size = edits)</div>
+  <div class="sep"></div>
+  <div class="leg"><div class="line" style="background:#00ff88;opacity:.7"></div>write op</div>
+  <div class="leg"><div class="line" style="background:#ffcc00;opacity:.7"></div>edit op</div>
+  <div class="leg"><div class="dash" style="border-color:#1e4a66;opacity:.9;border-style:dotted"></div>read op</div>
+  <div class="leg"><div class="line" style="background:#19304a;opacity:1"></div>membership</div>
+  <div class="leg"><div class="dash" style="border-color:#557;opacity:.8"></div>branch lineage</div>
+  <div class="sep"></div>
+  <div class="leg"><div class="ring" style="border-color:#ff2244"></div>high error (≥8)</div>
+  <div class="leg"><div class="ring" style="border-color:#ffcc00"></div>custom skill used</div>
+  <div class="leg"><div class="dot" style="background:#fff;width:7px;height:7px;margin:2px 2px"></div>thinking blocks</div>
+  <div class="leg"><span style="color:#ff4444;font-size:12px;line-height:1">✕</span>&nbsp;hit max_tokens</div>
+  <div class="sep"></div>
+  <div class="leg" style="color:#556;font-size:10px">edge thickness = visit frequency</div>
+  </div>
+</div>
+<div id="controls" class="widget">
+  <h3>◆ DISPLAY <span class="widget-toggle" onclick="toggleWidget('controls')">−</span></h3>
+  <div class="widget-body">
+  <div class="ctrl"><input type="checkbox" id="cb-files" checked><label for="cb-files">File nodes</label></div>
+  <div class="ctrl"><input type="checkbox" id="cb-ro-files" checked><label for="cb-ro-files">Read-only files</label></div>
+  <div class="ctrl"><input type="checkbox" id="cb-branch" checked><label for="cb-branch">Branch lineage edges</label></div>
+  <div class="ctrl"><input type="checkbox" id="cb-reads"><label for="cb-reads">Read edges</label></div>
+  <div class="ctrl"><input type="checkbox" id="cb-group"><label for="cb-group">Group by project (force)</label></div>
+  <div class="ctrl">
+    <label for="sl-min">File min sessions:</label>
+    <input type="range" id="sl-min" min="1" max="12" value="%%MIN_FILE_SESSIONS%%">
+    <span class="val" id="sl-min-val">%%MIN_FILE_SESSIONS%%</span>
+  </div>
+  <div class="sep"></div>
+  <div class="ctrl"><label style="flex-shrink:0;color:#556">From:</label><input type="date" id="tf-from" style="flex:1;min-width:0;background:#0c0c1e;border:1px solid #2a2a50;color:#8899cc;padding:2px 6px;font-family:inherit;font-size:10px"><button class="btn" id="tf-clear" style="padding:3px 7px">✕</button></div>
+  <div class="ctrl"><button class="btn" id="btn-shake">⟳ Shake</button>&nbsp;<button class="btn" id="btn-reset">⌂ Reset</button>&nbsp;<button class="btn" id="btn-fit">⊡ Fit</button></div>
+
+  <div id="sl-options" style="display:none">
+    <div class="sep"></div>
+    <div class="sl-section-hd">◆ SWIMLANE</div>
+    <div class="ctrl"><label for="sl-height-sel">Bar height</label>
+      <select id="sl-height-sel" class="ctrl-sel">
+        <option value="tokens">Token work</option>
+        <option value="calls">Tool calls</option>
+        <option value="duration">Duration</option>
+        <option value="errors">Errors</option>
+      </select>
+    </div>
+    <div class="ctrl"><label for="sl-width-sel">Bar width</label>
+      <select id="sl-width-sel" class="ctrl-sel">
+        <option value="duration">Duration</option>
+        <option value="tokens">Token work</option>
+        <option value="fixed">Fixed</option>
+      </select>
+    </div>
+    <div class="ctrl"><label for="sl-color-sel">Color by</label>
+      <select id="sl-color-sel" class="ctrl-sel">
+        <option value="project">Project</option>
+        <option value="branch">Branch</option>
+        <option value="model">Model</option>
+        <option value="recency">Recency</option>
+        <option value="errors">Error level</option>
+      </select>
+    </div>
+    <div class="ctrl"><input type="checkbox" id="sl-subbranch" checked><label for="sl-subbranch">Branch sub-rows</label></div>
+    <div class="ctrl"><input type="checkbox" id="sl-blabels" checked><label for="sl-blabels">Branch labels</label></div>
+    <div class="ctrl"><label for="sl-order-sel">Lane order</label>
+      <select id="sl-order-sel" class="ctrl-sel">
+        <option value="recent">Most recent</option>
+        <option value="work">Most work</option>
+        <option value="count">Session count</option>
+        <option value="alpha">Alphabetical</option>
+      </select>
+    </div>
+    <div class="ctrl"><label for="sl-grid-sel">Time grid</label>
+      <select id="sl-grid-sel" class="ctrl-sel">
+        <option value="auto">Auto</option>
+        <option value="day">Day</option>
+        <option value="week">Week</option>
+        <option value="month">Month</option>
+      </select>
+    </div>
+    <div class="ctrl"><label for="sl-label-sel">Bar label</label>
+      <select id="sl-label-sel" class="ctrl-sel">
+        <option value="date">Date</option>
+        <option value="branch">Branch</option>
+        <option value="msg">First message</option>
+        <option value="off">Off</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="arc-options" style="display:none">
+    <div class="sep"></div>
+    <div class="sl-section-hd">◆ ARC VIEW</div>
+    <div class="ctrl"><label for="arc-mode">Mode</label>
+      <select id="arc-mode" class="ctrl-sel">
+        <option value="file-shared">File co-access</option>
+        <option value="branch">Branch lineage</option>
+        <option value="sequence">Session sequence</option>
+      </select>
+    </div>
+    <div class="ctrl"><label for="arc-color-by">Color by</label>
+      <select id="arc-color-by" class="ctrl-sel">
+        <option value="file">Shared file</option>
+        <option value="project">Project</option>
+        <option value="uniform">Uniform</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label for="arc-min-shared">Min shared: <span id="arc-min-val">1</span></label>
+      <input type="range" id="arc-min-shared" min="1" max="8" value="1">
+    </div>
+    <div class="ctrl">
+      <label for="arc-max-span">Max span: <span id="arc-span-val">All</span></label>
+      <input type="range" id="arc-max-span" min="1" max="365" value="365">
+    </div>
+    <div class="ctrl"><input type="checkbox" id="arc-group-proj"><label for="arc-group-proj">Group by project</label></div>
+    <div id="arc-file-hub" style="display:none">
+      <div class="sl-section-hd" style="margin-top:8px">◆ FILE HUBS <span style="color:#2a3a5a;font-size:8px">(click to filter)</span></div>
+      <div id="arc-file-hub-list"></div>
+    </div>
+  </div>
+  </div>
+</div>
+<div id="stats"></div>
+<div id="panel"><span id="panel-x" onclick="closePanel()">✕</span><div id="panel-content"></div></div>
+<div id="timeline"><svg id="tl-svg"></svg></div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/3d-force-graph@1/dist/3d-force-graph.min.js" defer></script>
+<script>
+%%CLIENT_JS%%
+</script>
+</body>
+</html>

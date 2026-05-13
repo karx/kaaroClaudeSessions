@@ -385,7 +385,7 @@ export function mergeSessionIntoData(existingData, updatedSession) {
   };
 }
 
-export { deriveLabel, normPath, extractTextFromContent, extractSkills, buildProjectSummary, buildGlobalRollup, parseJsonlFile, categorizeBash };
+export { deriveLabel, normPath, extractTextFromContent, extractSkills, buildProjectSummary, buildGlobalRollup, parseJsonlFile, categorizeBash, analyzeSession, enrichSession };
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 

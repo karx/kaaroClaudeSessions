@@ -39,6 +39,12 @@ test('parseMinSessions', async t => {
   await t.test('uses first match when arg appears multiple times', () => {
     assert.equal(parseMinSessions(['--min-sessions=5', '--min-sessions=2']), 5);
   });
+  await t.test('--min-sessions=0 parses to 0', () => {
+    assert.equal(parseMinSessions(['--min-sessions=0']), 0);
+  });
+  await t.test('non-numeric value parses to NaN (all files pass the < NaN check)', () => {
+    assert.ok(Number.isNaN(parseMinSessions(['--min-sessions=foo'])));
+  });
 });
 
 // ── buildFileNodesAndEdges ────────────────────────────────────────────────────
@@ -51,7 +57,7 @@ test('buildFileNodesAndEdges — empty input', async t => {
   });
 });
 
-test('buildFileNodesAndEdges — read-only file inclusion (key new behaviour)', async t => {
+test('buildFileNodesAndEdges — read-only file inclusion', async t => {
   const f = makeFile('src/foo.js', { read: 3, write: 0, edit: 0, sessions: ['s1'] });
   const sessById = { s1: makeSess('s1', { 'src/foo.js': { read: 3, write: 0, edit: 0 } }) };
 
@@ -127,7 +133,7 @@ test('buildFileNodesAndEdges — sizeNorm', async t => {
 });
 
 test('buildFileNodesAndEdges — edge types', async t => {
-  await t.test('emits write edge when session wrote the file', () => {
+  await t.test('write-only session emits exactly one write edge', () => {
     const f = makeFile('src/out.js', { write: 2, sessions: ['s1'] });
     const sessById = { s1: makeSess('s1', { 'src/out.js': { read: 0, write: 2, edit: 0 } }) };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
@@ -137,36 +143,90 @@ test('buildFileNodesAndEdges — edge types', async t => {
     assert.equal(edges[0].target, 'src/out.js');
   });
 
-  await t.test('emits edit edge when session edited but did not write', () => {
+  await t.test('edit-only session emits exactly one edit edge', () => {
     const f = makeFile('src/out.js', { edit: 3, sessions: ['s1'] });
     const sessById = { s1: makeSess('s1', { 'src/out.js': { read: 0, write: 0, edit: 3 } }) };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 1);
     assert.equal(edges[0].type, 'edit');
   });
 
-  await t.test('emits read edge for a read-only session interaction', () => {
+  await t.test('read-only session emits exactly one read edge', () => {
     const f = makeFile('src/ro.js', { read: 2, sessions: ['s1'] });
     const sessById = { s1: makeSess('s1', { 'src/ro.js': { read: 2, write: 0, edit: 0 } }) };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 1);
     assert.equal(edges[0].type, 'read');
   });
 
-  await t.test('edge weight equals total ops (write+edit+read)', () => {
+  await t.test('each edge carries per-op weight, not total', () => {
     const f = makeFile('src/x.js', { read: 1, write: 2, edit: 3, sessions: ['s1'] });
     const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 1, write: 2, edit: 3 } }) };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
-    assert.equal(edges[0].weight, 6);
+    const byType = Object.fromEntries(edges.map(e => [e.type, e.weight]));
+    assert.equal(byType.write, 2);
+    assert.equal(byType.edit,  3);
+    assert.equal(byType.read,  1);
   });
 
   await t.test('skips edge when session has no file_ops entry for this file', () => {
     const f = makeFile('src/x.js', { write: 1, sessions: ['s1', 's2'] });
     const sessById = {
       s1: makeSess('s1', { 'src/x.js': { read: 0, write: 1, edit: 0 } }),
-      s2: makeSess('s2', {}), // no entry for src/x.js
+      s2: makeSess('s2', {}),
     };
     const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
     assert.equal(edges.length, 1);
     assert.equal(edges[0].source, 's1');
+  });
+});
+
+test('buildFileNodesAndEdges — multi-op edges per session', async t => {
+  await t.test('write+read session emits both a write and a read edge', () => {
+    const f = makeFile('src/x.js', { read: 3, write: 2, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 3, write: 2, edit: 0 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 2);
+    assert.deepEqual(edges.map(e => e.type).sort(), ['read', 'write']);
+  });
+
+  await t.test('edit+read session emits both an edit and a read edge', () => {
+    const f = makeFile('src/x.js', { read: 2, edit: 4, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 2, write: 0, edit: 4 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 2);
+    assert.deepEqual(edges.map(e => e.type).sort(), ['edit', 'read']);
+  });
+
+  await t.test('write+edit+read session emits three edges', () => {
+    const f = makeFile('src/x.js', { read: 1, write: 2, edit: 3, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/x.js': { read: 1, write: 2, edit: 3 } }) };
+    const { edges } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(edges.length, 3);
+    assert.deepEqual(edges.map(e => e.type).sort(), ['edit', 'read', 'write']);
+  });
+
+  // Shared fixture for the weight / source-target assertions below
+  const triOpFile    = makeFile('src/x.js', { read: 1, write: 2, edit: 3, sessions: ['s1'] });
+  const triOpSessById = { s1: makeSess('s1', { 'src/x.js': { read: 1, write: 2, edit: 3 } }) };
+  const triOpEdges   = buildFileNodesAndEdges(
+    [triOpFile], triOpSessById, { minSessions: 1, referenceMs: REF_MS }
+  ).edges;
+
+  await t.test('write edge weight equals write count only', () => {
+    assert.equal(triOpEdges.find(e => e.type === 'write').weight, 2);
+  });
+
+  await t.test('edit edge weight equals edit count only', () => {
+    assert.equal(triOpEdges.find(e => e.type === 'edit').weight, 3);
+  });
+
+  await t.test('read edge weight equals read count only', () => {
+    assert.equal(triOpEdges.find(e => e.type === 'read').weight, 1);
+  });
+
+  await t.test('all edges share the same source and target', () => {
+    assert.ok(triOpEdges.every(e => e.source === 's1' && e.target === 'src/x.js'));
   });
 });
 
@@ -201,6 +261,64 @@ test('buildFileNodesAndEdges — node metadata', async t => {
     };
     const { nodes } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
     assert.equal(nodes[0].session_count, 2);
+  });
+
+  await t.test('node type is "file"', () => {
+    const f = makeFile('src/app.js', { write: 1, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/app.js': { read: 0, write: 1, edit: 0 } }) };
+    const { nodes } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(nodes[0].type, 'file');
+  });
+
+  await t.test('ext field matches the file extension', () => {
+    const f = makeFile('src/util.ts', { write: 1, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/util.ts': { read: 0, write: 1, edit: 0 } }) };
+    const { nodes } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(nodes[0].ext, 'ts');
+  });
+});
+
+// ── recency fields ────────────────────────────────────────────────────────────
+
+test('buildFileNodesAndEdges — recency fields', async t => {
+  // REF_MS = 2026-05-07T12:00:00Z
+  // session ts 5 min before ref → recencyLevel 2 (< 15 min, >= 5 min)
+  const RECENT_TS = '2026-05-07T11:55:00Z';
+
+  await t.test('last_activity is the max session timestamp linked to the file', () => {
+    const f = makeFile('src/hot.js', { write: 1, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/hot.js': { read: 0, write: 1, edit: 0 } }, RECENT_TS) };
+    const { nodes } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(nodes[0].last_activity, RECENT_TS);
+  });
+
+  await t.test('recency is > 0 for a recently-touched file', () => {
+    const f = makeFile('src/hot.js', { write: 1, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/hot.js': { read: 0, write: 1, edit: 0 } }, RECENT_TS) };
+    const { nodes } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.ok(nodes[0].recency > 0, `expected recency > 0, got ${nodes[0].recency}`);
+  });
+
+  await t.test('recencyLevel is 2 for a file touched 5 min before reference', () => {
+    const f = makeFile('src/hot.js', { write: 1, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/hot.js': { read: 0, write: 1, edit: 0 } }, RECENT_TS) };
+    const { nodes } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(nodes[0].recencyLevel, 2);
+  });
+
+  await t.test('recency is 0 for a stale file (session timestamp far in the past)', () => {
+    const OLD_TS = '2026-01-01T00:00:00Z';
+    const f = makeFile('src/old.js', { write: 1, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/old.js': { read: 0, write: 1, edit: 0 } }, OLD_TS) };
+    const { nodes } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(nodes[0].recency, 0);
+  });
+  await t.test('recencyLevel is 0 for a stale file (session timestamp far in the past)', () => {
+    const OLD_TS = '2026-01-01T00:00:00Z';
+    const f = makeFile('src/old.js', { write: 1, sessions: ['s1'] });
+    const sessById = { s1: makeSess('s1', { 'src/old.js': { read: 0, write: 1, edit: 0 } }, OLD_TS) };
+    const { nodes } = buildFileNodesAndEdges([f], sessById, { minSessions: 1, referenceMs: REF_MS });
+    assert.equal(nodes[0].recencyLevel, 0);
   });
 });
 

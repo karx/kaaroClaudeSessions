@@ -7,6 +7,7 @@ import {
   extractSkills,
   buildProjectSummary,
   buildGlobalRollup,
+  categorizeBash,
 } from '../analyze.mjs';
 
 // ── deriveLabel ───────────────────────────────────────────────────────────────
@@ -130,16 +131,16 @@ test('buildProjectSummary', async t => {
     assert.equal(summary.session_count, 2);
   });
   await t.test('aggregates input tokens', () => {
-    assert.equal(summary.tokens.input, 300);
+    assert.equal(summary.tokens.input, 300); // 100 + 200
   });
   await t.test('aggregates output tokens', () => {
-    assert.equal(summary.tokens.output, 170);
+    assert.equal(summary.tokens.output, 170); // 80 + 90
   });
   await t.test('aggregates tool calls', () => {
-    assert.equal(summary.tool_calls, 13);
+    assert.equal(summary.tool_calls, 13); // 5 + 8
   });
   await t.test('aggregates tool errors', () => {
-    assert.equal(summary.tool_errors, 1);
+    assert.equal(summary.tool_errors, 1); // 1 + 0
   });
   await t.test('deduplicates and sorts skills', () => {
     assert.deepEqual(summary.skills, ['bar', 'baz', 'foo']);
@@ -151,10 +152,10 @@ test('buildProjectSummary', async t => {
     assert.deepEqual(summary.git_branches, ['feat', 'main']);
   });
   await t.test('sums total bytes', () => {
-    assert.equal(summary.total_bytes, 3000);
+    assert.equal(summary.total_bytes, 3000); // 1000 + 2000
   });
   await t.test('sums duration', () => {
-    assert.equal(summary.duration_ms, 150000);
+    assert.equal(summary.duration_ms, 150000); // 60000 + 90000
   });
   await t.test('counts models', () => {
     assert.equal(summary.models['claude-opus-4'], 2);
@@ -196,9 +197,11 @@ test('buildGlobalRollup', async t => {
     const read = rollup.tools.find(t => t.name === 'Read');
     assert.equal(read.calls, 8);
   });
-  await t.test('counts skill occurrences', () => {
+  await t.test('counts skill occurrences for foo (appears in both sessions)', () => {
     const foo = rollup.skills.find(s => s.name === 'foo');
     assert.equal(foo.count, 2);
+  });
+  await t.test('counts skill occurrences for bar (appears in one session)', () => {
     const bar = rollup.skills.find(s => s.name === 'bar');
     assert.equal(bar.count, 1);
   });
@@ -224,4 +227,81 @@ test('buildGlobalRollup', async t => {
   await t.test('totals tool errors', () => {
     assert.equal(rollup.total_errors, 1);
   });
+});
+
+test('buildProjectSummary — empty sessions', async t => {
+  const summary = buildProjectSummary('D--src-empty', []);
+
+  await t.test('session_count is 0', () => assert.equal(summary.session_count, 0));
+  await t.test('all token buckets are 0', () => {
+    assert.deepEqual(summary.tokens, { input: 0, cache_create: 0, cache_read: 0, output: 0 });
+  });
+  await t.test('skills is empty array', () => assert.deepEqual(summary.skills, []));
+  await t.test('git_branches is empty array', () => assert.deepEqual(summary.git_branches, []));
+  await t.test('duration_ms is 0', () => assert.equal(summary.duration_ms, 0));
+});
+
+test('buildGlobalRollup — empty sessions', async t => {
+  const rollup = buildGlobalRollup([]);
+
+  await t.test('tools is empty array', () => assert.deepEqual(rollup.tools, []));
+  await t.test('skills is empty array', () => assert.deepEqual(rollup.skills, []));
+  await t.test('models is empty object', () => assert.deepEqual(rollup.models, {}));
+  await t.test('all token buckets are 0', () => {
+    assert.deepEqual(rollup.tokens, { input: 0, cache_create: 0, cache_read: 0, output: 0 });
+  });
+  await t.test('total_errors is 0', () => assert.equal(rollup.total_errors, 0));
+  await t.test('files is empty array', () => assert.deepEqual(rollup.files, []));
+});
+
+// ── categorizeBash ────────────────────────────────────────────────────────────
+
+test('categorizeBash — git', async t => {
+  await t.test('git status', () => assert.equal(categorizeBash('git status'), 'git'));
+  await t.test('git log', ()    => assert.equal(categorizeBash('git log --oneline'), 'git'));
+  await t.test('leading whitespace is stripped before matching', () =>
+    assert.equal(categorizeBash('  git commit -m "x"'), 'git'));
+});
+
+test('categorizeBash — npm / npx', async t => {
+  await t.test('npm install',  () => assert.equal(categorizeBash('npm install'), 'npm'));
+  await t.test('npm run build',() => assert.equal(categorizeBash('npm run build'), 'npm'));
+  await t.test('npx tsc',      () => assert.equal(categorizeBash('npx tsc --noEmit'), 'npx'));
+});
+
+test('categorizeBash — node', async t => {
+  await t.test('node serve.mjs', () => assert.equal(categorizeBash('node serve.mjs'), 'node'));
+  // 'node' alone has no trailing space — does not match 'node '
+  await t.test('bare "node" without args is "other"', () =>
+    assert.equal(categorizeBash('node'), 'other'));
+});
+
+test('categorizeBash — python', async t => {
+  await t.test('py main.py',     () => assert.equal(categorizeBash('py main.py'), 'python'));
+  await t.test('python main.py', () => assert.equal(categorizeBash('python main.py'), 'python'));
+  await t.test('python3 is matched via startsWith("python")', () =>
+    assert.equal(categorizeBash('python3 main.py'), 'python'));
+});
+
+test('categorizeBash — fs', async t => {
+  await t.test('ls',    () => assert.equal(categorizeBash('ls -la'), 'fs'));
+  await t.test('cat',   () => assert.equal(categorizeBash('cat file.txt'), 'fs'));
+  await t.test('head',  () => assert.equal(categorizeBash('head -n 10 file.txt'), 'fs'));
+  await t.test('tail',  () => assert.equal(categorizeBash('tail -f log.txt'), 'fs'));
+  await t.test('mkdir', () => assert.equal(categorizeBash('mkdir dist'), 'fs'));
+  await t.test('rm ',   () => assert.equal(categorizeBash('rm -rf node_modules'), 'fs'));
+  await t.test('cp ',   () => assert.equal(categorizeBash('cp a.js b.js'), 'fs'));
+  await t.test('mv ',   () => assert.equal(categorizeBash('mv old.js new.js'), 'fs'));
+});
+
+test('categorizeBash — curl', async t => {
+  await t.test('curl', () => assert.equal(categorizeBash('curl https://example.com'), 'curl'));
+});
+
+test('categorizeBash — other / edge cases', async t => {
+  await t.test('echo is other',        () => assert.equal(categorizeBash('echo hello'), 'other'));
+  await t.test('which is other',       () => assert.equal(categorizeBash('which node'), 'other'));
+  await t.test('null returns other',   () => assert.equal(categorizeBash(null), 'other'));
+  await t.test('empty string is other',() => assert.equal(categorizeBash(''), 'other'));
+  await t.test('undefined is other',   () => assert.equal(categorizeBash(undefined), 'other'));
 });

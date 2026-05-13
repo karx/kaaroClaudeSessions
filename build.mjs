@@ -31,6 +31,21 @@ export {
   buildFileNodesAndEdges, isSessionInFlight, filterSessionsByDateRange,
 } from './lib/graph-data.mjs';
 
+/**
+ * Single-pass %%PLACEHOLDER%% substitution (autoconf / CMake configure_file pattern).
+ *
+ * Scans `template` exactly once; each match is replaced with `subs[match]`.
+ * Unknown placeholders are left intact.  The replacement function return value
+ * is used as a literal string — no $& / $1 backreference expansion, no rescan.
+ *
+ * @param {string} template
+ * @param {Record<string, string>} subs  e.g. { '%%FOO%%': 'bar' }
+ * @returns {string}
+ */
+export function applySubstitutions(template, subs) {
+  return template.replace(/%%[A-Z_]+%%/g, k => subs[k] ?? k);
+}
+
 // ── Main pipeline ─────────────────────────────────────────────────────────────
 function run() {
   const data        = JSON.parse(fs.readFileSync(path.join(CWD, 'sessions-data.json'), 'utf8'));
@@ -57,20 +72,18 @@ function run() {
     .map(f => fs.readFileSync(path.join(clientDir, f), 'utf8'))
     .join('\n');
 
-  // ── Substitute %%PLACEHOLDERS%% ───────────────────────────────────────────
-  const graphJson      = JSON.stringify({ nodes, edges, meta: data.meta });
-  const timelineJson   = JSON.stringify(timeline);
-  const colorIndexJson = JSON.stringify(COLOR_TO_INDEX);
+  // ── Substitute %%PLACEHOLDERS%% — single-pass via applySubstitutions ─────────
+  const injectedJS = applySubstitutions(clientJS, {
+    '%%GRAPH_JSON%%':       JSON.stringify({ nodes, edges, meta: data.meta }),
+    '%%TIMELINE_JSON%%':    JSON.stringify(timeline),
+    '%%COLOR_INDEX_JSON%%': JSON.stringify(COLOR_TO_INDEX),
+    '%%IN_FLIGHT_COLOR%%':  IN_FLIGHT_COLOR,
+  });
 
-  const injectedJS = clientJS
-    .replace('%%GRAPH_JSON%%',       graphJson)
-    .replace('%%TIMELINE_JSON%%',    timelineJson)
-    .replace('%%COLOR_INDEX_JSON%%', colorIndexJson)
-    .replace(/%%IN_FLIGHT_COLOR%%/g, IN_FLIGHT_COLOR);
-
-  const html = fs.readFileSync(path.join(CWD, 'src', 'template.html'), 'utf8')
-    .replace(/%%MIN_FILE_SESSIONS%%/g, String(minSessions))
-    .replace('%%CLIENT_JS%%', injectedJS);
+  const html = applySubstitutions(
+    fs.readFileSync(path.join(CWD, 'src', 'template.html'), 'utf8'),
+    { '%%MIN_FILE_SESSIONS%%': String(minSessions), '%%CLIENT_JS%%': injectedJS },
+  );
 
   const outPath = path.join(CWD, 'graph.html');
   fs.writeFileSync(outPath, html, 'utf8');

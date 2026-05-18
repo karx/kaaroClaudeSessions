@@ -165,6 +165,30 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Static assets (favicon, manifest, og-image, robots, generate helper) ────
+  const STATIC_MIME = {
+    svg: 'image/svg+xml', png: 'image/png', webmanifest: 'application/manifest+json',
+    txt: 'text/plain', html: 'text/html; charset=utf-8',
+  };
+  const STATIC_MAP = {
+    '/favicon.svg':          'favicon.svg',
+    '/og-image.png':         'og-image.png',
+    '/site.webmanifest':     'site.webmanifest',
+    '/robots.txt':           'robots.txt',
+    '/generate-og-png.html': 'generate-og-png.html',
+    '/src/og-image.svg':     'src/og-image.svg',
+  };
+  const staticRel = STATIC_MAP[req.url.split('?')[0]];
+  if (staticRel) {
+    const fp = path.join(__dirname, staticRel);
+    if (fs.existsSync(fp)) {
+      const ext = path.extname(fp).slice(1).toLowerCase();
+      res.writeHead(200, { 'Content-Type': STATIC_MIME[ext] || 'application/octet-stream' });
+      res.end(fs.readFileSync(fp));
+      return;
+    }
+  }
+
   res.writeHead(404); res.end('Not found');
 });
 

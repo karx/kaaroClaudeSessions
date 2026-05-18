@@ -73,7 +73,7 @@ svg.on('click',()=>{
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 function showPanel(d) {
-  document.getElementById('panel').style.display='block';
+  document.getElementById('panel').classList.add('open');
   const nb=neighbours(d.id); let html='';
   if (d.type==='project') {
     const ss=[...nb].filter(id=>id!==d.id).map(id=>nodeById[id]).filter(n=>n?.type==='session');
@@ -122,5 +122,5 @@ function showPanel(d) {
   }
   document.getElementById('panel-content').innerHTML = html;
 }
-function closePanel() { document.getElementById('panel').style.display='none'; }
+function closePanel() { document.getElementById('panel').classList.remove('open'); }
 window.closePanel = closePanel;

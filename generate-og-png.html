@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Generate og-image.png — kaaro-sessions</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #080810; color: #9aa0b8; font-family: 'Courier New', monospace;
+         font-size: 12px; padding: 40px; text-align: center; }
+  h2  { color: #4455cc; letter-spacing: 2px; text-transform: uppercase;
+        font-size: 11px; margin-bottom: 24px; }
+  canvas { max-width: 100%; border: 1px solid #1c1c34; display: block;
+           margin: 0 auto 24px; }
+  button { background: #0e0e22; border: 1px solid #252548; color: #8899cc;
+           font-family: inherit; font-size: 11px; padding: 8px 20px;
+           cursor: pointer; letter-spacing: 1.5px; text-transform: uppercase; }
+  button:hover { background: #1a1a36; }
+  p { color: #334; margin-top: 16px; font-size: 10px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<h2>◆ OG IMAGE GENERATOR — 1200 &#xD7; 630</h2>
+<canvas id="c" width="1200" height="630"></canvas>
+<button onclick="exportPng()">DOWNLOAD og-image.png</button>
+<p>Commit og-image.png to the project root, then delete or keep this file for future updates.</p>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+fetch('./src/og-image.svg')
+  .then(r => r.text())
+  .then(svg => {
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image(1200, 630);
+    img.onload = () => { ctx.drawImage(img, 0, 0, 1200, 630); URL.revokeObjectURL(url); };
+    img.onerror = () => { ctx.fillStyle = '#ff4444'; ctx.font = '14px monospace'; ctx.fillText('Error loading SVG — open via node serve.mjs, not file://', 40, 60); };
+    img.src = url;
+  })
+  .catch(() => {
+    ctx.fillStyle = '#334';
+    ctx.font = '13px monospace';
+    ctx.fillText('Open via http://localhost:3333/generate-og-png.html — fetch requires a server', 40, 315);
+  });
+
+function exportPng() {
+  const a = document.createElement('a');
+  a.download = 'og-image.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+</script>
+</body>
+</html>

@@ -19,7 +19,7 @@ window.updateGraph = function(newData) {
 // ── Live status badge ─────────────────────────────────────────────────────────
 if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   const badge=document.createElement('div');
-  badge.style.cssText='position:fixed;top:8px;right:12px;background:#00ff88;color:#000;font:bold 10px monospace;padding:3px 8px;border-radius:3px;z-index:9999;cursor:default;user-select:none;transition:background 0.3s';
+  badge.style.cssText='position:fixed;top:8px;right:12px;background:#00ff88;color:#000;font:bold 10px monospace;padding:3px 8px;z-index:9998;cursor:default;user-select:none;transition:background 0.15s';
   badge.title='Live — updates when sessions change'; document.body.appendChild(badge);
   function setBadge(t,c){badge.textContent=t;badge.style.background=c;}
   setBadge('⬤ LIVE','#00ff88');
@@ -29,6 +29,8 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   es.onerror=()=>setBadge('◌ reconnecting','#888');
   es.onopen=()=>setBadge('⬤ LIVE','#00ff88');
 }
+
+bootComplete();
 
 window.addEventListener('resize',()=>{
   W=window.innerWidth; H=window.innerHeight-TL_H;

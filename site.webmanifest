@@ -1,0 +1,31 @@
+{
+  "name": "Claude Code Sessions — kaaro",
+  "short_name": "Sessions",
+  "description": "Interactive knowledge graph of Claude Code AI sessions.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "theme_color": "#080810",
+  "background_color": "#080810",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["developer", "productivity"],
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any",     "type": "image/svg+xml" },
+    { "src": "og-image.png","sizes": "1200x630", "type": "image/png" }
+  ],
+  "screenshots": [
+    {
+      "src": "og-image.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Claude Code session graph visualization"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Force Graph",  "short_name": "Force",    "url": "/?layout=force" },
+    { "name": "Swimlane",     "short_name": "Swimlane",  "url": "/?layout=swimlane" },
+    { "name": "Arc Map",      "short_name": "Arc",       "url": "/?layout=arc" }
+  ]
+}

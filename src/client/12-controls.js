@@ -157,5 +157,87 @@ document.getElementById('arc-max-span')?.addEventListener('input', function() {
   refreshArc();
 });
 
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+const SHORTCUTS_DEF = [
+  { key:'f', label:'F',      desc:'Force graph layout',   action:()=>setLayout('force') },
+  { key:'s', label:'S',      desc:'Swimlane timeline',    action:()=>setLayout('swimlane') },
+  { key:'a', label:'A',      desc:'Arc coupling map',     action:()=>setLayout('arc') },
+  { key:'m', label:'M',      desc:'Matrix view',          action:()=>setLayout('matrix') },
+  { key:'g', label:'G',      desc:'3D force graph',       action:()=>setLayout('3d') },
+];
+
+function _loadSCPrefs() {
+  try { return JSON.parse(localStorage.getItem('kaaro-shortcuts') || '{}'); } catch { return {}; }
+}
+let _scPrefs = _loadSCPrefs();
+function _scEnabled(key) { return _scPrefs[key] !== false; }
+
+function renderHelpPanel() {
+  const el = document.getElementById('help-content');
+  if (!el) return;
+  el.innerHTML = [
+    '<div class="help-h">◆ SHORTCUTS <span class="help-hint">press key to live-test</span></div>',
+    ...SHORTCUTS_DEF.map(s => {
+      const on = _scEnabled(s.key);
+      return `<div class="help-row" id="hrow-${s.key}">` +
+        `<span class="help-key">${s.label}</span>` +
+        `<span class="help-desc">${s.desc}</span>` +
+        `<button class="help-toggle ${on?'on':'off'}" data-key="${s.key}">${on?'ON':'OFF'}</button>` +
+        `</div>`;
+    }),
+    '<div class="help-sep"></div>',
+    '<div class="help-row"><span class="help-key">?</span><span class="help-desc">Toggle this panel</span><span class="help-fixed">—</span></div>',
+    '<div class="help-row"><span class="help-key">ESC</span><span class="help-desc">Close panel · deselect</span><span class="help-fixed">—</span></div>',
+    '<div class="help-sep"></div>',
+    '<div class="help-h">◆ MOUSE</div>',
+    '<div class="help-row"><span class="help-key">Drag</span><span class="help-desc">Pan · reposition node (force)</span></div>',
+    '<div class="help-row"><span class="help-key">Scroll</span><span class="help-desc">Zoom in / out</span></div>',
+    '<div class="help-row"><span class="help-key">Click</span><span class="help-desc">Select and inspect</span></div>',
+    '<div class="help-footer" id="help-close">[ CLOSE ]</div>',
+  ].join('');
+  el.querySelectorAll('.help-toggle').forEach(btn => {
+    btn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const k = btn.dataset.key;
+      _scPrefs[k] = !_scEnabled(k);
+      try { localStorage.setItem('kaaro-shortcuts', JSON.stringify(_scPrefs)); } catch {}
+      renderHelpPanel();
+    });
+  });
+  document.getElementById('help-close').addEventListener('click', () => {
+    document.getElementById('help-panel').classList.remove('open');
+  });
+}
+
+function _flashRow(key) {
+  const row = document.getElementById('hrow-' + key);
+  if (!row) return;
+  row.classList.remove('flashing');
+  void row.offsetWidth;
+  row.classList.add('flashing');
+  setTimeout(() => row.classList.remove('flashing'), 420);
+}
+
+document.addEventListener('keydown', ev => {
+  if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT' || ev.target.tagName === 'TEXTAREA') return;
+  if (ev.key === '?') {
+    ev.preventDefault();
+    const hp = document.getElementById('help-panel');
+    const opening = !hp.classList.contains('open');
+    hp.classList.toggle('open');
+    if (opening) renderHelpPanel();
+    return;
+  }
+  if (ev.key === 'Escape') {
+    const hp = document.getElementById('help-panel');
+    if (hp.classList.contains('open')) { hp.classList.remove('open'); return; }
+    if (selectedId) { selectedId=null; if(currentLayout==='swimlane') slHighlight(null); else highlight(null); closePanel(); }
+    return;
+  }
+  const key = ev.key.toLowerCase();
+  const sc = SHORTCUTS_DEF.find(s => s.key === key);
+  if (sc && _scEnabled(sc.key)) { ev.preventDefault(); sc.action(); _flashRow(sc.key); }
+});
+
 buildTimeline();
 nodeSel.call(drag);

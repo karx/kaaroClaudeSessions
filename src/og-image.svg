@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#080810"/>
+
+  <!-- Top accent -->
+  <rect width="1200" height="6" fill="#4455cc"/>
+
+  <!-- ── Decorative graph (right panel) ───────────────────────────────────── -->
+  <!-- Membership edges -->
+  <g stroke="#00aaff" stroke-width="1.2" opacity="0.45">
+    <line x1="840" y1="175" x2="770" y2="120"/>
+    <line x1="840" y1="175" x2="920" y2="130"/>
+    <line x1="840" y1="175" x2="1010" y2="150"/>
+    <line x1="1060" y1="230" x2="1010" y2="150"/>
+    <line x1="1060" y1="230" x2="1100" y2="315"/>
+    <line x1="1060" y1="230" x2="1070" y2="390"/>
+    <line x1="950"  y1="450" x2="880"  y2="385"/>
+    <line x1="950"  y1="450" x2="820"  y2="490"/>
+    <line x1="950"  y1="450" x2="990"  y2="505"/>
+  </g>
+  <!-- Write/edit edges -->
+  <g opacity="0.45">
+    <line x1="840"  y1="175" x2="870"  y2="255" stroke="#00ff88" stroke-width="0.9"/>
+    <line x1="920"  y1="130" x2="960"  y2="205" stroke="#00ff88" stroke-width="0.9"/>
+    <line x1="1060" y1="230" x2="1025" y2="305" stroke="#ffcc00" stroke-width="0.9"/>
+  </g>
+  <!-- Project nodes -->
+  <circle cx="840"  cy="175" r="20" fill="#4455cc" opacity="0.8"/>
+  <circle cx="1060" cy="230" r="16" fill="#3355aa" opacity="0.75"/>
+  <circle cx="950"  cy="450" r="17" fill="#2255aa" opacity="0.75"/>
+  <!-- Session nodes -->
+  <g fill="#00aaff" opacity="0.75">
+    <circle cx="770"  cy="120" r="9"/>
+    <circle cx="920"  cy="130" r="10"/>
+    <circle cx="1010" cy="150" r="8"/>
+    <circle cx="1100" cy="315" r="9"/>
+    <circle cx="1070" cy="390" r="10"/>
+    <circle cx="880"  cy="385" r="8"/>
+    <circle cx="820"  cy="490" r="9"/>
+    <circle cx="990"  cy="505" r="8"/>
+  </g>
+  <!-- File nodes (rotated squares = diamonds) -->
+  <g fill="#00cccc" opacity="0.7">
+    <rect x="863" y="249" width="14" height="14" transform="rotate(45,870,256)"/>
+    <rect x="953" y="199" width="12" height="12" transform="rotate(45,959,205)"/>
+    <rect x="1019" y="299" width="12" height="12" transform="rotate(45,1025,305)"/>
+  </g>
+
+  <!-- ── Content (left) ────────────────────────────────────────────────────── -->
+  <!-- Eyebrow label -->
+  <text x="100" y="80"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="11" fill="#4455cc" letter-spacing="3">
+    KAARO &#x2022; AI DEVELOPMENT INTELLIGENCE
+  </text>
+
+  <!-- Title -->
+  <text x="100" y="175"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="72" font-weight="700" fill="#c8d4ff" letter-spacing="2">KAARO</text>
+  <text x="100" y="252"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="72" font-weight="700" fill="#aabbd8" letter-spacing="2">SESSIONS</text>
+
+  <!-- Rule -->
+  <line x1="100" y1="278" x2="680" y2="278" stroke="#1c1c34" stroke-width="1"/>
+
+  <!-- Tagline -->
+  <text x="100" y="306"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="16" fill="#6a7a98">
+    Interactive knowledge graph of Claude Code AI sessions
+  </text>
+
+  <!-- Layout pills -->
+  <rect x="100" y="328" width="84"  height="24" fill="#0e0e22" stroke="#252548" stroke-width="1"/>
+  <text x="142" y="345" font-family="monospace" font-size="10" fill="#8899cc" text-anchor="middle" letter-spacing="2">FORCE</text>
+
+  <rect x="194" y="328" width="112" height="24" fill="#0e0e22" stroke="#252548" stroke-width="1"/>
+  <text x="250" y="345" font-family="monospace" font-size="10" fill="#8899cc" text-anchor="middle" letter-spacing="2">SWIMLANE</text>
+
+  <rect x="316" y="328" width="68"  height="24" fill="#0e0e22" stroke="#252548" stroke-width="1"/>
+  <text x="350" y="345" font-family="monospace" font-size="10" fill="#8899cc" text-anchor="middle" letter-spacing="2">ARC</text>
+
+  <rect x="394" y="328" width="94"  height="24" fill="#0e0e22" stroke="#252548" stroke-width="1"/>
+  <text x="441" y="345" font-family="monospace" font-size="10" fill="#8899cc" text-anchor="middle" letter-spacing="2">MATRIX</text>
+
+  <rect x="498" y="328" width="54"  height="24" fill="#0e0e22" stroke="#252548" stroke-width="1"/>
+  <text x="525" y="345" font-family="monospace" font-size="10" fill="#8899cc" text-anchor="middle" letter-spacing="2">3D</text>
+
+  <!-- Feature list -->
+  <text x="100" y="394"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="13" fill="#5a6e88">&#x25B8; Session graph with token usage and tool call analysis</text>
+  <text x="100" y="420"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="13" fill="#5a6e88">&#x25B8; File co-access patterns and temporal coupling maps</text>
+  <text x="100" y="446"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="13" fill="#5a6e88">&#x25B8; Live updates from ~/.claude/projects/ via SSE</text>
+  <text x="100" y="472"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="13" fill="#5a6e88">&#x25B8; Five visualization modes: force, swimlane, arc, matrix, 3D</text>
+
+  <!-- Bottom bar -->
+  <rect x="0" y="588" width="1200" height="42" fill="#050508"/>
+  <line x1="0" y1="588" x2="1200" y2="588" stroke="#1c1c34" stroke-width="1"/>
+  <text x="100" y="614"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="12" fill="#4a5878">
+    Zero dependencies &#x2022; D3 v7 &#x2022; 3D Force Graph &#x2022; kaaro
+  </text>
+  <text x="1100" y="614"
+        font-family="'IBM Plex Mono','Courier New',monospace"
+        font-size="12" fill="#4455cc" text-anchor="end">kaaro.io/sessions</text>
+
+  <!-- Bottom accent -->
+  <rect x="0" y="624" width="1200" height="6" fill="#4455cc" opacity="0.8"/>
+</svg>

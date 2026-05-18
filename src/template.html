@@ -1,11 +1,58 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 <head>
+<!-- SEO: replace every occurrence of kaaro.io/sessions with your real URL before deploying -->
+<!-- ── Primary ─────────────────────────────────────────────────────────────── -->
 <meta charset="utf-8">
-<title>Claude Code Sessions — kaaro-sessions</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Sessions — kaaro</title>
+<meta name="title" content="Claude Code Sessions — kaaro">
+<meta name="description" content="Interactive knowledge graph of Claude Code AI sessions — explore projects, files, timelines, and token usage across your development history.">
+<meta name="keywords" content="claude code, AI sessions, developer analytics, session graph, code visualization, token usage, tool calls, D3 graph, knowledge graph, development intelligence, kaaro, claude code viewer">
+<meta name="author" content="kaaro">
+<meta name="robots" content="index, follow">
+<meta name="language" content="English">
+<link rel="canonical" href="https://kaaro.io/sessions/">
+<!-- ── Theme ──────────────────────────────────────────────────────────────── -->
+<meta name="theme-color" content="#080810">
+<meta name="color-scheme" content="dark">
+<meta name="msapplication-TileColor" content="#080810">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sessions">
+<!-- ── Open Graph ─────────────────────────────────────────────────────────── -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kaaro.io/sessions/">
+<meta property="og:title" content="Claude Code Sessions — kaaro">
+<meta property="og:description" content="Interactive knowledge graph of your Claude Code AI sessions. Explore projects, files, timelines, and token usage across your entire development history.">
+<meta property="og:image" content="https://kaaro.io/sessions/og-image.png">
+<meta property="og:image:secure_url" content="https://kaaro.io/sessions/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Claude Code Sessions — interactive graph visualization by kaaro">
+<meta property="og:site_name" content="kaaro">
+<meta property="og:locale" content="en_US">
+<!-- ── Twitter Card ───────────────────────────────────────────────────────── -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:url" content="https://kaaro.io/sessions/">
+<meta name="twitter:title" content="Claude Code Sessions — kaaro">
+<meta name="twitter:description" content="Interactive knowledge graph of your Claude Code AI sessions. Explore projects, files, timelines &amp; token usage across your entire dev history.">
+<meta name="twitter:image" content="https://kaaro.io/sessions/og-image.png">
+<meta name="twitter:image:alt" content="Claude Code Sessions — interactive graph visualization by kaaro">
+<meta name="twitter:site" content="@karx_brb">
+<meta name="twitter:creator" content="@karx_brb">
+<!-- ── Favicon ────────────────────────────────────────────────────────────── -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23080810'/%3E%3Cline x1='16' y1='10' x2='9' y2='23' stroke='%23252548' stroke-width='1.5'/%3E%3Cline x1='16' y1='10' x2='23' y2='23' stroke='%23252548' stroke-width='1.5'/%3E%3Cline x1='9' y1='23' x2='23' y2='23' stroke='%231c1c34' stroke-width='1.5'/%3E%3Ccircle cx='16' cy='10' r='5' fill='%234455cc'/%3E%3Ccircle cx='9' cy='23' r='3' fill='%2300aaff'/%3E%3Ccircle cx='23' cy='23' r='3' fill='%2300aaff'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23080810'/%3E%3Ccircle cx='16' cy='10' r='5' fill='%234455cc'/%3E%3Ccircle cx='9' cy='23' r='3' fill='%2300aaff'/%3E%3Ccircle cx='23' cy='23' r='3' fill='%2300aaff'/%3E%3C/svg%3E">
+<link rel="manifest" href="site.webmanifest">
+<!-- ── Preconnect + Fonts ──────────────────────────────────────────────────── -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #080810; color: #9aa0b8; font-family: 'Courier New',monospace; font-size: 11px; overflow: hidden; user-select: none; }
+body { background: #080810; color: #9aa0b8; font-family: 'IBM Plex Mono','Courier New',monospace; font-size: 11px; overflow: hidden; user-select: none; }
 #canvas { display: block; position: fixed; top: 0; left: 0; }
 #matrix-view { position: fixed; top: 0; left: 0; right: 0; bottom: 60px; overflow: auto; background: #080810; display: none; }
 #three-view  { position: fixed; top: 0; left: 0; right: 0; bottom: 60px; display: none; }
@@ -20,8 +67,7 @@ body { background: #080810; color: #9aa0b8; font-family: 'Courier New',monospace
 .lay-btn.active { background: #1e1e44; color: #aabbff; border-color: #4455cc; }
 
 #tip { position: fixed; pointer-events: none; background: #0c0c1e; border: 1px solid #252540;
-  padding: 10px 14px; max-width: 320px; display: none; line-height: 1.6; z-index: 300;
-  box-shadow: 0 4px 24px rgba(0,0,0,.7); }
+  padding: 10px 14px; max-width: 320px; display: none; line-height: 1.6; z-index: 300; }
 #tip strong { color: #fff; display: block; margin-bottom: 2px; font-size: 12px; }
 #tip .meta  { color: #5566aa; }
 #tip .body  { color: #8899bb; margin-top: 6px; font-size: 10px; line-height: 1.4; }
@@ -62,10 +108,12 @@ button.btn { background:#12122a; border:1px solid #2a2a50; color:#8899cc;
   padding:3px 12px; cursor:pointer; font-family:inherit; font-size:11px; }
 button.btn:hover { background:#1e1e40; }
 .sl-section-hd { color:#4455cc; font-size:9px; letter-spacing:2px; margin:8px 0 6px 0; }
-#stats { position: fixed; bottom: 74px; left: 16px; color: #2a2a44; font-size: 10px; letter-spacing: 1px; pointer-events: none; }
-#panel { position: fixed; top: 0; right: 0; bottom: 60px; width: 300px;
-  background: rgba(8,8,16,.96); border-left: 1px solid #1c1c34;
-  padding: 20px 18px; display: none; overflow-y: auto; z-index: 250; }
+#stats { position: fixed; bottom: 60px; left: 0; right: 0; color: #222840; font-size: 9px; letter-spacing: 1.5px; pointer-events: none; padding: 0 14px; text-transform: uppercase; height: 14px; line-height: 14px; background: rgba(4,4,10,0.9); border-top: 1px solid #0a0a1c; }
+#panel { position: fixed; top: 0; right: 0; bottom: 60px; width: 0;
+  background: rgba(8,8,16,.96); border-left: 1px solid transparent;
+  overflow: hidden; z-index: 250; transition: width 180ms ease, border-color 180ms ease; }
+#panel.open { width: 300px; border-left-color: #1c1c34; }
+#panel-inner { width: 300px; height: 100%; padding: 20px 18px; overflow-y: auto; box-sizing: border-box; position: relative; }
 #panel-x { position:absolute; top:12px; right:14px; cursor:pointer; color:#334; font-size:18px; }
 #panel-x:hover { color: #fff; }
 #panel h3 { font-size:13px; margin-bottom:14px; word-break:break-all; }
@@ -89,9 +137,75 @@ button.btn:hover { background:#1e1e40; }
 .arc-hub-row:hover { opacity: 0.7; }
 .arc-hub-active { font-weight: bold; text-decoration: underline dotted; }
 .arc-hub-cnt { color: #2a3a5a; display: inline-block; min-width: 22px; }
+#boot { position:fixed; inset:0; background:#080810; z-index:9999; display:flex; align-items:center; justify-content:center; transition:opacity 0.4s ease; }
+#boot.fade { opacity:0; pointer-events:none; }
+.boot-box { line-height:2.1; }
+.boot-title { font-size:17px; letter-spacing:0.12em; color:#c8d4ff; margin-bottom:6px; font-weight:700; }
+.boot-sep { color:#1a1a2e; margin-bottom:14px; }
+.boot-line { color:#3d4e88; font-size:11px; }
+#help-panel { position:fixed; inset:0; background:rgba(4,4,12,0.88); z-index:8999; display:none; align-items:center; justify-content:center; }
+#help-panel.open { display:flex; }
+.help-box { border:1px solid #1c1c34; padding:28px 36px; max-width:480px; width:100%; }
+.help-h { color:#4455cc; font-size:9px; letter-spacing:2.5px; text-transform:uppercase; margin-bottom:12px; }
+.help-hint { color:#1e2840; font-size:8px; letter-spacing:1px; margin-left:8px; font-weight:400; text-transform:none; }
+.help-row { display:flex; align-items:center; gap:16px; margin:5px 0; font-size:10px; padding:2px 4px; }
+.help-key { color:#aabbff; min-width:44px; font-weight:700; flex-shrink:0; }
+.help-desc { color:#4a5878; flex:1; }
+.help-fixed { color:#1e2840; min-width:36px; text-align:right; font-size:9px; flex-shrink:0; }
+.help-sep { border-top:1px solid #14142a; margin:12px 0; }
+.help-toggle { background:none; border:1px solid #1c1c34; color:#2a3050; font-family:inherit; font-size:8px; padding:1px 5px; cursor:pointer; letter-spacing:1px; text-transform:uppercase; flex-shrink:0; }
+.help-toggle.on  { color:#3a8a5a; border-color:#1a4a2a; }
+.help-toggle.off { color:#6a3040; border-color:#3a1820; }
+.help-toggle:hover { opacity:0.8; }
+@keyframes hflash { 0% { background:#1a2a55; } 100% { background:transparent; } }
+.help-row.flashing { animation:hflash 0.4s ease-out; }
+.help-footer { color:#2a3050; font-size:9px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; margin-top:18px; }
+.help-footer:hover { color:#8899cc; }
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Claude Code Sessions — kaaro",
+  "url": "https://kaaro.io/sessions/",
+  "description": "Interactive knowledge graph of Claude Code AI sessions — explore projects, files, timelines, and token usage across your development history.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "browserRequirements": "Requires JavaScript",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "kaaro", "url": "https://kaaro.io/" },
+  "image": "https://kaaro.io/sessions/og-image.png",
+  "featureList": [
+    "Force-directed session graph",
+    "Swimlane timeline view",
+    "Arc temporal coupling map",
+    "File co-occurrence matrix",
+    "3D force graph",
+    "Live SSE updates from Claude Code projects",
+    "Token usage and cache hit rate analysis",
+    "Tool call tracking and error heatmaps"
+  ],
+  "inLanguage": "en",
+  "isAccessibleForFree": true,
+  "potentialAction": [{
+    "@type": "ViewAction",
+    "name": "Explore session graph",
+    "target": "https://kaaro.io/sessions/"
+  }]
+}
+</script>
 </head>
 <body>
+<div id="boot">
+  <div class="boot-box">
+    <div class="boot-title">KAARO SESSIONS</div>
+    <div class="boot-sep">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+    <div class="boot-line" id="boot-l1">&gt; connecting to session store...</div>
+    <div class="boot-line" id="boot-l2">&gt; parsing graph data...</div>
+    <div class="boot-line" id="boot-l3"></div>
+  </div>
+</div>
+<div id="help-panel"><div class="help-box" id="help-content"></div></div>
 <svg id="canvas"></svg>
 <div id="matrix-view"></div>
 <div id="three-view"></div>
@@ -232,7 +346,7 @@ button.btn:hover { background:#1e1e40; }
   </div>
 </div>
 <div id="stats"></div>
-<div id="panel"><span id="panel-x" onclick="closePanel()">✕</span><div id="panel-content"></div></div>
+<div id="panel"><div id="panel-inner"><span id="panel-x" onclick="closePanel()">✕</span><div id="panel-content"></div></div></div>
 <div id="timeline"><svg id="tl-svg"></svg></div>
 
 <script src="https://d3js.org/d3.v7.min.js"></script>

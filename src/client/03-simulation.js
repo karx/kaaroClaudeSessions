@@ -22,9 +22,21 @@ function seedPositions(graphData) {
 }
 seedPositions(GRAPH);
 
-function makeForceLink() {
-  return d3.forceLink(GRAPH.edges).id(d=>d.id)
-    .distance(d=>d.type==='membership'?125:d.type==='branch'?95:d.type==='read'?80:60)
+function getForceParams() {
+  const v = id => { const el = document.getElementById(id); return el ? +el.value : null; };
+  return {
+    sessionCharge:  v('fp-charge-s')  ?? -130,
+    fileCharge:     v('fp-charge-f')  ?? -55,
+    membershipDist: v('fp-link-m')    ?? 125,
+    fileDist:       v('fp-link-f')    ?? 60,
+    velocityDecay:  (v('fp-vdecay')   ?? 38) / 100,
+  };
+}
+
+function makeForceLink(edges) {
+  const p = getForceParams();
+  return d3.forceLink(edges != null ? edges : GRAPH.edges).id(d=>d.id)
+    .distance(d=>d.type==='membership'? p.membershipDist :d.type==='branch'?95:d.type==='read'?80: p.fileDist)
     .strength(d=>d.type==='membership'?.65:d.type==='branch'?.15:d.type==='read'?.08:.3);
 }
 

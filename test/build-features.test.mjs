@@ -5,6 +5,12 @@ import {
   buildFileNodesAndEdges,
   filterSessionsByDateRange,
   EXT_COLORS,
+  filterVisibleGraph,
+  EDGE_COLORS,
+  GRAPH_BACKGROUND,
+  FORCE_PARAMS_DEFAULTS,
+  FORCE_PARAMS_BOUNDS,
+  clampForceParam,
 } from '../build.mjs';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -389,5 +395,190 @@ test('filterSessionsByDateRange', async t => {
     const copy = [...sessions];
     filterSessionsByDateRange(sessions, '2026-03-01T00:00:00Z', null);
     assert.equal(sessions.length, copy.length);
+  });
+});
+
+// ── filterVisibleGraph ────────────────────────────────────────────────────────
+
+test('filterVisibleGraph', async t => {
+  const nodes = [
+    { id: 'p1', type: 'project' },
+    { id: 's1', type: 'session' },
+    { id: 's2', type: 'session' },
+    { id: 'f1', type: 'file'    },
+  ];
+  const edges = [
+    { source: 's1', target: 'p1', type: 'membership' },
+    { source: 's2', target: 'p1', type: 'membership' },
+    { source: 's1', target: 'f1', type: 'write', weight: 2 },
+    { source: 's2', target: 'f1', type: 'edit',  weight: 1 },
+  ];
+
+  await t.test('returns full graph when hidden set is empty', () => {
+    const { nodes: n, edges: e } = filterVisibleGraph(nodes, edges, []);
+    assert.equal(n.length, 4);
+    assert.equal(e.length, 4);
+  });
+
+  await t.test('excludes the hidden node', () => {
+    const { nodes: n } = filterVisibleGraph(nodes, edges, ['s1']);
+    assert.equal(n.length, 3);
+    assert.ok(!n.find(x => x.id === 's1'));
+  });
+
+  await t.test('preserves non-hidden nodes', () => {
+    const { nodes: n } = filterVisibleGraph(nodes, edges, ['s1']);
+    assert.ok(n.find(x => x.id === 's2'));
+    assert.ok(n.find(x => x.id === 'p1'));
+    assert.ok(n.find(x => x.id === 'f1'));
+  });
+
+  await t.test('removes edges connected to hidden node', () => {
+    const { edges: e } = filterVisibleGraph(nodes, edges, ['s1']);
+    assert.equal(e.length, 2);
+    assert.ok(!e.find(x => (x.source?.id ?? x.source) === 's1' || (x.target?.id ?? x.target) === 's1'));
+  });
+
+  await t.test('keeps edges unconnected to hidden node', () => {
+    const { edges: e } = filterVisibleGraph(nodes, edges, ['s1']);
+    assert.ok(e.find(x => (x.source?.id ?? x.source) === 's2'));
+  });
+
+  await t.test('handles D3-mutated edges where source/target are node objects', () => {
+    const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+    const mutated = edges.map(e => ({ ...e, source: nodeMap[e.source], target: nodeMap[e.target] }));
+    const { edges: e } = filterVisibleGraph(nodes, mutated, ['s1']);
+    assert.equal(e.length, 2);
+    assert.ok(!e.find(x => (x.source?.id ?? x.source) === 's1'));
+  });
+
+  await t.test('hiding a project removes its membership edges', () => {
+    const { edges: e } = filterVisibleGraph(nodes, edges, ['p1']);
+    assert.ok(!e.find(x => x.type === 'membership'));
+    assert.equal(e.filter(x => x.type === 'write' || x.type === 'edit').length, 2);
+  });
+
+  await t.test('empty hidden set returns same node count', () => {
+    const { nodes: n } = filterVisibleGraph(nodes, edges, []);
+    assert.equal(n.length, nodes.length);
+  });
+
+  await t.test('does not mutate the input arrays', () => {
+    filterVisibleGraph(nodes, edges, ['s1']);
+    assert.equal(nodes.length, 4);
+    assert.equal(edges.length, 4);
+  });
+});
+
+// ── EDGE_COLORS contrast ──────────────────────────────────────────────────────
+
+// WCAG relative luminance + contrast ratio helpers
+function hexLum(hex) {
+  const r = parseInt(hex.slice(1,3),16)/255;
+  const g = parseInt(hex.slice(3,5),16)/255;
+  const b = parseInt(hex.slice(5,7),16)/255;
+  const lin = c => c <= 0.03928 ? c/12.92 : ((c+0.055)/1.055)**2.4;
+  return 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b);
+}
+function contrastRatio(a, b) {
+  const l1 = hexLum(a), l2 = hexLum(b);
+  return (Math.max(l1,l2)+0.05) / (Math.min(l1,l2)+0.05);
+}
+
+test('EDGE_COLORS', async t => {
+  await t.test('exports an object with all five edge types', () => {
+    assert.ok(typeof EDGE_COLORS === 'object');
+    for (const k of ['membership','write','edit','read','branch'])
+      assert.ok(k in EDGE_COLORS, `missing key: ${k}`);
+  });
+
+  await t.test('membership color meets minimum contrast (≥1.5) against GRAPH_BACKGROUND', () => {
+    const ratio = contrastRatio(EDGE_COLORS.membership, GRAPH_BACKGROUND);
+    assert.ok(ratio >= 1.5, `membership contrast ${ratio.toFixed(2)} < 1.5 — too close to background`);
+  });
+
+  await t.test('write color is clearly visible (contrast ≥5) against background', () => {
+    const ratio = contrastRatio(EDGE_COLORS.write, GRAPH_BACKGROUND);
+    assert.ok(ratio >= 5, `write contrast ${ratio.toFixed(2)} < 5`);
+  });
+
+  await t.test('edit color is clearly visible (contrast ≥5) against background', () => {
+    const ratio = contrastRatio(EDGE_COLORS.edit, GRAPH_BACKGROUND);
+    assert.ok(ratio >= 5, `edit contrast ${ratio.toFixed(2)} < 5`);
+  });
+
+  await t.test('GRAPH_BACKGROUND matches body background color', () => {
+    assert.equal(GRAPH_BACKGROUND, '#080810');
+  });
+});
+
+// ── FORCE_PARAMS ──────────────────────────────────────────────────────────────
+
+test('FORCE_PARAMS_DEFAULTS', async t => {
+  const REQUIRED = ['sessionCharge','fileCharge','projectCharge','membershipDist','branchDist','fileDist','velocityDecay'];
+
+  await t.test('exports an object with all required keys', () => {
+    assert.ok(typeof FORCE_PARAMS_DEFAULTS === 'object');
+    for (const k of REQUIRED)
+      assert.ok(k in FORCE_PARAMS_DEFAULTS, `missing key: ${k}`);
+  });
+
+  await t.test('all defaults are numbers', () => {
+    for (const [k,v] of Object.entries(FORCE_PARAMS_DEFAULTS))
+      assert.equal(typeof v, 'number', `${k} is not a number`);
+  });
+
+  await t.test('all defaults are within their stated bounds', () => {
+    assert.ok(typeof FORCE_PARAMS_BOUNDS === 'object');
+    for (const k of REQUIRED) {
+      const v = FORCE_PARAMS_DEFAULTS[k];
+      const b = FORCE_PARAMS_BOUNDS[k];
+      assert.ok(b, `no bounds entry for ${k}`);
+      assert.ok(v >= b.min && v <= b.max,
+        `default ${k}=${v} outside bounds [${b.min}, ${b.max}]`);
+    }
+  });
+
+  await t.test('charge values are negative (repulsive)', () => {
+    assert.ok(FORCE_PARAMS_DEFAULTS.sessionCharge < 0);
+    assert.ok(FORCE_PARAMS_DEFAULTS.fileCharge    < 0);
+    assert.ok(FORCE_PARAMS_DEFAULTS.projectCharge < 0);
+  });
+
+  await t.test('distance values are positive', () => {
+    assert.ok(FORCE_PARAMS_DEFAULTS.membershipDist > 0);
+    assert.ok(FORCE_PARAMS_DEFAULTS.branchDist     > 0);
+    assert.ok(FORCE_PARAMS_DEFAULTS.fileDist       > 0);
+  });
+
+  await t.test('velocityDecay is between 0 and 1', () => {
+    const v = FORCE_PARAMS_DEFAULTS.velocityDecay;
+    assert.ok(v > 0 && v < 1, `velocityDecay=${v} not in (0,1)`);
+  });
+});
+
+test('clampForceParam', async t => {
+  await t.test('returns value unchanged when within bounds', () => {
+    assert.equal(clampForceParam('sessionCharge', -130), -130);
+    assert.equal(clampForceParam('velocityDecay', 0.38), 0.38);
+  });
+
+  await t.test('clamps to min when below lower bound', () => {
+    const min = FORCE_PARAMS_BOUNDS.sessionCharge.min;
+    assert.equal(clampForceParam('sessionCharge', min - 100), min);
+  });
+
+  await t.test('clamps to max when above upper bound', () => {
+    const max = FORCE_PARAMS_BOUNDS.membershipDist.max;
+    assert.equal(clampForceParam('membershipDist', max + 50), max);
+  });
+
+  await t.test('returns value unchanged for unknown key', () => {
+    assert.equal(clampForceParam('unknownKey', 42), 42);
+  });
+
+  await t.test('clamps velocityDecay to max', () => {
+    const max = FORCE_PARAMS_BOUNDS.velocityDecay.max;
+    assert.equal(clampForceParam('velocityDecay', 1.5), max);
   });
 });

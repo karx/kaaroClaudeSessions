@@ -29,6 +29,9 @@ export {
   MAX_AGE_MS, IN_FLIGHT_COLOR, PALETTE, EXT_COLORS,
   calcRecencyScore, calcRecencyLevel, assignProjectColors, parseMinSessions,
   buildFileNodesAndEdges, isSessionInFlight, filterSessionsByDateRange,
+  filterVisibleGraph,
+  EDGE_COLORS, GRAPH_BACKGROUND,
+  FORCE_PARAMS_DEFAULTS, FORCE_PARAMS_BOUNDS, clampForceParam,
 } from './lib/graph-data.mjs';
 
 /**

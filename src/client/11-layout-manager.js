@@ -8,12 +8,16 @@ const LAYOUT_HANDLERS = {
       document.getElementById('matrix-view').style.display='none';
       document.getElementById('three-view').style.display='none';
       document.getElementById('sl-options').style.display='none';
+      document.getElementById('force-options').style.display='block';
       decorLayer.selectAll('*').remove();
+      simulation.nodes(GRAPH.nodes);
       restoreForceLayout();
       simulation.alpha(0.25).restart();
       nodeSel.call(drag);
     },
-    exit() {}
+    exit() {
+      document.getElementById('force-options').style.display='none';
+    }
   },
   swimlane: {
     enter() {

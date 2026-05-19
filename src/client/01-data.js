@@ -16,7 +16,7 @@ function nodeR(d) {
   return FR_MIN + (FR_MAX - FR_MIN) * (d.sizeNorm || 0);
 }
 
-const EC = { membership:'#162035', write:'#00ff88', edit:'#ffcc00', read:'#1e4a66', branch:'#334455' };
+const EC = { membership:'#1e3d7a', write:'#00ff88', edit:'#ffcc00', read:'#1e4a66', branch:'#334455' };
 const EO = { membership:.55, write:.65, edit:.65, read:.28, branch:.4 };
 const EW = { membership:1.4, write:1, edit:1, read:.7, branch:.8 };
 

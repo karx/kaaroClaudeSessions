@@ -42,6 +42,16 @@ function applyFilters() {
     return null;
   });
   projLabelSel.attr('display', null);
+
+  // Sync force simulation to visible nodes/edges so the layout responds to date filter
+  const visNodes = GRAPH.nodes.filter(n => !hiddenNodes.has(n.id));
+  const visEdges = GRAPH.edges.filter(e => {
+    const s = e.source?.id ?? e.source, t = e.target?.id ?? e.target;
+    return !hiddenNodes.has(s) && !hiddenNodes.has(t);
+  });
+  simulation.nodes(visNodes);
+  simulation.force('link', makeForceLink(visEdges));
+  if (hiddenNodes.size > 0) simulation.alpha(0.15).restart();
 }
 
 // General controls
@@ -64,6 +74,28 @@ document.getElementById('tf-clear').addEventListener('click', () => {
 });
 document.getElementById('btn-shake').addEventListener('click', ()=>{ if(currentLayout==='force') simulation.alpha(.4).restart(); });
 document.getElementById('btn-reset').addEventListener('click', ()=>svg.transition().duration(600).call(zoom.transform, initialTransform));
+
+// ── Force physics controls ────────────────────────────────────────────────────
+const FP_DEFAULTS = { 'fp-charge-s': -130, 'fp-charge-f': -55, 'fp-link-m': 125, 'fp-link-f': 60, 'fp-vdecay': 38 };
+
+['fp-charge-s','fp-charge-f','fp-link-m','fp-link-f','fp-vdecay'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', function() {
+    const display = id === 'fp-vdecay' ? (this.value / 100).toFixed(2) : this.value;
+    document.getElementById(id + '-val').textContent = display;
+    if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.3).restart(); }
+  });
+});
+
+document.getElementById('btn-reset-physics')?.addEventListener('click', () => {
+  for (const [id, val] of Object.entries(FP_DEFAULTS)) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.value = val;
+    document.getElementById(id + '-val').textContent =
+      id === 'fp-vdecay' ? (val / 100).toFixed(2) : val;
+  }
+  if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.5).restart(); }
+});
 document.getElementById('btn-fit').addEventListener('click', () => {
   if (currentLayout==='swimlane'||currentLayout==='matrix') return;
   const vis=GRAPH.nodes.filter(n=>n.x!=null&&n.y!=null);

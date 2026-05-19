@@ -229,7 +229,7 @@ button.btn:hover { background:#1e1e40; }
   <div class="leg"><div class="line" style="background:#00ff88;opacity:.7"></div>write op</div>
   <div class="leg"><div class="line" style="background:#ffcc00;opacity:.7"></div>edit op</div>
   <div class="leg"><div class="dash" style="border-color:#1e4a66;opacity:.9;border-style:dotted"></div>read op</div>
-  <div class="leg"><div class="line" style="background:#19304a;opacity:1"></div>membership</div>
+  <div class="leg"><div class="line" style="background:#1e3d7a;opacity:1"></div>membership</div>
   <div class="leg"><div class="dash" style="border-color:#557;opacity:.8"></div>branch lineage</div>
   <div class="sep"></div>
   <div class="leg"><div class="ring" style="border-color:#ff2244"></div>high error (≥8)</div>
@@ -256,6 +256,37 @@ button.btn:hover { background:#1e1e40; }
   <div class="sep"></div>
   <div class="ctrl"><label style="flex-shrink:0;color:#556">From:</label><input type="date" id="tf-from" style="flex:1;min-width:0;background:#0c0c1e;border:1px solid #2a2a50;color:#8899cc;padding:2px 6px;font-family:inherit;font-size:10px"><button class="btn" id="tf-clear" style="padding:3px 7px">✕</button></div>
   <div class="ctrl"><button class="btn" id="btn-shake">⟳ Shake</button>&nbsp;<button class="btn" id="btn-reset">⌂ Reset</button>&nbsp;<button class="btn" id="btn-fit">⊡ Fit</button></div>
+
+  <div id="force-options" style="display:block">
+    <div class="sep"></div>
+    <div class="sl-section-hd">◆ FORCE PHYSICS</div>
+    <div class="ctrl">
+      <label for="fp-charge-s">Session charge</label>
+      <input type="range" id="fp-charge-s" min="-400" max="-20" step="10" value="-130">
+      <span class="val" id="fp-charge-s-val">-130</span>
+    </div>
+    <div class="ctrl">
+      <label for="fp-charge-f">File charge</label>
+      <input type="range" id="fp-charge-f" min="-200" max="-10" step="5" value="-55">
+      <span class="val" id="fp-charge-f-val">-55</span>
+    </div>
+    <div class="ctrl">
+      <label for="fp-link-m">Membership dist</label>
+      <input type="range" id="fp-link-m" min="50" max="300" step="5" value="125">
+      <span class="val" id="fp-link-m-val">125</span>
+    </div>
+    <div class="ctrl">
+      <label for="fp-link-f">File link dist</label>
+      <input type="range" id="fp-link-f" min="20" max="150" step="5" value="60">
+      <span class="val" id="fp-link-f-val">60</span>
+    </div>
+    <div class="ctrl">
+      <label for="fp-vdecay">Velocity decay</label>
+      <input type="range" id="fp-vdecay" min="5" max="90" step="1" value="38">
+      <span class="val" id="fp-vdecay-val">0.38</span>
+    </div>
+    <div class="ctrl"><button class="btn" id="btn-reset-physics">↺ Reset physics</button></div>
+  </div>
 
   <div id="sl-options" style="display:none">
     <div class="sep"></div>

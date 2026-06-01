@@ -6,7 +6,7 @@ function restoreForceLayout() {
     const pos = projPos[proj.id]; if (pos) { proj.fx = pos.x; proj.fy = pos.y; }
   });
   simulation
-    .force('link',      makeForceLink())
+    .force('link',      makeForceLink(null, p))
     .force('charge',    d3.forceManyBody().strength(d=>d.type==='project'?-700:d.type==='session'? p.sessionCharge : p.fileCharge))
     .force('collision', d3.forceCollide(d=>nodeR(d)+4).strength(0.85))
     .velocityDecay(p.velocityDecay);

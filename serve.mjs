@@ -15,20 +15,19 @@
 import http         from 'http';
 import fs           from 'fs';
 import path         from 'path';
-import os           from 'os';
 import { execFile, exec } from 'child_process';
 import { fileURLToPath }  from 'url';
 
 import { tailRead }     from './lib/jsonl-tail.mjs';
 import { parsePulse }   from './lib/pulse-parser.mjs';
-import { deriveLabel }  from './analyze.mjs';
-import { derivePiLabel, PI_SESSIONS_ROOT } from './analyze-pi.mjs';
 import { reconstructContextTree } from './lib/context-tree.mjs';
+import { getEnabledHarnesses, getHarness } from './lib/harness-registry.mjs';
+import { processWatchFilename } from './lib/watch-handlers.mjs';
+import { resolveSessionFile } from './lib/session-resolver.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
 const NO_OPEN        = process.argv.includes('--no-open');
-const PROJECTS_DIR   = path.join(os.homedir(), '.claude', 'projects');
 const HTML_PATH      = path.join(__dirname, 'graph.html');
 const DATA_PATH      = path.join(__dirname, 'graph-data.json');
 const ANALYZE_SCRIPT = path.join(__dirname, 'analyze.mjs');
@@ -40,31 +39,6 @@ const clients   = new Set();
 const offsetMap = new Map(); // filePath → last-read byte offset
 
 // ── Pulse helpers ─────────────────────────────────────────────────────────────
-
-function ctxFromCcPath(relPath) {
-  const parts = relPath.replace(/\\/g, '/').split('/');
-  if (parts.length < 2) return null;
-  const project_id = parts[0];
-  const session_id = parts[1].replace(/\.jsonl$/, '');
-  return {
-    harness: 'claude-code', session_id,
-    slug: session_id.slice(0, 8), project_id,
-    project_label: deriveLabel(project_id),
-  };
-}
-
-function ctxFromPiPath(relPath) {
-  const parts = relPath.replace(/\\/g, '/').split('/');
-  if (parts.length < 2) return null;
-  const project_id = parts[0];
-  const base       = parts[1].replace(/\.jsonl$/, '');
-  const session_id = base.includes('_') ? base.slice(base.indexOf('_') + 1) : base;
-  return {
-    harness: 'pi', session_id,
-    slug: session_id.slice(0, 8), project_id,
-    project_label: derivePiLabel(project_id),
-  };
-}
 
 function tailAndPulse(filePath, ctx) {
   const offset = offsetMap.get(filePath) ?? 0;
@@ -101,14 +75,9 @@ function run(script, extraArgs = []) {
   });
 }
 
-let pendingSessionArg = null;
-
-async function rebuild(sessionArg = null) {
+async function rebuild() {
   if (rebuilding) {
     pendingRebuild = true;
-    // If any queued change needs a full scan (null) or two different sessions changed → full scan
-    pendingSessionArg = (sessionArg === null || pendingSessionArg === null || pendingSessionArg !== sessionArg)
-      ? null : sessionArg;
     return;
   }
   rebuilding = true;
@@ -117,8 +86,7 @@ async function rebuild(sessionArg = null) {
   notify('status', 'rebuilding');
 
   try {
-    const analyzeArgs = sessionArg ? [sessionArg] : [];
-    await run(ANALYZE_SCRIPT, analyzeArgs);
+    await run(ANALYZE_SCRIPT, ['--all-harnesses']);
     await run(BUILD_SCRIPT);
     lastBuilt = new Date();
     console.log(`Done in ${((Date.now() - t0) / 1000).toFixed(1)}s — ${clients.size} client(s) connected`);
@@ -129,78 +97,53 @@ async function rebuild(sessionArg = null) {
   } finally {
     rebuilding = false;
     if (pendingRebuild) {
-      const arg = pendingSessionArg;
-      pendingRebuild = false; pendingSessionArg = null;
-      rebuild(arg);
+      pendingRebuild = false;
+      rebuild();
     }
   }
 }
 
-function scheduleRebuild(sessionArg = null) {
+function scheduleRebuild() {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => rebuild(sessionArg), 1500);
+  debounceTimer = setTimeout(() => rebuild(), 1500);
 }
 
-// ── File watcher ──────────────────────────────────────────────────────────────
+// ── File watcher (registry-driven) ────────────────────────────────────────────
 
-if (!fs.existsSync(PROJECTS_DIR)) {
-  console.error(`Claude projects directory not found: ${PROJECTS_DIR}`);
-  console.error('Is Claude Code installed?');
-  process.exit(1);
+function handleWatchEvent(harnessId, rootDir, filename) {
+  const event = processWatchFilename(harnessId, filename, rootDir);
+  if (!event) return;
+  console.log(`  changed: [${harnessId}] ${event.relPath}`);
+  tailAndPulse(event.absPath, event.ctx);
+  scheduleRebuild();
 }
 
-try {
-  fs.watch(PROJECTS_DIR, { recursive: true }, (_, filename) => {
-    if (filename?.endsWith('.jsonl')) {
-      console.log(`  changed: ${filename}`);
-      const ctx = ctxFromCcPath(filename);
-      if (ctx) tailAndPulse(path.join(PROJECTS_DIR, filename), ctx);
-      const parts = filename.replace(/\\/g, '/').split('/');
-      const sessionArg = parts.length === 2
-        ? `--session=${parts[0]}/${parts[1]}`
-        : null;
-      scheduleRebuild(sessionArg);
+let watchCount = 0;
+for (const harness of getEnabledHarnesses()) {
+  const root = harness.roots[0];
+  if (!root) continue;
+  try {
+    if (!fs.existsSync(root)) {
+      console.warn(`[${harness.id}] root not found — skipped: ${root}`);
+      continue;
     }
-  });
-  console.log(`Watching: ${PROJECTS_DIR}`);
-} catch (e) {
-  console.warn(`Watch unavailable: ${e.message}`);
+    fs.watch(root, { recursive: true }, (_, filename) => {
+      handleWatchEvent(harness.id, root, filename);
+    });
+    console.log(`Watching [${harness.id}]: ${root}`);
+    watchCount++;
+  } catch (e) {
+    console.warn(`[${harness.id}] watch unavailable: ${e.message}`);
+  }
 }
 
-// Optional Pi watcher — only if ~/.pi/agent/sessions/ exists
-try {
-  if (fs.existsSync(PI_SESSIONS_ROOT)) {
-    fs.watch(PI_SESSIONS_ROOT, { recursive: true }, (_, filename) => {
-      if (filename?.endsWith('.jsonl')) {
-        const ctx = ctxFromPiPath(filename);
-        if (ctx) tailAndPulse(path.join(PI_SESSIONS_ROOT, filename), ctx);
-      }
-    });
-    console.log(`Watching Pi: ${PI_SESSIONS_ROOT}`);
-  }
-} catch (e) {
-  console.warn(`Pi watch unavailable: ${e.message}`);
+if (!watchCount) {
+  console.warn('No harness directories found — live watch disabled');
 }
 
 // ── /api/trace cache + resolver ───────────────────────────────────────────────
 
 const traceCache = new Map(); // filePath → { mtime, tree }
-
-function resolveSessionFile(sessionId) {
-  if (!fs.existsSync(PROJECTS_DIR)) return null;
-  for (const proj of fs.readdirSync(PROJECTS_DIR)) {
-    const projPath = path.join(PROJECTS_DIR, proj);
-    try {
-      if (!fs.statSync(projPath).isDirectory()) continue;
-    } catch { continue; }
-    const candidate = path.join(projPath, sessionId + '.jsonl');
-    if (fs.existsSync(candidate)) return { filePath: candidate, projectId: proj };
-    // also check subagents/ subdir
-    const subCandidate = path.join(projPath, 'subagents', sessionId + '.jsonl');
-    if (fs.existsSync(subCandidate)) return { filePath: subCandidate, projectId: proj };
-  }
-  return null;
-}
 
 function buildTrace(filePath, projectId, sessionId) {
   try {
@@ -256,6 +199,10 @@ const server = http.createServer((req, res) => {
     if (!sessionId) { res.writeHead(400); res.end('missing session_id'); return; }
     const found = resolveSessionFile(sessionId);
     if (!found) { res.writeHead(404); res.end('session not found'); return; }
+    const harness = getHarness(found.harness);
+    if (!harness?.capabilities?.trace) {
+      res.writeHead(404); res.end('trace not supported for this harness'); return;
+    }
     const tree = buildTrace(found.filePath, found.projectId, sessionId);
     if (!tree) { res.writeHead(500); res.end('reconstruction failed'); return; }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache',

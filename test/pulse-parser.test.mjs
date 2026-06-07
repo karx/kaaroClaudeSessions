@@ -376,6 +376,35 @@ test('parsePulse — Pi record dispatched correctly without harness in ctx', () 
 
 // ── Mixed: record with tools + usage + text in one turn ───────────────────────
 
+test('parsePulse Antigravity — PLANNER_RESPONSE view_file → tool_call', () => {
+  const record = {
+    type: 'PLANNER_RESPONSE', source: 'MODEL', created_at: TS,
+    content: 'I will read the file now.',
+    tool_calls: [{
+      name: 'view_file',
+      args: { AbsolutePath: JSON.stringify('D:/src/foo.js'), toolSummary: '"Viewing"' },
+    }],
+  };
+  const pulses = parsePulse(record, { ...CTX, harness: 'antigravity' });
+  const tc = pulses.find(p => p.event === 'tool_call');
+  assert.ok(tc);
+  assert.equal(tc.data.tool, 'view_file');
+  assert.equal(tc.data.where, 'D:/src/foo.js');
+  assert.equal(tc.data.harness, 'antigravity');
+  assert.equal(tc.data.session_id, CTX.session_id);
+});
+
+test('parsePulse Antigravity — no tokens pulse (tokenless harness)', () => {
+  const record = {
+    type: 'PLANNER_RESPONSE', source: 'MODEL', created_at: TS,
+    content: 'Working on it now with several tools.',
+    tool_calls: [],
+  };
+  const pulses = parsePulse(record, { harness: 'antigravity', ...CTX });
+  assert.equal(pulses.find(p => p.event === 'tokens'), undefined);
+  assert.ok(pulses.find(p => p.event === 'words'));
+});
+
 test('parsePulse CC — one record produces tool_call + tokens + words pulses', () => {
   const rec = ccAssistant(
     [ccTool('Read', { file_path: 'src/app.js' }), ccText('Reading the file now to understand structure.')],

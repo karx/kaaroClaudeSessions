@@ -13,11 +13,12 @@ import fs   from 'fs';
 import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
+import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const PROJECTS_ROOT = path.join(os.homedir(), '.claude', 'projects');
-const OUT_FILE      = path.join(process.cwd(), 'sessions-data.json');
+export const PROJECTS_ROOT = path.join(os.homedir(), '.claude', 'projects');
+const OUT_FILE             = path.join(process.cwd(), 'sessions-data.json');
 
 const BUILTIN_COMMANDS = new Set([
   'exit', 'clear', 'compact', 'context', 'model', 'help', 'voice',
@@ -92,6 +93,8 @@ function analyzeSession(projectId, filePath) {
     session_id:      sessionId,
     project_id:      projectId,
     project_label:   deriveLabel(projectId),
+    harness:         'claude-code',
+    source:          'claude-code',
     file_size_bytes: sizeBytes,
 
     first_timestamp: null,
@@ -424,50 +427,21 @@ function enrichSession(sess) {
   }
 }
 
-function main() {
-  const sessionFlag = parseSessionFlag(process.argv);
-  if (sessionFlag) {
-    const { projectId, sessionId } = sessionFlag;
-    const filePath = path.join(PROJECTS_ROOT, projectId, `${sessionId}.jsonl`);
-    let existingData;
-    try {
-      existingData = JSON.parse(fs.readFileSync(OUT_FILE, 'utf8'));
-    } catch {
-      console.log('No existing data — falling back to full scan');
-      return fullScan();
-    }
-    const updated = analyzeSession(projectId, filePath);
-    const result = mergeSessionIntoData(existingData, updated);
-    result.meta.generated_at = new Date().toISOString();
-    fs.writeFileSync(OUT_FILE, JSON.stringify(result, null, 2), 'utf8');
-    console.log(`Incremental: updated ${projectId}/${sessionId}`);
-    return;
-  }
-  fullScan();
-}
-
-function fullScan() {
+export function scanClaudeCodeSessions(root = PROJECTS_ROOT) {
   let projectEntries;
   try {
-    projectEntries = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true });
+    projectEntries = fs.readdirSync(root, { withFileTypes: true });
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      console.error(`Projects directory not found: ${PROJECTS_ROOT}`);
-      console.error('Is Claude Code installed?');
-      process.exit(1);
-    }
+    if (err.code === 'ENOENT') return null;
     throw err;
   }
-
-  console.log('Scanning', PROJECTS_ROOT, '...');
 
   const allSessions = [];
   const projectDirs = projectEntries.filter(d => d.isDirectory()).map(d => d.name).sort();
 
   for (const projectId of projectDirs) {
-    const pdir  = path.join(PROJECTS_ROOT, projectId);
+    const pdir  = path.join(root, projectId);
     const files = fs.readdirSync(pdir).filter(f => f.endsWith('.jsonl')).sort();
-    console.log(`  ${projectId}: ${files.length} sessions`);
     for (const file of files) {
       try {
         allSessions.push(analyzeSession(projectId, path.join(pdir, file)));
@@ -477,42 +451,55 @@ function fullScan() {
     }
   }
 
-  allSessions.sort((a, b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1);
+  return { harness: 'claude-code', source_dir: root, sessions: allSessions };
+}
 
-  const projectMap = {};
-  for (const sess of allSessions) {
-    if (!projectMap[sess.project_id]) projectMap[sess.project_id] = [];
-    projectMap[sess.project_id].push(sess);
-  }
-
-  const projects = Object.entries(projectMap)
-    .sort(([a], [b]) => a < b ? -1 : 1)
-    .map(([id, sessions]) => buildProjectSummary(id, sessions));
-
-  const rollup = buildGlobalRollup(allSessions);
-
-  const output = {
-    meta: {
-      generated_at:   new Date().toISOString(),
-      source_dir:     PROJECTS_ROOT,
-      total_sessions: allSessions.length,
-      total_projects: projects.length,
-      date_range: {
-        first: allSessions.find(s => s.first_timestamp)?.first_timestamp ?? null,
-        last:  allSessions.findLast(s => s.last_timestamp)?.last_timestamp ?? null,
-      },
-    },
-    projects,
-    sessions: allSessions,
-    rollup,
-  };
-
+function writeOutput(output) {
   fs.writeFileSync(OUT_FILE, JSON.stringify(output, null, 2), 'utf8');
-
-  const t = rollup.tokens;
+  const t = output.rollup.tokens;
   const total = t.input + t.cache_create + t.cache_read + t.output;
-  console.log(`\nSessions: ${allSessions.length}  Projects: ${projects.length}  Tokens: ${total.toLocaleString()}`);
+  console.log(`\nSessions: ${output.sessions.length}  Projects: ${output.projects.length}  Tokens: ${total.toLocaleString()}`);
   console.log(`Output: ${OUT_FILE}`);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main();
+async function main() {
+  const { parseHarnessFlags, scanHarnesses } = await import('./lib/scan-harnesses.mjs');
+  const harnessIds = parseHarnessFlags(process.argv);
+  const multiHarness = harnessIds.length > 1 || process.argv.includes('--all-harnesses');
+
+  const sessionFlag = !multiHarness ? parseSessionFlag(process.argv) : null;
+  if (sessionFlag && harnessIds[0] === 'claude-code') {
+    const { projectId, sessionId } = sessionFlag;
+    const filePath = path.join(PROJECTS_ROOT, projectId, `${sessionId}.jsonl`);
+    let existingData;
+    try {
+      existingData = JSON.parse(fs.readFileSync(OUT_FILE, 'utf8'));
+    } catch {
+      console.log('No existing data — falling back to full scan');
+    }
+    if (existingData) {
+      const updated = analyzeSession(projectId, filePath);
+      const result = mergeSessionIntoData(existingData, updated);
+      result.meta.generated_at = new Date().toISOString();
+      writeOutput(result);
+      console.log(`Incremental: updated ${projectId}/${sessionId}`);
+      return;
+    }
+  }
+
+  if (harnessIds.length === 1 && harnessIds[0] === 'claude-code') {
+    console.log('Scanning', PROJECTS_ROOT, '...');
+  }
+
+  const results = scanHarnesses(harnessIds);
+  if (!results.length) {
+    console.error('No harness data found.');
+    process.exit(1);
+  }
+
+  writeOutput(buildSessionsOutput(results));
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch(err => { console.error(err); process.exit(1); });
+}

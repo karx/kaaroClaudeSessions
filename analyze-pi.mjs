@@ -5,12 +5,13 @@ import os   from 'os';
 import { fileURLToPath } from 'url';
 import {
   deriveLabel, normPath, parseJsonlFile, categorizeBash,
-  buildProjectSummary, buildGlobalRollup,
+  buildProjectSummary, buildGlobalRollup, enrichSession,
 } from './analyze.mjs';
+import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const PI_SESSIONS_ROOT = path.join(os.homedir(), '.pi', 'agent', 'sessions');
+import { PI_SESSIONS_ROOT } from './lib/harness-paths.mjs';
 const OUT_FILE         = path.join(process.cwd(), 'sessions-data.json');
 
 // ── Pi project label ──────────────────────────────────────────────────────────
@@ -144,35 +145,24 @@ function analyzePiSession(projectId, filePath) {
   const sessionId = base.includes('_') ? base.slice(base.indexOf('_') + 1) : base;
   const session   = parsePiRecords(records, sessionId, projectId);
   session.file_size_bytes = sizeBytes;
+  session.source = 'pi';
+  enrichSession(session);
   return session;
 }
 
-export { derivePiLabel, parsePiRecords, PI_SESSIONS_ROOT };
-
-// ── Main ──────────────────────────────────────────────────────────────────────
-
-function main() {
+export function scanPiSessions(root = PI_SESSIONS_ROOT) {
   let projectEntries;
   try {
-    projectEntries = fs.readdirSync(PI_SESSIONS_ROOT, { withFileTypes: true });
+    projectEntries = fs.readdirSync(root, { withFileTypes: true });
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      console.error(`Pi sessions directory not found: ${PI_SESSIONS_ROOT}`);
-      console.error('Is pi installed? Run: npm i -g @mariozechner/pi-coding-agent');
-      process.exit(1);
-    }
+    if (err.code === 'ENOENT') return null;
     throw err;
   }
 
-  console.log('Scanning', PI_SESSIONS_ROOT, '...');
-
   const allSessions = [];
-  const projectDirs = projectEntries.filter(d => d.isDirectory()).map(d => d.name).sort();
-
-  for (const projectId of projectDirs) {
-    const pdir  = path.join(PI_SESSIONS_ROOT, projectId);
+  for (const projectId of projectEntries.filter(d => d.isDirectory()).map(d => d.name).sort()) {
+    const pdir  = path.join(root, projectId);
     const files = fs.readdirSync(pdir).filter(f => f.endsWith('.jsonl')).sort();
-    console.log(`  ${projectId}: ${files.length} sessions`);
     for (const file of files) {
       try {
         allSessions.push(analyzePiSession(projectId, path.join(pdir, file)));
@@ -182,57 +172,28 @@ function main() {
     }
   }
 
-  allSessions.sort((a, b) => (a.first_timestamp || '') < (b.first_timestamp || '') ? -1 : 1);
+  return { harness: 'pi', source_dir: root, sessions: allSessions };
+}
 
-  const projectMap = {};
-  for (const sess of allSessions) {
-    if (!projectMap[sess.project_id]) projectMap[sess.project_id] = [];
-    projectMap[sess.project_id].push(sess);
+export { derivePiLabel, parsePiRecords, PI_SESSIONS_ROOT };
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+function main() {
+  console.log('Scanning', PI_SESSIONS_ROOT, '...');
+  const result = scanPiSessions();
+  if (!result) {
+    console.error(`Pi sessions directory not found: ${PI_SESSIONS_ROOT}`);
+    console.error('Is pi installed? Run: npm i -g @mariozechner/pi-coding-agent');
+    process.exit(1);
   }
 
-  const projects = Object.entries(projectMap)
-    .sort(([a], [b]) => a < b ? -1 : 1)
-    .map(([id, sessions]) => buildProjectSummary(id, sessions));
-
-  const rollup = buildGlobalRollup(allSessions);
-
-  for (const sess of allSessions) {
-    const t = sess.tokens;
-    t.total = t.input + t.cache_create + t.cache_read + t.output;
-    const inputSide = t.input + t.cache_create + t.cache_read;
-    sess.cache_hit_rate = inputSide > 0 ? +(t.cache_read / inputSide * 100).toFixed(1) : 0;
-    sess.duration_min   = sess.duration_ms != null ? +(sess.duration_ms / 60000).toFixed(1) : null;
-    sess.tool_diversity = Object.keys(sess.tools).length;
-    if (sess.first_timestamp) {
-      const d = new Date(sess.first_timestamp);
-      sess.day_of_week = d.getUTCDay();
-      sess.hour_of_day = d.getUTCHours();
-      sess.date_str    = sess.first_timestamp.slice(0, 10);
-    }
-  }
-
-  const output = {
-    meta: {
-      generated_at:   new Date().toISOString(),
-      source_dir:     PI_SESSIONS_ROOT,
-      harness:        'pi',
-      total_sessions: allSessions.length,
-      total_projects: projects.length,
-      date_range: {
-        first: allSessions.find(s => s.first_timestamp)?.first_timestamp ?? null,
-        last:  allSessions.findLast(s => s.last_timestamp)?.last_timestamp ?? null,
-      },
-    },
-    projects,
-    sessions: allSessions,
-    rollup,
-  };
-
+  const output = buildSessionsOutput([result]);
   fs.writeFileSync(OUT_FILE, JSON.stringify(output, null, 2), 'utf8');
 
-  const t = rollup.tokens;
+  const t = output.rollup.tokens;
   const total = t.input + t.cache_create + t.cache_read + t.output;
-  console.log(`\nSessions: ${allSessions.length}  Projects: ${projects.length}  Tokens: ${total.toLocaleString()}`);
+  console.log(`\nSessions: ${output.sessions.length}  Projects: ${output.projects.length}  Tokens: ${total.toLocaleString()}`);
   console.log(`Output: ${OUT_FILE}`);
 }
 

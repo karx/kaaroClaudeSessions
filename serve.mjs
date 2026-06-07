@@ -46,7 +46,11 @@ function ctxFromCcPath(relPath) {
   if (parts.length < 2) return null;
   const project_id = parts[0];
   const session_id = parts[1].replace(/\.jsonl$/, '');
-  return { session_id, slug: session_id.slice(0, 8), project_id, project_label: deriveLabel(project_id) };
+  return {
+    harness: 'claude-code', session_id,
+    slug: session_id.slice(0, 8), project_id,
+    project_label: deriveLabel(project_id),
+  };
 }
 
 function ctxFromPiPath(relPath) {
@@ -55,7 +59,11 @@ function ctxFromPiPath(relPath) {
   const project_id = parts[0];
   const base       = parts[1].replace(/\.jsonl$/, '');
   const session_id = base.includes('_') ? base.slice(base.indexOf('_') + 1) : base;
-  return { session_id, slug: session_id.slice(0, 8), project_id, project_label: derivePiLabel(project_id) };
+  return {
+    harness: 'pi', session_id,
+    slug: session_id.slice(0, 8), project_id,
+    project_label: derivePiLabel(project_id),
+  };
 }
 
 function tailAndPulse(filePath, ctx) {

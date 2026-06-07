@@ -329,3 +329,43 @@ test('buildGraph with file nodes — edge stats', async t => {
     assert.equal(result.stats.read, 2);
   });
 });
+
+test('buildGraph — tokenless session sizes by tool_calls', async t => {
+  const data = makeData({
+    sessions: [
+      {
+        session_id: 'ag1', project_id: 'proj-a', slug: 'ag-sess',
+        harness: 'antigravity',
+        tokens: { input: 0, output: 0, cache_create: 0, cache_read: 0 },
+        first_timestamp: '2026-05-01T10:00:00.000Z',
+        last_timestamp:  '2026-05-01T10:30:00.000Z',
+        date_str: '2026-05-01', tool_calls: 40, tool_errors: 0,
+        tool_diversity: 3, message_count: 10, user_turns: 5, assistant_turns: 5,
+        cache_hit_rate: 0, skills: [],
+      },
+      {
+        session_id: 'ag2', project_id: 'proj-a', slug: 'ag-sess2',
+        harness: 'antigravity',
+        tokens: { input: 0, output: 0, cache_create: 0, cache_read: 0 },
+        first_timestamp: '2026-05-02T10:00:00.000Z',
+        last_timestamp:  '2026-05-02T10:30:00.000Z',
+        date_str: '2026-05-02', tool_calls: 10, tool_errors: 0,
+        tool_diversity: 2, message_count: 4, user_turns: 2, assistant_turns: 2,
+        cache_hit_rate: 0, skills: [],
+      },
+    ],
+  });
+  const result = buildGraph(data, { referenceMs: new Date('2026-05-11T00:00:00.000Z').getTime() });
+
+  await t.test('sizeNorm uses tool_calls when tokens_work is zero', () => {
+    const big = result.nodes.find(n => n.id === 'ag1');
+    const small = result.nodes.find(n => n.id === 'ag2');
+    assert.ok(big.sizeNorm > small.sizeNorm);
+    assert.equal(big.harness, 'antigravity');
+  });
+
+  await t.test('timeline tokens_work falls back to tool_calls', () => {
+    const tl = result.timeline.find(e => e.id === 'ag1');
+    assert.equal(tl.tokens_work, 40);
+  });
+});

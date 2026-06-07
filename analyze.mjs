@@ -40,7 +40,11 @@ function deriveLabel(projectId) {
 
 function normPath(raw) {
   if (!raw || typeof raw !== 'string') return null;
-  return raw.replace(/\\/g, '/').replace(/\/\//g, '/').trim() || null;
+  let p = raw.replace(/\\/g, '/').replace(/\/\//g, '/').trim();
+  // Windows drive-letter paths are case-insensitive on disk; lowercase them so
+  // the same file accessed from different sessions always maps to the same ID.
+  if (/^[a-zA-Z]:\//.test(p)) p = p.toLowerCase();
+  return p || null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -117,6 +121,10 @@ function analyzeSession(projectId, filePath) {
     skills:          [],
     builtin_commands: [],
     first_user_message: null,
+    context_resets:  0,
+    ai_title:        null,
+    subagent_count:  0,
+    branches:        [],
   };
 
   let firstUserSeen = false;
@@ -131,22 +139,33 @@ function analyzeSession(projectId, filePath) {
 
     if (rec.type === 'permission-mode') session.permission_mode = rec.permissionMode;
 
+    if (rec.type === 'system' && rec.subtype === 'compact_boundary') session.context_resets++;
+
+    if (rec.type === 'ai-title' && !session.ai_title)
+      session.ai_title = rec.aiTitle || rec.title || null;
+
     if (rec.type === 'system' && rec.subtype === 'turn_duration') {
       if (rec.durationMs   != null) session.duration_ms   = rec.durationMs;
       if (rec.messageCount != null) session.message_count = rec.messageCount;
       if (rec.slug)       session.slug       = rec.slug;
       if (rec.version)    session.version    = rec.version;
       if (rec.entrypoint) session.entrypoint = rec.entrypoint;
-      if (rec.gitBranch)  session.git_branch = rec.gitBranch;
       if (rec.cwd)        session.cwd        = rec.cwd;
+      if (rec.gitBranch) {
+        if (!session.git_branch) session.git_branch = rec.gitBranch;
+        if (!session.branches.includes(rec.gitBranch)) session.branches.push(rec.gitBranch);
+      }
     }
 
     if (rec.type === 'user' && rec.message) {
       session.user_turns++;
       if (!session.version    && rec.version)    session.version    = rec.version;
       if (!session.entrypoint && rec.entrypoint) session.entrypoint = rec.entrypoint;
-      if (!session.git_branch && rec.gitBranch)  session.git_branch = rec.gitBranch;
       if (!session.cwd        && rec.cwd)        session.cwd        = rec.cwd;
+      if (rec.gitBranch) {
+        if (!session.git_branch) session.git_branch = rec.gitBranch;
+        if (!session.branches.includes(rec.gitBranch)) session.branches.push(rec.gitBranch);
+      }
 
       const text = extractTextFromContent(rec.message.content);
 
@@ -199,6 +218,7 @@ function analyzeSession(projectId, filePath) {
           const name = block.name || 'unknown';
           if (!session.tools[name]) session.tools[name] = { calls: 0, errors: 0 };
           session.tools[name].calls++;
+          if (name === 'Agent') session.subagent_count++;
 
           const FILE_OP = { Read: 'read', Write: 'write', Edit: 'edit' };
           if (FILE_OP[name] && block.input?.file_path) {

@@ -19,6 +19,12 @@ import os           from 'os';
 import { execFile, exec } from 'child_process';
 import { fileURLToPath }  from 'url';
 
+import { tailRead }     from './lib/jsonl-tail.mjs';
+import { parsePulse }   from './lib/pulse-parser.mjs';
+import { deriveLabel }  from './analyze.mjs';
+import { derivePiLabel, PI_SESSIONS_ROOT } from './analyze-pi.mjs';
+import { reconstructContextTree } from './lib/context-tree.mjs';
+
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
 const NO_OPEN        = process.argv.includes('--no-open');
@@ -30,7 +36,38 @@ const BUILD_SCRIPT   = path.join(__dirname, 'build.mjs');
 
 // ── SSE clients ───────────────────────────────────────────────────────────────
 
-const clients = new Set();
+const clients   = new Set();
+const offsetMap = new Map(); // filePath → last-read byte offset
+
+// ── Pulse helpers ─────────────────────────────────────────────────────────────
+
+function ctxFromCcPath(relPath) {
+  const parts = relPath.replace(/\\/g, '/').split('/');
+  if (parts.length < 2) return null;
+  const project_id = parts[0];
+  const session_id = parts[1].replace(/\.jsonl$/, '');
+  return { session_id, slug: session_id.slice(0, 8), project_id, project_label: deriveLabel(project_id) };
+}
+
+function ctxFromPiPath(relPath) {
+  const parts = relPath.replace(/\\/g, '/').split('/');
+  if (parts.length < 2) return null;
+  const project_id = parts[0];
+  const base       = parts[1].replace(/\.jsonl$/, '');
+  const session_id = base.includes('_') ? base.slice(base.indexOf('_') + 1) : base;
+  return { session_id, slug: session_id.slice(0, 8), project_id, project_label: derivePiLabel(project_id) };
+}
+
+function tailAndPulse(filePath, ctx) {
+  const offset = offsetMap.get(filePath) ?? 0;
+  try {
+    const { records, newOffset } = tailRead(filePath, offset);
+    offsetMap.set(filePath, newOffset);
+    for (const rec of records)
+      for (const pulse of parsePulse(rec, ctx))
+        notify(pulse.event, JSON.stringify(pulse.data));
+  } catch { /* tail errors must not affect the main rebuild flow */ }
+}
 
 function notify(event, data = '') {
   const payload = `event: ${event}\ndata: ${data}\n\n`;
@@ -108,6 +145,8 @@ try {
   fs.watch(PROJECTS_DIR, { recursive: true }, (_, filename) => {
     if (filename?.endsWith('.jsonl')) {
       console.log(`  changed: ${filename}`);
+      const ctx = ctxFromCcPath(filename);
+      if (ctx) tailAndPulse(path.join(PROJECTS_DIR, filename), ctx);
       const parts = filename.replace(/\\/g, '/').split('/');
       const sessionArg = parts.length === 2
         ? `--session=${parts[0]}/${parts[1]}`
@@ -118,6 +157,61 @@ try {
   console.log(`Watching: ${PROJECTS_DIR}`);
 } catch (e) {
   console.warn(`Watch unavailable: ${e.message}`);
+}
+
+// Optional Pi watcher — only if ~/.pi/agent/sessions/ exists
+try {
+  if (fs.existsSync(PI_SESSIONS_ROOT)) {
+    fs.watch(PI_SESSIONS_ROOT, { recursive: true }, (_, filename) => {
+      if (filename?.endsWith('.jsonl')) {
+        const ctx = ctxFromPiPath(filename);
+        if (ctx) tailAndPulse(path.join(PI_SESSIONS_ROOT, filename), ctx);
+      }
+    });
+    console.log(`Watching Pi: ${PI_SESSIONS_ROOT}`);
+  }
+} catch (e) {
+  console.warn(`Pi watch unavailable: ${e.message}`);
+}
+
+// ── /api/trace cache + resolver ───────────────────────────────────────────────
+
+const traceCache = new Map(); // filePath → { mtime, tree }
+
+function resolveSessionFile(sessionId) {
+  if (!fs.existsSync(PROJECTS_DIR)) return null;
+  for (const proj of fs.readdirSync(PROJECTS_DIR)) {
+    const projPath = path.join(PROJECTS_DIR, proj);
+    try {
+      if (!fs.statSync(projPath).isDirectory()) continue;
+    } catch { continue; }
+    const candidate = path.join(projPath, sessionId + '.jsonl');
+    if (fs.existsSync(candidate)) return { filePath: candidate, projectId: proj };
+    // also check subagents/ subdir
+    const subCandidate = path.join(projPath, 'subagents', sessionId + '.jsonl');
+    if (fs.existsSync(subCandidate)) return { filePath: subCandidate, projectId: proj };
+  }
+  return null;
+}
+
+function buildTrace(filePath, projectId, sessionId) {
+  try {
+    const mtime = fs.statSync(filePath).mtimeMs;
+    const cached = traceCache.get(filePath);
+    if (cached && cached.mtime === mtime) return cached.tree;
+
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const records = [];
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      try { records.push(JSON.parse(line)); } catch { /* skip */ }
+    }
+    const tree = { session_id: sessionId, project_id: projectId, ...reconstructContextTree(records) };
+    traceCache.set(filePath, { mtime, tree });
+    return tree;
+  } catch (e) {
+    return null;
+  }
 }
 
 // ── HTTP server ───────────────────────────────────────────────────────────────
@@ -151,6 +245,19 @@ const server = http.createServer((req, res) => {
   if (req.url === '/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ rebuilding, lastBuilt, clients: clients.size, port: PORT }));
+    return;
+  }
+
+  if (req.url.startsWith('/api/trace/')) {
+    const sessionId = decodeURIComponent(req.url.slice('/api/trace/'.length)).replace(/\.jsonl$/, '');
+    if (!sessionId) { res.writeHead(400); res.end('missing session_id'); return; }
+    const found = resolveSessionFile(sessionId);
+    if (!found) { res.writeHead(404); res.end('session not found'); return; }
+    const tree = buildTrace(found.filePath, found.projectId, sessionId);
+    if (!tree) { res.writeHead(500); res.end('reconstruction failed'); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
+      'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(tree));
     return;
   }
 

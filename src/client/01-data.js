@@ -6,7 +6,8 @@ const IN_FLIGHT_COLOR = '%%IN_FLIGHT_COLOR%%';
 
 let MAX_WEIGHT = Math.max(1, ...GRAPH.edges.map(e => e.weight || 0));
 
-const TL_H = 60;
+const TL_H        = 154; // total bottom chrome: timeline 60 + stats 14 + DAW 80
+const TIMELINE_H  = 60;  // height of #timeline strip only
 let W = window.innerWidth, H = window.innerHeight - TL_H;
 const PROJ_R = 26, SR_MIN = 5, SR_MAX = 20, FR_MIN = 3, FR_MAX = 13;
 

@@ -251,6 +251,7 @@ function showPanel(d) {
       ${peers.length?'<div class="psep"></div><div class="p-section-hd">Branch peers</div>'+peers.map(p=>_nodeRow(p.id,`<span class="pk">${p.date_str||'?'}</span><span class="pv">${p.label}</span>`)).join(''):''}
       ${files.length?'<div class="psep"></div><div class="p-section-hd">Files ('+files.length+')</div>'+files.map(f=>_nodeRow(f.id,`<span class="pk" style="color:${f.color}">${f.label}</span><span class="pv">${f.edit}e ${f.write}w</span>`)).join(''):''}
       ${_toolBars(d)}
+      ${window._traceSection ? window._traceSection(d) : ''}
       <div class="psep"></div>
       <button class="paction" data-resume="${_esc(d.id)}">◆ COPY RESUME PROMPT</button>
       `;

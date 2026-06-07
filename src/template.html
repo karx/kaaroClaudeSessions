@@ -357,6 +357,30 @@ button.btn:hover { background:#1e1e40; }
 .ptb-wrap { flex:1; height:3px; background:#080818; position:relative; }
 .ptb-bar  { height:100%; }
 .ptb-cnt  { color:#1e2c44; font-size:8px; min-width:20px; text-align:right; }
+
+/* ── Context window trace strips ─────────────────────────────────────────── */
+.ctx-hd   { cursor:pointer; display:flex; align-items:center; gap:4px; user-select:none; }
+.ctx-hd:hover { color:#8899bb; }
+.ctx-n    { color:#1e2c44; }
+.ctx-chev { color:#1e2c44; margin-left:auto; font-size:8px; }
+.ctx-body { margin:4px 0 8px 0; }
+.ctx-strips { display:flex; align-items:stretch; gap:2px; width:100%; min-height:52px; }
+.ctx-strip {
+  display:flex; flex-direction:column; justify-content:space-between;
+  min-width:14px; flex-shrink:1; flex-grow:0; height:52px;
+  padding:3px 3px 3px 4px; border-left:2px solid; box-sizing:border-box;
+  overflow:hidden; cursor:default;
+  transition:filter 0.1s;
+}
+.ctx-strip:hover  { filter:brightness(1.35); }
+.ctx-current { border-left-width:3px; }
+.ctx-sep   { display:flex; align-items:center; color:#111828; font-size:7px; flex-shrink:0; }
+.ctx-si    { font-size:7px; color:#2a3a55; line-height:1; }
+.ctx-tool  { font-size:7px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; line-height:1.2; font-weight:700; letter-spacing:0.2px; }
+.ctx-turns { font-size:7px; color:#3a4e6a; line-height:1; }
+.ctx-badges{ font-size:7px; color:#5a6e88; line-height:1; letter-spacing:0.5px; }
+.ctx-tok   { font-size:6px; color:#1e2c3e; line-height:1; }
+.ctx-loading, .ctx-err, .ctx-empty { font-size:9px; color:#2a3a55; padding:3px 0; font-style:italic; }
 </style>
 <script type="application/ld+json">
 {

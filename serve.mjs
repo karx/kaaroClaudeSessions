@@ -22,10 +22,16 @@ import { fileURLToPath }  from 'url';
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
 const NO_OPEN        = process.argv.includes('--no-open');
-const PROJECTS_DIR   = path.join(os.homedir(), '.claude', 'projects');
+const HARNESS        = process.argv.find(a => a.startsWith('--harness='))?.split('=')[1] ?? 'claude';
+const IS_ANTIGRAVITY = HARNESS === 'antigravity';
+const PROJECTS_DIR   = IS_ANTIGRAVITY
+  ? path.join(os.homedir(), '.gemini', 'antigravity', 'brain')
+  : path.join(os.homedir(), '.claude', 'projects');
 const HTML_PATH      = path.join(__dirname, 'graph.html');
 const DATA_PATH      = path.join(__dirname, 'graph-data.json');
-const ANALYZE_SCRIPT = path.join(__dirname, 'analyze.mjs');
+const ANALYZE_SCRIPT = IS_ANTIGRAVITY
+  ? path.join(__dirname, 'analyze-antigravity.mjs')
+  : path.join(__dirname, 'analyze.mjs');
 const BUILD_SCRIPT   = path.join(__dirname, 'build.mjs');
 
 // ── SSE clients ───────────────────────────────────────────────────────────────
@@ -99,17 +105,23 @@ function scheduleRebuild(sessionArg = null) {
 // ── File watcher ──────────────────────────────────────────────────────────────
 
 if (!fs.existsSync(PROJECTS_DIR)) {
-  console.error(`Claude projects directory not found: ${PROJECTS_DIR}`);
-  console.error('Is Claude Code installed?');
+  const label = IS_ANTIGRAVITY ? 'Antigravity brain directory' : 'Claude projects directory';
+  const hint  = IS_ANTIGRAVITY ? 'Is the Antigravity agent installed?' : 'Is Claude Code installed?';
+  console.error(`${label} not found: ${PROJECTS_DIR}`);
+  console.error(hint);
   process.exit(1);
 }
 
 try {
   fs.watch(PROJECTS_DIR, { recursive: true }, (_, filename) => {
-    if (filename?.endsWith('.jsonl')) {
+    if (!filename) return;
+    const isLog = IS_ANTIGRAVITY
+      ? (filename.endsWith('transcript.jsonl') || filename.endsWith('overview.txt'))
+      : filename.endsWith('.jsonl');
+    if (isLog) {
       console.log(`  changed: ${filename}`);
       const parts = filename.replace(/\\/g, '/').split('/');
-      const sessionArg = parts.length === 2
+      const sessionArg = (!IS_ANTIGRAVITY && parts.length === 2)
         ? `--session=${parts[0]}/${parts[1]}`
         : null;
       scheduleRebuild(sessionArg);
@@ -196,7 +208,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
-  console.log(`\n  kaaro-sessions → ${url}\n`);
+  console.log(`\n  kaaro-sessions [${HARNESS}] → ${url}\n`);
 
   if (!NO_OPEN) {
     const cmd = process.platform === 'win32' ? `start ${url}`

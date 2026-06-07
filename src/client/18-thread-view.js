@@ -6,14 +6,8 @@
 
 (function () {
 
-  // ── Colour vocabulary (shared with DAW + panel) ───────────────────────────
-  const _C = {
-    Write:'#00bb55', Edit:'#ccaa00', Read:'#2a5c8a',
-    Bash:'#cc6622', PowerShell:'#cc6622',
-    Grep:'#7733aa', Glob:'#7733aa',
-    Agent:'#cc2244', ToolSearch:'#6644aa',
-    WebFetch:'#336688', WebSearch:'#336688',
-  };
+  // TOOL_COLORS defined in 01-data.js
+  const _C = TOOL_COLORS;
 
   const _MODE_BG = {
     default:           '#050810',
@@ -22,12 +16,7 @@
     bypassPermissions: '#0b0404',
   };
 
-  // ── Formatting helpers ────────────────────────────────────────────────────
-  function _fmtTok(n) {
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-    if (n >= 1_000)     return (n / 1_000).toFixed(0) + 'k';
-    return String(n);
-  }
+  // _fmtTok and _esc defined in 01-data.js
 
   function _fmtDur(ms) {
     if (!ms) return null;
@@ -39,12 +28,6 @@
     if (!ts) return '';
     try { return new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
     catch { return ''; }
-  }
-
-  function _esc(s) {
-    return String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   // ── Stacked composition bar ───────────────────────────────────────────────
@@ -248,12 +231,17 @@
     document.getElementById('thr-chrome-label').textContent = node?.label || sessionId.slice(0, 8);
     document.getElementById('thr-chrome-label').style.color = node?.color || '#4488cc';
     document.getElementById('thr-chrome-ait').style.display = 'none';
+
+    const cached = window._traceCache?.get(sessionId);
+    if (cached) { _render(cached, node); return; }
+
     document.getElementById('thr-body').innerHTML = '<div class="thr-loading">loading…</div>';
 
     try {
       const res  = await fetch(`/api/trace/${encodeURIComponent(sessionId)}`);
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
+      window._traceCache?.set(sessionId, data);
       _render(data, node);
     } catch (_) {
       document.getElementById('thr-body').innerHTML = '<div class="thr-err">trace unavailable</div>';

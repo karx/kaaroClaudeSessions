@@ -92,9 +92,6 @@ svg.on('click',()=>{
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 
-// Escape a value for use in a data-* attribute
-function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
-
 // Wrap a row in a clickable link IFF the node exists in the current graph
 function _nodeRow(id, inner, extraStyle) {
   const exists = !!nodeById[id];
@@ -185,20 +182,13 @@ document.getElementById('panel').addEventListener('click', e => {
   });
 });
 
-const _TOOL_COLORS = {
-  Write:'#00bb55', Edit:'#ccaa00', Read:'#2a5c8a',
-  Bash:'#cc6622', PowerShell:'#cc6622',
-  Grep:'#7733aa', Glob:'#7733aa', ToolSearch:'#6644aa',
-  Agent:'#cc2244', WebFetch:'#336688', WebSearch:'#336688',
-};
-
 function _toolBars(d) {
   const top = d.tools_top;
   if (!top || !top.length) return '';
   const max = top[0].calls;
   const rows = top.map(t => {
     const pct  = (t.calls / max * 100).toFixed(1);
-    const color = _TOOL_COLORS[t.name] || '#2a3a55';
+    const color = TOOL_COLORS[t.name] || '#2a3a55';
     return `<div class="ptb-row">` +
       `<span class="ptb-name">${t.name}</span>` +
       `<div class="ptb-wrap"><div class="ptb-bar" style="width:${pct}%;background:${color}"></div></div>` +

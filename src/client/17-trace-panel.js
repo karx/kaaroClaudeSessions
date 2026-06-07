@@ -11,27 +11,15 @@
 // Lazy-fetches /api/trace/:session_id on first expand; caches per session.
 
 (function() {
-  const _cache = new Map(); // session_id → ContextTree
-
-  const _COLORS = {
-    Write:'#00bb55', Edit:'#ccaa00', Read:'#2a5c8a',
-    Bash:'#cc6622', PowerShell:'#cc6622',
-    Grep:'#7733aa', Glob:'#7733aa',
-    Agent:'#cc2244', ToolSearch:'#6644aa',
-    WebFetch:'#336688', WebSearch:'#336688',
-  };
+  // _traceCache shared with 18-thread-view.js so openThread skips a redundant fetch
+  window._traceCache = window._traceCache || new Map();
+  const _cache = window._traceCache;
 
   function _domTool(seg) {
     const s = seg.tool_summary;
     if (!s) return null;
     const top = Object.entries(s).sort((a, b) => b[1] - a[1])[0];
     return top || null;
-  }
-
-  function _fmtTok(n) {
-    if (n >= 100000) return (n / 1000).toFixed(0) + 'k';
-    if (n >= 1000)  return (n / 1000).toFixed(1) + 'k';
-    return String(n);
   }
 
   function _renderStrips(data, sessionColor) {
@@ -47,7 +35,7 @@
       const domEntry = _domTool(seg);
       const domName  = domEntry ? domEntry[0] : null;
       const domCount = domEntry ? domEntry[1] : 0;
-      const color    = (domName && _COLORS[domName]) || sessionColor || '#2a3a8a';
+      const color    = (domName && TOOL_COLORS[domName]) || sessionColor || '#2a3a8a';
       const isCur    = seg.compact_trigger === null;
       const turns    = seg.user_turns + seg.assistant_turns;
 

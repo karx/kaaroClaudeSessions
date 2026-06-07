@@ -42,7 +42,7 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
     pinBtn.classList.toggle('on', tickerSticky);
     pinBtn.textContent = tickerSticky ? '⊟ TICKER' : '⊞ TICKER';
     pinBtn.title = tickerSticky ? 'Unpin ticker (clear history)' : 'Pin ticker to keep history';
-    if (!tickerSticky) while (ticker.firstChild) ticker.removeChild(ticker.firstChild);
+    if (!tickerSticky) ticker.replaceChildren();
     else ticker.scrollTop = ticker.scrollHeight;
   }
   _applyTickerMode();

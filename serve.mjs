@@ -200,12 +200,7 @@ function buildTrace(filePath, projectId, sessionId) {
     const cached = traceCache.get(filePath);
     if (cached && cached.mtime === mtime) return cached.tree;
 
-    const raw = fs.readFileSync(filePath, 'utf8');
-    const records = [];
-    for (const line of raw.split('\n')) {
-      if (!line.trim()) continue;
-      try { records.push(JSON.parse(line)); } catch { /* skip */ }
-    }
+    const { records } = tailRead(filePath, 0);
     const tree = { session_id: sessionId, project_id: projectId, ...reconstructContextTree(records) };
     traceCache.set(filePath, { mtime, tree });
     return tree;

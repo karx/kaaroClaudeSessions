@@ -279,3 +279,165 @@ test('token output accumulates per segment', async t => {
     assert.equal(tree.segments[1].tokens.output, 80);
   });
 });
+
+// ── Phase 2: per-turn reconstruction ─────────────────────────────────────────
+
+function turnDur(ms) {
+  return { type: 'system', subtype: 'turn_duration', durationMs: ms };
+}
+function asstContent(textStr, tools = []) {
+  const content = textStr ? [{ type: 'text', text: textStr }, ...tools] : [...tools];
+  return content;
+}
+function toolUseBlock(name, input, id = 'tu_001') {
+  return { type: 'tool_use', id, name, input };
+}
+function toolResultBlock(id, isError = false, errText = null) {
+  const block = { type: 'tool_result', tool_use_id: id, is_error: isError };
+  if (errText) block.content = [{ type: 'text', text: errText }];
+  return block;
+}
+
+test('turns — user text appears in segment turns', async t => {
+  const records = [
+    user({ text: [{ type: 'text', text: 'Hello, fix the bug.' }] }),
+    asst(),
+  ];
+  const tree = reconstructContextTree(records);
+  const turns = tree.segments[0].turns;
+
+  await t.test('segment has turns array', () => assert.ok(Array.isArray(turns)));
+  await t.test('user turn emitted with correct text', () => {
+    const u = turns.find(t => t.role === 'user');
+    assert.ok(u, 'user turn present');
+    assert.equal(u.text, 'Hello, fix the bug.');
+  });
+});
+
+test('turns — tool_result-only user records do not emit a user turn', async t => {
+  const records = [
+    asst({ content: asstContent(null, [toolUseBlock('Bash', { command: 'ls' }, 'tu1')]) }),
+    { type: 'user', timestamp: '2026-05-01T10:02:00Z',
+      message: { content: [toolResultBlock('tu1')] } },
+  ];
+  const tree = reconstructContextTree(records);
+  const userTurns = tree.segments[0].turns.filter(t => t.role === 'user');
+
+  await t.test('no user turn emitted for pure tool-result record', () => {
+    assert.equal(userTurns.length, 0);
+  });
+});
+
+test('turns — assistant turn includes tool calls with sanitised inputs', async t => {
+  const records = [
+    asst({ content: asstContent('I will read the file.', [
+      toolUseBlock('Read',  { file_path: 'src/foo.js' }, 'tu1'),
+      toolUseBlock('Bash',  { command: 'git status' },   'tu2'),
+    ])}),
+    asst(),
+  ];
+  const tree = reconstructContextTree(records);
+  const asstTurn = tree.segments[0].turns.find(t => t.role === 'assistant');
+
+  await t.test('assistant turn emitted', () => assert.ok(asstTurn));
+  await t.test('text captured', () => assert.equal(asstTurn.text, 'I will read the file.'));
+  await t.test('two tool calls present', () => assert.equal(asstTurn.tool_calls.length, 2));
+  await t.test('Read tool call has file_path', () => {
+    const tc = asstTurn.tool_calls.find(t => t.name === 'Read');
+    assert.equal(tc.input.file_path, 'src/foo.js');
+  });
+  await t.test('Bash tool call has command', () => {
+    const tc = asstTurn.tool_calls.find(t => t.name === 'Bash');
+    assert.equal(tc.input.command, 'git status');
+  });
+});
+
+test('turns — tool result errors attached to preceding tool call', async t => {
+  const records = [
+    asst({ content: asstContent(null, [toolUseBlock('Bash', { command: 'bad-cmd' }, 'tu1')]) }),
+    { type: 'user', timestamp: '2026-05-01T10:02:00Z',
+      message: { content: [toolResultBlock('tu1', true, 'command not found: bad-cmd')] } },
+    asst(),
+  ];
+  const tree = reconstructContextTree(records);
+  const asstTurn = tree.segments[0].turns.find(t => t.role === 'assistant');
+
+  await t.test('tool call is_error set to true', () => {
+    assert.equal(asstTurn.tool_calls[0].is_error, true);
+  });
+  await t.test('error_text captured', () => {
+    assert.ok(asstTurn.tool_calls[0].error_text?.includes('command not found'));
+  });
+});
+
+test('turns — turn duration attached to assistant turn', async t => {
+  const records = [asst(), turnDur(5230)];
+  const tree = reconstructContextTree(records);
+  const asstTurn = tree.segments[0].turns.find(t => t.role === 'assistant');
+
+  await t.test('duration_ms set', () => assert.equal(asstTurn.duration_ms, 5230));
+});
+
+test('turns — Write content stripped from sanitised input', async t => {
+  const records = [
+    asst({ content: asstContent(null, [
+      toolUseBlock('Write', { file_path: 'out.js', content: 'x'.repeat(5000) }, 'tu1'),
+    ])}),
+    asst(),
+  ];
+  const tree = reconstructContextTree(records);
+  const tc = tree.segments[0].turns.find(t => t.role === 'assistant')?.tool_calls[0];
+
+  await t.test('file_path preserved', () => assert.equal(tc.input.file_path, 'out.js'));
+  await t.test('content field absent', () => assert.equal(tc.input.content, undefined));
+});
+
+test('turns — Edit diff preview truncated to 160 chars', async t => {
+  const records = [
+    asst({ content: asstContent(null, [
+      toolUseBlock('Edit', {
+        file_path: 'a.js',
+        old_string: 'A'.repeat(200),
+        new_string: 'B'.repeat(200),
+      }, 'tu1'),
+    ])}),
+    asst(),
+  ];
+  const tree = reconstructContextTree(records);
+  const tc = tree.segments[0].turns.find(t => t.role === 'assistant')?.tool_calls[0];
+
+  await t.test('old_string truncated', () => assert.equal(tc.input.old_string.length, 160));
+  await t.test('new_string truncated', () => assert.equal(tc.input.new_string.length, 160));
+});
+
+test('turns — thinking flag propagated to assistant turn', async t => {
+  const records = [
+    asst({ content: [{ type: 'thinking', thinking: '...' }, { type: 'text', text: 'done' }] }),
+    asst(),
+  ];
+  const tree = reconstructContextTree(records);
+  const asstTurn = tree.segments[0].turns.find(t => t.role === 'assistant');
+
+  await t.test('has_thinking true', () => assert.equal(asstTurn.has_thinking, true));
+});
+
+test('turns — turns reset across compact boundary', async t => {
+  const records = [
+    user({ text: [{ type: 'text', text: 'phase one' }] }),
+    asst(),
+    compact(),
+    user({ text: [{ type: 'text', text: 'phase two' }] }),
+    asst(),
+  ];
+  const tree = reconstructContextTree(records);
+
+  await t.test('segment 0 has its user turn', () => {
+    assert.ok(tree.segments[0].turns.some(t => t.role === 'user' && t.text === 'phase one'));
+  });
+  await t.test('segment 1 has its user turn', () => {
+    assert.ok(tree.segments[1].turns.some(t => t.role === 'user' && t.text === 'phase two'));
+  });
+  await t.test('segment 0 turns do not include phase two', () => {
+    assert.ok(!tree.segments[0].turns.some(t => t.text === 'phase two'));
+  });
+});

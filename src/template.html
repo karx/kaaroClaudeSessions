@@ -475,6 +475,62 @@ button.btn:hover { background:#1e1e40; }
   font-size:10px; color:#1e2c44; padding:24px 0; font-style:italic;
 }
 
+/* ── Turn list ───────────────────────────────────────────────────────────── */
+.thr-turns { margin-top:10px; border-top:1px solid #090c18; }
+.thr-turn  { padding:8px 0 8px 0; border-bottom:1px solid #060810; }
+.thr-turn:last-child { border-bottom:none; }
+
+.thr-turn-hd {
+  display:flex; align-items:center; gap:7px; margin-bottom:4px; flex-wrap:wrap;
+}
+.thr-actor {
+  font-size:8px; font-weight:700; letter-spacing:1.5px;
+  padding:1px 5px; flex-shrink:0;
+}
+.thr-actor-user { color:#1e3050; background:#070c18; border:1px solid #0d1828; }
+.thr-actor-asst { color:#1e3a28; background:#040e08; border:1px solid #0a1e10; }
+.thr-turn-ts  { font-size:8px; color:#1a2840; }
+.thr-thinking { font-size:8px; color:#3a2a60; letter-spacing:0.5px; }
+.thr-dur      { font-size:8px; color:#162030; margin-left:auto; }
+.thr-maxtok   { font-size:8px; color:#5a2020; letter-spacing:0.5px; }
+
+.thr-turn-text {
+  font-size:10px; color:#3a5070; line-height:1.55;
+  margin:2px 0 6px; white-space:pre-wrap; word-break:break-word;
+  max-height:200px; overflow:hidden;
+}
+.thr-turn-asst .thr-turn-text { color:#2a4a5a; }
+.thr-truncated { color:#1a2840; font-style:italic; }
+
+/* ── Tool call rows ──────────────────────────────────────────────────────── */
+.thr-tcs { margin:4px 0 0; }
+.thr-tc  {
+  display:flex; align-items:baseline; gap:8px;
+  padding:2px 0; font-size:9px; line-height:1.4;
+}
+.thr-tc-err  { opacity:0.8; }
+.thr-tc-name {
+  font-size:8px; font-weight:700; letter-spacing:0.3px;
+  min-width:72px; flex-shrink:0;
+}
+.thr-tc-arg  {
+  color:#2a4060; font-size:9px; word-break:break-all;
+  overflow:hidden; white-space:pre-wrap; max-height:3em;
+}
+.thr-tc-errtxt {
+  color:#5a2020; font-size:8px; font-style:italic; flex-shrink:0;
+}
+.thr-tc-cont {
+  padding:1px 0 3px 80px;
+}
+.thr-tc-contline {
+  display:block; color:#1e3050; font-size:9px;
+  white-space:pre; overflow:hidden; text-overflow:ellipsis;
+}
+.thr-tc-diff { padding:2px 0 4px 80px; }
+.thr-tc-del  { display:block; font-size:8px; color:#4a1a1a; white-space:pre; }
+.thr-tc-add  { display:block; font-size:8px; color:#0a2a18; white-space:pre; }
+
 /* Panel VIEW THREAD button */
 .paction-thread {
   margin-bottom:6px; color:#1a3050; border-color:#0d1a2e;

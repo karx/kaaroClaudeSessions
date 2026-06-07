@@ -54,6 +54,25 @@ function highlight(id) {
   edgeSel.attr('stroke-opacity',e=>{ const a=e.source?.id??e.source,b=e.target?.id??e.target; return (a===id||b===id)?Math.min(1,edgeOpacity(e)*2):.025; });
   d3.selectAll('.tl-dot').attr('opacity',d=>d.id===id?1:.2);
 }
+// ── DAW file accent ──────────────────────────────────────────────────────────
+// Adds a bright ring to a specific node without changing the highlight state.
+// Called by 16-beat-overlay.js when hovering a file-op event.
+function accentNode(id) {
+  d3.selectAll('.daw-accent').remove();
+  nodeSel.filter(d => d.id === id)
+    .append('circle')
+    .attr('class', 'daw-accent')
+    .attr('r', d => nodeR(d) + 6)
+    .attr('fill', 'none')
+    .attr('stroke', '#c8d8ff')
+    .attr('stroke-width', 1.5)
+    .attr('stroke-opacity', 0.85)
+    .attr('pointer-events', 'none');
+}
+function clearAccent() { d3.selectAll('.daw-accent').remove(); }
+window.accentNode  = accentNode;
+window.clearAccent = clearAccent;
+
 function slHighlight(id) {
   slLayer.selectAll('[data-sid]').attr('opacity', id
     ? function() { return this.getAttribute('data-sid')===id ? 1 : 0.2; }
@@ -72,6 +91,113 @@ svg.on('click',()=>{
 });
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
+
+// Wrap a row in a clickable link IFF the node exists in the current graph
+function _nodeRow(id, inner, extraStyle) {
+  const exists = !!nodeById[id];
+  const style  = `font-size:10px${extraStyle ? ';'+extraStyle : ''}`;
+  if (exists) return `<div class="prow plink-row" data-nid="${_esc(id)}" style="${style}">${inner}</div>`;
+  return `<div class="prow" style="${style}">${inner}</div>`;
+}
+
+// focusNode — highlight the node, pan to it, show its panel
+function focusNode(id) {
+  const node = nodeById[id];
+  if (!node) return;
+  selectedId = id;
+  highlight(id);
+  showPanel(node);
+  if (currentLayout === 'force' && node.x != null && node.y != null) {
+    const k = d3.zoomTransform(svg.node()).k;
+    svg.transition().duration(420).call(
+      zoom.transform,
+      d3.zoomIdentity.translate(W/2 - node.x*k, H/2 - node.y*k).scale(k)
+    );
+  }
+}
+window.focusNode = focusNode;
+
+// Delegation on static #panel — handles clicks on .plink-row even after innerHTML swaps
+document.getElementById('panel').addEventListener('click', e => {
+  const row = e.target.closest('[data-nid]');
+  if (!row) return;
+  e.preventDefault(); e.stopPropagation();
+  focusNode(row.dataset.nid);
+});
+
+// ── Resume prompt builder ─────────���───────────────────────────────────────────
+
+function _buildResume(d, fileNodes) {
+  const proj    = GRAPH.nodes.find(n=>n.id===d.project_id);
+  const projLbl = proj ? proj.label : d.project_id;
+  const lastTs  = d.last_activity ? d.last_activity.slice(0,16).replace('T',' ') : '?';
+  const branch  = (d.branches && d.branches.length > 1)
+    ? d.branches.join(', ')
+    : (d.git_branch || '?');
+  const topFiles = [...fileNodes]
+    .sort((a,b) => (b.edit+b.write) - (a.edit+a.write))
+    .slice(0, 8)
+    .map(f => `  ${f.label} (${f.edit}e ${f.write}w ${f.read}r)`)
+    .join('\n');
+
+  let lines = [
+    `Continue working on ${projLbl}.`,
+    ``,
+    `Session: ${d.label} (${d.id.slice(0,8)})`,
+    `Project: ${projLbl} (${d.project_id})`,
+    `Branch: ${branch}`,
+    `Last active: ${lastTs}`,
+  ];
+  if (d.context_resets) lines.push(`Context resets: ${d.context_resets}`);
+  if (d.subagent_count) lines.push(`Subagents spawned: ${d.subagent_count}`);
+  if (d.ai_title) lines.push(`Task: ${d.ai_title}`);
+  lines.push(`AI work: ${fmtT(d.tokens_work)} tokens (${d.cache_hit_rate}% cached)`);
+  if (d.first_user_message) {
+    lines.push(``, `First message:`, `"${d.first_user_message.slice(0, 300)}"`);
+  }
+  if (topFiles) {
+    lines.push(``, `Key files:`, topFiles);
+  }
+  return lines.join('\n');
+}
+
+// ── Resume click delegation ───────────────────────────────────────────────────
+
+document.getElementById('panel').addEventListener('click', e => {
+  const btn = e.target.closest('[data-resume]');
+  if (!btn) return;
+  e.preventDefault(); e.stopPropagation();
+  const node = nodeById[btn.dataset.resume];
+  if (!node) return;
+  const nb = neighbours(node.id);
+  const fileNodes = [...nb].filter(id=>id!==node.id&&nodeById[id]?.type==='file').map(id=>nodeById[id]);
+  const text = _buildResume(node, fileNodes);
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓ COPIED';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '◆ COPY RESUME PROMPT'; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => {
+    btn.textContent = '⚠ CLIPBOARD UNAVAILABLE';
+    setTimeout(() => { btn.textContent = '◆ COPY RESUME PROMPT'; }, 2000);
+  });
+});
+
+function _toolBars(d) {
+  const top = d.tools_top;
+  if (!top || !top.length) return '';
+  const max = top[0].calls;
+  const rows = top.map(t => {
+    const pct  = (t.calls / max * 100).toFixed(1);
+    const color = TOOL_COLORS[t.name] || '#2a3a55';
+    return `<div class="ptb-row">` +
+      `<span class="ptb-name">${t.name}</span>` +
+      `<div class="ptb-wrap"><div class="ptb-bar" style="width:${pct}%;background:${color}"></div></div>` +
+      `<span class="ptb-cnt">${t.calls}</span>` +
+      `</div>`;
+  }).join('');
+  return `<div class="psep"></div><div class="p-section-hd">◆ TOOL CALLS</div>${rows}`;
+}
+
 function showPanel(d) {
   document.getElementById('panel').classList.add('open');
   const nb=neighbours(d.id); let html='';
@@ -82,16 +208,23 @@ function showPanel(d) {
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtT(d.tokens_work)}</span></div>
       <div class="prow"><span class="pk">Skills</span><span class="pv">${d.skills.map(s=>'<span class="ptag">/'+s+'</span>').join('')||'none'}</span></div>
       <div class="psep"></div>
-      ${ss.map(s=>`<div class="prow" style="font-size:10px"><span class="pk">${s.date_str||'?'}</span><span class="pv" style="color:${d.color}">${s.label}</span></div>`).join('')}`;
+      ${ss.map(s=>_nodeRow(s.id,`<span class="pk">${s.date_str||'?'}</span><span class="pv" style="color:${d.color}">${s.label}</span>`)).join('')}`;
   } else if (d.type==='session') {
     const files=[...nb].filter(id=>id!==d.id&&nodeById[id]?.type==='file').map(id=>nodeById[id]);
     const peers=[...nb].filter(id=>id!==d.id&&nodeById[id]?.type==='session').map(id=>nodeById[id]);
+    const projNode = GRAPH.nodes.find(n=>n.id===d.project_id);
+    const branchList = (d.branches&&d.branches.length>1) ? d.branches : null;
     html=`<h3 style="color:${d.color}">${d.label}</h3>
+      ${d.ai_title?`<div class="pai-title">${d.ai_title.slice(0,120)}</div>`:''}
       <div class="prow"><span class="pk">Date</span><span class="pv">${d.date_str||'?'}</span></div>
       <div class="prow"><span class="pk">Duration</span><span class="pv">${d.duration_min!=null?d.duration_min+' min':'?'}</span></div>
       ${d.last_activity?'<div class="prow"><span class="pk">Last active</span><span class="pv">'+d.last_activity.slice(0,16).replace('T',' ')+'</span></div>':''}
       <div class="prow"><span class="pk">Model</span><span class="pv">${d.model||'?'}</span></div>
-      <div class="prow"><span class="pk">Branch</span><span class="pv">${d.git_branch||'?'}</span></div>
+      ${branchList
+        ?`<div class="prow"><span class="pk">Branches</span><span class="pv" style="text-align:right">${branchList.map(b=>'<span class="ptag">'+b+'</span>').join('')}</span></div>`
+        :`<div class="prow"><span class="pk">Branch</span><span class="pv">${d.git_branch||'?'}</span></div>`}
+      ${d.context_resets?`<div class="prow"><span class="pk">Context resets</span><span class="pv">${d.context_resets}</span></div>`:''}
+      ${d.subagent_count?`<div class="prow"><span class="pk">Subagents</span><span class="pv">${d.subagent_count}</span></div>`:''}
       <div class="psep"></div>
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtT(d.tokens_work)}</span></div>
       <div class="prow"><span class="pk">Cache read</span><span class="pv">${fmtT(d.tokens_cached)} (${d.cache_hit_rate}%)</span></div>
@@ -105,8 +238,13 @@ function showPanel(d) {
       ${d.hit_max_tokens?'<div class="prow"><span class="pk" style="color:#ff4444">Max tokens hit</span><span class="pv">✕</span></div>':''}
       ${d.skills.length?'<div class="prow"><span class="pk">Skills</span><span class="pv">'+d.skills.map(s=>'<span class="ptag">/'+s+'</span>').join('')+'</span></div>':''}
       ${d.first_user_message?'<div class="pmsg">'+d.first_user_message.slice(0,250)+'</div>':''}
-      ${peers.length?'<div class="psep"></div><div style="color:#445566;margin-bottom:4px;font-size:10px">Branch peers:</div>'+peers.map(p=>`<div class="prow" style="font-size:10px"><span class="pk">${p.date_str||'?'}</span><span class="pv">${p.label}</span></div>`).join(''):''}
-      ${files.length?'<div class="psep"></div><div style="color:#445566;margin-bottom:4px;font-size:10px">Files ('+files.length+'):</div>'+files.map(f=>`<div class="prow" style="font-size:10px"><span class="pk" style="color:${f.color}">${f.label}</span><span class="pv">${f.edit}e ${f.write}w</span></div>`).join(''):''}
+      ${peers.length?'<div class="psep"></div><div class="p-section-hd">Branch peers</div>'+peers.map(p=>_nodeRow(p.id,`<span class="pk">${p.date_str||'?'}</span><span class="pv">${p.label}</span>`)).join(''):''}
+      ${files.length?'<div class="psep"></div><div class="p-section-hd">Files ('+files.length+')</div>'+files.map(f=>_nodeRow(f.id,`<span class="pk" style="color:${f.color}">${f.label}</span><span class="pv">${f.edit}e ${f.write}w</span>`)).join(''):''}
+      ${_toolBars(d)}
+      ${window._traceSection ? window._traceSection(d) : ''}
+      <div class="psep"></div>
+      ${d.context_resets ? `<button class="paction paction-thread" data-thread-open="${_esc(d.id)}">◆ VIEW THREAD ▸</button>` : ''}
+      <button class="paction" data-resume="${_esc(d.id)}">◆ COPY RESUME PROMPT</button>
       `;
   } else {
     const ss=[...nb].filter(id=>id!==d.id&&nodeById[id]?.type==='session').map(id=>nodeById[id]);
@@ -117,7 +255,7 @@ function showPanel(d) {
       <div class="prow"><span class="pk">Writes</span><span class="pv">${d.write}</span></div>
       <div class="prow"><span class="pk">Reads</span><span class="pv">${d.read}</span></div>
       <div class="pmsg" style="word-break:break-all">${d.full_path}</div>
-      ${ss.length?'<div class="psep"></div>'+ss.map(s=>`<div class="prow" style="font-size:10px"><span class="pk" style="color:${s.color}">${s.date_str||'?'}</span><span class="pv">${s.label}</span></div>`).join(''):''}
+      ${ss.length?'<div class="psep"></div>'+ss.map(s=>_nodeRow(s.id,`<span class="pk" style="color:${s.color}">${s.date_str||'?'}</span><span class="pv">${s.label}</span>`)).join(''):''}
       `;
   }
   document.getElementById('panel-content').innerHTML = html;

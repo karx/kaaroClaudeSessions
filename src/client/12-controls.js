@@ -125,7 +125,7 @@ updateStats();
 
 // ── Timeline ──────────────────────────────────────────────────────────────────
 function buildTimeline() {
-  const tlSvg=d3.select('#tl-svg'),tw=window.innerWidth,th=TL_H;
+  const tlSvg=d3.select('#tl-svg'),tw=window.innerWidth,th=TIMELINE_H;
   tlSvg.attr('width',tw).attr('height',th);
   const dates=TIMELINE.map(d=>new Date(d.ts));
   if(!dates.length) return;

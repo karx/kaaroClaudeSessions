@@ -16,18 +16,100 @@ window.updateGraph = function(newData) {
   buildTimeline(); updateStats(); applyFilters();
 };
 
-// ── Live status badge ─────────────────────────────────────────────────────────
+// ── Live status badge + pulse ticker ─────────────────────────────────────────
 if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   const badge=document.createElement('div');
-  badge.style.cssText='position:fixed;top:8px;right:12px;background:#00ff88;color:#000;font:bold 10px monospace;padding:3px 8px;z-index:9998;cursor:default;user-select:none;transition:background 0.15s';
+  badge.style.cssText='position:fixed;top:8px;right:12px;background:#00ff88;color:#000;font:bold 10px \'IBM Plex Mono\',monospace;padding:3px 8px;z-index:9998;cursor:default;user-select:none;transition:background 0.15s';
   badge.title='Live — updates when sessions change'; document.body.appendChild(badge);
   function setBadge(t,c){badge.textContent=t;badge.style.background=c;}
   setBadge('⬤ LIVE','#00ff88');
+
+  // Pulse ticker — scrolling feed of recent tool events
+  const TICKER_MAX_EPH    = 20;
+  const TICKER_MAX_STICKY = 500;
+  let tickerSticky = localStorage.getItem('kaaro-ticker-sticky') === '1';
+
+  const ticker = document.createElement('ul');
+  ticker.id = 'pulse-ticker';
+  document.body.appendChild(ticker);
+
+  const pinBtn = document.createElement('div');
+  pinBtn.id = 'ticker-pin';
+  document.body.appendChild(pinBtn);
+
+  function _applyTickerMode() {
+    ticker.classList.toggle('sticky', tickerSticky);
+    pinBtn.classList.toggle('on', tickerSticky);
+    pinBtn.textContent = tickerSticky ? '⊟ TICKER' : '⊞ TICKER';
+    pinBtn.title = tickerSticky ? 'Unpin ticker (clear history)' : 'Pin ticker to keep history';
+    if (!tickerSticky) ticker.replaceChildren();
+    else ticker.scrollTop = ticker.scrollHeight;
+  }
+  _applyTickerMode();
+
+  pinBtn.addEventListener('click', () => {
+    tickerSticky = !tickerSticky;
+    localStorage.setItem('kaaro-ticker-sticky', tickerSticky ? '1' : '0');
+    _applyTickerMode();
+  });
+
+  function tickerAdd(text, color) {
+    const li = document.createElement('li');
+    li.className = 'pulse-entry';
+    li.style.color = color || '#445566';
+    li.textContent = text;
+    ticker.appendChild(li);
+    const max = tickerSticky ? TICKER_MAX_STICKY : TICKER_MAX_EPH;
+    while (ticker.children.length > max) ticker.removeChild(ticker.firstChild);
+    if (tickerSticky) {
+      ticker.scrollTop = ticker.scrollHeight;
+    } else {
+      setTimeout(() => { li.classList.add('fading'); setTimeout(() => li.remove(), 500); }, 4500);
+    }
+  }
+
   const es=new EventSource('/events');
-  es.addEventListener('updated',async()=>{setBadge('◌ updating…','#555');try{const r=await fetch('/graph-data.json?t='+Date.now());const d=await r.json();window.updateGraph(d);setBadge('↻ '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),'#00cc66');setTimeout(()=>setBadge('⬤ LIVE','#00ff88'),3000);}catch(e){setBadge('⚠ error','#ff4444');}});
-  es.addEventListener('status',e=>{if(e.data==='rebuilding')setBadge('◌ building…','#555');});
+
+  es.addEventListener('updated',async()=>{
+    setBadge('◌ updating…','#555');
+    try{
+      const r=await fetch('/graph-data.json?t='+Date.now());
+      const d=await r.json();
+      window.updateGraph(d);
+      setBadge('↻ '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),'#00cc66');
+      setTimeout(()=>setBadge('⬤ LIVE','#00ff88'),3000);
+    }catch(e){setBadge('⚠ error','#ff4444');}
+  });
+
+  es.addEventListener('status',e=>{ if(e.data==='rebuilding') setBadge('◌ building…','#555'); });
   es.onerror=()=>setBadge('◌ reconnecting','#888');
   es.onopen=()=>setBadge('⬤ LIVE','#00ff88');
+
+  es.addEventListener('tool_call',e=>{
+    try{
+      const d=JSON.parse(e.data);
+      const projNode=GRAPH.nodes.find(n=>n.type==='project'&&n.label===d.project);
+      const color=projNode?.color||'#334455';
+      const file=d.where? ' · '+(d.where.replace(/\\/g,'/').split('/').pop()||d.where).slice(0,28) :'';
+      tickerAdd(d.tool+file+'  ['+d.slug+']', color);
+      if(window.playPulse) window.playPulse('tool_call',d);
+    }catch{}
+  });
+
+  es.addEventListener('tokens',e=>{
+    try{
+      const d=JSON.parse(e.data);
+      if(window.playPulse) window.playPulse('tokens',d);
+    }catch{}
+  });
+
+  es.addEventListener('words',e=>{
+    try{
+      const d=JSON.parse(e.data);
+      tickerAdd('"'+d.preview.slice(0,52)+'"  ['+d.slug+']','#2a3a5a');
+      if(window.playPulse) window.playPulse('words',d);
+    }catch{}
+  });
 }
 
 bootComplete();

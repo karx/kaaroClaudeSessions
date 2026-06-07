@@ -34,7 +34,7 @@ test('deriveLabel', async t => {
 
 test('normPath', async t => {
   await t.test('converts backslashes to forward slashes', () => {
-    assert.equal(normPath('C:\\Users\\foo\\bar.js'), 'C:/Users/foo/bar.js');
+    assert.equal(normPath('C:\\Users\\foo\\bar.js'), 'c:/users/foo/bar.js');
   });
   await t.test('collapses double forward slashes', () => {
     assert.equal(normPath('//foo//bar'), '/foo/bar');

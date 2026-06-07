@@ -151,13 +151,13 @@ test('file_ops — backslash path normalised to forward slashes', async t => {
   try {
     const session = analyzeSession('proj', filePath);
     await t.test('key uses forward slashes', () => {
-      assert.ok(session.file_ops['C:/Users/foo/bar.js'], 'normalised key should exist');
+      assert.ok(session.file_ops['c:/users/foo/bar.js'], 'normalised key should exist');
     });
     await t.test('original backslash key does not exist', () => {
       assert.equal(session.file_ops['C:\\Users\\foo\\bar.js'], undefined);
     });
     await t.test('read count is 1 on normalised key', () => {
-      assert.equal(session.file_ops['C:/Users/foo/bar.js'].read, 1);
+      assert.equal(session.file_ops['c:/users/foo/bar.js'].read, 1);
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -559,6 +559,74 @@ test('first_user_message — null when all user messages are too short', async t
     const session = analyzeSession('proj', filePath);
     await t.test('first_user_message is null', () => {
       assert.equal(session.first_user_message, null);
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── normPath — Windows case normalisation ─────────────────────────────────────
+
+test('normPath — Windows drive-letter paths are lowercased', async t => {
+  const { dir, filePath } = writeTempJsonl([
+    makeAssistantRec([toolUse('Read',  { file_path: 'D:\\src\\eBrain\\life-seed-dna.md' })]),
+    makeAssistantRec([toolUse('Write', { file_path: 'D:\\src\\eBrain\\life-seed-dna.md' })]),
+  ]);
+  try {
+    const session = analyzeSession('proj', filePath);
+    const key = 'd:/src/ebrain/life-seed-dna.md';
+    await t.test('file_ops key is lowercased', () => {
+      assert.ok(session.file_ops[key], 'entry must exist under lowercase key');
+    });
+    await t.test('mixed-case original key absent', () => {
+      assert.equal(session.file_ops['D:/src/eBrain/life-seed-dna.md'], undefined);
+    });
+    await t.test('ops accumulated under single key', () => {
+      assert.equal(session.file_ops[key].read, 1);
+      assert.equal(session.file_ops[key].write, 1);
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('normPath — mixed-case paths from different sessions merge in rollup', async t => {
+  // Session A: uppercase casing
+  const { dir: dirA, filePath: fpA } = writeTempJsonl(
+    [makeAssistantRec([toolUse('Write', { file_path: 'D:\\src\\eBrain\\note.md' })])],
+    'sessA',
+  );
+  // Session B: lowercase casing — same physical file on Windows
+  const { dir: dirB, filePath: fpB } = writeTempJsonl(
+    [makeAssistantRec([toolUse('Read',  { file_path: 'D:\\src\\ebrain\\note.md' })])],
+    'sessB',
+  );
+  try {
+    const sessA = analyzeSession('proj', fpA);
+    const sessB = analyzeSession('proj', fpB);
+    // Both should use the same lowercased key
+    const key = 'd:/src/ebrain/note.md';
+    await t.test('session A key is lowercased', () => assert.ok(sessA.file_ops[key]));
+    await t.test('session B key is lowercased', () => assert.ok(sessB.file_ops[key]));
+    await t.test('keys are identical', () => {
+      const keyA = Object.keys(sessA.file_ops)[0];
+      const keyB = Object.keys(sessB.file_ops)[0];
+      assert.equal(keyA, keyB);
+    });
+  } finally {
+    rmSync(dirA, { recursive: true, force: true });
+    rmSync(dirB, { recursive: true, force: true });
+  }
+});
+
+test('normPath — non-Windows paths (no drive letter) preserve original case', async t => {
+  const { dir, filePath } = writeTempJsonl([
+    makeAssistantRec([toolUse('Read', { file_path: '/home/User/Project/README.md' })]),
+  ]);
+  try {
+    const session = analyzeSession('proj', filePath);
+    await t.test('Unix path case preserved', () => {
+      assert.ok(session.file_ops['/home/User/Project/README.md'], 'case must be preserved on non-Windows paths');
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });

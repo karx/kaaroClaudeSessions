@@ -100,10 +100,12 @@
     body.style.display = 'block';
     if (chev) chev.textContent = '▾';
 
+    const _threadBtn = id => `<button class="ctx-thread-btn" data-thread-open="${id}">◆ VIEW THREAD ▸</button>`;
+
     // Serve from cache if available
     if (_cache.has(id)) {
       const node = typeof nodeById !== 'undefined' ? nodeById[id] : null;
-      body.innerHTML = _renderStrips(_cache.get(id), node?.color);
+      body.innerHTML = _renderStrips(_cache.get(id), node?.color) + _threadBtn(id);
       return;
     }
 
@@ -115,7 +117,7 @@
       const data = await res.json();
       _cache.set(id, data);
       const node = typeof nodeById !== 'undefined' ? nodeById[id] : null;
-      body.innerHTML = _renderStrips(data, node?.color);
+      body.innerHTML = _renderStrips(data, node?.color) + _threadBtn(id);
     } catch (_) {
       body.innerHTML = '<div class="ctx-err">trace unavailable</div>';
     }

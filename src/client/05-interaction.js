@@ -253,6 +253,7 @@ function showPanel(d) {
       ${_toolBars(d)}
       ${window._traceSection ? window._traceSection(d) : ''}
       <div class="psep"></div>
+      ${d.context_resets ? `<button class="paction paction-thread" data-thread-open="${_esc(d.id)}">◆ VIEW THREAD ▸</button>` : ''}
       <button class="paction" data-resume="${_esc(d.id)}">◆ COPY RESUME PROMPT</button>
       `;
   } else {

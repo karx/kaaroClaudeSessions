@@ -7,6 +7,7 @@ import {
   resolveClaudeCodeSession,
   resolvePiSession,
   resolveAntigravitySession,
+  resolveGrokSession,
   resolveSessionFile,
 } from '../lib/session-resolver.mjs';
 
@@ -97,6 +98,23 @@ test('resolveAntigravitySession — falls back to overview.txt', () => {
     const found = resolveAntigravitySession(sessionId, root);
     assert.ok(found);
     assert.ok(found.filePath.endsWith('overview.txt'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveGrokSession — finds updates.jsonl under encoded cwd', () => {
+  const root = makeTemp('kaaro-res-grok');
+  try {
+    const sessionId = '019ea1c9-46ee-77e0-bf36-f87a6403b5db';
+    const sessionDir = join(root, 'D%3A%5Csrc%5CkaaroSessions', sessionId);
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(join(sessionDir, 'updates.jsonl'), '{}', 'utf8');
+
+    const found = resolveGrokSession(sessionId, root);
+    assert.ok(found);
+    assert.ok(found.filePath.endsWith('updates.jsonl'));
+    assert.equal(found.projectId, 'D%3A%5Csrc%5CkaaroSessions');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

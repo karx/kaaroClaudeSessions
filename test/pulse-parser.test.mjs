@@ -405,6 +405,43 @@ test('parsePulse Antigravity — no tokens pulse (tokenless harness)', () => {
   assert.ok(pulses.find(p => p.event === 'words'));
 });
 
+test('parsePulse Grok — tool_call → tool_call pulse', () => {
+  const record = {
+    method: 'session/update',
+    params: {
+      update: {
+        sessionUpdate: 'tool_call',
+        title: 'Read',
+        rawInput: { path: 'D:\\src\\kaaroSessions\\serve.mjs' },
+      },
+    },
+    _meta: { agentTimestampMs: 1780830793529 },
+  };
+  const ctx = { ...CTX, harness: 'grok', session_id: '019ea1c9-46ee-77e0-bf36-f87a6403b5db' };
+  const pulses = parsePulse(record, ctx);
+  const tc = pulses.find(p => p.event === 'tool_call');
+  assert.ok(tc);
+  assert.equal(tc.data.tool, 'Read');
+  assert.equal(tc.data.where, 'D:/src/kaaroSessions/serve.mjs');
+  assert.equal(tc.data.harness, 'grok');
+});
+
+test('parsePulse Grok — agent_message_chunk → words pulse', () => {
+  const record = {
+    method: 'session/update',
+    params: {
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: 'Continuing with Phase Four implementation now.' },
+      },
+    },
+    _meta: { agentTimestampMs: 1780832085764 },
+  };
+  const pulses = parsePulse(record, { harness: 'grok', ...CTX });
+  assert.ok(pulses.find(p => p.event === 'words'));
+  assert.equal(pulses.find(p => p.event === 'tokens'), undefined);
+});
+
 test('parsePulse CC — one record produces tool_call + tokens + words pulses', () => {
   const rec = ccAssistant(
     [ccTool('Read', { file_path: 'src/app.js' }), ccText('Reading the file now to understand structure.')],

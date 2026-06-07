@@ -52,6 +52,19 @@ test('processWatchFilename — antigravity overview.txt', () => {
   assert.equal(r.ctx.session_id, 'c7f6b422');
 });
 
+test('processWatchFilename — grok updates.jsonl', () => {
+  const r = processWatchFilename(
+    'grok',
+    'D%3A%5Csrc%5CkaaroSessions/019ea1c9-46ee-77e0-bf36-f87a6403b5db/updates.jsonl',
+    ROOT,
+  );
+  assert.ok(r);
+  assert.equal(r.ctx.harness, 'grok');
+  assert.equal(r.ctx.session_id, '019ea1c9-46ee-77e0-bf36-f87a6403b5db');
+  assert.equal(r.ctx.project_id, 'D--src-kaaroSessions');
+  assert.equal(r.rebuildArg, null);
+});
+
 test('processWatchFilename — unknown harness', () => {
-  assert.equal(processWatchFilename('grok', 'foo.jsonl', ROOT), null);
+  assert.equal(processWatchFilename('unknown', 'foo.jsonl', ROOT), null);
 });

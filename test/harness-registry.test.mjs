@@ -5,8 +5,8 @@ import {
 } from '../lib/harness-registry.mjs';
 
 test('HARNESS_REGISTRY — known harnesses', () => {
-  assert.deepEqual(HARNESS_IDS, ['claude-code', 'pi', 'antigravity']);
-  assert.equal(HARNESS_REGISTRY.length, 3);
+  assert.deepEqual(HARNESS_IDS, ['claude-code', 'pi', 'antigravity', 'grok']);
+  assert.equal(HARNESS_REGISTRY.length, 4);
 });
 
 test('getHarness — claude-code watch config', () => {

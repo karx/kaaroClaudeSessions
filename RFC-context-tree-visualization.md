@@ -1,7 +1,7 @@
 # RFC: Context Tree Visualization
 
 **Project:** kaaroSessions  
-**Status:** Draft  
+**Status:** Implemented (Phase 1 + Phase 2)  
 **Date:** 2026-06-07  
 **Author:** Kartik Arora  
 

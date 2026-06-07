@@ -98,6 +98,16 @@ load order. Add a build-time assertion or a comment in `build.mjs`.
 
 ---
 
+## 💬 Open UX questions (from open-feature-requests.md)
+
+- Tool calls in the graph: make them more visually distinct — currently only visible in panel
+- Path/node highlight logic: clicking a session highlights only immediate neighbours;
+  is multi-hop expansion wanted?
+- Branch edge logic: what exactly triggers a branch edge vs a membership edge?
+  Document or surface this in the detail panel.
+
+---
+
 ## 📋 Known coverage gaps (from CLAUDE.md)
 
 - `serve.mjs` — HTTP routes, `ctxFromCcPath`, `resolveSessionFile`, trace cache

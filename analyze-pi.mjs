@@ -3,11 +3,11 @@ import fs   from 'fs';
 import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
-import {
-  deriveLabel, normPath, parseJsonlFile, categorizeBash,
-  buildProjectSummary, buildGlobalRollup, enrichSession,
-} from './analyze.mjs';
+import { deriveLabel, parseJsonlFile } from './analyze.mjs';
 import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
+import { recordsToNormalized } from './adapters/pi.mjs';
+import { reduceSession } from './lib/session-reducer.mjs';
+import { enrichSession } from './lib/enrich-session.mjs';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -22,119 +22,14 @@ function derivePiLabel(slug) {
 
 // ── Per-session analysis ──────────────────────────────────────────────────────
 
-const FILE_OPS = new Set(['read', 'write', 'edit']);
-
-function parsePiRecords(records, sessionId, projectId) {
-  const session = {
+export function parsePiRecords(records, sessionId, projectId) {
+  return reduceSession(recordsToNormalized(records), {
     session_id:      sessionId,
     project_id:      projectId,
     project_label:   derivePiLabel(projectId),
-    file_size_bytes: 0,
-
-    first_timestamp: null,
-    last_timestamp:  null,
-
-    slug:            sessionId.slice(0, 8),
-    duration_ms:     null,
-    message_count:   null,
-    cwd:             null,
-    model:           null,
-
     harness:         'pi',
-
-    user_turns:      0,
-    assistant_turns: 0,
-    tool_calls:      0,
-    tool_errors:     0,
-
-    tokens:          { input: 0, cache_create: 0, cache_read: 0, output: 0 },
-    tools:           {},
-    file_ops:        {},
-    bash_categories: {},
-    stop_reasons:    {},
-    skills:          [],
-    builtin_commands: [],
-    first_user_message: null,
-  };
-
-  let firstUserSeen = false;
-
-  for (const rec of records) {
-    const ts = rec.timestamp;
-    if (ts) {
-      if (!session.first_timestamp || ts < session.first_timestamp) session.first_timestamp = ts;
-      if (!session.last_timestamp  || ts > session.last_timestamp)  session.last_timestamp  = ts;
-    }
-
-    if (rec.type === 'session') {
-      if (rec.cwd) session.cwd = rec.cwd;
-    }
-
-    if (rec.type === 'model_change') {
-      session.model = [rec.provider, rec.modelId].filter(Boolean).join('/') || null;
-    }
-
-    if (rec.type === 'message' && rec.message) {
-      const msg = rec.message;
-
-      if (msg.role === 'user') {
-        session.user_turns++;
-        if (!firstUserSeen) {
-          const text = (Array.isArray(msg.content) ? msg.content : [])
-            .filter(b => b.type === 'text')
-            .map(b => b.text || '')
-            .join(' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          if (text.length >= 8) {
-            session.first_user_message = text.slice(0, 200);
-            firstUserSeen = true;
-          }
-        }
-      }
-
-      if (msg.role === 'assistant') {
-        session.assistant_turns++;
-        if (msg.model) {
-          session.model = [msg.provider, msg.model].filter(Boolean).join('/') || null;
-        }
-
-        const u = msg.usage || {};
-        session.tokens.input        += u.input      || 0;
-        session.tokens.output       += u.output     || 0;
-        session.tokens.cache_read   += u.cacheRead  || 0;
-        session.tokens.cache_create += u.cacheWrite || 0;
-
-        if (msg.stopReason) {
-          session.stop_reasons[msg.stopReason] = (session.stop_reasons[msg.stopReason] || 0) + 1;
-        }
-
-        for (const block of (msg.content || [])) {
-          if (block.type !== 'toolCall') continue;
-          session.tool_calls++;
-          const name = block.name || 'unknown';
-          if (!session.tools[name]) session.tools[name] = { calls: 0, errors: 0 };
-          session.tools[name].calls++;
-
-          if (FILE_OPS.has(name) && block.arguments?.path) {
-            const fp = normPath(block.arguments.path);
-            if (fp) {
-              if (!session.file_ops[fp]) session.file_ops[fp] = { read: 0, write: 0, edit: 0 };
-              session.file_ops[fp][name]++;
-            }
-          }
-
-          if (name === 'bash' && block.arguments?.command) {
-            const cat = categorizeBash(block.arguments.command);
-            session.bash_categories[cat] = (session.bash_categories[cat] || 0) + 1;
-          }
-        }
-      }
-    }
-  }
-
-  session.message_count = session.user_turns + session.assistant_turns;
-  return session;
+    capabilities:    { size_proxy: 'tokens_work' },
+  });
 }
 
 // ── File reader ───────────────────────────────────────────────────────────────
@@ -175,7 +70,7 @@ export function scanPiSessions(root = PI_SESSIONS_ROOT) {
   return { harness: 'pi', source_dir: root, sessions: allSessions };
 }
 
-export { derivePiLabel, parsePiRecords, PI_SESSIONS_ROOT };
+export { derivePiLabel, PI_SESSIONS_ROOT };
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 

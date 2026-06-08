@@ -25,6 +25,18 @@ test('reduceSession — user and assistant turn counts', () => {
   assert.equal(s.last_timestamp, TS2);
 });
 
+test('reduceSession — content_block kind populates map without affecting turn counts', () => {
+  const s = reduceSession([
+    { kind: 'assistant_turn', harness: 'claude-code', ts: TS1 },
+    { kind: 'content_block', harness: 'claude-code', ts: TS1, block_type: 'text' },
+    { kind: 'content_block', harness: 'claude-code', ts: TS1, block_type: 'tool_use' },
+    { kind: 'content_block', harness: 'claude-code', ts: TS1, block_type: 'thinking' },
+    { kind: 'content_block', harness: 'claude-code', ts: TS1, block_type: 'tool_use' },
+  ], META);
+  assert.equal(s.assistant_turns, 1, 'content_block must not increment assistant_turns');
+  assert.deepEqual(s.content_blocks, { text: 1, tool_use: 2, thinking: 1 });
+});
+
 test('reduceSession — tool_use and file_ops', () => {
   const s = reduceSession([
     { kind: 'tool_use', harness: 'claude-code', ts: TS1, tool: 'Read',

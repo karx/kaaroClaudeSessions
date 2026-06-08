@@ -59,6 +59,10 @@ function turnDurationRec(opts = {}) {
   };
 }
 
+function toolUseBlock(name, input = {}) {
+  return { type: 'tool_use', id: 't1', name, input };
+}
+
 // ── Session identity ──────────────────────────────────────────────────────────
 
 test('session identity', async t => {
@@ -175,6 +179,27 @@ test('duration_ms and message_count', async t => {
     try {
       const session = analyzeSession('proj', filePath);
       assert.equal(session.message_count, 7);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  await t.test('message_count prefers turn_duration over derived user+assistant turns (regression for overwrite bug)', async () => {
+    // One user + one assistant record (with blocks) would derive to 2.
+    // The explicit messageCount: 42 from turn_duration must win.
+    const { dir, filePath } = writeTempJsonl([
+      userRec('hello'),
+      assistantRec({ input_tokens: 5, output_tokens: 3 }, [
+        { type: 'text', text: 'hi' },
+        toolUseBlock('Read', { file_path: 'x.js' }),
+      ]),
+      turnDurationRec({ durationMs: 1234, messageCount: 42 }),
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.user_turns, 1);
+      assert.equal(session.assistant_turns, 1);
+      assert.equal(session.message_count, 42, 'metadata from turn_duration must be authoritative');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

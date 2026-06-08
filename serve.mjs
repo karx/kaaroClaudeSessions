@@ -24,7 +24,7 @@ import { reconstructTraceTree } from './lib/context-tree.mjs';
 import { readGrokSession } from './analyze-grok.mjs';
 import { getEnabledHarnesses, getHarness } from './lib/harness-registry.mjs';
 import { processWatchFilename } from './lib/watch-handlers.mjs';
-import { resolveSessionFile } from './lib/session-resolver.mjs';
+import { resolveSessionFile, invalidateSessionResolveCache } from './lib/session-resolver.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
@@ -120,6 +120,10 @@ function handleWatchEvent(harnessId, rootDir, filename) {
   if (!event) return;
   console.log(`  changed: [${harnessId}] ${event.relPath}`);
   tailAndPulse(event.absPath, event.ctx);
+
+  // Invalidate resolver cache on any log change (keeps /api/trace fast-path correct
+  // without doing full readdir/stat on every request).
+  invalidateSessionResolveCache();
 
   // Prefer targeted rebuild when the harness provides a rebuildArg (e.g. --session=...).
   // This enables the fast incremental path in analyze for supported harnesses (CC today)

@@ -1,7 +1,22 @@
 /**
  * test/harness-parity.test.mjs
  *
- * Ensures each harness's legacy parser and normalized pipeline agree.
+ * Ensures each harness's "legacy" entry point and the normalized pipeline
+ * (recordsToNormalized + reduceSession) produce identical Session objects.
+ *
+ * IMPORTANT (per CODE-REVIEW-FINDINGS.md #5 and plan):
+ *   - This is an *internal consistency* check per harness.
+ *   - It does NOT prove absolute correctness against raw JSONL intent or
+ *     historical single-increment behavior.
+ *   - For CC, the legacy path (analyzeSession) was refactored to use the same
+ *     normalized functions as the pipeline, making the comparison circular
+ *     for counts like assistant_turns.
+ *   - Independent correctness is covered by dedicated tests, e.g.
+ *     "assistant_turns counts assistant records, not per-block" in
+ *     analyze-session-tokens.test.mjs (the multi-block TDD case).
+ *
+ * When adding a new harness, extend the registry + adapter + scanner,
+ * then add a parity test here (or mark as N/A if no legacy direct parser).
  */
 
 import { test } from 'node:test';
@@ -56,6 +71,11 @@ function finalizeAntigravity(session, records) {
 }
 
 test('harness parity — claude-code', () => {
+  // Note: CC parity is the most sensitive due to historical refactoring of
+  // analyzeSession into the normalized path. The independent multi-block
+  // correctness test (in analyze-session-tokens) is the real guard for
+  // assistant_turns === 1 per assistant JSONL record.
+
   const records = [
     {
       type: 'user', timestamp: '2026-05-01T10:00:00.000Z', gitBranch: 'feat/x',

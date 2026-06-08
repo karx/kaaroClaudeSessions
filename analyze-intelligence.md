@@ -37,7 +37,39 @@ A complete map of how raw Claude Code session logs become structured graph data.
 
 ---
 
-## 2. JSONL Record Type Catalog
+## 1b. Architecture Note — Ground Truth from Raw JSONL (all harnesses)
+
+The canonical data flow (updated for multi-harness):
+
+```
+Raw harness JSONL (source of truth)
+  CC: assistant/user/system records + content[] blocks
+  Pi: type=message role=user|assistant + usage
+  Antigravity: USER_INPUT / PLANNER_RESPONSE etc.
+  Grok: agent_*_chunk, tool_call updates on updates.jsonl
+          │
+          ▼  (harness-specific knowledge lives ONLY here)
+  adapters/<harness>.mjs  recordsToNormalized()  → small common vocabulary of NormalizedRecord
+          kinds: user_turn | assistant_turn | content_block | tool_use | tool_result | tokens | context_reset | session_meta | ...
+          │
+          ▼  (reducer owns aggregation rules that build the model the visual layer consumes)
+  lib/session-reducer.mjs + enrichSession()
+          → canonical Session { assistant_turns, content_blocks, message_count (prefer metadata), ... }
+          │
+          ├──▶ pulses / live (pulse-adapters.mjs) — independent, for SSE tool_call/tokens/words + beat overlay
+          │
+          ├──▶ graph / sessions-data (buildSessionsOutput + graph-pipeline) — main node/edge/timeline model
+          │
+          └──▶ trace / thread UI (/api/trace + reconstructContextTree*) — walks raw records again for rich per-segment detail (pendingAsst, tool results, etc.)
+```
+
+**Contract**: Adapters are the only place that understand a harness's raw JSONL shapes. Everything downstream (reducer, pulses, graph builder, context trees, UI) works on the normalized kinds or the final Session shape. Adding a new harness = one adapter (recordsToNormalized) + registry entry + scanner (optional context-tree variant only for trace).
+
+This note makes the ontology explicit so future harness authors and UI work have one obvious mental model.
+
+---
+
+## 2. JSONL Record Type Catalog (CC historical)
 
 Each line in a `.jsonl` file is one of these record types. The `analyzeSession` loop
 dispatches on `rec.type`.

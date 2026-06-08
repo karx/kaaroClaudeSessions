@@ -216,6 +216,39 @@ test('mixed user and assistant sequence — both counters correct', async t => {
   }
 });
 
+// ── Correct turn counting (independent of content block telemetry) ─────────────
+// This test would have caught the 1+N inflation bugs in the CC adapter + reducer.
+test('assistant_turns counts assistant records, not per-block — multi-block turn is still 1', async t => {
+  const records = [
+    userRec('do the thing'),
+    assistantRec(
+      { input_tokens: 10, output_tokens: 5 },
+      [
+        { type: 'text', text: 'starting work' },
+        toolUseBlock('Read', { file_path: 'a.js' }),
+        toolUseBlock('Edit', { file_path: 'a.js' }),
+        { type: 'thinking', thinking: 'plan the edit' },
+      ]
+    ),
+  ];
+  const { dir, filePath } = writeTempJsonl(records);
+  try {
+    const sess = analyzeSession('proj-test', filePath);
+    await t.test('assistant_turns is 1 (one assistant JSONL record)', () => assert.equal(sess.assistant_turns, 1));
+    await t.test('content_blocks counts every block inside the turn', () => {
+      assert.equal(sess.content_blocks.text, 1);
+      assert.equal(sess.content_blocks.tool_use, 2);
+      assert.equal(sess.content_blocks.thinking, 1);
+    });
+    await t.test('tool_calls counts the two tool_use blocks', () => assert.equal(sess.tool_calls, 2));
+    await t.test('message_count derives correctly (1 user + 1 assistant)', () => {
+      assert.equal(sess.message_count, 2);
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('system and permission-mode records do not affect turn counters', async t => {
   const records = [
     { type: 'system', subtype: 'turn_duration', timestamp: '2026-05-01T10:00:00.000Z', durationMs: 1000 },

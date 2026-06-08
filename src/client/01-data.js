@@ -27,7 +27,7 @@ function edgeWidth(d)   { const b=EW[d.type]||1; if(!d.weight) return b; const w
 // ── Shared UI helpers (used by 05-interaction, 17-trace-panel, 18-thread-view) ─
 const TOOL_COLORS = {
   Write:'#00bb55', Edit:'#ccaa00', Read:'#2a5c8a',
-  Bash:'#cc6622', PowerShell:'#cc6622',
+  Bash:'#cc6622', Shell:'#cc6622', PowerShell:'#cc6622',
   Grep:'#7733aa', Glob:'#7733aa', Agent:'#cc2244',
   ToolSearch:'#6644aa', WebFetch:'#336688', WebSearch:'#336688',
 };

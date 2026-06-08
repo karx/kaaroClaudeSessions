@@ -20,7 +20,8 @@ import { fileURLToPath }  from 'url';
 
 import { tailRead }     from './lib/jsonl-tail.mjs';
 import { parsePulse }   from './lib/pulse-parser.mjs';
-import { reconstructContextTree } from './lib/context-tree.mjs';
+import { reconstructTraceTree } from './lib/context-tree.mjs';
+import { readGrokSession } from './analyze-grok.mjs';
 import { getEnabledHarnesses, getHarness } from './lib/harness-registry.mjs';
 import { processWatchFilename } from './lib/watch-handlers.mjs';
 import { resolveSessionFile } from './lib/session-resolver.mjs';
@@ -145,14 +146,30 @@ if (!watchCount) {
 
 const traceCache = new Map(); // filePath → { mtime, tree }
 
-function buildTrace(filePath, projectId, sessionId) {
+function buildTrace(filePath, projectId, sessionId, harness = 'claude-code') {
   try {
     const mtime = fs.statSync(filePath).mtimeMs;
     const cached = traceCache.get(filePath);
     if (cached && cached.mtime === mtime) return cached.tree;
 
-    const { records } = tailRead(filePath, 0);
-    const tree = { session_id: sessionId, project_id: projectId, ...reconstructContextTree(records) };
+    let records;
+    let traceOpts = {};
+    if (harness === 'grok') {
+      const grok = readGrokSession(path.dirname(filePath));
+      records = grok.records;
+      traceOpts = {
+        ai_title:    grok.summary?.generated_title || grok.summary?.session_summary || null,
+        git_branch:  grok.summary?.head_branch || null,
+      };
+    } else {
+      ({ records } = tailRead(filePath, 0));
+    }
+
+    const tree = {
+      session_id: sessionId,
+      project_id: projectId,
+      ...reconstructTraceTree(records, harness, traceOpts),
+    };
     traceCache.set(filePath, { mtime, tree });
     return tree;
   } catch (e) {
@@ -203,7 +220,7 @@ const server = http.createServer((req, res) => {
     if (!harness?.capabilities?.trace) {
       res.writeHead(404); res.end('trace not supported for this harness'); return;
     }
-    const tree = buildTrace(found.filePath, found.projectId, sessionId);
+    const tree = buildTrace(found.filePath, found.projectId, sessionId, found.harness);
     if (!tree) { res.writeHead(500); res.end('reconstruction failed'); return; }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*' });

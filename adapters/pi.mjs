@@ -54,16 +54,18 @@ export function recordsToNormalized(records) {
           model, stop_reason: msg.stopReason, overwrite: true,
         });
 
-        const u = msg.usage || {};
-        out.push({
-          kind: 'tokens', harness: HARNESS, ts,
-          tokens: {
-            input:        u.input      || 0,
-            output:       u.output     || 0,
-            cache_create: u.cacheWrite || 0,
-            cache_read:   u.cacheRead  || 0,
-          },
-        });
+        if (msg.usage !== undefined) {
+          const u = msg.usage || {};
+          out.push({
+            kind: 'tokens', harness: HARNESS, ts,
+            tokens: {
+              input:        u.input      || 0,
+              output:       u.output     || 0,
+              cache_create: u.cacheWrite || 0,
+              cache_read:   u.cacheRead  || 0,
+            },
+          });
+        }
 
         for (const block of (msg.content || [])) {
           if (block.type !== 'toolCall') continue;

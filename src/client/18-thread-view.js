@@ -54,7 +54,7 @@
 
     // Build the primary argument line
     let arg = '';
-    if (n === 'Bash' || n === 'PowerShell') {
+    if (n === 'Bash' || n === 'Shell' || n === 'PowerShell') {
       arg = inp.command || '';
     } else if (n === 'Read' || n === 'Write') {
       arg = inp.file_path || '';

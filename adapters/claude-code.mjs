@@ -116,7 +116,7 @@ export function recordsToNormalized(records) {
 
       for (const block of (msg.content || [])) {
         const bt = block.type || 'unknown';
-        out.push({ kind: 'assistant_turn', harness: HARNESS, ts, content_block: bt });
+        out.push({ kind: 'content_block', harness: HARNESS, ts, block_type: bt });
         if (bt === 'tool_use') {
           out.push({
             kind: 'tool_use', harness: HARNESS, ts,

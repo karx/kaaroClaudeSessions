@@ -43,13 +43,13 @@ export function recordsToNormalized(records) {
         seenTurns.add(turn);
         out.push({ kind: 'assistant_turn', harness: HARNESS, ts, content_block: su });
       } else if (turn == null) {
+        // No dedup key — emit a turn for this chunk (best effort; avoids total loss of counting)
+        // but do not let the later text signal double-count turns.
         out.push({ kind: 'assistant_turn', harness: HARNESS, ts, content_block: su });
       }
       if (su === 'agent_message_chunk' && upd.content?.text) {
-        out.push({
-          kind: 'assistant_turn', harness: HARNESS, ts,
-          content_block: 'text',
-        });
+        // Telemetry only — do not increment assistant_turns (see reducer content_block case)
+        out.push({ kind: 'content_block', harness: HARNESS, ts, block_type: 'text' });
       }
     }
 

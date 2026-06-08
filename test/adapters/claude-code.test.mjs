@@ -53,6 +53,11 @@ test('recordsToNormalized — emits expected kinds', () => {
   assert.ok(kinds.includes('skill_invoke'));
   assert.ok(kinds.includes('tool_use'));
   assert.ok(kinds.includes('tokens'));
+  assert.ok(kinds.includes('assistant_turn'));
+  assert.ok(kinds.includes('content_block'));
+  // One assistant_turn (the header), not one per block. The 3 tool_use blocks + no text in this fixture still produce exactly 1 assistant_turn.
+  assert.equal(kinds.filter(k => k === 'assistant_turn').length, 1);
+  assert.ok(kinds.filter(k => k === 'content_block').length >= 3);
   assert.ok(kinds.filter(k => k === 'tool_use').length >= 3);
 });
 

@@ -121,9 +121,9 @@ function handleWatchEvent(harnessId, rootDir, filename) {
   console.log(`  changed: [${harnessId}] ${event.relPath}`);
   tailAndPulse(event.absPath, event.ctx);
 
-  // Invalidate resolver cache on any log change (keeps /api/trace fast-path correct
-  // without doing full readdir/stat on every request).
-  invalidateSessionResolveCache();
+  // Surgical cache invalidation: only evict the session whose file just changed.
+  // Other cached resolutions remain valid and fast.
+  invalidateSessionResolveCache(event.ctx.session_id);
 
   // Prefer targeted rebuild when the harness provides a rebuildArg (e.g. --session=...).
   // This enables the fast incremental path in analyze for supported harnesses (CC today)

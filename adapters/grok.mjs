@@ -19,7 +19,6 @@ const COMPACT_EVENTS   = new Set(['auto_compact_completed', 'compaction_checkpoi
 export function recordsToNormalized(records) {
   const out = [];
   const toolTitles = new Map();
-  const seenTurns  = new Set();
   let emittedAssistantSinceLastUser = false;
 
   for (const rec of records) {
@@ -36,23 +35,15 @@ export function recordsToNormalized(records) {
       });
       const model = upd._meta?.modelId;
       if (model) out.push({ kind: 'session_meta', harness: HARNESS, ts, model, overwrite: true });
-      emittedAssistantSinceLastUser = false; // reset for next assistant response
+      emittedAssistantSinceLastUser = false;
     }
 
     if (ASSISTANT_CHUNKS.has(su)) {
-      const turn = rec._meta?.turnStartMs;
-      if (turn != null && !seenTurns.has(turn)) {
-        seenTurns.add(turn);
-        emittedAssistantSinceLastUser = true;
-        out.push({ kind: 'assistant_turn', harness: HARNESS, ts, content_block: su });
-      } else if (turn == null && !emittedAssistantSinceLastUser) {
-        // No dedup key (bypass case) — emit at most one assistant_turn per response burst.
-        // Prevents 50-chunk streaming responses from producing 50+ turns (review #4).
+      if (!emittedAssistantSinceLastUser) {
         emittedAssistantSinceLastUser = true;
         out.push({ kind: 'assistant_turn', harness: HARNESS, ts, content_block: su });
       }
       if (su === 'agent_message_chunk' && upd.content?.text) {
-        // Telemetry only — do not increment assistant_turns (see reducer content_block case)
         out.push({ kind: 'content_block', harness: HARNESS, ts, block_type: 'text' });
       }
     }

@@ -27,7 +27,8 @@ test('processWatchFilename — pi extracts UUID from timestamp prefix', () => {
   assert.ok(r);
   assert.equal(r.ctx.harness, 'pi');
   assert.equal(r.ctx.session_id, '019dca2b');
-  assert.equal(r.rebuildArg, '--session=--D--src-ebrain--/2026-04-26T14-22-51-638Z_019dca2b.jsonl');
+  // Pi has no incremental analyze path (CC-only fast path) — null triggers full --all-harnesses scan
+  assert.equal(r.rebuildArg, null);
 });
 
 test('processWatchFilename — antigravity nested log path', () => {

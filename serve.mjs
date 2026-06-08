@@ -76,7 +76,7 @@ function run(script, extraArgs = []) {
   });
 }
 
-async function rebuild() {
+async function rebuild(target = null) {
   if (rebuilding) {
     pendingRebuild = true;
     return;
@@ -87,7 +87,11 @@ async function rebuild() {
   notify('status', 'rebuilding');
 
   try {
-    await run(ANALYZE_SCRIPT, ['--all-harnesses']);
+    // Use targeted arg (e.g. --session=...) when provided by watch handler.
+    // analyze.mjs will take the fast path (parseSessionFlag + mergeSessionIntoData)
+    // for supported cases instead of a full multi-harness scan.
+    const analyzeArgs = target?.rebuildArg ? [target.rebuildArg] : ['--all-harnesses'];
+    await run(ANALYZE_SCRIPT, analyzeArgs);
     await run(BUILD_SCRIPT);
     lastBuilt = new Date();
     console.log(`Done in ${((Date.now() - t0) / 1000).toFixed(1)}s — ${clients.size} client(s) connected`);
@@ -104,9 +108,9 @@ async function rebuild() {
   }
 }
 
-function scheduleRebuild() {
+function scheduleRebuild(target = null) {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => rebuild(), 1500);
+  debounceTimer = setTimeout(() => rebuild(target), 1500);
 }
 
 // ── File watcher (registry-driven) ────────────────────────────────────────────
@@ -116,7 +120,15 @@ function handleWatchEvent(harnessId, rootDir, filename) {
   if (!event) return;
   console.log(`  changed: [${harnessId}] ${event.relPath}`);
   tailAndPulse(event.absPath, event.ctx);
-  scheduleRebuild();
+
+  // Prefer targeted rebuild when the harness provides a rebuildArg (e.g. --session=...).
+  // This enables the fast incremental path in analyze for supported harnesses (CC today)
+  // instead of always doing a full --all-harnesses scan on every keystroke.
+  if (event.rebuildArg) {
+    scheduleRebuild({ rebuildArg: event.rebuildArg });
+  } else {
+    scheduleRebuild();
+  }
 }
 
 let watchCount = 0;

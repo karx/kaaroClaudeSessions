@@ -90,6 +90,43 @@ test('recordsToNormalized — emits expected kinds', () => {
   assert.equal(kinds.filter(k => k === 'tool_use').length, 2);
 });
 
+test('recordsToNormalized — Grok no turnStartMs chunks do not cause turn count explosion (dedup robustness)', () => {
+  // Simulate a streaming assistant response with many chunks but no _meta.turnStartMs
+  // (the bypass case in review finding #4).
+  const noKeyChunks = [
+    {
+      method: 'session/update',
+      params: {
+        update: { sessionUpdate: 'agent_message_chunk', content: { text: 'Thinking...' } },
+      },
+      _meta: { agentTimestampMs: 1 },  // deliberately no turnStartMs
+    },
+    {
+      method: 'session/update',
+      params: {
+        update: { sessionUpdate: 'agent_message_chunk', content: { text: ' more text' } },
+      },
+      _meta: { agentTimestampMs: 2 },
+    },
+    {
+      method: 'session/update',
+      params: {
+        update: { sessionUpdate: 'agent_thought_chunk', content: { text: 'internal' } },
+      },
+      _meta: { agentTimestampMs: 3 },
+    },
+  ];
+
+  const norm = recordsToNormalized(noKeyChunks);
+  const asstTurnCount = norm.filter(r => r.kind === 'assistant_turn').length;
+  const contentBlockCount = norm.filter(r => r.kind === 'content_block').length;
+
+  // Should be 1 assistant_turn total for the burst (not 1 per chunk).
+  assert.equal(asstTurnCount, 1, 'no-key streaming chunks should produce only 1 assistant_turn');
+  // Content blocks (for text) are still emitted for richness, that's fine.
+  assert.ok(contentBlockCount >= 2);
+});
+
 test('adapter + reducer golden regression matches parseGrokRecords', () => {
   const viaParse = parseGrokRecords(GOLDEN_RECORDS, SESSION_ID, ENCODED_CWD, SUMMARY, SIGNALS);
   enrichSession(viaParse);

@@ -20,6 +20,7 @@ export function recordsToNormalized(records) {
   const out = [];
   const toolTitles = new Map();
   const seenTurns  = new Set();
+  let emittedAssistantSinceLastUser = false;
 
   for (const rec of records) {
     const su  = grokSessionUpdate(rec);
@@ -35,16 +36,19 @@ export function recordsToNormalized(records) {
       });
       const model = upd._meta?.modelId;
       if (model) out.push({ kind: 'session_meta', harness: HARNESS, ts, model, overwrite: true });
+      emittedAssistantSinceLastUser = false; // reset for next assistant response
     }
 
     if (ASSISTANT_CHUNKS.has(su)) {
       const turn = rec._meta?.turnStartMs;
       if (turn != null && !seenTurns.has(turn)) {
         seenTurns.add(turn);
+        emittedAssistantSinceLastUser = true;
         out.push({ kind: 'assistant_turn', harness: HARNESS, ts, content_block: su });
-      } else if (turn == null) {
-        // No dedup key — emit a turn for this chunk (best effort; avoids total loss of counting)
-        // but do not let the later text signal double-count turns.
+      } else if (turn == null && !emittedAssistantSinceLastUser) {
+        // No dedup key (bypass case) — emit at most one assistant_turn per response burst.
+        // Prevents 50-chunk streaming responses from producing 50+ turns (review #4).
+        emittedAssistantSinceLastUser = true;
         out.push({ kind: 'assistant_turn', harness: HARNESS, ts, content_block: su });
       }
       if (su === 'agent_message_chunk' && upd.content?.text) {

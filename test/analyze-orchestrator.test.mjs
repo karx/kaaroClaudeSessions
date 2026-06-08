@@ -72,3 +72,29 @@ test('parseHarnessFlags', () => {
     ['claude-code', 'pi', 'antigravity', 'grok']);
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs', '--harness=pi']), ['pi']);
 });
+
+// ── scanHarnesses error isolation (CODE-REVIEW-FINDINGS #8) ────────────────────
+// One harness scanner throwing (e.g. FS error mid-scan on Windows for Grok)
+// must not abort the entire rebuild. Other harnesses' data must still be returned.
+test('scanHarnesses — isolates per-harness scanner errors (continues on failure)', async (t) => {
+  // Dynamic import so we can mutate the test seam SCANNERS for this test only.
+  const scanMod = await import('../lib/scan-harnesses.mjs');
+  const origGrok = scanMod.SCANNERS.grok;
+
+  // Force a throw for 'grok' (simulates EPERM or corrupt data in one harness).
+  scanMod.SCANNERS.grok = () => { throw new Error('simulated grok scanner failure'); };
+
+  try {
+    // Call with multiple; the successful ones (at least the default behavior for
+    // claude-code which may return [] or null depending on FS, but the point is
+    // no throw escapes and we get an array result).
+    const results = scanMod.scanHarnesses(['claude-code', 'grok']);
+
+    // Must not have thrown; must return an array (possibly empty or partial).
+    assert.ok(Array.isArray(results), 'scanHarnesses must return an array even if one scanner throws');
+    // We don't assert on length because real FS may vary, but the isolation contract is the key.
+  } finally {
+    // Restore for other tests / cleanliness.
+    scanMod.SCANNERS.grok = origGrok;
+  }
+});

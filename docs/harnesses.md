@@ -39,6 +39,11 @@ All adapters emit from this small set (the "harness hop"):
 
 See `adapters/*.mjs` + `lib/session-reducer.mjs` and the Architecture Note in `analyze-intelligence.md`.
 
+**Recent refinements (Phase 3/4):**
+- Grok streaming without `_meta.turnStartMs` now safely limited to one `assistant_turn` per response burst (using `emittedAssistantSinceLastUser` guard + reset on user).
+- File-op detection for pulses unified to `FILE_OP_TOOLS` (no more per-harness duplicate Sets).
+- Error isolation in scanners and resolver cache + watch invalidation added for resilience.
+
 ## Adding a New Harness (ergonomics goal)
 
 1. Registry entry in `lib/harness-registry.mjs` (roots, capabilities, `watch.matchLogFile` / `ctxFromPath` / `rebuildArg`).

@@ -49,7 +49,50 @@ export function applySubstitutions(template, subs) {
   return template.replace(/%%[A-Z_]+%%/g, k => subs[k] ?? k);
 }
 
-// ── Main pipeline ─────────────────────────────────────────────────────────────
+// ── DAW Builder (dedicated live-pulse pure audio profile builder) ────────────
+function buildDaw() {
+  const dawTemplatePath = path.join(CWD, 'src', 'daw-template.html');
+  if (!fs.existsSync(dawTemplatePath)) {
+    console.warn('DAW template missing — skipping daw-builder.html');
+    return;
+  }
+
+  // Curated modules for the builder: core audio engine + live pulse bits + builder UI.
+  // These run standalone (no full GRAPH dependency) when the page is the dedicated DAW view.
+  const dawModules = [
+    '14-pulse-audio.js',
+    '15-audio-settings.js',
+    '16-beat-overlay.js',
+    '19-daw-builder.js',
+  ];
+
+  const clientDir = path.join(CWD, 'src', 'client');
+  let dawClientSrc = '';
+  for (const m of dawModules) {
+    const p = path.join(clientDir, m);
+    if (fs.existsSync(p)) {
+      dawClientSrc += fs.readFileSync(p, 'utf8') + '\n';
+    } else {
+      console.warn(`  DAW module missing: ${m}`);
+    }
+  }
+
+  // No heavy data injection needed for the pure live builder (it consumes /events directly).
+  // We still run applySubstitutions in case future %% placeholders appear in the modules.
+  const injected = applySubstitutions(dawClientSrc, {
+    // Future: could inject server-known defaults or example profile here.
+  });
+
+  const dawHtml = applySubstitutions(
+    fs.readFileSync(dawTemplatePath, 'utf8'),
+    { '%%DAW_CLIENT_JS%%': injected },
+  );
+
+  const dawOut = path.join(CWD, 'daw-builder.html');
+  fs.writeFileSync(dawOut, dawHtml, 'utf8');
+  console.log(`Written: ${dawOut}  (${(dawHtml.length / 1024).toFixed(0)} KB) — dedicated live DAW builder`);
+}
+
 function run() {
   const data        = JSON.parse(fs.readFileSync(path.join(CWD, 'sessions-data.json'), 'utf8'));
   const minSessions = parseMinSessions(process.argv);
@@ -58,7 +101,7 @@ function run() {
     buildGraph(data, { minSessions });
 
   console.log(`Graph: ${nodes.length} nodes (${stats.project} project · ${stats.session} session · ${stats.file} file)`);
-  console.log(`Edges: ${edges.length} (${stats.membership} membership · ${stats.branch} branch · ${stats.write} write · ${stats.edit} edit · ${stats.read} read)`);
+  console.log(`Edges: ${edges.length} (${stats.membership} membership · ${stats.branch} · ${stats.write} write · ${stats.edit} edit · ${stats.read} read)`);
 
   // ── graph-data.json (SSE payload) ─────────────────────────────────────────
   fs.writeFileSync(
@@ -91,6 +134,9 @@ function run() {
   const outPath = path.join(CWD, 'graph.html');
   fs.writeFileSync(outPath, html, 'utf8');
   console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB)`);
+
+  // Always produce the dedicated live-pulse DAW builder page as well.
+  buildDaw();
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) run();

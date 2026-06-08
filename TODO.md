@@ -1,7 +1,9 @@
 # TODO — kaaroSessions
 
 Backlog surfaced by flow-state audit on 2026-06-07 (branch: subagent-improvement).
-Current state: **907 tests pass, 0 fail.**
+**Current state (2026-06, feat/multi-harness-tdd):** **1076 tests pass, 0 fail.**
+
+**Major milestone:** Full multi-harness adapter pipeline landed (claude-code, pi, antigravity, grok) with normalized records, `lib/scan-harnesses.mjs`, harness registry, live watch + targeted rebuilds, error isolation, resolver cache, and review findings from CODE-REVIEW-FINDINGS.md addressed. See `docs/harnesses.md` for current support matrix.
 
 ---
 
@@ -13,16 +15,14 @@ HTTP routes, file-watcher debounce, `ctxFromCcPath`, `resolveSessionFile`,
 none of it is tested. The mtime-cache invalidation (trace freshness) has
 no harness at all.
 
-**Fix:** Extract into `lib/trace-resolver.mjs` (pure), unit-test path resolution,
-mtime cache eviction, and subagent path handling.
+**Status / progress:** Partial mitigation. `resolveSessionFile` now has cache + invalidation (see #5). Incremental rebuild (`rebuildArg`) and scan isolation are implemented and exercised indirectly. Full unit tests for serve routes / watch / trace remain a gap. No extraction to `trace-resolver` yet.
 
 ### 2. `analyze-pi.mjs` parity is incomplete
 Pi sessions silently produce nodes missing `context_resets`, `ai_title`,
 `subagent_count`, `branches`. Thread view and trace panel degrade silently.
 No cross-adapter test matrix validates both adapters produce the same schema shape.
 
-**Fix:** Implement the four missing fields in `analyze-pi.mjs`; add schema parity
-tests to `test/analyze-pi.test.mjs`.
+**Status:** Still open for Pi (capabilities declare them false). CC and Grok now extract them fully via the shared normalized pipeline. Harness parity tests exist but are noted as consistency checks only (see updated comments in `test/harness-parity.test.mjs`). A full cross-adapter schema matrix would still be valuable.
 
 ---
 
@@ -42,8 +42,7 @@ tests to `test/analyze-pi.test.mjs`.
 `tool_use` vs `toolCall` — harness-adapter differences leaked into the parser.
 Adding a third harness (opencode, Copilot) means a third branch in `parsePulse`.
 
-**Fix:** `lib/pulse-adapters.mjs` with CC and Pi adapters each implementing a
-single `parse(record)` interface. `parsePulse` becomes a 2-line dispatcher.
+**Status:** ✅ **Done.** `lib/pulse-adapters.mjs` implements per-harness adapters (parseCcPulse, parsePiPulse, etc.). `lib/pulse-parser.mjs` is now a thin re-export. FILE_OP detection unified to shared `FILE_OP_TOOLS` from the reducer (no more duplicate Sets). See Phase 4 work on feat/multi-harness-tdd.
 
 ---
 
@@ -53,8 +52,7 @@ single `parse(record)` interface. `parsePulse` becomes a 2-line dispatcher.
 `readdirSync` + `statSync` per project + `existsSync` per candidate, all
 blocking the event loop, repeated on every `/api/trace/` request.
 
-**Fix:** Lazy `Map<sessionId, filePath>` built on first call; invalidated in
-the `fs.watch` handler (already fires on every `.jsonl` change). Makes it O(1).
+**Status:** ✅ **Done.** Simple `Map` cache + `invalidateSessionResolveCache()` added to `lib/session-resolver.mjs`. Invalidation wired from `serve.mjs` watch handler on any log change (clear-all for simplicity/correctness). Existing resolver tests pass; trace resolution is now fast after first hit.
 
 ### 6. `tailAndPulse` fires before rebuild debounce
 SSE pulses emit immediately on `.jsonl` change; graph rebuild is debounced 1500ms.
@@ -110,7 +108,10 @@ load order. Add a build-time assertion or a comment in `build.mjs`.
 
 ## 📋 Known coverage gaps (from CLAUDE.md)
 
-- `serve.mjs` — HTTP routes, `ctxFromCcPath`, `resolveSessionFile`, trace cache
-- `src/client/*.js` — browser JS; pure logic (`blockGeom`, `_toolBars`) testable but not yet extracted
-- `analyze-pi.mjs` — missing `context_resets`, `ai_title`, `subagent_count`, `branches`
-- `lib/graph-pipeline.mjs` — `tools_top`, `context_resets`, `ai_title`, `subagent_count`, `branches` passthrough not covered
+- `serve.mjs` — HTTP routes, full watch/rebuild logic, `resolveSessionFile`, trace cache still have limited unit coverage (runtime behavior improved with cache + targeted rebuilds).
+- `src/client/*.js` — browser JS; pure logic (`blockGeom`, `_toolBars`) testable but not yet extracted.
+- `analyze-pi.mjs` / pi adapter — still missing full extraction of `context_resets`, `ai_title`, `subagent_count`, `branches` (declared as false in registry capabilities; CC + Grok are complete).
+- `lib/graph-pipeline.mjs` — `tools_top`, context fields passthrough coverage improved but not exhaustive for all harnesses.
+- New: `lib/pulse-adapters.mjs` and harness-specific pulse paths have good parser tests but limited end-to-end live pulse coverage in integration.
+
+**Note:** Many original gaps were mitigated by the multi-harness refactor and review fixes (resolver cache, scan isolation, etc.). `node --test` now exercises far more of the pipeline.

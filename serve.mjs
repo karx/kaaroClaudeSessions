@@ -255,6 +255,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Dedicated Live Pulse DAW Builder (pure event stream, no graph) ─────────
+  if (req.url === '/daw' || req.url === '/daw-builder' || req.url === '/audio' || req.url === '/builder') {
+    const dawPath = path.join(__dirname, 'daw-builder.html');
+    if (!fs.existsSync(dawPath)) {
+      res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end('<html><body style="font:14px monospace;padding:40px;background:#080810;color:#9aa0b8"><h2>DAW Builder not built yet</h2><p>Run <code>node build.mjs</code> (or the serve will trigger a build on next request in future).</p><p><a href="/" style="color:#4455cc">Back to main graph</a></p></body></html>');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.end(fs.readFileSync(dawPath));
+    return;
+  }
+
   // ── Static assets (favicon, manifest, og-image, robots, generate helper) ────
   const STATIC_MIME = {
     svg: 'image/svg+xml', png: 'image/png', webmanifest: 'application/manifest+json',

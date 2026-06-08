@@ -66,6 +66,128 @@
   window.AUDIO_SCALES   = SCALES;
   window.AUDIO_DEFAULTS = DEFAULT_SETTINGS;
 
+  // ── Sonic Profile + Axis Mapping (for DAW Builder full experience) ──────────
+  // Non-breaking: when no mappings or no profile, behavior is identical to before.
+  // The builder page (and optionally main) can populate window.AUDIO_PROFILE.
+  const DEFAULT_PROFILE = {
+    mappings: [],            // ordered rules
+    timbre: {},              // per-instrument overrides e.g. { bass: { vol: 0.55, decay: 1.6 } }
+    scale: null,             // null = use AUDIO_SETTINGS.scale
+    noteMode: null,
+    bpm: null,
+  };
+
+  window.AUDIO_PROFILE = JSON.parse(JSON.stringify(DEFAULT_PROFILE));
+
+  window.updateAudioProfile = function(patch) {
+    if (!patch) return;
+    if (patch.mappings) window.AUDIO_PROFILE.mappings = patch.mappings;
+    if (patch.timbre) Object.assign(window.AUDIO_PROFILE.timbre, patch.timbre);
+    if ('scale' in patch) window.AUDIO_PROFILE.scale = patch.scale;
+    if ('noteMode' in patch) window.AUDIO_PROFILE.noteMode = patch.noteMode;
+    if ('bpm' in patch) window.AUDIO_PROFILE.bpm = patch.bpm;
+    try {
+      // Persist a richer profile separately so main settings and builder profiles don't fight
+      localStorage.setItem('kaaro-audio-profile', JSON.stringify(window.AUDIO_PROFILE));
+    } catch {}
+  };
+
+  function _loadProfile() {
+    try {
+      const raw = localStorage.getItem('kaaro-audio-profile');
+      if (raw) {
+        const p = JSON.parse(raw);
+        window.AUDIO_PROFILE = { ...DEFAULT_PROFILE, ...p, timbre: { ...(DEFAULT_PROFILE.timbre), ...(p.timbre||{}) }, mappings: p.mappings || [] };
+      }
+    } catch {}
+  }
+  _loadProfile();
+
+  // Simple but powerful matcher for axis mapping.
+  // match can have: family, key (action), harness, project, whereContains, wordMin, outMin
+  function ruleMatches(rule, evType, data, key /* derived action key */) {
+    const m = rule.match || {};
+    if (m.type && m.type !== evType) return false;
+    if (m.family && TOOL_FAMILY[key] !== m.family) return false;
+    if (m.key && m.key !== key) return false;
+    if (m.harness && data.harness && data.harness !== m.harness) return false;
+    if (m.project && data.project && data.project !== m.project) return false;
+    if (m.whereContains && data.where && !String(data.where).includes(m.whereContains)) return false;
+    if (m.wordMin != null && (data.word_count || 0) < m.wordMin) return false;
+    if (m.outMin != null && (data.output || 0) < m.outMin) return false;
+    // allow array forms for multi-value
+    if (Array.isArray(m.family) && !m.family.includes(TOOL_FAMILY[key])) return false;
+    if (Array.isArray(m.key) && !m.key.includes(key)) return false;
+    if (Array.isArray(m.harness) && data.harness && !m.harness.includes(data.harness)) return false;
+    return true;
+  }
+
+  function resolveSonic(event, data) {
+    // Start from current settings (and any profile-level overrides)
+    const S = window.AUDIO_SETTINGS;
+    const P = window.AUDIO_PROFILE || {};
+    let key = null;
+    let instrument = null;
+    let volMult = 1;
+    let octave = 0;
+    let degreeMode = S.noteMode;
+    let scale = P.scale || S.scale;
+
+    if (event === 'tool_call') {
+      const tool = (data.tool || '').toLowerCase();
+      if      (tool==='read')                          key = 'read';
+      else if (tool==='write')                         key = 'write';
+      else if (tool==='edit')                          key = 'edit';
+      else if (tool==='grep'||tool==='glob')           key = 'grep_glob';
+      else if (tool==='agent')                         key = 'agent';
+      else if (tool==='bash'||tool==='powershell')     key = bashKey(data.category||'other');
+      else                                             key = 'other';
+
+      instrument = S.instruments[key] || 'harp';
+      // default degree from where (the main path_hash behavior lives in getDegree)
+    } else if (event === 'tokens') {
+      key = 'tokens';
+      instrument = S.instruments.tokens || 'flute';
+      volMult = Math.min(0.11, 0.04 + Math.log1p((data.output||0) / 300) * 0.028) / 0.11; // normalized later
+      octave = -1;
+    } else if (event === 'words') {
+      key = 'words';
+      instrument = S.instruments.words || 'bell';
+      const iv = SCALES[scale] || SCALES.major_pentatonic;
+      const deg = Math.min(iv.length - 1, Math.floor((data.word_count||0) / 15));
+      // degree handled specially in words branch; we surface it via a hint
+      octave = 1;
+    }
+
+    // Apply ordered mappings (first match wins for overrides)
+    const fam = key ? (TOOL_FAMILY[key] || null) : null;
+    for (const rule of (P.mappings || [])) {
+      if (!ruleMatches(rule, event, data, key)) continue;
+      const eff = rule.set || {};
+      if (eff.instrument) instrument = eff.instrument;
+      if (typeof eff.volMult === 'number') volMult = eff.volMult;
+      if (typeof eff.octave === 'number') octave = eff.octave;
+      if (eff.degreeMode) degreeMode = eff.degreeMode;
+      if (eff.scale) scale = eff.scale;
+      // allow per-rule timbre hints later
+      break;
+    }
+
+    // Timbre overrides (from builder lab)
+    const tmb = (P.timbre && P.timbre[instrument]) || {};
+    return {
+      key, instrument, volMult, octave, degreeMode, scale, timbre: tmb,
+      fam,
+    };
+  }
+
+  window.resolveSonicForEvent = resolveSonic; // exposed for builder + tests
+
+  // Apply any profile-level bpm/scale to the live settings when present (builder convenience)
+  if (window.AUDIO_PROFILE.bpm) window.AUDIO_SETTINGS.bpm = window.AUDIO_PROFILE.bpm;
+  if (window.AUDIO_PROFILE.scale) window.AUDIO_SETTINGS.scale = window.AUDIO_PROFILE.scale;
+  if (window.AUDIO_PROFILE.noteMode) window.AUDIO_SETTINGS.noteMode = window.AUDIO_PROFILE.noteMode;
+
   window.updateAudioSettings = function(patch) {
     if (patch.instruments) Object.assign(window.AUDIO_SETTINGS.instruments, patch.instruments);
     if (patch.filter)      Object.assign(window.AUDIO_SETTINGS.filter, patch.filter);
@@ -297,6 +419,7 @@
   }
 
   const INSTS = { harp, bass, bell, flute, bit, pling, snare, kick, hat };
+  window.INSTS = INSTS; // exposed for the DAW builder timbre lab
   const PERC  = new Set(['snare','kick','hat']);
 
   window.previewInstrument = function(name) {
@@ -348,42 +471,44 @@
     if (muted) return;
     try {
       const S = window.AUDIO_SETTINGS;
-      if (event === 'tool_call') {
-        const tool = (data.tool || '').toLowerCase();
-        let key;
-        if      (tool==='read')                          key = 'read';
-        else if (tool==='write')                         key = 'write';
-        else if (tool==='edit')                          key = 'edit';
-        else if (tool==='grep'||tool==='glob')           key = 'grep_glob';
-        else if (tool==='agent')                         key = 'agent';
-        else if (tool==='bash'||tool==='powershell')     key = bashKey(data.category||'other');
-        else                                             key = 'other';
+      const r = resolveSonic(event, data); // may apply profile mappings + timbre
 
+      if (event === 'tool_call') {
+        const key = r.key;
         if (!passesFilter(key, data.project)) return;
-        const name = S.instruments[key] || 'harp';
+        const name = r.instrument || S.instruments[key] || 'harp';
         if (name === 'off') return;
         const fn  = INSTS[name] || harp;
-        const hz  = noteHz(data.project, getDegree(data.where), 0);
-        sched((c, at) => PERC.has(name) ? fn(c, at) : fn(c, at, hz));
+        const degMode = r.degreeMode || S.noteMode;
+        // temporarily honor per-resolve degree mode for this event
+        const oldMode = S.noteMode;
+        if (degMode && degMode !== oldMode) S.noteMode = degMode;
+        const hz  = noteHz(data.project, getDegree(data.where), r.octave || 0);
+        if (degMode && degMode !== oldMode) S.noteMode = oldMode;
+
+        const baseVol = (r.volMult && r.volMult !== 1) ? (0.42 * r.volMult) : undefined;
+        sched((c, at) => PERC.has(name) ? fn(c, at, baseVol) : fn(c, at, hz, baseVol));
 
       } else if (event === 'tokens') {
         if (!passesFilter('tokens', data.project)) return;
-        const name = S.instruments.tokens || 'flute';
+        const name = r.instrument || S.instruments.tokens || 'flute';
         if (name === 'off') return;
         const fn  = INSTS[name] || flute;
-        const hz  = noteHz(data.project, 0, -1);
-        const vol = Math.min(0.11, 0.04 + Math.log1p((data.output||0) / 300) * 0.028);
+        const hz  = noteHz(data.project, 0, r.octave != null ? r.octave : -1);
+        let vol = Math.min(0.11, 0.04 + Math.log1p((data.output||0) / 300) * 0.028);
+        if (r.volMult && r.volMult !== 1) vol = Math.min(0.11, vol * r.volMult);
         sched((c, at) => PERC.has(name) ? fn(c, at, vol) : fn(c, at, hz, vol));
 
       } else if (event === 'words') {
         if (!passesFilter('words', data.project)) return;
-        const name = S.instruments.words || 'bell';
+        const name = r.instrument || S.instruments.words || 'bell';
         if (name === 'off') return;
         const fn  = INSTS[name] || bell;
-        const iv  = activeIv();
+        const iv  = SCALES[r.scale] || activeIv();
         const deg = Math.min(iv.length - 1, Math.floor((data.word_count||0) / 15));
-        const hz  = noteHz(data.project, deg, 1);
-        sched((c, at) => PERC.has(name) ? fn(c, at) : fn(c, at, hz, 0.11));
+        const hz  = noteHz(data.project, deg, r.octave != null ? r.octave : 1);
+        const v = (r.volMult && r.volMult !== 1) ? (0.11 * r.volMult) : 0.11;
+        sched((c, at) => PERC.has(name) ? fn(c, at) : fn(c, at, hz, v));
       }
     } catch { /* audio must never break UI */ }
   };

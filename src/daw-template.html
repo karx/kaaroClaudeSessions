@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAARO • Live Pulse DAW Builder</title>
+<meta name="description" content="Dedicated builder for kaaro live pulse audio profiles. Pure live event stream. Deep sonic axis mapping and DAW experience.">
+<style>
+* { box-sizing: border-box; margin:0; padding:0; }
+body { background:#080810; color:#9aa0b8; font-family:'IBM Plex Mono','Courier New',monospace; font-size:11px; overflow:hidden; }
+/* Hide the main app's injected small widgets in the dedicated builder */
+#sound-btn, #audio-settings-btn, #daw-widget, #pulse-ticker, #ticker-pin, #stats, #panel, #legend, #controls, #layout-bar { display:none !important; }
+#daw-root { position:fixed; inset:0; display:flex; flex-direction:column; }
+header { height:42px; background:#0a0a18; border-bottom:1px solid #1c1c34; display:flex; align-items:center; padding:0 12px; gap:12px; flex-shrink:0; z-index:1000; }
+header .title { color:#c8d4ff; font-weight:700; letter-spacing:1px; font-size:13px; }
+header .sub { color:#4455aa; font-size:9px; margin-left:8px; }
+header .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
+.btn { background:#12122a; border:1px solid #2a2a50; color:#8899cc; padding:4px 10px; cursor:pointer; font-family:inherit; font-size:10px; letter-spacing:0.5px; }
+.btn:hover { background:#1e1e40; }
+.btn.primary { background:#1a2a4a; border-color:#4455cc; color:#aabbff; }
+.btn.danger { border-color:#5a2a2a; color:#cc6666; }
+.pill { padding:1px 7px; border:1px solid #252545; background:#0e0e1e; font-size:9px; }
+#profile-name { color:#00ffaa; font-weight:700; }
+
+main { flex:1; display:flex; min-height:0; }
+#daw-main { flex:1; display:flex; flex-direction:column; min-width:0; position:relative; }
+#daw-canvas-wrap { flex:1; position:relative; background:#02020a; overflow:hidden; }
+#daw-canvas { display:block; width:100%; height:100%; cursor:crosshair; }
+#daw-hud { position:absolute; top:8px; left:8px; right:8px; display:flex; gap:8px; pointer-events:none; }
+#daw-hud > * { pointer-events:auto; }
+#daw-status { background:rgba(4,4,12,.85); border:1px solid #1c1c34; padding:4px 10px; font-size:9px; letter-spacing:1px; }
+#daw-controls { background:rgba(4,4,12,.85); border:1px solid #1c1c34; padding:3px 6px; display:flex; gap:4px; }
+
+#side { width:380px; background:#06060f; border-left:1px solid #1c1c34; display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
+#side header.side-hd { padding:8px 12px; background:#0a0a16; border-bottom:1px solid #181830; font-size:9px; letter-spacing:2px; color:#4455cc; display:flex; justify-content:space-between; }
+#side .section { border-bottom:1px solid #121226; }
+#side .sec-hd { padding:6px 10px 4px; font-size:8px; letter-spacing:1.5px; color:#334466; text-transform:uppercase; background:#05050c; cursor:pointer; user-select:none; }
+#side .sec-body { padding:6px 10px 10px; max-height:260px; overflow:auto; }
+#side .sec-body.open { display:block; }
+
+.mapping-row { display:flex; gap:4px; align-items:center; padding:3px 0; border-bottom:1px dotted #14142a; font-size:10px; }
+.mapping-row:last-child { border-bottom:none; }
+.map-match { flex:1; color:#7788aa; font-size:9px; overflow:hidden; text-overflow:ellipsis; }
+.map-effect { color:#aabbff; font-size:9px; }
+.map-actions { display:flex; gap:2px; }
+.map-actions button { padding:1px 5px; font-size:8px; }
+
+.sim-row { display:flex; gap:6px; align-items:center; margin:4px 0; flex-wrap:wrap; }
+.sim-row label { font-size:9px; color:#556; min-width:58px; }
+.sim-row input, .sim-row select { background:#0a0a1e; border:1px solid #1e1e3a; color:#8899cc; padding:2px 5px; font-family:inherit; font-size:10px; }
+.sim-row input[type=number] { width:64px; }
+
+.timbre { font-size:9px; }
+.timbre-row { display:flex; align-items:center; gap:6px; margin:3px 0; }
+.timbre-row label { flex:0 0 92px; color:#556; }
+.timbre-row input[type=range] { flex:1; }
+.timbre-row .v { width:28px; text-align:right; color:#778; font-size:9px; }
+
+.profile-list { font-size:10px; }
+.profile-list button { margin-right:4px; }
+
+#log { flex:1; overflow:auto; font-size:9px; padding:4px 8px; background:#020208; border-top:1px solid #121226; }
+.log-line { padding:1px 0; white-space:pre; }
+.log-line .t { color:#4455aa; }
+.log-line .proj { color:#00aaff; }
+.log-line .tool { color:#ffcc66; }
+.log-line .match { color:#00ff88; }
+
+footer { height:22px; background:#05050c; border-top:1px solid #1c1c34; font-size:9px; padding:0 10px; display:flex; align-items:center; color:#334; }
+footer .hint { margin-left:auto; color:#2a3050; }
+
+.split { display:flex; gap:4px; }
+.split > * { flex:1; }
+
+.rule-form { background:#0a0a16; border:1px solid #1c1c34; padding:8px; margin:6px 0; }
+.rule-form label { display:block; font-size:8px; color:#445; margin:4px 0 2px; }
+.rule-chips { display:flex; flex-wrap:wrap; gap:3px; }
+.chip { padding:1px 6px; border:1px solid #252545; background:#0e0e1e; font-size:9px; cursor:pointer; }
+.chip.on { background:#1a2a4a; border-color:#4455cc; color:#aabbff; }
+</style>
+</head>
+<body>
+<div id="daw-root">
+  <header>
+    <div>
+      <span class="title">KAARO • PULSE DAW BUILDER</span>
+      <span class="sub">pure live event stream • sonic axis mapping</span>
+    </div>
+    <div class="right">
+      <span id="profile-name" class="pill">DEFAULT</span>
+      <button class="btn" id="btn-mute">♪</button>
+      <button class="btn primary" id="btn-sim">+ SIMULATOR</button>
+      <button class="btn" id="btn-export">EXPORT PROFILE</button>
+      <button class="btn" id="btn-import">IMPORT</button>
+      <button class="btn" onclick="window.location.href='/'">← MAIN GRAPH</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Large DAW + Live -->
+    <div id="daw-main">
+      <div id="daw-hud">
+        <div id="daw-status">LIVE — waiting for pulses… <span id="live-count"></span></div>
+        <div id="daw-controls">
+          <button class="btn" id="daw-live-btn">LIVE</button>
+          <button class="btn" id="daw-clear-btn">CLEAR RING</button>
+          <span style="color:#334;padding:0 6px;">BPM</span>
+          <input id="daw-bpm" type="range" min="40" max="240" step="1" value="120" style="width:120px;">
+          <span id="daw-bpm-val" style="min-width:28px;color:#8899cc;">120</span>
+          <button class="btn" id="daw-tap">TAP</button>
+        </div>
+      </div>
+      <div id="daw-canvas-wrap">
+        <canvas id="daw-canvas"></canvas>
+      </div>
+      <div id="builder-log-hint" style="position:absolute;bottom:6px;left:10px;font-size:9px;color:#2a3050;pointer-events:none;">
+        scroll/drag to scrub • click block to capture for mapping
+      </div>
+    </div>
+
+    <!-- Side panels -->
+    <div id="side">
+      <!-- Sonic Axis Mapping -->
+      <div class="section">
+        <div class="sec-hd" data-toggle="mappings">◆ SONIC AXIS MAPPING <span style="float:right;opacity:.5;">▾</span></div>
+        <div class="sec-body" id="mappings-body">
+          <div id="mappings-list"></div>
+          <button class="btn" id="btn-add-mapping" style="width:100%;margin-top:6px;">+ ADD MAPPING RULE</button>
+
+          <div id="rule-form" class="rule-form" style="display:none;">
+            <div style="font-size:9px;color:#4455cc;margin-bottom:4px;">NEW / EDIT RULE</div>
+            <div class="split">
+              <div>
+                <label>MATCH (any of)</label>
+                <div class="rule-chips" id="match-family"></div>
+                <div class="rule-chips" id="match-action"></div>
+                <div class="rule-chips" id="match-harness"></div>
+                <input id="match-where" placeholder="where contains (optional)" style="width:100%;margin-top:4px;">
+                <div style="display:flex;gap:4px;margin-top:4px;">
+                  <input id="match-word-min" type="number" placeholder="words ≥" style="flex:1;">
+                  <input id="match-out-min" type="number" placeholder="out ≥" style="flex:1;">
+                </div>
+              </div>
+              <div>
+                <label>EFFECTS</label>
+                <select id="effect-inst" class="btn" style="width:100%;margin:2px 0;">
+                  <option value="">— instrument (keep) —</option>
+                </select>
+                <div style="display:flex;gap:4px;">
+                  <input id="effect-vol" type="number" step="0.1" placeholder="vol×" style="flex:1;">
+                  <input id="effect-oct" type="number" placeholder="oct" style="flex:1;width:50px;">
+                </div>
+                <select id="effect-degree" class="btn" style="width:100%;margin-top:2px;">
+                  <option value="">— degree mode —</option>
+                  <option value="path_hash">path_hash</option>
+                  <option value="sequential">sequential</option>
+                  <option value="random">random</option>
+                  <option value="root">root</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-top:6px;display:flex;gap:4px;">
+              <button class="btn primary" id="rule-save">SAVE RULE</button>
+              <button class="btn" id="rule-cancel">CANCEL</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simulator -->
+      <div class="section">
+        <div class="sec-hd" data-toggle="sim">◆ EVENT SIMULATOR <span style="float:right;opacity:.5;">▾</span></div>
+        <div class="sec-body" id="sim-body">
+          <div class="sim-row">
+            <label>type</label>
+            <select id="sim-type">
+              <option value="tool_call">tool_call</option>
+              <option value="tokens">tokens</option>
+              <option value="words">words</option>
+            </select>
+            <label style="min-width:40px;">harness</label>
+            <select id="sim-harness">
+              <option>claude-code</option><option>pi</option><option>antigravity</option><option>grok</option>
+            </select>
+          </div>
+          <div class="sim-row">
+            <label>project</label><input id="sim-project" value="demo" style="flex:1;">
+            <label style="min-width:32px;">tool</label><input id="sim-tool" value="Write" style="width:78px;">
+          </div>
+          <div class="sim-row">
+            <label>where / cmd</label><input id="sim-where" value="src/app.js" style="flex:1;">
+          </div>
+          <div class="sim-row">
+            <label>category</label>
+            <select id="sim-cat"><option value="">—</option><option>git</option><option>npm</option><option>fs</option><option>other</option></select>
+            <label style="min-width:32px;">out</label><input id="sim-out" type="number" value="180" style="width:60px;">
+            <label style="min-width:32px;">words</label><input id="sim-words" type="number" value="24" style="width:50px;">
+          </div>
+          <button class="btn primary" id="btn-emit" style="width:100%;margin-top:4px;">EMIT → hear + visualize</button>
+          <div style="font-size:8px;color:#334;margin-top:4px;">Emitted events appear in the ring and respect current mappings + timbre.</div>
+        </div>
+      </div>
+
+      <!-- Timbre Lab -->
+      <div class="section">
+        <div class="sec-hd" data-toggle="timbre">◆ TIMBRE LAB (live) <span style="float:right;opacity:.5;">▾</span></div>
+        <div class="sec-body" id="timbre-body" style="font-size:9px;">
+          <div style="color:#556;margin-bottom:4px;">Tweak base instruments. Changes are live for new events.</div>
+          <div id="timbre-insts"></div>
+          <button class="btn" id="btn-reset-timbre" style="width:100%;margin-top:6px;">RESET TIMBRE DEFAULTS</button>
+        </div>
+      </div>
+
+      <!-- Profiles -->
+      <div class="section" style="border-bottom:none;flex:1;display:flex;flex-direction:column;min-height:0;">
+        <div class="sec-hd">◆ AUDIO PROFILES</div>
+        <div class="sec-body" style="flex:1;overflow:auto;">
+          <div id="profile-list" class="profile-list"></div>
+          <div style="margin-top:6px;">
+            <input id="profile-save-name" placeholder="profile name" style="width:140px;background:#0a0a1e;border:1px solid #1e1e3a;color:#8899cc;padding:2px 5px;">
+            <button class="btn" id="btn-save-profile">SAVE</button>
+          </div>
+          <div style="margin-top:4px;font-size:8px;color:#334;">
+            Profiles include instruments, mappings, timbre overrides, scale, bpm etc. Stored in localStorage.
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span>Live from /events — builder edits do not affect the main graph view until you export/apply.</span>
+    <span class="hint">ESC clears selection • wheel on DAW scrubs</span>
+  </footer>
+</div>
+
+<script>
+%%DAW_CLIENT_JS%%
+</script>
+</body>
+</html>

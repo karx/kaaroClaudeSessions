@@ -101,10 +101,24 @@ function grokSessions() {
   return out;
 }
 
+function antigravitySessions() {
+  const agBase = path.join(os.homedir(), '.gemini', 'antigravity', 'brain');
+  if (!fs.existsSync(agBase)) return [];
+  const out = [];
+  for (const sid of fs.readdirSync(agBase)) {
+    const tl = path.join(agBase, sid, '.system_generated', 'logs', 'transcript.jsonl');
+    if (!fs.existsSync(tl)) continue;
+    const mtime = fs.statSync(tl).mtimeMs;
+    out.push({ path: tl, sessionId: sid, projSlug: 'antigravity', projLabel: 'antigravity', mtime, harness: 'antigravity' });
+  }
+  return out;
+}
+
 function allSessions(filter = 'all') {
   const pool = [
-    ...(filter !== 'grok' ? ccSessions()   : []),
-    ...(filter !== 'cc'   ? grokSessions() : []),
+    ...(filter !== 'grok' && filter !== 'antigravity' ? ccSessions()           : []),
+    ...(filter !== 'cc'   && filter !== 'antigravity' ? grokSessions()         : []),
+    ...(filter !== 'cc'   && filter !== 'grok'        ? antigravitySessions()  : []),
   ];
   return pool.sort((a, b) => b.mtime - a.mtime);
 }
@@ -122,7 +136,9 @@ if (sessionArg && (sessionArg.includes('/') || sessionArg.includes('\\'))) {
   const projLabel = isGrok
     ? decodeURIComponent(proj.replace(/%5C/gi, '/')).split(/[/\\]/).pop()
     : proj.split('--').pop();
-  const harness = isGrok ? 'grok' : (sessionArg.includes('antigravity') ? 'antigravity' : 'claude-code');
+  const harness = isGrok ? 'grok'
+    : (sessionArg.replace(/\\/g, '/').includes('.gemini/antigravity') || sessionArg.includes('antigravity')) ? 'antigravity'
+    : 'claude-code';
   entry = { path: sessionArg, sessionId: sid, projSlug: proj, projLabel, harness };
 
 } else if (sessionArg) {

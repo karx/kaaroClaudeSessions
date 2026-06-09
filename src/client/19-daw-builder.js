@@ -849,6 +849,128 @@
     };
   }
 
+  // ── Built-in presets ──────────────────────────────────────────────────────────
+  // Three opinionated presets. Every event key is mapped; all 5 sonic axes covered.
+  //
+  // Design principles encoded:
+  //   Cognitive Flow  — timbre=category, velocity=importance, path-hash=file identity
+  //   Thrash Detector — sequential notes build phrase density; dorian tension; threshold rules
+  //   Session Arc     — multi-scale: tools=micro, token-bursts=mid chord, words=macro melody
+
+  const DAW_PRESETS = [
+    {
+      name: 'Cognitive Flow',
+      tag:  'Pre-attentive · Identity · Sustainable',
+      desc: 'Timbre maps category. Velocity maps importance. Path-hash pitch gives every file a consistent identity note within a project. Major pentatonic — consonant and sustainable for long monitoring sessions.',
+      settings: {
+        scale: 'major_pentatonic', noteMode: 'path_hash', bpm: 100,
+        instruments: {
+          read:'harp', write:'bass', edit:'pling',
+          bash_git:'snare', bash_run:'kick', bash_other:'hat',
+          grep_glob:'bit', agent:'bell', other:'harp',
+          tokens:'flute', words:'bell',
+        },
+      },
+      mappings: [
+        // FILE — left channel, clear identity distinction by volume
+        { match: { key:'write'      }, set: { volMult:1.30, pan:-0.20, send:0.04, brightness:10000 } },
+        { match: { key:'edit'       }, set: { volMult:1.00, pan:-0.12, send:0.04, brightness: 8500 } },
+        { match: { key:'read'       }, set: { volMult:0.65, pan: 0.05, send:0.05, brightness: 6500 } },
+        { match: { key:'grep_glob'  }, set: { volMult:0.55, pan: 0.10, send:0.03, brightness: 5000 } },
+        // SYSTEM — far left, percussive time anchor
+        { match: { key:'bash_git'   }, set: { volMult:1.10, pan:-0.38, send:0.03, brightness: 3500 } },
+        { match: { key:'bash_run'   }, set: { volMult:1.00, pan:-0.32, send:0.03, brightness: 2800 } },
+        { match: { key:'bash_other' }, set: { volMult:0.55, pan:-0.30, send:0.02, brightness: 4000 } },
+        // AI — right + reverb = spatial weight/distance
+        { match: { key:'agent'      }, set: { volMult:1.20, octave: 1, pan: 0.40, send:0.45, brightness: 5000 } },
+        { match: { key:'other'      }, set: { volMult:0.60, pan: 0.00, send:0.06, brightness: 6500 } },
+        // CONTEXT — ambient background
+        { match: { key:'tokens'     }, set: { volMult:0.50, pan: 0.00, send:0.02, octave:-1 } },
+        { match: { key:'words'      }, set: { volMult:0.90, pan: 0.22, send:0.14, brightness: 9000, octave: 1 } },
+      ],
+    },
+
+    {
+      name: 'Thrash Detector',
+      tag:  'Flow · Tension · Anomaly',
+      desc: 'Sequential notes build phrase density — steady rhythm = "in flow", dense rapid notes = "thrashing". Dorian scale has inherent tension. Large token bursts (>600) and long words (>40) get boosted dynamics for anomaly salience.',
+      settings: {
+        scale: 'dorian', noteMode: 'sequential', bpm: 120,
+        instruments: {
+          read:'harp', write:'bass', edit:'pling',
+          bash_git:'snare', bash_run:'kick', bash_other:'hat',
+          grep_glob:'bit', agent:'bell', other:'bit',
+          tokens:'flute', words:'bell',
+        },
+      },
+      mappings: [
+        // FILE — writes grounded an octave down (heavy labour feel)
+        { match: { key:'write'      }, set: { volMult:1.40, pan:-0.25, send:0.05, brightness: 9000, octave:-1 } },
+        { match: { key:'edit'       }, set: { volMult:1.10, pan:-0.15, send:0.05, brightness: 8000          } },
+        { match: { key:'read'       }, set: { volMult:0.55, pan: 0.00, send:0.04, brightness: 6000          } },
+        { match: { key:'grep_glob'  }, set: { volMult:0.65, pan: 0.12, send:0.03, brightness: 4500          } },
+        // SYSTEM — rhythmic pulse; bash_run drops an octave for weight
+        { match: { key:'bash_git'   }, set: { volMult:1.20, pan:-0.40, send:0.02, brightness: 3000          } },
+        { match: { key:'bash_run'   }, set: { volMult:1.15, pan:-0.35, send:0.02, brightness: 2500, octave:-1 } },
+        { match: { key:'bash_other' }, set: { volMult:0.60, pan:-0.28, send:0.02, brightness: 3500          } },
+        // AI — high structural tension: upper octave + heavy reverb
+        { match: { key:'agent'      }, set: { volMult:1.35, pan: 0.45, send:0.55, brightness: 4000, octave: 1 } },
+        { match: { key:'other'      }, set: { volMult:0.70, pan: 0.05, send:0.08, brightness: 5500          } },
+        // CONTEXT — threshold rules: big burst = anomaly spike; small = whisper
+        { match: { key:'tokens', outMin:600 }, set: { volMult:0.90, pan: 0.05, send:0.05, octave:-1, brightness: 6000 } },
+        { match: { key:'tokens'     }, set: { volMult:0.40, pan: 0.00, send:0.02, octave:-1, brightness: 4500 } },
+        // Long assistant turns = release/cadence
+        { match: { key:'words', wordMin:40 }, set: { volMult:1.10, pan: 0.28, send:0.20, brightness:10000, octave: 1 } },
+        { match: { key:'words'      }, set: { volMult:0.75, pan: 0.20, send:0.12, brightness: 8000, octave: 1 } },
+      ],
+    },
+
+    {
+      name: 'Session Arc',
+      tag:  'Multi-scale · Arc · Layers',
+      desc: 'Three independent time-scale layers: individual tool calls = rhythmic micro-texture (oct 0), token bursts = harmonic foundation (bass, oct −2, root-only), assistant words = structural melody (bell, oct +1/+2). Blues scale. Path-hash keeps file identity across layers.',
+      settings: {
+        scale: 'blues', noteMode: 'path_hash', bpm: 90,
+        instruments: {
+          read:'harp', write:'bass', edit:'pling',
+          bash_git:'snare', bash_run:'kick', bash_other:'hat',
+          grep_glob:'bit', agent:'bell', other:'harp',
+          tokens:'bass', words:'bell',
+        },
+      },
+      mappings: [
+        // MICRO LAYER — file tools, restrained volume, textural
+        { match: { key:'write'      }, set: { volMult:1.00, pan:-0.18, send:0.04, brightness: 9500 } },
+        { match: { key:'edit'       }, set: { volMult:0.85, pan:-0.10, send:0.04, brightness: 8000 } },
+        { match: { key:'read'       }, set: { volMult:0.55, pan: 0.05, send:0.04, brightness: 6000 } },
+        { match: { key:'grep_glob'  }, set: { volMult:0.50, pan: 0.10, send:0.03, brightness: 4500 } },
+        { match: { key:'bash_git'   }, set: { volMult:0.95, pan:-0.38, send:0.03, brightness: 3500 } },
+        { match: { key:'bash_run'   }, set: { volMult:0.90, pan:-0.32, send:0.03, brightness: 2800 } },
+        { match: { key:'bash_other' }, set: { volMult:0.45, pan:-0.28, send:0.02, brightness: 3800 } },
+        // AI — harmonic colour accent (right, reverb, root-fixed for consistency)
+        { match: { key:'agent'      }, set: { volMult:1.10, pan: 0.42, send:0.50, brightness: 4500, octave: 1, degreeMode:'root' } },
+        { match: { key:'other'      }, set: { volMult:0.55, pan: 0.08, send:0.06, brightness: 5500 } },
+        // MID LAYER — tokens = bass chord, 2 octaves down, root-locked → harmonic foundation
+        { match: { key:'tokens'     }, set: { instrument:'bass', volMult:0.70, pan: 0.00, send:0.05, octave:-2, degreeMode:'root', brightness: 4000 } },
+        // MACRO LAYER — words = structural melody; long replies rise to +2 oct for climax
+        { match: { key:'words', wordMin:50 }, set: { volMult:1.20, pan: 0.30, send:0.22, brightness:11000, octave: 2 } },
+        { match: { key:'words'      }, set: { volMult:0.90, pan: 0.25, send:0.16, brightness: 9500, octave: 1 } },
+      ],
+    },
+  ];
+
+  function applyPreset(preset) {
+    if (window.updateAudioSettings) window.updateAudioSettings(preset.settings);
+    if (window.updateAudioProfile)  window.updateAudioProfile({ mappings: preset.mappings });
+    // Sync header BPM display
+    const bpmSlider = document.getElementById('daw-bpm');
+    const bpmVal    = document.getElementById('daw-bpm-val');
+    const scaleSel  = document.getElementById('daw-scale');
+    if (bpmSlider && preset.settings.bpm) bpmSlider.value = preset.settings.bpm;
+    if (bpmVal    && preset.settings.bpm) bpmVal.textContent = preset.settings.bpm;
+    if (scaleSel  && preset.settings.scale) scaleSel.value = preset.settings.scale;
+  }
+
   // ── PROF tab ───────────────────────────────────────────────────────────────────
   const PROF_KEY = 'kaaro-daw-profiles';
 
@@ -856,12 +978,53 @@
   function _saveProfiles(p) { try { localStorage.setItem(PROF_KEY, JSON.stringify(p)); } catch {} }
 
   function buildProfTab(body) {
-    body.innerHTML = '<div class="sec-head">Audio Profiles</div>';
+    // ── Built-in presets ──────────────────────────────────────────────────────
+    const presHead = document.createElement('div');
+    presHead.className = 'sec-head'; presHead.textContent = 'Built-in Presets';
+    body.appendChild(presHead);
+
+    DAW_PRESETS.forEach(preset => {
+      const card = document.createElement('div'); card.className = 'preset-card';
+      const nameEl = document.createElement('div'); nameEl.className = 'preset-name'; nameEl.textContent = preset.name;
+      const tagEl  = document.createElement('div'); tagEl.className  = 'preset-tag';  tagEl.textContent  = preset.tag;
+      const descEl = document.createElement('div'); descEl.className = 'preset-desc'; descEl.textContent = preset.desc;
+      const footEl = document.createElement('div'); footEl.className = 'preset-foot';
+
+      // Rule count summary
+      const ruleCount = preset.mappings.length;
+      const ruleSummary = document.createElement('span');
+      ruleSummary.className = 'preset-rules';
+      ruleSummary.textContent = ruleCount + ' mapping rules · ' + preset.settings.scale.replace('_', ' ') + ' · ' + preset.settings.noteMode.replace('_', ' ');
+
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'btn primary preset-apply'; applyBtn.textContent = 'Apply';
+      applyBtn.onclick = () => {
+        applyPreset(preset);
+        applyBtn.textContent = 'Applied ✓';
+        applyBtn.classList.add('applied');
+        setTimeout(() => {
+          applyBtn.textContent = 'Apply';
+          applyBtn.classList.remove('applied');
+        }, 2000);
+      };
+
+      footEl.appendChild(ruleSummary); footEl.appendChild(applyBtn);
+      card.appendChild(nameEl); card.appendChild(tagEl); card.appendChild(descEl); card.appendChild(footEl);
+      body.appendChild(card);
+    });
+
+    // ── Saved profiles ────────────────────────────────────────────────────────
+    const profHead = document.createElement('div');
+    profHead.className = 'sec-head'; profHead.style.marginTop = '12px'; profHead.textContent = 'Saved Profiles';
+    body.appendChild(profHead);
 
     const listDiv = document.createElement('div'); listDiv.id = 'prof-list';
     _renderProfList(listDiv); body.appendChild(listDiv);
 
-    body.innerHTML += '<div class="sec-head" style="margin-top:10px">Save</div>';
+    const saveHead = document.createElement('div');
+    saveHead.className = 'sec-head'; saveHead.style.marginTop = '10px'; saveHead.textContent = 'Save';
+    body.appendChild(saveHead);
+
     const saveRow = document.createElement('div'); saveRow.style.display = 'flex'; saveRow.style.gap = '4px';
     const nameInp = document.createElement('input'); nameInp.className = 'inp'; nameInp.placeholder = 'profile name';
     const saveBtn = document.createElement('button'); saveBtn.className = 'btn primary'; saveBtn.textContent = 'SAVE';
@@ -878,7 +1041,10 @@
     };
     saveRow.appendChild(nameInp); saveRow.appendChild(saveBtn); body.appendChild(saveRow);
 
-    body.innerHTML += '<div class="sec-head" style="margin-top:10px">Export / Import</div>';
+    const ioHead = document.createElement('div');
+    ioHead.className = 'sec-head'; ioHead.style.marginTop = '10px'; ioHead.textContent = 'Export / Import';
+    body.appendChild(ioHead);
+
     const ioRow = document.createElement('div'); ioRow.className = 'btn-row';
     const expBtn = document.createElement('button'); expBtn.className = 'btn'; expBtn.textContent = 'EXPORT JSON';
     expBtn.onclick = () => {

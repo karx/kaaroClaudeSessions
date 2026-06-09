@@ -50,6 +50,35 @@ test('recordsToNormalized — emits expected kinds', () => {
   assert.ok(kinds.filter(k => k === 'tool_use').length >= 2);
 });
 
+test('tool_use NR has canonical key field', () => {
+  const records = [{
+    type: 'message', id: 'a01', timestamp: '2026-06-09T10:00:00.000Z',
+    message: {
+      role: 'assistant',
+      content: [
+        { type: 'toolCall', id: 'tc01', name: 'read',  arguments: { path: 'a.mjs' } },
+        { type: 'toolCall', id: 'tc02', name: 'bash',  arguments: { command: 'git status' } },
+        { type: 'toolCall', id: 'tc03', name: 'write', arguments: { path: 'b.mjs' } },
+        { type: 'toolCall', id: 'tc04', name: 'glob',  arguments: { pattern: '**/*.mjs' } },
+      ],
+    },
+  }];
+  const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
+  const keys = nrs.map(r => r.key);
+  assert.deepEqual(keys, ['read', 'bash_git', 'write', 'grep_glob']);
+});
+
+test('unknown_record emitted for unrecognised record types', () => {
+  const records = [
+    { type: 'some_future_type', timestamp: '2026-06-09T10:00:00.000Z' },
+  ];
+  const nrs = recordsToNormalized(records);
+  const unknowns = nrs.filter(r => r.kind === 'unknown_record');
+  assert.equal(unknowns.length, 1);
+  assert.equal(unknowns[0].raw_type, 'some_future_type');
+  assert.equal(unknowns[0].harness, 'pi');
+});
+
 test('adapter + reducer golden regression matches parsePiRecords', () => {
   const viaParse = parsePiRecords(GOLDEN_RECORDS, SESSION_ID, PROJECT_ID);
   enrichSession(viaParse);

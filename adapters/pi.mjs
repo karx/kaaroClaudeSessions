@@ -4,6 +4,9 @@
  * Converts Pi JSONL records → NormalizedRecord[].
  */
 
+import { toolNameToKey } from '../lib/event-types.mjs';
+import { categorizeBash } from '../lib/analyze-helpers.mjs';
+
 const HARNESS = 'pi';
 
 function extractUserText(content) {
@@ -24,19 +27,23 @@ export function recordsToNormalized(records) {
 
   for (const rec of records) {
     const ts = rec.timestamp ?? null;
+    let handled = false;
 
     if (rec.type === 'session') {
+      handled = true;
       if (rec.cwd) {
         out.push({ kind: 'session_meta', harness: HARNESS, ts, cwd: rec.cwd });
       }
     }
 
     if (rec.type === 'model_change') {
+      handled = true;
       const model = [rec.provider, rec.modelId].filter(Boolean).join('/') || null;
       if (model) out.push({ kind: 'session_meta', harness: HARNESS, ts, model, overwrite: true });
     }
 
     if (rec.type === 'message' && rec.message) {
+      handled = true;
       const msg = rec.message;
 
       if (msg.role === 'user') {
@@ -69,11 +76,14 @@ export function recordsToNormalized(records) {
 
         for (const block of (msg.content || [])) {
           if (block.type !== 'toolCall') continue;
-          const name = block.name || 'unknown';
-          const args = block.arguments || {};
+          const name     = block.name || 'unknown';
+          const args     = block.arguments || {};
+          const isBash   = ['bash', 'shell', 'powershell'].includes(name.toLowerCase());
+          const category = isBash ? categorizeBash(args.command) : null;
           out.push({
             kind: 'tool_use', harness: HARNESS, ts,
             tool: name,
+            key:  toolNameToKey(name, category),
             input: {
               file_path: args.path,
               path:      args.path,
@@ -82,6 +92,10 @@ export function recordsToNormalized(records) {
           });
         }
       }
+    }
+
+    if (!handled) {
+      out.push({ kind: 'unknown_record', harness: HARNESS, ts, raw_type: rec.type });
     }
   }
 

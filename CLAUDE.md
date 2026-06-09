@@ -139,3 +139,5 @@ Test files map to modules:
 - **`src/client/*.js`** — browser JS; pure logic (e.g. `blockGeom`, `_toolBars`) testable but not yet extracted
 - **`analyze-pi.mjs`** — does not extract `context_resets`, `ai_title`, `subagent_count`, or `branches`; graph-pipeline tests do not verify passthrough of these new fields
 - **`lib/graph-pipeline.mjs`** — `tools_top`, `context_resets`, `ai_title`, `subagent_count`, `branches` passthrough not yet covered by `test/graph-pipeline.test.mjs`
+- **`lib/pulse-adapters.mjs`** — to be moved to `ARCHIVE/lib/pulse-adapters.mjs` once `audio-sim.mjs`'s `simulateSession` and `serve.mjs` are migrated from `parsePulse` to `normRecordsToPulses` (both still depend on raw-JSONL path)
+- **`lib/audio-sim.mjs` `simulateSession`** — still accepts raw JSONL records; planned migration to NR[] will let `parsePulse` be retired

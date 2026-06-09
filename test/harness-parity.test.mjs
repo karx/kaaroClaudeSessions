@@ -19,6 +19,8 @@ import assert from 'node:assert/strict';
 import { recordsToNormalized as ccToNorm } from '../adapters/claude-code.mjs';
 import { recordsToNormalized as piToNorm } from '../adapters/pi.mjs';
 import { recordsToNormalized as agToNorm } from '../adapters/antigravity.mjs';
+import { recordsToNormalized as grokToNorm } from '../adapters/grok.mjs';
+import { EVENT_TYPES } from '../lib/event-types.mjs';
 import { reduceSession } from '../lib/session-reducer.mjs';
 import { enrichSession } from '../lib/enrich-session.mjs';
 import { analyzeSession, parseJsonlFile, deriveLabel } from '../analyze.mjs';
@@ -63,6 +65,43 @@ function finalizeAntigravity(session, records) {
   }
   enrichSession(session);
   return session;
+}
+
+// ── Sample Trace validation ───────────────────────────────────────────────────
+// For each EVENT_TYPES entry with samples, run the adapter and assert output
+// contains at least one NR matching all fields in the expect entry.
+
+const ADAPTERS = {
+  'claude-code':  ccToNorm,
+  'pi':           piToNorm,
+  'antigravity':  agToNorm,
+  'grok':         grokToNorm,
+};
+
+function partialMatch(actual, expect) {
+  for (const [k, v] of Object.entries(expect)) {
+    if (!assert.deepEqual) break;
+    if (JSON.stringify(actual[k]) !== JSON.stringify(v)) return false;
+  }
+  return true;
+}
+
+for (const [eventKey, entry] of Object.entries(EVENT_TYPES)) {
+  if (!entry.samples) continue;
+  for (const [harness, sample] of Object.entries(entry.samples)) {
+    const adapterFn = ADAPTERS[harness];
+    if (!adapterFn) continue;
+    test(`sample trace — ${eventKey}/${harness} v${sample.version}`, () => {
+      const nrs = adapterFn([sample.record]);
+      for (const expectedNR of sample.expect) {
+        const match = nrs.find(nr => partialMatch(nr, expectedNR));
+        assert.ok(
+          match,
+          `${eventKey}/${harness}: no NR matching ${JSON.stringify(expectedNR)}.\nGot: ${JSON.stringify(nrs, null, 2)}`,
+        );
+      }
+    });
+  }
 }
 
 test('pipeline internal consistency — claude-code', () => {

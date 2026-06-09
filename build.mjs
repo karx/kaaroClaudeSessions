@@ -61,8 +61,6 @@ function buildDaw() {
   // These run standalone (no full GRAPH dependency) when the page is the dedicated DAW view.
   const dawModules = [
     '14-pulse-audio.js',
-    '15-audio-settings.js',
-    '16-beat-overlay.js',
     '19-daw-builder.js',
   ];
 

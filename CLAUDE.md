@@ -24,6 +24,7 @@ No `npm install` needed — zero external dependencies. D3 v7 and 3d-force-graph
 
 **HTTP endpoints** (served by `serve.mjs`):
 - `GET /` — serves `graph.html` (no-cache)
+- `GET /daw` (or `/builder`, `/audio`) — dedicated **Live Pulse DAW Builder** page (pure event stream, no graph). Full sonic axis mapping, simulator, timbre lab, rule-based audio profiles, large interactive DAW canvas. Works only when served (needs /events).
 - `GET /events` — SSE stream; emits lifecycle events (`status`, `updated`) AND live pulse events (`tool_call`, `tokens`, `words`) on every JSONL change
 - `GET /graph-data.json` — current graph payload for incremental updates
 - `GET /status` — JSON `{ rebuilding, lastBuilt, clients, port }` (debug)

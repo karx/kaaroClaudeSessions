@@ -1,808 +1,1066 @@
-// ── 19-daw-builder.js — Dedicated Live Pulse DAW Builder (full audio profile experience)
-// Runs when the page is the pure /daw view. Works entirely from the live /events SSE
-// (plus a powerful simulator). Re-uses the audio engine, beat ring, and playPulse
-// established by 14-pulse-audio.js (which must be loaded first in the daw concat).
+// ── Cognitive DAW Builder v2 ───────────────────────────────────────────────────
+// Multi-lane canvas · mixer strips · automation curves · tab panel
+// Only activates when #daw-root is present (dedicated /daw page).
+// Reads window._beatRing (14-pulse-audio.js), calls window.playPulse.
 
 (function () {
-  // Only activate the full builder UI when we see our dedicated containers.
-  // This file can be safely concatenated into the main graph bundle without side effects.
   const root = document.getElementById('daw-root');
-  if (!root) return; // not the builder page
+  if (!root) return; // guard: main graph page loads this file too
 
-  // ── Minimal live pulse ingestion for the builder (independent of 13's graph ticker) ──
-  let _seenProjects = new Set();
-  let _pulseCount = 0;
-
-  function _onPulse(type, data) {
-    try {
-      _pulseCount++;
-      const c = document.getElementById('live-count');
-      if (c) c.textContent = _pulseCount + ' pulses';
-
-      if (data && data.project) _seenProjects.add(data.project);
-
-      // The heavy lifting (ring push + synthesis + filter) is already done by
-      // window.playPulse (from 14) which we call below. We just keep local state.
-      if (window.playPulse) window.playPulse(type, data);
-
-      // Update our own log
-      appendLog(type, data);
-    } catch (e) { /* never break the stream */ }
-  }
-
-  function connectLive() {
-    if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') {
-      // Offline mode — rely on simulator only
-      const st = document.getElementById('daw-status');
-      if (st) st.textContent = 'OFFLINE — use simulator (no /events)';
-      return;
-    }
-    try {
-      const es = new EventSource('/events');
-      es.addEventListener('tool_call', e => { try { _onPulse('tool_call', JSON.parse(e.data)); } catch {} });
-      es.addEventListener('tokens',    e => { try { _onPulse('tokens',    JSON.parse(e.data)); } catch {} });
-      es.addEventListener('words',     e => { try { _onPulse('words',     JSON.parse(e.data)); } catch {} });
-      es.onopen = () => {
-        const st = document.getElementById('daw-status');
-        if (st) st.textContent = 'LIVE — connected to /events';
-      };
-      es.onerror = () => {
-        const st = document.getElementById('daw-status');
-        if (st) st.textContent = 'RECONNECTING…';
-      };
-    } catch (e) {
-      const st = document.getElementById('daw-status');
-      if (st) st.textContent = 'LIVE FAILED — simulator only';
-    }
-  }
-
-  // ── Enhanced standalone large DAW canvas (builder version of 16-beat-overlay logic) ──
-  const H_TOTAL = 9999; // we size to container
-  const H_HEADER = 18;
-  const BLOCK_W = 8;
-  const PX_PER_SEC = 38;
-  const MAX_HIST_MS = 8 * 60 * 1000;
-
-  let _scrollPx = 0;
-  let _isLive = true;
-  let _frozenNow = null;
-  let _hovered = null;
-  let _mouseX = 0, _mouseY = 0;
-  let _dragging = false, _dragOriX = 0, _dragOriScroll = 0;
-
-  const canvas = document.getElementById('daw-canvas');
-  const wrap = document.getElementById('daw-canvas-wrap');
-  let ctx = null;
-
-  function resizeCanvas() {
-    if (!canvas || !wrap) return;
-    canvas.width = wrap.clientWidth;
-    canvas.height = wrap.clientHeight;
-  }
-  window.addEventListener('resize', resizeCanvas);
-
-  function nowMs() {
-    return _isLive ? Date.now() : (_frozenNow ?? Date.now());
-  }
-
-  function evScreenX(ev, now) {
-    return canvas.width - (now - ev.ts) / 1000 * PX_PER_SEC + _scrollPx;
-  }
-
-  function blockGeom(ev) {
-    const t = (ev.tool || '').toLowerCase();
-    if (ev.type === 'tokens') return { h: 5,  yOff: canvas.height - H_HEADER - 6 };
-    if (ev.type === 'words')  return { h: 10, yOff: canvas.height - H_HEADER - 16 };
-    if (t === 'write') return { h: 68, yOff: 2 };
-    if (t === 'edit')  return { h: 58, yOff: 2 };
-    if (t === 'agent') return { h: 48, yOff: 2 };
-    if (t === 'read' || t === 'view_file') return { h: 38, yOff: 2 };
-    if (t === 'bash' || t === 'powershell' || t === 'run_command' || t === 'shell') return { h: 26, yOff: 2 };
-    if (t === 'grep' || t === 'glob' || t === 'grep_search') return { h: 16, yOff: 2 };
-    return { h: 22, yOff: 2 };
-  }
-
-  const STRIPE = {
-    write: '#00bb55', edit: '#ccaa00', read: '#2a5c8a',
-    bash: '#cc6622', powershell: '#cc6622', shell: '#cc6622', run_command: '#cc6622',
-    grep: '#7733aa', glob: '#7733aa', grep_search: '#7733aa',
-    agent: '#cc2244', task: '#cc2244',
+  // ── State ─────────────────────────────────────────────────────────────────────
+  const S = {
+    scrollMs:       0,
+    isLive:         true,
+    frozenNow:      null,
+    windowMs:       30000,
+    hovered:        null,
+    mx:             0,
+    my:             0,
+    dragging:       false,
+    dragOriX:       0,
+    dragOriScrollMs:0,
+    activeTab:      'map',
+    editingRuleIdx: null,
+    mixer: {
+      file:    { gain: 1, muted: false, soloed: false },
+      system:  { gain: 1, muted: false, soloed: false },
+      ai:      { gain: 1, muted: false, soloed: false },
+      context: { gain: 1, muted: false, soloed: false },
+    },
   };
 
-  function draw() {
-    if (!canvas || !wrap) return;
-    if (!ctx) ctx = canvas.getContext('2d');
-    resizeCanvas(); // cheap
-    const W = canvas.width;
-    const H = canvas.height;
-    const now = nowMs();
-    const ring = (window._beatRing || []).slice(); // copy for safety
+  // ── Lane definitions ─────────────────────────────────────────────────────────
+  const FAMILY_LANES = [
+    {
+      id: 'file', label: 'FILE OPS', bg: '#0b1a0e', portion: 0.28,
+      toolColors: { write: '#00cc55', edit: '#ccaa00', read: '#3a6aaa', grep_glob: '#8844cc' },
+      blockW: e => e.key === 'write' ? 10 : e.key === 'edit' ? 8 : 5,
+      blockH: e => e.key === 'write' ? 0.85 : e.key === 'edit' ? 0.70 : 0.50,
+    },
+    {
+      id: 'system', label: 'SYSTEM', bg: '#0a0a18', portion: 0.20,
+      toolColors: { bash_git: '#cc5522', bash_run: '#dd7733', bash_other: '#555577' },
+      blockW: () => 7,
+      blockH: () => 0.70,
+    },
+    {
+      id: 'ai', label: 'AI / AGENT', bg: '#100818', portion: 0.25,
+      toolColors: { agent: '#cc2244', other: '#884466' },
+      blockW: e => e.key === 'agent' ? 14 : 8,
+      blockH: () => 0.85,
+    },
+    {
+      id: 'context', label: 'CONTEXT', bg: '#080c18', portion: 0.15,
+      toolColors: { tokens: '#00ddcc', words: '#00aaff' },
+      blockW: e => e.type === 'tokens' ? 3 : 8,
+      blockH: e => e.type === 'tokens'
+        ? Math.max(0.1, Math.min(0.8, Math.log1p((e.output || 0) / 200) * 0.35))
+        : Math.max(0.1, Math.min(0.85, (e.word_count || 0) / 80)),
+    },
+  ];
 
-    // hover
-    const hov = findHovered(now, ring);
-    if (hov !== _hovered) {
-      _hovered = hov;
-      if (hov) {
-        highlightInGraphIfPossible(hov);
-      }
+  const FAMILY_LABEL_COLORS = {
+    file: '#2a7a3a', system: '#3a5aaa', ai: '#aa3388', context: '#2a8aaa',
+  };
+
+  // ── Canvas refs ───────────────────────────────────────────────────────────────
+  function dawCanvas()  { return document.getElementById('daw-canvas'); }
+  function autoCanvas() { return document.getElementById('auto-canvas'); }
+
+  function resizeBothCanvases() {
+    const dc = dawCanvas();
+    if (dc && dc.parentElement) {
+      dc.width  = dc.parentElement.clientWidth;
+      dc.height = dc.parentElement.clientHeight - 80; // minus auto-canvas
     }
-
-    // bg
-    ctx.fillStyle = '#02020a';
-    ctx.fillRect(0, 0, W, H);
-
-    // header band
-    ctx.fillStyle = '#030310';
-    ctx.fillRect(0, 0, W, H_HEADER);
-    ctx.strokeStyle = '#09091e';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, H_HEADER - 0.5); ctx.lineTo(W, H_HEADER - 0.5); ctx.stroke();
-
-    // time grid
-    const gridPx = 10 * PX_PER_SEC;
-    const phase = (_isLive ? 0 : (_frozenNow - Date.now()) / 1000 * PX_PER_SEC) - _scrollPx;
-    const firstX = ((W + phase) % gridPx + gridPx) % gridPx;
-    for (let x = W - firstX; x >= 0; x -= gridPx) {
-      ctx.strokeStyle = '#070720';
-      ctx.beginPath(); ctx.moveTo(Math.round(x), H_HEADER); ctx.lineTo(Math.round(x), H); ctx.stroke();
+    const ac = autoCanvas();
+    if (ac && ac.parentElement) {
+      ac.width  = ac.parentElement.clientWidth;
+      ac.height = 80;
     }
-
-    // event blocks (newest on the right, scrolling left)
-    for (const ev of ring) {
-      const x = evScreenX(ev, now);
-      if (x < -BLOCK_W - 10 || x > W + 10) continue;
-      const age = now - ev.ts;
-      const g = blockGeom(ev);
-      const ty = H_HEADER + g.yOff;
-      const hot = ev === _hovered;
-      const fade = Math.max(0.12, 1 - age / MAX_HIST_MS);
-
-      ctx.globalAlpha = hot ? 1 : (0.22 + 0.58 * fade);
-      ctx.fillStyle = ev.color || '#2a3a8a';
-      ctx.fillRect(Math.round(x), ty, BLOCK_W, g.h);
-
-      const stripe = STRIPE[(ev.tool || '').toLowerCase()] || (ev.type === 'tool_call' ? '#556688' : null);
-      if (stripe) {
-        ctx.globalAlpha = hot ? 0.95 : (0.35 + 0.45 * fade);
-        ctx.fillStyle = stripe;
-        ctx.fillRect(Math.round(x), ty, BLOCK_W, 2);
-      }
-
-      if (hot) {
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = '#e0e8ff';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(Math.round(x) - 0.5, ty - 0.5, BLOCK_W + 1, g.h + 1);
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    // live glow
-    if (_isLive) {
-      const lg = ctx.createLinearGradient(W - 48, 0, W, 0);
-      lg.addStop(0, 'rgba(16,36,100,0)');
-      lg.addStop(1, 'rgba(16,36,100,0.28)');
-      ctx.fillStyle = lg;
-      ctx.fillRect(W - 48, H_HEADER, 48, H - H_HEADER);
-    }
-
-    // labels
-    ctx.fillStyle = '#1a2a48';
-    ctx.font = "bold 9px 'IBM Plex Mono',monospace";
-    ctx.fillText('LIVE PULSE DAW', 10, 13);
-
-    if (!_isLive) {
-      const sec = Math.round(_scrollPx / PX_PER_SEC);
-      ctx.fillStyle = '#2a3a5a';
-      ctx.font = "8px 'IBM Plex Mono',monospace";
-      const txt = `-${sec}s`;
-      ctx.fillText(txt, W / 2 - ctx.measureText(txt).width / 2, 13);
-    }
-
-    requestAnimationFrame(draw);
   }
 
-  function findHovered(now, ring) {
+  // ── Lane layout ───────────────────────────────────────────────────────────────
+  function computeLaneLayout(H) {
+    const usable = H - 20; // 20px ruler
+    let y = 20;
+    return FAMILY_LANES.map(lane => {
+      const h = Math.max(18, Math.floor(usable * lane.portion));
+      const r = { id: lane.id, y, h };
+      y += h;
+      return r;
+    });
+  }
+
+  function laneForEvent(ev) {
+    return FAMILY_LANES.find(l => l.id === ev.family) || null;
+  }
+
+  // ── Time helpers ──────────────────────────────────────────────────────────────
+  function nowMs() { return S.isLive ? Date.now() : (S.frozenNow ?? Date.now()); }
+
+  function evX(ev, now, W, PX_PER_SEC) {
+    return W - (now - ev.ts) / 1000 * PX_PER_SEC + S.scrollMs / 1000 * PX_PER_SEC;
+  }
+
+  // ── Draw DAW lanes ────────────────────────────────────────────────────────────
+  let _dawCtx = null;
+
+  function drawDaw() {
+    requestAnimationFrame(drawDaw);
+    const canvas = dawCanvas(); if (!canvas) return;
+    const W = canvas.width, H = canvas.height;
+    if (!_dawCtx) _dawCtx = canvas.getContext('2d');
+    const ctx = _dawCtx;
+    const now = nowMs();
+    const PX_PER_SEC = W / (S.windowMs / 1000);
+    const ring = (window._beatRing || []).slice();
+
+    // bg
+    ctx.fillStyle = '#01010a'; ctx.fillRect(0, 0, W, H);
+
+    // time ruler
+    drawRuler(ctx, W, now, PX_PER_SEC);
+
+    const layout = computeLaneLayout(H);
+
+    for (const lane of FAMILY_LANES) {
+      const l = layout.find(x => x.id === lane.id); if (!l) continue;
+      const { y, h } = l;
+
+      // lane bg
+      ctx.fillStyle = lane.bg; ctx.fillRect(0, y, W, h);
+
+      // lane label
+      const labelCol = FAMILY_LABEL_COLORS[lane.id] || '#334';
+      ctx.fillStyle = labelCol; ctx.font = "bold 8px 'IBM Plex Mono',monospace";
+      ctx.fillText(lane.label, 4, y + 12);
+
+      // muted overlay
+      if (S.mixer[lane.id]?.muted) {
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(0, y, W, h);
+        ctx.fillStyle = '#333'; ctx.font = "7px 'IBM Plex Mono',monospace";
+        ctx.fillText('MUTED', W / 2 - 14, y + h / 2 + 3);
+      }
+
+      // events for this lane
+      for (const ev of ring) {
+        if (ev.family !== lane.id) continue;
+        const x   = evX(ev, now, W, PX_PER_SEC);
+        const bw  = lane.blockW(ev);
+        if (x < -bw - 4 || x > W + 4) continue;
+        const bh  = Math.max(2, lane.blockH(ev) * (h - 16));
+        const by  = y + h - bh - 3;
+        const col = lane.toolColors[ev.key] || lane.toolColors.other || ev.color || '#446';
+        const age = now - ev.ts;
+        const fade = Math.max(0.12, 1 - age / (S.windowMs * 2));
+        const hot  = ev === S.hovered;
+
+        ctx.globalAlpha = hot ? 1 : 0.18 + 0.67 * fade;
+        ctx.fillStyle   = col;
+        ctx.fillRect(Math.round(x), by, bw, bh);
+
+        // 2px top stripe (brighter)
+        ctx.globalAlpha = hot ? 0.95 : (0.4 + 0.4 * fade);
+        ctx.fillRect(Math.round(x), by, bw, 2);
+
+        if (hot) {
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = '#e0e8ff'; ctx.lineWidth = 1;
+          ctx.strokeRect(Math.round(x) - 0.5, by - 0.5, bw + 1, bh + 1);
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // lane separator
+      ctx.strokeStyle = '#0a0a22'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, y + h - 0.5); ctx.lineTo(W, y + h - 0.5); ctx.stroke();
+    }
+
+    // live glow on right edge
+    if (S.isLive) {
+      const lg = ctx.createLinearGradient(W - 44, 0, W, 0);
+      lg.addColorStop(0, 'rgba(16,30,90,0)'); lg.addColorStop(1, 'rgba(16,30,90,0.22)');
+      ctx.fillStyle = lg; ctx.fillRect(W - 44, 20, 44, H - 20);
+    }
+
+    // hover tooltip
+    drawTooltip(ctx, W, H, now, PX_PER_SEC, ring);
+  }
+
+  function drawRuler(ctx, W, now, PX_PER_SEC) {
+    ctx.fillStyle = '#030312'; ctx.fillRect(0, 0, W, 20);
+    ctx.strokeStyle = '#0a0a28'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 19.5); ctx.lineTo(W, 19.5); ctx.stroke();
+
+    const scrollSec = S.scrollMs / 1000;
+    const startSec  = Math.floor(scrollSec / 10) * 10;
+    ctx.fillStyle = '#2a3050'; ctx.font = "7px 'IBM Plex Mono',monospace";
+    for (let sec = startSec; sec <= scrollSec + S.windowMs / 1000 + 10; sec += 10) {
+      const x = W - (now / 1000 - sec) * PX_PER_SEC + scrollSec * PX_PER_SEC;
+      if (x < -2 || x > W + 2) continue;
+      const major = sec % 30 === 0;
+      ctx.strokeStyle = major ? '#181838' : '#0e0e24';
+      ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, major ? 12 : 15); ctx.lineTo(Math.round(x) + 0.5, 19); ctx.stroke();
+      if (major) {
+        const lbl = sec === 0 ? '0' : (sec > 0 ? '-' + sec + 's' : '+' + (-sec) + 's');
+        ctx.fillText(lbl, Math.round(x) - 8, 10);
+      }
+    }
+
+    if (!S.isLive) {
+      ctx.fillStyle = '#2a3a6a'; ctx.font = "bold 8px 'IBM Plex Mono',monospace";
+      ctx.fillText('◀ SCRUB  -' + Math.round(S.scrollMs / 1000) + 's', W / 2 - 40, 13);
+    }
+  }
+
+  function drawTooltip(ctx, W, H, now, PX_PER_SEC, ring) {
+    const ev = findHovered(now, PX_PER_SEC, ring);
+    if (ev !== S.hovered) S.hovered = ev;
+    if (!ev) return;
+
+    const lane = laneForEvent(ev); if (!lane) return;
+    const layout = computeLaneLayout(H);
+    const l = layout.find(x => x.id === lane.id); if (!l) return;
+
+    const x = evX(ev, now, W, PX_PER_SEC);
+    const lines = [
+      (ev.tool || ev.label || ev.type) + (ev.harness ? ' [' + ev.harness + ']' : ''),
+      ev.project ? 'proj: ' + ev.project : null,
+      ev.where   ? 'where: ' + String(ev.where).replace(/\\/g, '/').slice(-36) : null,
+      ev.output  ? 'out: ' + ev.output + ' tok' : null,
+      ev.pan != null ? 'pan: ' + ev.pan.toFixed(2) + '  bri: ' + (ev.brightness || '—') : null,
+    ].filter(Boolean);
+
+    const pad = 5, lh = 13, bw = 180, bh = lines.length * lh + pad * 2;
+    let tx = Math.round(x) + 10;
+    if (tx + bw > W - 4) tx = Math.round(x) - bw - 4;
+    const ty = Math.max(20, l.y - bh - 2);
+
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = '#06061a'; ctx.fillRect(tx, ty, bw, bh);
+    ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 1;
+    ctx.strokeRect(tx + 0.5, ty + 0.5, bw - 1, bh - 1);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#8899cc'; ctx.font = "9px 'IBM Plex Mono',monospace";
+    lines.forEach((ln, i) => ctx.fillText(ln, tx + pad, ty + pad + lh * i + 9));
+  }
+
+  function findHovered(now, PX_PER_SEC, ring) {
+    const canvas = dawCanvas(); if (!canvas) return null;
+    const H = canvas.height;
+    const layout = computeLaneLayout(H);
+    const W = canvas.width;
     for (let i = ring.length - 1; i >= 0; i--) {
       const ev = ring[i];
-      const x = evScreenX(ev, now);
-      if (x < -BLOCK_W || x > canvas.width + BLOCK_W) continue;
-      const g = blockGeom(ev);
-      const ty = H_HEADER + g.yOff;
-      if (_mouseX >= x - 3 && _mouseX <= x + BLOCK_W + 3 &&
-          _mouseY >= ty - 3 && _mouseY <= ty + g.h + 3) return ev;
+      const lane = laneForEvent(ev); if (!lane) continue;
+      const l = layout.find(x => x.id === lane.id); if (!l) continue;
+      const x  = evX(ev, now, W, PX_PER_SEC);
+      const bw = lane.blockW(ev);
+      const bh = Math.max(2, lane.blockH(ev) * (l.h - 16));
+      const by = l.y + l.h - bh - 3;
+      if (S.mx >= x - 3 && S.mx <= x + bw + 3 && S.my >= by - 3 && S.my <= by + bh + 3) return ev;
     }
     return null;
   }
 
-  function highlightInGraphIfPossible(ev) {
-    // Best-effort: if the main graph page is also open or we have highlight fn
-    try {
-      if (typeof highlight === 'function' && ev.slug && typeof GRAPH !== 'undefined') {
-        const node = GRAPH.nodes.find(n => n.type === 'session' && n.id && n.id.startsWith(ev.slug));
-        if (node) highlight(node.id);
-      }
-    } catch {}
+  // ── Automation canvas ─────────────────────────────────────────────────────────
+  let _autoCtx = null;
+  const _autoSamples = [];
+  let _lastAutoSampleMs = 0;
+
+  function _sampleAuto() {
+    const now = Date.now();
+    if (now - _lastAutoSampleMs < 1000) return;
+    _lastAutoSampleMs = now;
+    const ring  = window._beatRing || [];
+    const d10   = ring.filter(e => now - e.ts < 10000).length / 10; // events/sec
+    _autoSamples.push({
+      ts:       now,
+      density:  Math.min(1, d10 / 5),
+      pressure: window.COGNITIVE_PRESSURE || 0,
+      bpm:      Math.min(1, d10 * 12 / 240),
+    });
+    if (_autoSamples.length > 600) _autoSamples.shift();
   }
 
-  // Input handling for the big canvas
+  function drawAuto() {
+    requestAnimationFrame(drawAuto);
+    _sampleAuto();
+    const canvas = autoCanvas(); if (!canvas) return;
+    const W = canvas.width, H = canvas.height;
+    if (!_autoCtx) _autoCtx = canvas.getContext('2d');
+    const ctx = _autoCtx;
+
+    ctx.fillStyle = '#020208'; ctx.fillRect(0, 0, W, H);
+
+    const recent = _autoSamples.filter(s => Date.now() - s.ts < 30000);
+    if (recent.length < 2) {
+      ctx.fillStyle = '#1a1a30'; ctx.font = "7px 'IBM Plex Mono',monospace";
+      ctx.fillText('DENSITY · BPM · PRESSURE  (waiting for events…)', 6, 12);
+      return;
+    }
+
+    const drawCurve = (key, color, alpha) => {
+      ctx.beginPath();
+      recent.forEach((s, i) => {
+        const x = (i / (recent.length - 1)) * W;
+        const y = H - s[key] * (H - 6) - 3;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+      ctx.globalAlpha = alpha; ctx.fillStyle = color; ctx.fill();
+      ctx.globalAlpha = 1;
+    };
+
+    drawCurve('pressure', '#cc2244', 0.30);
+    drawCurve('density',  '#00cc88', 0.25);
+    drawCurve('bpm',      '#9aa0c8', 0.18);
+
+    // labels
+    const last = recent[recent.length - 1];
+    ctx.fillStyle = '#2a3050'; ctx.font = "7px 'IBM Plex Mono',monospace";
+    ctx.fillText(
+      'DENSITY ' + (last.density * 5).toFixed(1) + '/s  ' +
+      'BPM~' + Math.round(last.bpm * 240) + '  ' +
+      'PRESS ' + (last.pressure * 100).toFixed(0) + '%',
+      6, 11
+    );
+
+    // grid line at 50%
+    ctx.strokeStyle = '#0c0c24'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+  }
+
+  // ── Canvas input ──────────────────────────────────────────────────────────────
   function setupCanvasInput() {
-    if (!canvas || !wrap) return;
+    const wrap = document.getElementById('daw-center'); if (!wrap) return;
 
     wrap.addEventListener('wheel', e => {
       e.preventDefault();
-      _scrollPx = Math.max(0, _scrollPx + (e.deltaX || e.deltaY) * 1.1);
-      _setLive(_scrollPx === 0);
+      S.scrollMs = Math.max(0, S.scrollMs + (e.deltaX || e.deltaY) * 90);
+      setLive(S.scrollMs === 0);
     }, { passive: false });
 
     wrap.addEventListener('mousedown', e => {
-      _dragging = true; _dragOriX = e.clientX; _dragOriScroll = _scrollPx;
+      S.dragging = true; S.dragOriX = e.clientX; S.dragOriScrollMs = S.scrollMs;
     });
-    window.addEventListener('mouseup', () => { _dragging = false; });
+    window.addEventListener('mouseup', () => { S.dragging = false; });
     window.addEventListener('mousemove', e => {
-      if (!_dragging) return;
-      _scrollPx = Math.max(0, _dragOriScroll + (_dragOriX - e.clientX));
-      _setLive(_scrollPx === 0);
+      if (!S.dragging) return;
+      const dx = S.dragOriX - e.clientX;
+      const canvas = dawCanvas(); if (!canvas) return;
+      const W = canvas.width;
+      const PX_PER_SEC = W / (S.windowMs / 1000);
+      S.scrollMs = Math.max(0, S.dragOriScrollMs + dx / PX_PER_SEC * 1000);
+      setLive(S.scrollMs === 0);
     });
 
-    canvas.addEventListener('mousemove', e => {
-      const rect = canvas.getBoundingClientRect();
-      _mouseX = e.clientX - rect.left;
-      _mouseY = e.clientY - rect.top;
-    });
-
-    canvas.addEventListener('click', e => {
-      const now = nowMs();
-      const ring = window._beatRing || [];
-      const hov = findHovered(now, ring);
-      if (hov) {
-        captureEventForMapping(hov);
-      } else if (e.offsetY <= H_HEADER && e.offsetX > canvas.width - 80) {
-        // click LIVE label area → go live
-        _scrollPx = 0; _setLive(true);
-      }
-    });
-
-    wrap.addEventListener('mouseleave', () => {
-      _hovered = null;
-    });
+    const dawC = dawCanvas();
+    if (dawC) {
+      dawC.addEventListener('mousemove', e => {
+        const rect = dawC.getBoundingClientRect();
+        S.mx = e.clientX - rect.left; S.my = e.clientY - rect.top;
+      });
+      dawC.addEventListener('mouseleave', () => { S.mx = -99; S.my = -99; S.hovered = null; });
+      dawC.addEventListener('click', () => {
+        if (S.hovered) captureEventForMapping(S.hovered);
+      });
+    }
   }
 
-  function _setLive(v) {
-    if (v) { _isLive = true; _frozenNow = null; }
-    else if (_isLive) { _isLive = false; _frozenNow = Date.now(); }
+  function setLive(v) {
+    if (v) { S.isLive = true; S.frozenNow = null; }
+    else if (S.isLive) { S.isLive = false; S.frozenNow = Date.now(); }
     const b = document.getElementById('daw-live-btn');
-    if (b) b.textContent = _isLive ? 'LIVE' : '◀ SCRUB';
+    if (b) {
+      b.textContent = S.isLive ? '● LIVE' : '◀ SCRUB';
+      b.className = 'hdr-btn' + (S.isLive ? ' live' : '');
+    }
   }
 
-  // ── Mapping rule UI + engine glue ───────────────────────────────────────────
-  let _editingRule = null;
-
-  function renderMappings() {
-    const list = document.getElementById('mappings-list');
-    if (!list) return;
-    const prof = window.AUDIO_PROFILE || { mappings: [] };
-    list.innerHTML = '';
-    (prof.mappings || []).forEach((rule, idx) => {
-      const row = document.createElement('div');
-      row.className = 'mapping-row';
-      const m = rule.match || {};
-      const eff = rule.set || {};
-      row.innerHTML = `
-        <div class="map-match">${JSON.stringify(m).slice(0, 92)}</div>
-        <div class="map-effect">${eff.instrument || ''} ${eff.volMult ? '×' + eff.volMult : ''}</div>
-        <div class="map-actions">
-          <button data-act="edit" data-idx="${idx}">✎</button>
-          <button data-act="del" data-idx="${idx}">✕</button>
-          <button data-act="up" data-idx="${idx}">↑</button>
+  // ── Mixer strips ─────────────────────────────────────────────────────────────
+  function buildMixerStrips() {
+    const mixer = document.getElementById('mixer'); if (!mixer) return;
+    for (const lane of FAMILY_LANES) {
+      const col   = FAMILY_LABEL_COLORS[lane.id] || '#4455cc';
+      const strip = document.createElement('div');
+      strip.className = 'ch-strip'; strip.dataset.family = lane.id;
+      strip.innerHTML = `
+        <div class="ch-label" style="color:${col}">${lane.label}</div>
+        <div class="ch-fader-wrap">
+          <input class="ch-fader" type="range" min="0" max="1" step="0.01" value="1">
+          <span class="ch-fader-val">100</span>
+        </div>
+        <div class="ch-vu-wrap">
+          <div class="ch-vu-bar"><div class="ch-vu-fill" style="height:0%"></div></div>
+          <div class="ch-vu-bar"><div class="ch-vu-fill" style="height:0%"></div></div>
+        </div>
+        <div class="ch-btns">
+          <button class="ch-btn solo-btn">S</button>
+          <button class="ch-btn mute-btn">M</button>
         </div>`;
-      list.appendChild(row);
+
+      const fader  = strip.querySelector('.ch-fader');
+      const faderV = strip.querySelector('.ch-fader-val');
+      const soloB  = strip.querySelector('.solo-btn');
+      const muteB  = strip.querySelector('.mute-btn');
+
+      fader.oninput = () => {
+        const v = parseFloat(fader.value);
+        S.mixer[lane.id].gain = v;
+        faderV.textContent = Math.round(v * 100);
+        if (window.MIXER_GAINS) window.MIXER_GAINS[lane.id] = v;
+      };
+      muteB.onclick = () => toggleMute(lane.id);
+      soloB.onclick = () => toggleSolo(lane.id);
+
+      mixer.appendChild(strip);
+    }
+  }
+
+  function _syncMixerButtons() {
+    for (const lane of FAMILY_LANES) {
+      const strip = document.querySelector(`.ch-strip[data-family="${lane.id}"]`);
+      if (!strip) continue;
+      const m = S.mixer[lane.id];
+      strip.querySelector('.mute-btn').className = 'ch-btn mute-btn' + (m.muted ? ' mute-on' : '');
+      strip.querySelector('.solo-btn').className = 'ch-btn solo-btn' + (m.soloed ? ' solo-on' : '');
+    }
+  }
+
+  function toggleMute(id) {
+    S.mixer[id].muted = !S.mixer[id].muted;
+    _applyMixerToSettings();
+    _syncMixerButtons();
+  }
+
+  function toggleSolo(id) {
+    const alreadySoloed = S.mixer[id].soloed;
+    // Clear all solos
+    for (const lane of FAMILY_LANES) S.mixer[lane.id].soloed = false;
+    if (!alreadySoloed) {
+      // Solo this one, mute all others
+      S.mixer[id].soloed = true;
+      for (const lane of FAMILY_LANES) S.mixer[lane.id].muted = lane.id !== id;
+    } else {
+      // Un-solo: clear all mutes
+      for (const lane of FAMILY_LANES) S.mixer[lane.id].muted = false;
+    }
+    _applyMixerToSettings();
+    _syncMixerButtons();
+  }
+
+  function _applyMixerToSettings() {
+    const muted = FAMILY_LANES.filter(l => S.mixer[l.id].muted).map(l => l.id);
+    if (window.updateAudioSettings) window.updateAudioSettings({ filter: { mutedFamilies: muted } });
+    if (window.MIXER_GAINS) {
+      for (const lane of FAMILY_LANES) window.MIXER_GAINS[lane.id] = S.mixer[lane.id].gain;
+    }
+  }
+
+  // ── Tab panel ─────────────────────────────────────────────────────────────────
+  function wireTabs() {
+    document.querySelectorAll('.tab[data-tab]').forEach(t => {
+      t.onclick = () => renderTab(t.dataset.tab);
+    });
+  }
+
+  function renderTab(name) {
+    S.activeTab = name;
+    document.querySelectorAll('.tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.tab === name)
+    );
+    const body = document.getElementById('tab-body'); if (!body) return;
+    body.innerHTML = '';
+    if (name === 'map')   buildMapTab(body);
+    if (name === 'synth') buildSynthTab(body);
+    if (name === 'sim')   buildSimTab(body);
+    if (name === 'prof')  buildProfTab(body);
+  }
+
+  // ── MAP tab ───────────────────────────────────────────────────────────────────
+  const MATCH_FAMILIES = ['file', 'system', 'ai', 'context'];
+  const MATCH_KEYS = [
+    'read', 'write', 'edit', 'grep_glob',
+    'bash_git', 'bash_run', 'bash_other',
+    'agent', 'other', 'tokens', 'words',
+  ];
+  const MATCH_HARNESSES = ['claude-code', 'pi', 'antigravity', 'grok'];
+  const INST_NAMES = ['harp', 'bass', 'bell', 'flute', 'bit', 'pling', 'snare', 'kick', 'hat', 'off'];
+  const DEGREE_MODES = ['path_hash', 'sequential', 'random', 'root'];
+
+  function buildMapTab(body) {
+    // Rule list
+    const listDiv = document.createElement('div');
+    listDiv.id = 'map-list';
+    body.appendChild(listDiv);
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn primary'; addBtn.style.cssText = 'width:100%;margin:6px 0';
+    addBtn.textContent = '+ ADD MAPPING RULE';
+    addBtn.onclick = () => showRuleForm(body, null);
+    body.appendChild(addBtn);
+
+    const formDiv = document.createElement('div'); formDiv.id = 'rule-form';
+    body.appendChild(formDiv);
+
+    renderMappingList(listDiv, body);
+  }
+
+  function renderMappingList(listDiv, body) {
+    listDiv.innerHTML = '';
+    const mappings = (window.AUDIO_PROFILE || {}).mappings || [];
+    if (!mappings.length) {
+      listDiv.innerHTML = '<div style="color:#334;font-size:9px;padding:6px 0;">No rules yet — add one below.</div>';
+      return;
+    }
+    mappings.forEach((rule, idx) => {
+      const row = document.createElement('div'); row.className = 'map-row';
+      const m = rule.match || {}, eff = rule.set || {};
+      const matchSummary = [
+        m.family && (Array.isArray(m.family) ? m.family.join('/') : m.family),
+        m.key    && (Array.isArray(m.key) ? m.key.join('/') : m.key),
+        m.harness && (Array.isArray(m.harness) ? m.harness.join('/') : m.harness),
+        m.whereContains && ('~' + m.whereContains),
+      ].filter(Boolean).join(' ');
+      const effSummary = [
+        eff.instrument,
+        eff.volMult   != null && '×' + eff.volMult,
+        eff.octave    != null && 'oct' + (eff.octave >= 0 ? '+' : '') + eff.octave,
+        eff.pan       != null && 'p' + eff.pan.toFixed(1),
+        eff.brightness != null && eff.brightness + 'Hz',
+        eff.send      != null && 'rv' + eff.send.toFixed(1),
+      ].filter(Boolean).join(' ');
+
+      row.innerHTML = `
+        <div class="map-match">${matchSummary || '(any)'}</div>
+        <div class="map-effect">${effSummary || '—'}</div>
+        <div class="map-acts">
+          <button data-act="edit" data-idx="${idx}">✎</button>
+          <button data-act="del"  data-idx="${idx}">✕</button>
+          <button data-act="up"   data-idx="${idx}">↑</button>
+        </div>`;
+      listDiv.appendChild(row);
     });
 
-    list.onclick = (e) => {
-      const btn = e.target.closest('button');
-      if (!btn) return;
+    listDiv.onclick = e => {
+      const btn = e.target.closest('button[data-act]'); if (!btn) return;
       const idx = parseInt(btn.dataset.idx, 10);
       const act = btn.dataset.act;
       const prof = window.AUDIO_PROFILE;
       if (act === 'del') {
         prof.mappings.splice(idx, 1);
         window.updateAudioProfile({ mappings: prof.mappings });
-        renderMappings();
+        renderMappingList(listDiv, body);
       } else if (act === 'edit') {
-        _editingRule = { ...prof.mappings[idx], _idx: idx };
-        showRuleForm(_editingRule);
+        S.editingRuleIdx = idx;
+        showRuleForm(body, prof.mappings[idx]);
       } else if (act === 'up' && idx > 0) {
         const tmp = prof.mappings[idx - 1];
-        prof.mappings[idx - 1] = prof.mappings[idx];
-        prof.mappings[idx] = tmp;
+        prof.mappings[idx - 1] = prof.mappings[idx]; prof.mappings[idx] = tmp;
         window.updateAudioProfile({ mappings: prof.mappings });
-        renderMappings();
+        renderMappingList(listDiv, body);
       }
     };
   }
 
-  function showRuleForm(rule = null) {
-    const form = document.getElementById('rule-form');
-    if (!form) return;
-    form.style.display = 'block';
-    _editingRule = rule || { match: {}, set: {} };
+  function showRuleForm(body, rule) {
+    let formDiv = document.getElementById('rule-form');
+    if (!formDiv) { formDiv = document.createElement('div'); formDiv.id = 'rule-form'; body.appendChild(formDiv); }
+    formDiv.innerHTML = '';
+    const r = rule || { match: {}, set: {} };
 
-    // populate chips (simple)
-    populateChips('match-family', ['file', 'system', 'ai', 'context'], _editingRule.match.family);
-    populateChips('match-action', ['read','write','edit','bash_git','bash_run','bash_other','grep_glob','agent','other','tokens','words'], _editingRule.match.key);
-    populateChips('match-harness', ['claude-code','pi','antigravity','grok'], _editingRule.match.harness);
+    const head = document.createElement('div');
+    head.className = 'form-head'; head.textContent = S.editingRuleIdx != null ? 'EDIT RULE' : 'NEW RULE';
+    formDiv.appendChild(head);
 
-    const where = document.getElementById('match-where');
-    where.value = _editingRule.match.whereContains || '';
-    document.getElementById('match-word-min').value = _editingRule.match.wordMin || '';
-    document.getElementById('match-out-min').value = _editingRule.match.outMin || '';
+    // Match section
+    const mHead = document.createElement('div');
+    mHead.style.cssText = 'font-size:8px;color:#334;letter-spacing:1px;margin:6px 0 2px;';
+    mHead.textContent = 'MATCH'; formDiv.appendChild(mHead);
 
-    const instSel = document.getElementById('effect-inst');
-    instSel.innerHTML = '<option value="">— keep —</option>' +
-      ['harp','bass','bell','flute','bit','pling','snare','kick','hat','off']
-        .map(i => `<option value="${i}">${i}</option>`).join('');
-    instSel.value = _editingRule.set.instrument || '';
-
-    document.getElementById('effect-vol').value = _editingRule.set.volMult || '';
-    document.getElementById('effect-oct').value = _editingRule.set.octave || '';
-    document.getElementById('effect-degree').value = _editingRule.set.degreeMode || '';
-  }
-
-  function populateChips(containerId, values, current) {
-    const c = document.getElementById(containerId);
-    if (!c) return;
-    c.innerHTML = '';
-    const curSet = new Set(Array.isArray(current) ? current : (current ? [current] : []));
-    values.forEach(v => {
-      const el = document.createElement('span');
-      el.className = 'chip' + (curSet.has(v) ? ' on' : '');
-      el.textContent = v;
-      el.onclick = () => {
-        el.classList.toggle('on');
-      };
-      c.appendChild(el);
-    });
-  }
-
-  function readRuleFromForm() {
-    const fam = readChips('match-family');
-    const key = readChips('match-action');
-    const harness = readChips('match-harness');
-    const where = document.getElementById('match-where').value.trim();
-    const wmin = parseInt(document.getElementById('match-word-min').value, 10);
-    const omin = parseInt(document.getElementById('match-out-min').value, 10);
-
-    const match = {};
-    if (fam.length) match.family = fam.length === 1 ? fam[0] : fam;
-    if (key.length) match.key = key.length === 1 ? key[0] : key;
-    if (harness.length) match.harness = harness.length === 1 ? harness[0] : harness;
-    if (where) match.whereContains = where;
-    if (!isNaN(wmin)) match.wordMin = wmin;
-    if (!isNaN(omin)) match.outMin = omin;
-
-    const set = {};
-    const inst = document.getElementById('effect-inst').value;
-    if (inst) set.instrument = inst;
-    const v = parseFloat(document.getElementById('effect-vol').value);
-    if (!isNaN(v)) set.volMult = v;
-    const o = parseInt(document.getElementById('effect-oct').value, 10);
-    if (!isNaN(o)) set.octave = o;
-    const d = document.getElementById('effect-degree').value;
-    if (d) set.degreeMode = d;
-
-    return { match, set };
-  }
-
-  function readChips(id) {
-    const c = document.getElementById(id);
-    if (!c) return [];
-    return Array.from(c.querySelectorAll('.chip.on')).map(el => el.textContent);
-  }
-
-  function wireMappingUI() {
-    const addBtn = document.getElementById('btn-add-mapping');
-    const form = document.getElementById('rule-form');
-    const save = document.getElementById('rule-save');
-    const cancel = document.getElementById('rule-cancel');
-
-    if (addBtn) addBtn.onclick = () => showRuleForm(null);
-
-    if (cancel) cancel.onclick = () => { form.style.display = 'none'; _editingRule = null; };
-
-    if (save) save.onclick = () => {
-      const rule = readRuleFromForm();
-      const prof = window.AUDIO_PROFILE || { mappings: [] };
-      if (!prof.mappings) prof.mappings = [];
-      if (_editingRule && typeof _editingRule._idx === 'number') {
-        prof.mappings[_editingRule._idx] = rule;
-      } else {
-        prof.mappings.push(rule);
-      }
-      window.updateAudioProfile({ mappings: prof.mappings });
-      form.style.display = 'none';
-      _editingRule = null;
-      renderMappings();
+    const chips = (id, vals, cur) => {
+      const wrap = document.createElement('div'); wrap.className = 'chips-wrap'; wrap.id = id;
+      const curSet = new Set(Array.isArray(cur) ? cur : (cur ? [cur] : []));
+      vals.forEach(v => {
+        const c = document.createElement('span'); c.className = 'chip' + (curSet.has(v) ? ' on' : '');
+        c.textContent = v; c.onclick = () => c.classList.toggle('on');
+        wrap.appendChild(c);
+      });
+      return wrap;
     };
 
-    // initial render + allow toggling sections
-    renderMappings();
-    document.querySelectorAll('#side .sec-hd').forEach(h => {
-      h.onclick = () => {
-        const body = document.getElementById(h.getAttribute('data-toggle') + '-body');
-        if (body) body.style.display = (body.style.display === 'none' ? 'block' : 'none');
-      };
-    });
-  }
+    formDiv.appendChild(chips('mf', MATCH_FAMILIES, r.match.family));
+    formDiv.appendChild(chips('mk', MATCH_KEYS,     r.match.key));
+    formDiv.appendChild(chips('mh', MATCH_HARNESSES, r.match.harness));
 
-  // ── Simulator ───────────────────────────────────────────────────────────────
-  function wireSimulator() {
-    const emit = document.getElementById('btn-emit');
-    if (!emit) return;
+    const whereRow = document.createElement('div'); whereRow.className = 'row';
+    whereRow.innerHTML = '<label>where ~</label>';
+    const whereInp = document.createElement('input'); whereInp.className = 'inp';
+    whereInp.placeholder = 'path contains…'; whereInp.value = r.match.whereContains || '';
+    whereRow.appendChild(whereInp); formDiv.appendChild(whereRow);
 
-    emit.onclick = () => {
-      const type = document.getElementById('sim-type').value;
-      const data = {
-        project: document.getElementById('sim-project').value || 'demo',
-        harness: document.getElementById('sim-harness').value,
-        tool: document.getElementById('sim-tool').value || undefined,
-        where: document.getElementById('sim-where').value || undefined,
-        category: document.getElementById('sim-cat').value || undefined,
-        output: parseInt(document.getElementById('sim-out').value, 10) || 0,
-        word_count: parseInt(document.getElementById('sim-words').value, 10) || 0,
-        ts: Date.now(),
-        slug: 'sim-' + Math.random().toString(36).slice(2, 8),
-      };
-      // Push a synthetic ring entry so the visual shows it even if audio muted
-      try {
-        if (window._beatRing) {
-          window._beatRing.push({
-            ts: data.ts,
-            color: '#88aaff',
-            label: data.tool || type,
-            type,
-            project: data.project,
-            tool: data.tool,
-            where: data.where,
-            category: data.category,
-            preview: type === 'words' ? 'simulated text…' : null,
-          });
-          if (window._beatRing.length > 1000) window._beatRing.shift();
-        }
-      } catch {}
+    const threshRow = document.createElement('div'); threshRow.className = 'row';
+    threshRow.innerHTML = '<label>min words/out</label>';
+    const wminInp = document.createElement('input'); wminInp.className = 'inp inp-sm inp-wmin';
+    wminInp.type = 'number'; wminInp.placeholder = 'words≥'; wminInp.value = r.match.wordMin || '';
+    const ominInp = document.createElement('input'); ominInp.className = 'inp inp-sm inp-omin';
+    ominInp.type = 'number'; ominInp.placeholder = 'out≥'; ominInp.value = r.match.outMin || '';
+    threshRow.appendChild(wminInp); threshRow.appendChild(ominInp); formDiv.appendChild(threshRow);
 
-      if (window.playPulse) window.playPulse(type, data);
-      appendLog(type + ' (sim)', data);
+    // Set section
+    const sHead = document.createElement('div');
+    sHead.style.cssText = 'font-size:8px;color:#334;letter-spacing:1px;margin:8px 0 2px;';
+    sHead.textContent = 'SET'; formDiv.appendChild(sHead);
+
+    const mkRow = (label, content) => {
+      const row = document.createElement('div'); row.className = 'row';
+      const lbl = document.createElement('label'); lbl.textContent = label;
+      row.appendChild(lbl); row.appendChild(content); return row;
     };
-  }
 
-  // ── Timbre Lab (basic live param overrides) ─────────────────────────────────
-  // For v1 we expose a few high-impact params per instrument and patch the
-  // synth functions at runtime. A full data-driven rewrite of the 9 synths
-  // can come in a follow-up.
-  const TIMBRE_DEFAULTS = {
-    bass: { vol: 0.48, decay: 1.4 },
-    bell: { vol: 0.32, decay: 2.5 },
-    flute: { vol: 0.18, decay: 0.65 },
-    harp: { vol: 0.42, decay: 0.9 },
-    pling: { vol: 0.30, decay: 0.48 },
-    bit: { vol: 0.14, decay: 0.22 },
-    snare: { vol: 0.32, decay: 0.12 },
-    kick: { vol: 0.46, decay: 0.25 },
-    hat: { vol: 0.18, decay: 0.04 },
-  };
+    const instSel = document.createElement('select'); instSel.className = 'inp inst-sel';
+    instSel.innerHTML = '<option value="">— keep —</option>' + INST_NAMES.map(n => `<option value="${n}"${(r.set.instrument===n)?' selected':''}>${n}</option>`).join('');
+    formDiv.appendChild(mkRow('instrument', instSel));
 
-  function wireTimbreLab() {
-    const container = document.getElementById('timbre-insts');
-    if (!container) return;
-
-    const prof = window.AUDIO_PROFILE;
-    if (!prof.timbre) prof.timbre = {};
-
-    Object.keys(TIMBRE_DEFAULTS).forEach(inst => {
-      const d = TIMBRE_DEFAULTS[inst];
-      const t = prof.timbre[inst] || (prof.timbre[inst] = { ...d });
-
-      const row = document.createElement('div');
-      row.className = 'timbre-row';
-      row.innerHTML = `
-        <label>${inst}</label>
-        <input type="range" min="0.02" max="0.9" step="0.01" value="${t.vol}">
-        <span class="v vol">${t.vol.toFixed(2)}</span>
-        <input type="range" min="0.02" max="3.5" step="0.02" value="${t.decay}">
-        <span class="v dec">${t.decay.toFixed(2)}</span>
-      `;
-      const [vSlider, , dSlider] = row.querySelectorAll('input');
-      const [vLab, dLab] = row.querySelectorAll('.v');
-
-      vSlider.oninput = () => { t.vol = parseFloat(vSlider.value); vLab.textContent = t.vol.toFixed(2); };
-      dSlider.oninput = () => { t.decay = parseFloat(dSlider.value); dLab.textContent = t.decay.toFixed(2); };
-
-      // Live patch into the synths where easy (we mutate the closed-over behaviour by
-      // wrapping the original INSTS functions for the builder session).
-      vSlider.onchange = dSlider.onchange = () => applyTimbrePatch(inst, t);
-
-      container.appendChild(row);
-    });
-
-    const reset = document.getElementById('btn-reset-timbre');
-    if (reset) reset.onclick = () => {
-      window.AUDIO_PROFILE.timbre = JSON.parse(JSON.stringify(TIMBRE_DEFAULTS));
-      window.updateAudioProfile({ timbre: window.AUDIO_PROFILE.timbre });
-      // crude reload of the lab
-      container.innerHTML = '';
-      wireTimbreLab();
+    const makeNumInp = (cls, ph, val) => {
+      const i = document.createElement('input'); i.className = 'inp inp-sm ' + cls;
+      i.type = 'number'; i.placeholder = ph; if (val != null) i.value = val; return i;
     };
-  }
 
-  function applyTimbrePatch(inst, t) {
-    // For the most impactful instruments we monkey the closed INST functions.
-    // This is a builder-only live hack; the main view keeps original behaviour.
-    const orig = window._origInsts || (window._origInsts = {});
-    const INSTS = window.INSTS || {};
-    if (!orig[inst]) orig[inst] = INSTS[inst];
+    const volInp = makeNumInp('inp-vol', 'vol ×', r.set.volMult);
+    const octInp = makeNumInp('inp-oct', 'oct ±', r.set.octave);
+    const dvRow  = document.createElement('div'); dvRow.className = 'row';
+    dvRow.innerHTML = '<label>vol / oct</label>';
+    dvRow.appendChild(volInp); dvRow.appendChild(octInp); formDiv.appendChild(dvRow);
 
-    if (inst === 'bass') {
-      INSTS[inst] = function bass(c, at, hz, vol) {
-        vol = (vol ?? t.vol ?? 0.48);
-        const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = (hz || 110) / 2;
-        const g = c.createGain();
-        g.gain.setValueAtTime(vol, at);
-        g.gain.exponentialRampToValueAtTime(0.001, at + (t.decay || 1.4));
-        o.connect(g); g.connect(c.destination); o.start(at); o.stop(at + (t.decay || 1.4) + 0.1);
-      };
-    } else if (inst === 'bell') {
-      INSTS[inst] = function bell(c, at, hz, vol) {
-        vol = vol ?? t.vol ?? 0.32;
-        const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = (hz || 440) * 2;
-        const g = c.createGain();
-        g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol, at + 0.008);
-        g.gain.exponentialRampToValueAtTime(0.001, at + (t.decay || 2.5));
-        o.connect(g); g.connect(c.destination); o.start(at); o.stop(at + (t.decay || 2.5) + 0.1);
-      };
-    }
-    // Other instruments keep their original (or can be extended the same way).
-  }
+    const degSel = document.createElement('select'); degSel.className = 'inp';
+    degSel.innerHTML = '<option value="">— degree mode —</option>' + DEGREE_MODES.map(d => `<option value="${d}"${r.set.degreeMode===d?' selected':''}>${d}</option>`).join('');
+    formDiv.appendChild(mkRow('degree mode', degSel));
 
-  // ── Profiles (rich: settings + mappings + timbre) ───────────────────────────
-  function loadProfiles() {
-    try {
-      return JSON.parse(localStorage.getItem('kaaro-daw-profiles') || '{}');
-    } catch { return {}; }
-  }
-  function saveProfiles(p) {
-    try { localStorage.setItem('kaaro-daw-profiles', JSON.stringify(p)); } catch {}
-  }
+    // New spatial axes
+    const panInp = makeNumInp('inp-pan', 'pan -1..1', r.set.pan);
+    panInp.step = '0.05'; panInp.min = '-1'; panInp.max = '1';
+    formDiv.appendChild(mkRow('pan', panInp));
 
-  function renderProfiles() {
-    const box = document.getElementById('profile-list');
-    if (!box) return;
-    const profs = loadProfiles();
-    box.innerHTML = '';
-    Object.keys(profs).forEach(name => {
-      const b = document.createElement('button');
-      b.className = 'btn';
-      b.textContent = name;
-      b.onclick = () => applyProfile(name, profs[name]);
-      box.appendChild(b);
-    });
-    if (!Object.keys(profs).length) {
-      box.innerHTML = '<span style="color:#334">no saved profiles yet</span>';
-    }
-  }
+    const sendInp = makeNumInp('inp-send', 'reverb 0..1', r.set.send);
+    sendInp.step = '0.05'; sendInp.min = '0'; sendInp.max = '1';
+    formDiv.appendChild(mkRow('reverb send', sendInp));
 
-  function applyProfile(name, data) {
-    if (!data) return;
-    // Merge into the live windows
-    if (data.settings) window.updateAudioSettings(data.settings);
-    if (data.profile) window.updateAudioProfile(data.profile);
-    document.getElementById('profile-name').textContent = name.toUpperCase();
-    renderMappings();
-    // push bpm etc if present
-    if (data.profile && data.profile.bpm && window.setClickTrack) {
-      // restart click if on
-    }
-  }
+    const briInp = makeNumInp('inp-bri', 'Hz 100-12000', r.set.brightness);
+    briInp.step = '100'; briInp.min = '100'; briInp.max = '12000';
+    formDiv.appendChild(mkRow('brightness', briInp));
 
-  function wireProfiles() {
-    const saveBtn = document.getElementById('btn-save-profile');
-    const nameIn = document.getElementById('profile-save-name');
-    if (!saveBtn || !nameIn) return;
+    const btnRow = document.createElement('div'); btnRow.className = 'btn-row'; btnRow.style.marginTop = '8px';
+    const saveBtn = document.createElement('button'); saveBtn.className = 'btn primary'; saveBtn.textContent = 'SAVE';
+    const cancelBtn = document.createElement('button'); cancelBtn.className = 'btn'; cancelBtn.textContent = 'CANCEL';
+    btnRow.appendChild(saveBtn); btnRow.appendChild(cancelBtn);
+    formDiv.appendChild(btnRow);
+
+    const readChips = id => Array.from(formDiv.querySelectorAll(`#${id} .chip.on`)).map(c => c.textContent);
 
     saveBtn.onclick = () => {
-      const nm = (nameIn.value || 'untitled').trim();
-      if (!nm) return;
-      const profs = loadProfiles();
-      profs[nm] = {
-        settings: JSON.parse(JSON.stringify(window.AUDIO_SETTINGS || {})),
-        profile: JSON.parse(JSON.stringify(window.AUDIO_PROFILE || {})),
-        savedAt: new Date().toISOString(),
-      };
-      saveProfiles(profs);
-      renderProfiles();
-      document.getElementById('profile-name').textContent = nm.toUpperCase();
-      nameIn.value = '';
+      const match = {};
+      const fam = readChips('mf'); if (fam.length) match.family = fam.length === 1 ? fam[0] : fam;
+      const key = readChips('mk'); if (key.length) match.key    = key.length === 1 ? key[0] : key;
+      const h   = readChips('mh'); if (h.length)   match.harness = h.length === 1 ? h[0] : h;
+      const wc  = whereInp.value.trim(); if (wc) match.whereContains = wc;
+      const wm  = parseInt(wminInp.value, 10); if (!isNaN(wm)) match.wordMin = wm;
+      const om  = parseInt(ominInp.value, 10); if (!isNaN(om)) match.outMin = om;
+
+      const set = {};
+      if (instSel.value)                 set.instrument  = instSel.value;
+      const vv = parseFloat(volInp.value); if (!isNaN(vv)) set.volMult   = vv;
+      const ov = parseInt(octInp.value, 10); if (!isNaN(ov)) set.octave  = ov;
+      if (degSel.value)                  set.degreeMode  = degSel.value;
+      const pv = parseFloat(panInp.value);  if (!isNaN(pv)) set.pan       = pv;
+      const sv = parseFloat(sendInp.value); if (!isNaN(sv)) set.send      = sv;
+      const bv = parseFloat(briInp.value);  if (!isNaN(bv)) set.brightness = bv;
+
+      const prof = window.AUDIO_PROFILE; if (!prof.mappings) prof.mappings = [];
+      const newRule = { match, set };
+      if (S.editingRuleIdx != null) prof.mappings[S.editingRuleIdx] = newRule;
+      else prof.mappings.push(newRule);
+      S.editingRuleIdx = null;
+      window.updateAudioProfile({ mappings: prof.mappings });
+      renderTab('map');
     };
 
-    // quick export / import of the active profile
-    const exp = document.getElementById('btn-export');
-    if (exp) exp.onclick = () => {
-      const blob = new Blob([JSON.stringify({
-        settings: window.AUDIO_SETTINGS,
-        profile: window.AUDIO_PROFILE,
-      }, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'kaaro-audio-profile.json';
-      a.click();
-    };
-
-    const imp = document.getElementById('btn-import');
-    if (imp) imp.onclick = () => {
-      const ta = prompt('Paste JSON profile (or leave empty to cancel)');
-      if (!ta) return;
-      try {
-        const j = JSON.parse(ta);
-        if (j.settings) window.updateAudioSettings(j.settings);
-        if (j.profile) window.updateAudioProfile(j.profile);
-        document.getElementById('profile-name').textContent = 'IMPORTED';
-        renderMappings();
-      } catch (e) { alert('Bad JSON: ' + e.message); }
-    };
-
-    renderProfiles();
-  }
-
-  // ── Log + helpers ───────────────────────────────────────────────────────────
-  function appendLog(type, data) {
-    const log = document.getElementById('log');
-    if (!log) return;
-    const line = document.createElement('div');
-    line.className = 'log-line';
-    const proj = data.project || '?';
-    const tool = data.tool || type;
-    const extra = data.where ? ' ' + String(data.where).slice(0, 28) : '';
-    line.innerHTML = `<span class="t">${new Date().toLocaleTimeString().slice(0,8)}</span> ` +
-      `<span class="proj">${proj}</span> <span class="tool">${tool}</span>${extra}`;
-    log.appendChild(line);
-    while (log.children.length > 120) log.removeChild(log.firstChild);
-    log.scrollTop = log.scrollHeight;
+    cancelBtn.onclick = () => { S.editingRuleIdx = null; renderTab('map'); };
   }
 
   function captureEventForMapping(ev) {
-    // Pre-fill the rule form from a real (or simulated) event
-    const form = document.getElementById('rule-form');
-    if (!form) return;
-
-    const key = (ev.type === 'tool_call')
-      ? (ev.tool || '').toLowerCase() === 'write' ? 'write'
-      : (ev.tool || '').toLowerCase() === 'edit' ? 'edit'
-      : (ev.tool || '').toLowerCase() === 'read' ? 'read'
-      : (ev.tool || '').toLowerCase() === 'agent' ? 'agent' : 'other'
-      : ev.type;
-
-    const fam = (window.TOOL_FAMILY || {})[key] || (ev.type === 'tokens' ? 'context' : ev.type === 'words' ? 'context' : 'ai');
-
-    _editingRule = {
-      match: { key, family: fam },
+    S.editingRuleIdx = null;
+    renderTab('map');
+    const body = document.getElementById('tab-body'); if (!body) return;
+    const prefill = {
+      match: {
+        key:    ev.key    || undefined,
+        family: ev.family || undefined,
+        harness:ev.harness|| undefined,
+      },
       set: {},
-      _fromEvent: ev,
     };
-    showRuleForm(_editingRule);
-
-    // Also scroll the side into view
-    const side = document.getElementById('side');
-    if (side) side.scrollTop = 40;
+    showRuleForm(body, prefill);
+    // Scroll panel to form
+    const form = document.getElementById('rule-form');
+    if (form) form.scrollIntoView({ behavior: 'smooth' });
   }
 
-  function wireGlobalKeys() {
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') {
-        _scrollPx = 0; _setLive(true);
-        const form = document.getElementById('rule-form');
-        if (form) form.style.display = 'none';
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'enter') {
-        const emit = document.getElementById('btn-emit');
-        if (emit) emit.click();
-      }
-    });
+  // ── SYNTH tab ──────────────────────────────────────────────────────────────────
+  const SYNTH_KEYS = [
+    ['read','Read'], ['write','Write'], ['edit','Edit'],
+    ['bash_git','Bash (git)'], ['bash_run','Bash (run)'], ['bash_other','Bash (other)'],
+    ['grep_glob','Grep/Glob'], ['agent','Agent'], ['other','Other'],
+    ['tokens','Tokens'], ['words','Words'],
+  ];
 
-    // BPM slider in hud
-    const bpmS = document.getElementById('daw-bpm');
-    const bpmV = document.getElementById('daw-bpm-val');
-    if (bpmS && bpmV) {
-      bpmS.oninput = () => {
-        const v = parseInt(bpmS.value, 10);
-        bpmV.textContent = v;
+  function buildSynthTab(body) {
+    const S2 = window.AUDIO_SETTINGS || {};
+
+    body.innerHTML += '<div class="sec-head">Instruments</div>';
+    const instTable = document.createElement('div');
+    SYNTH_KEYS.forEach(([key, label]) => {
+      const row = document.createElement('div'); row.className = 'inst-row';
+      const lbl = document.createElement('div'); lbl.className = 'inst-key'; lbl.textContent = label;
+      const sel = document.createElement('select'); sel.className = 'inp inst-sel';
+      sel.innerHTML = ['harp','bass','bell','flute','bit','pling','snare','kick','hat','off']
+        .map(n => `<option value="${n}"${S2.instruments?.[key]===n?' selected':''}>${n}</option>`).join('');
+      sel.onchange = () => {
+        const patch = { instruments: {} }; patch.instruments[key] = sel.value;
+        if (window.updateAudioSettings) window.updateAudioSettings(patch);
+      };
+      const prev = document.createElement('button'); prev.className = 'btn inst-prev'; prev.textContent = '▶';
+      prev.onclick = () => { if (window.previewInstrument) window.previewInstrument(sel.value); };
+      row.appendChild(lbl); row.appendChild(sel); row.appendChild(prev);
+      instTable.appendChild(row);
+    });
+    body.appendChild(instTable);
+
+    body.innerHTML += '<div class="sec-head" style="margin-top:10px">Scale · Note</div>';
+
+    const scaleRow = document.createElement('div'); scaleRow.className = 'row';
+    scaleRow.innerHTML = '<label>scale</label>';
+    const scaleSel = document.createElement('select'); scaleSel.className = 'inp';
+    const scaleOpts = [
+      ['major_pentatonic','Maj Pentatonic'], ['minor_pentatonic','Min Pentatonic'],
+      ['blues','Blues'], ['major','Major'], ['dorian','Dorian'],
+    ];
+    scaleSel.innerHTML = scaleOpts.map(([v,l]) => `<option value="${v}"${S2.scale===v?' selected':''}>${l}</option>`).join('');
+    scaleSel.onchange = () => {
+      if (window.updateAudioSettings) window.updateAudioSettings({ scale: scaleSel.value });
+      const hdrSel = document.getElementById('daw-scale');
+      if (hdrSel) hdrSel.value = scaleSel.value;
+    };
+    scaleRow.appendChild(scaleSel); body.appendChild(scaleRow);
+
+    const noteRow = document.createElement('div'); noteRow.className = 'row';
+    noteRow.innerHTML = '<label>note mode</label>';
+    const noteSel = document.createElement('select'); noteSel.className = 'inp';
+    noteSel.innerHTML = [
+      ['path_hash','Path hash'], ['sequential','Sequential'], ['random','Random'], ['root','Root only'],
+    ].map(([v,l]) => `<option value="${v}"${S2.noteMode===v?' selected':''}>${l}</option>`).join('');
+    noteSel.onchange = () => { if (window.updateAudioSettings) window.updateAudioSettings({ noteMode: noteSel.value }); };
+    noteRow.appendChild(noteSel); body.appendChild(noteRow);
+
+    body.innerHTML += '<div class="sec-head" style="margin-top:10px">Metronome</div>';
+    const clickRow = document.createElement('div'); clickRow.className = 'row';
+    clickRow.innerHTML = '<label>click track</label>';
+    const clickBtn = document.createElement('button');
+    const clickOn = S2.clickTrack;
+    clickBtn.className = 'btn' + (clickOn ? ' on' : ''); clickBtn.textContent = clickOn ? 'ON' : 'OFF';
+    clickBtn.onclick = () => {
+      const nowOn = !window.AUDIO_SETTINGS.clickTrack;
+      clickBtn.textContent = nowOn ? 'ON' : 'OFF';
+      clickBtn.className = 'btn' + (nowOn ? ' on' : '');
+      if (window.setClickTrack) window.setClickTrack(nowOn, true);
+    };
+    clickRow.appendChild(clickBtn); body.appendChild(clickRow);
+  }
+
+  // ── SIM tab ────────────────────────────────────────────────────────────────────
+  function buildSimTab(body) {
+    body.innerHTML = `
+      <div class="sec-head">Event Simulator</div>
+      <div class="row"><label>type</label>
+        <select id="sim-type" class="inp">
+          <option>tool_call</option><option>tokens</option><option>words</option>
+        </select>
+      </div>
+      <div class="row"><label>harness</label>
+        <select id="sim-harness" class="inp">
+          <option>claude-code</option><option>pi</option><option>antigravity</option><option>grok</option>
+        </select>
+      </div>
+      <div class="row"><label>project</label><input id="sim-project" class="inp" value="demo"></div>
+      <div class="row"><label>tool</label><input id="sim-tool" class="inp" value="Write"></div>
+      <div class="row"><label>where</label><input id="sim-where" class="inp" value="src/app.js"></div>
+      <div class="row"><label>category</label>
+        <select id="sim-cat" class="inp"><option value="">—</option><option>git</option><option>npm</option><option>fs</option><option>other</option></select>
+      </div>
+      <div class="row">
+        <label>out / words</label>
+        <input id="sim-out"   class="inp inp-sm" type="number" value="180">
+        <input id="sim-words" class="inp inp-sm" type="number" value="24">
+      </div>
+      <div class="row">
+        <label>cache_read</label>
+        <input id="sim-cache" class="inp inp-sm" type="number" value="0" title="Simulates cache_read tokens (high=dull brightness)">
+      </div>
+      <button class="btn primary" id="btn-emit" style="width:100%;margin:8px 0">EMIT ▶ hear + visualize</button>
+      <div id="sim-resolved" style="font-size:8px;color:#334;margin-top:4px;"></div>
+      <div id="sim-log" style="font-size:8px;color:#445;margin-top:8px;max-height:120px;overflow:auto;"></div>`;
+
+    const $ = id => document.getElementById(id);
+
+    $('btn-emit').onclick = () => {
+      const type    = $('sim-type').value;
+      const harness = $('sim-harness').value;
+      const project = $('sim-project').value || 'demo';
+      const tool    = $('sim-tool').value || 'Write';
+      const where   = $('sim-where').value;
+      const cat     = $('sim-cat').value;
+      const output  = parseInt($('sim-out').value, 10)   || 0;
+      const words   = parseInt($('sim-words').value, 10) || 0;
+      const cache   = parseInt($('sim-cache').value, 10) || 0;
+
+      const data = { project, harness, tool, where, category: cat, output, word_count: words,
+                     cache_read: cache, ts: Date.now(), slug: 'sim-' + Math.random().toString(36).slice(2, 8) };
+
+      if (window.playPulse) window.playPulse(type, data);
+
+      // Show resolved sonic axes
+      if (window.resolveSonicForEvent) {
+        const r = window.resolveSonicForEvent(type, data);
+        $('sim-resolved').textContent =
+          `→ inst:${r.instrument}  pan:${(r.pan||0).toFixed(2)}  bri:${r.brightness}Hz  send:${(r.sendAmt||0).toFixed(2)}  key:${r.key}`;
+      }
+
+      // Log
+      const logDiv = $('sim-log');
+      const line = document.createElement('div');
+      line.style.padding = '1px 0'; line.style.borderBottom = '1px dotted #0e0e22';
+      line.textContent = new Date().toLocaleTimeString() + '  ' + type + '  ' + tool + '  ' + project;
+      logDiv.appendChild(line);
+      while (logDiv.children.length > 30) logDiv.removeChild(logDiv.firstChild);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    };
+  }
+
+  // ── PROF tab ───────────────────────────────────────────────────────────────────
+  const PROF_KEY = 'kaaro-daw-profiles';
+
+  function _loadProfiles() { try { return JSON.parse(localStorage.getItem(PROF_KEY) || '{}'); } catch { return {}; } }
+  function _saveProfiles(p) { try { localStorage.setItem(PROF_KEY, JSON.stringify(p)); } catch {} }
+
+  function buildProfTab(body) {
+    body.innerHTML = '<div class="sec-head">Audio Profiles</div>';
+
+    const listDiv = document.createElement('div'); listDiv.id = 'prof-list';
+    _renderProfList(listDiv); body.appendChild(listDiv);
+
+    body.innerHTML += '<div class="sec-head" style="margin-top:10px">Save</div>';
+    const saveRow = document.createElement('div'); saveRow.style.display = 'flex'; saveRow.style.gap = '4px';
+    const nameInp = document.createElement('input'); nameInp.className = 'inp'; nameInp.placeholder = 'profile name';
+    const saveBtn = document.createElement('button'); saveBtn.className = 'btn primary'; saveBtn.textContent = 'SAVE';
+    saveBtn.onclick = () => {
+      const nm = (nameInp.value || 'untitled').trim();
+      const profs = _loadProfiles();
+      profs[nm] = {
+        settings: JSON.parse(JSON.stringify(window.AUDIO_SETTINGS || {})),
+        profile:  JSON.parse(JSON.stringify(window.AUDIO_PROFILE  || {})),
+        savedAt:  new Date().toISOString(),
+      };
+      _saveProfiles(profs); nameInp.value = '';
+      _renderProfList(listDiv);
+    };
+    saveRow.appendChild(nameInp); saveRow.appendChild(saveBtn); body.appendChild(saveRow);
+
+    body.innerHTML += '<div class="sec-head" style="margin-top:10px">Export / Import</div>';
+    const ioRow = document.createElement('div'); ioRow.className = 'btn-row';
+    const expBtn = document.createElement('button'); expBtn.className = 'btn'; expBtn.textContent = 'EXPORT JSON';
+    expBtn.onclick = () => {
+      const blob = new Blob([JSON.stringify({
+        settings: window.AUDIO_SETTINGS, profile: window.AUDIO_PROFILE,
+      }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'kaaro-audio-profile.json'; a.click();
+    };
+    const impBtn = document.createElement('button'); impBtn.className = 'btn'; impBtn.textContent = 'IMPORT JSON';
+    impBtn.onclick = () => {
+      const txt = prompt('Paste JSON profile:'); if (!txt) return;
+      try {
+        const j = JSON.parse(txt);
+        if (j.settings && window.updateAudioSettings) window.updateAudioSettings(j.settings);
+        if (j.profile  && window.updateAudioProfile)  window.updateAudioProfile(j.profile);
+        renderTab('prof');
+      } catch (e) { alert('Parse error: ' + e.message); }
+    };
+    ioRow.appendChild(expBtn); ioRow.appendChild(impBtn); body.appendChild(ioRow);
+  }
+
+  function _renderProfList(listDiv) {
+    listDiv.innerHTML = '';
+    const profs = _loadProfiles();
+    const names = Object.keys(profs);
+    if (!names.length) {
+      listDiv.innerHTML = '<div style="color:#334;font-size:9px;padding:4px 0">No saved profiles yet.</div>';
+      return;
+    }
+    names.forEach(nm => {
+      const row = document.createElement('div'); row.style.display = 'flex'; row.style.gap = '4px'; row.style.marginBottom = '3px';
+      const loadBtn = document.createElement('button'); loadBtn.className = 'btn prof-btn'; loadBtn.style.flex = '1';
+      loadBtn.textContent = nm;
+      loadBtn.onclick = () => {
+        const p = profs[nm];
+        if (p.settings && window.updateAudioSettings) window.updateAudioSettings(p.settings);
+        if (p.profile  && window.updateAudioProfile)  window.updateAudioProfile(p.profile);
+        renderTab('synth');
+      };
+      const delBtn = document.createElement('button'); delBtn.className = 'btn danger'; delBtn.textContent = '✕';
+      delBtn.onclick = () => { delete profs[nm]; _saveProfiles(profs); _renderProfList(listDiv); };
+      row.appendChild(loadBtn); row.appendChild(delBtn); listDiv.appendChild(row);
+    });
+  }
+
+  // ── Header controls ───────────────────────────────────────────────────────────
+  let _tapTimes = [];
+
+  function wireHeaderControls() {
+    const bpmSlider = document.getElementById('daw-bpm');
+    const bpmVal    = document.getElementById('daw-bpm-val');
+    const tapBtn    = document.getElementById('daw-tap');
+    const scaleSel  = document.getElementById('daw-scale');
+    const windowSel = document.getElementById('daw-window');
+    const liveBtn   = document.getElementById('daw-live-btn');
+    const clearBtn  = document.getElementById('daw-clear');
+    const muteBtn   = document.getElementById('btn-mute');
+
+    if (bpmSlider) {
+      const cur = (window.AUDIO_SETTINGS?.bpm || 120);
+      bpmSlider.value = cur; if (bpmVal) bpmVal.textContent = cur;
+      bpmSlider.oninput = () => {
+        const v = parseInt(bpmSlider.value, 10);
+        if (bpmVal) bpmVal.textContent = v;
         if (window.updateAudioSettings) window.updateAudioSettings({ bpm: v });
       };
-      // seed
-      bpmS.value = (window.AUDIO_SETTINGS && window.AUDIO_SETTINGS.bpm) || 120;
-      bpmV.textContent = bpmS.value;
     }
-    const tap = document.getElementById('daw-tap');
-    if (tap) {
-      let taps = [];
-      tap.onclick = () => {
+
+    if (tapBtn) {
+      tapBtn.onclick = () => {
         const now = Date.now();
-        taps = taps.filter(t => now - t < 2200).concat(now);
-        if (taps.length >= 2) {
-          const diffs = taps.slice(1).map((t, i) => t - taps[i]);
-          const avg = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-          const bpm = Math.max(40, Math.min(240, Math.round(60000 / avg)));
-          if (bpmS) bpmS.value = bpm;
-          if (bpmV) bpmV.textContent = bpm;
+        _tapTimes = _tapTimes.filter(t => now - t < 3000).concat(now);
+        if (_tapTimes.length >= 2) {
+          const diffs = _tapTimes.slice(1).map((t, i) => t - _tapTimes[i]);
+          const avg   = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+          const bpm   = Math.max(40, Math.min(240, Math.round(60000 / avg)));
+          if (bpmSlider) bpmSlider.value = bpm;
+          if (bpmVal) bpmVal.textContent = bpm;
           if (window.updateAudioSettings) window.updateAudioSettings({ bpm });
         }
       };
     }
 
-    const liveBtn = document.getElementById('daw-live-btn');
-    if (liveBtn) liveBtn.onclick = () => { _scrollPx = 0; _setLive(true); };
+    if (scaleSel) {
+      const cur = window.AUDIO_SETTINGS?.scale || 'major_pentatonic';
+      scaleSel.value = cur;
+      scaleSel.onchange = () => { if (window.updateAudioSettings) window.updateAudioSettings({ scale: scaleSel.value }); };
+    }
 
-    const clr = document.getElementById('daw-clear-btn');
-    if (clr) clr.onclick = () => {
-      if (window._beatRing) window._beatRing.length = 0;
-    };
+    if (windowSel) {
+      windowSel.value = String(S.windowMs);
+      windowSel.onchange = () => { S.windowMs = parseInt(windowSel.value, 10); };
+    }
+
+    if (liveBtn) liveBtn.onclick = () => { S.scrollMs = 0; setLive(true); };
+    if (clearBtn) clearBtn.onclick = () => { if (window._beatRing) window._beatRing.length = 0; };
+
+    if (muteBtn) {
+      const syncMuteBtn = () => {
+        const isMuted = window._getAudioMuted ? window._getAudioMuted() : true;
+        muteBtn.textContent = isMuted ? '♪ OFF' : '♪ ON';
+        muteBtn.className = 'hdr-btn' + (isMuted ? '' : ' on');
+      };
+      syncMuteBtn();
+      muteBtn.onclick = () => {
+        if (window._setAudioMuted) {
+          const isMuted = window._getAudioMuted ? window._getAudioMuted() : true;
+          window._setAudioMuted(!isMuted);
+          setTimeout(syncMuteBtn, 20);
+        }
+      };
+    }
   }
 
-  // ── Boot the builder experience ─────────────────────────────────────────────
-  function bootBuilder() {
-    // 1. Live connection (or simulator fallback)
-    connectLive();
+  // ── Live SSE connection ───────────────────────────────────────────────────────
+  function connectLive() {
+    const statusEl = document.getElementById('daw-status');
+    if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') {
+      if (statusEl) statusEl.textContent = 'OFFLINE — use SIM tab';
+      return;
+    }
+    try {
+      const es = new EventSource('/events');
+      es.addEventListener('tool_call', e => { try { if (window.playPulse) window.playPulse('tool_call', JSON.parse(e.data)); } catch {} });
+      es.addEventListener('tokens',    e => { try { if (window.playPulse) window.playPulse('tokens',    JSON.parse(e.data)); } catch {} });
+      es.addEventListener('words',     e => { try { if (window.playPulse) window.playPulse('words',     JSON.parse(e.data)); } catch {} });
+      es.onopen  = () => { if (statusEl) statusEl.textContent = 'LIVE /events'; };
+      es.onerror = () => { if (statusEl) statusEl.textContent = 'reconnecting…'; };
+    } catch { if (statusEl) statusEl.textContent = 'SSE failed — use SIM'; }
+  }
 
-    // 2. Big canvas DAW
-    resizeCanvas();
-    setupCanvasInput();
-    requestAnimationFrame(draw);
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────────
+  function wireKeys() {
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape')          { S.scrollMs = 0; setLive(true); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') document.getElementById('btn-emit')?.click();
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+        if (S.hovered?.family) toggleMute(S.hovered.family);
+      }
+      if (e.key.toLowerCase() === 's' && !e.ctrlKey && !e.metaKey && S.hovered?.family) {
+        toggleSolo(S.hovered.family);
+      }
+    });
+  }
 
-    // 3. Mapping UI
-    wireMappingUI();
-
-    // 4. Simulator
-    wireSimulator();
-
-    // 5. Timbre lab (lightweight live overrides)
-    wireTimbreLab();
-
-    // 6. Profiles
-    wireProfiles();
-
-    // 7. Keys + misc
-    wireGlobalKeys();
-
-    // Seed a couple of example mappings the first time someone opens the builder
+  // ── Seed default mappings if empty ───────────────────────────────────────────
+  function seedDefaultMappings() {
     const prof = window.AUDIO_PROFILE || {};
-    if (!prof.mappings || prof.mappings.length === 0) {
-      prof.mappings = [
-        { match: { key: 'write' }, set: { instrument: 'bass', volMult: 1.15 } },
-        { match: { family: 'context', type: 'tokens' }, set: { volMult: 0.7, octave: -1 } },
-        { match: { key: 'agent' }, set: { instrument: 'bell', octave: 1 } },
-      ];
-      window.updateAudioProfile({ mappings: prof.mappings });
-      renderMappings();
-    }
-
-    // Make sure the ring is the one 14 is using
-    if (!window._beatRing) window._beatRing = [];
-
-    // Initial status
-    const st = document.getElementById('daw-status');
-    if (st && st.textContent.indexOf('LIVE') === -1) {
-      st.textContent = 'READY — emit or wait for real pulses';
-    }
-
-    // Expose a couple of helpers on window for power users / console
-    window.emitPulse = (type, data) => _onPulse(type, data || {});
-    window.captureLastForMapping = () => {
-      const ring = window._beatRing || [];
-      if (ring.length) captureEventForMapping(ring[ring.length - 1]);
-    };
-
-    console.log('%c[kaaro-daw] Full builder ready — live event stream + sonic axis mapping', 'color:#4455aa');
+    if (prof.mappings && prof.mappings.length > 0) return;
+    prof.mappings = [
+      { match: { key: 'write' },  set: { instrument: 'bass',  volMult: 1.15 } },
+      { match: { key: 'agent' },  set: { instrument: 'bell',  octave: 1, send: 0.4 } },
+      { match: { type: 'tokens'}, set: { volMult: 0.7, octave: -1 } },
+    ];
+    if (window.updateAudioProfile) window.updateAudioProfile({ mappings: prof.mappings });
   }
 
-  // kick off
-  bootBuilder();
+  // ── Boot ──────────────────────────────────────────────────────────────────────
+  function boot() {
+    resizeBothCanvases();
+    window.addEventListener('resize', () => { resizeBothCanvases(); _dawCtx = null; _autoCtx = null; });
+
+    buildMixerStrips();
+    setupCanvasInput();
+    wireHeaderControls();
+    wireTabs();
+    wireKeys();
+    renderTab('map');
+    connectLive();
+    seedDefaultMappings();
+
+    // Expose for console power users
+    window.MIXER_STATE   = S.mixer;
+    window.emitPulse     = (type, data) => { if (window.playPulse) window.playPulse(type, data || {}); };
+    window.captureHovered = () => { if (S.hovered) captureEventForMapping(S.hovered); };
+
+    requestAnimationFrame(drawDaw);
+    requestAnimationFrame(drawAuto);
+
+    console.log('%c[kaaro-daw] Cognitive DAW v2 ready — 4 family lanes · reverb · stereo · pressure automation', 'color:#4455cc');
+  }
+
+  boot();
 })();

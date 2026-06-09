@@ -127,7 +127,7 @@ test('recordsToNormalized — Grok no turnStartMs chunks do not cause turn count
   assert.ok(contentBlockCount >= 2);
 });
 
-test('tool_use NR has canonical key field', () => {
+test('tool_use NR has category for bash tools; key is NOT set by adapter', () => {
   const records = [
     {
       method: 'session/update',
@@ -144,8 +144,11 @@ test('tool_use NR has canonical key field', () => {
   ];
   const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
   assert.equal(nrs.length, 2);
-  assert.equal(nrs[0].key, 'bash_run');
-  assert.equal(nrs[1].key, 'read');
+  assert.equal(nrs[0].category, 'node'); // Shell + node --test
+  assert.equal(nrs[1].category, null);        // Read — not bash
+  // Sonic key is NOT derived by adapters
+  assert.equal(nrs[0].key, undefined);
+  assert.equal(nrs[1].key, undefined);
 });
 
 test('content_block text NR carries text field', () => {

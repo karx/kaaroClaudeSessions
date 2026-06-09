@@ -4,7 +4,6 @@
  * Converts Pi JSONL records → NormalizedRecord[].
  */
 
-import { toolNameToKey } from '../lib/event-types.mjs';
 import { categorizeBash } from '../lib/analyze-helpers.mjs';
 
 const HARNESS = 'pi';
@@ -82,8 +81,7 @@ export function recordsToNormalized(records) {
           const category = isBash ? categorizeBash(args.command) : null;
           out.push({
             kind: 'tool_use', harness: HARNESS, ts,
-            tool: name,
-            key:  toolNameToKey(name, category),
+            tool: name, category,
             input: {
               file_path: args.path,
               path:      args.path,

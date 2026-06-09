@@ -20,9 +20,9 @@ const TS = '2026-06-09T10:00:00.000Z';
 
 // ── tool_use → tool_call pulse ───────────────────────────────────────────────
 
-test('tool_use NR → tool_call pulse with canonical key', () => {
+test('tool_use NR → tool_call pulse with canonical key derived by transformer', () => {
   const nrs = [{ kind: 'tool_use', harness: 'claude-code', ts: TS,
-    tool: 'Read', key: 'read', input: { file_path: 'src/index.mjs' } }];
+    tool: 'Read', input: { file_path: 'src/index.mjs' } }];
   const pulses = normRecordsToPulses(nrs, CTX);
   assert.equal(pulses.length, 1);
   assert.equal(pulses[0].event, 'tool_call');
@@ -32,9 +32,23 @@ test('tool_use NR → tool_call pulse with canonical key', () => {
   assert.equal(pulses[0].data.harness, CTX.harness);
 });
 
+test('tool_use NR key derived from tool+category by transformer', () => {
+  const nrs = [
+    { kind: 'tool_use', harness: 'claude-code', ts: TS, tool: 'Read',       input: {} },
+    { kind: 'tool_use', harness: 'claude-code', ts: TS, tool: 'Bash', category: 'git',  input: {} },
+    { kind: 'tool_use', harness: 'claude-code', ts: TS, tool: 'Bash', category: 'node', input: {} },
+    { kind: 'tool_use', harness: 'claude-code', ts: TS, tool: 'Bash', category: 'fs',   input: {} },
+    { kind: 'tool_use', harness: 'claude-code', ts: TS, tool: 'Agent',      input: {} },
+    { kind: 'tool_use', harness: 'claude-code', ts: TS, tool: 'WebFetch',   input: {} },
+  ];
+  const pulses = normRecordsToPulses(nrs, CTX);
+  const keys = pulses.map(p => p.data.key);
+  assert.deepEqual(keys, ['read', 'bash_git', 'bash_run', 'bash_other', 'agent', 'web']);
+});
+
 test('tool_use NR → tool_call pulse preserves where from file_path', () => {
   const nrs = [{ kind: 'tool_use', harness: 'claude-code', ts: TS,
-    tool: 'Write', key: 'write', input: { file_path: 'out/result.mjs' } }];
+    tool: 'Write', input: { file_path: 'out/result.mjs' } }];
   const [pulse] = normRecordsToPulses(nrs, CTX);
   assert.equal(pulse.data.where, 'out/result.mjs');
 });
@@ -154,7 +168,7 @@ test('unmapped NR kind → unknown pulse (catch-all never drops)', () => {
 
 test('every NR in a mixed batch emits ≥1 pulse', () => {
   const nrs = [
-    { kind: 'tool_use', harness: 'claude-code', ts: TS, tool: 'Read', key: 'read', input: {} },
+    { kind: 'tool_use', harness: 'claude-code', ts: TS, tool: 'Read', input: {} },
     { kind: 'tokens', harness: 'claude-code', ts: TS, tokens: { input: 100, output: 50, cache_create: 0, cache_read: 0 } },
     { kind: 'user_turn', harness: 'claude-code', ts: TS, text: 'Do this please' },
     { kind: 'context_reset', harness: 'claude-code', ts: TS },

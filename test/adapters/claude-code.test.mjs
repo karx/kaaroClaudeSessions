@@ -61,23 +61,28 @@ test('recordsToNormalized — emits expected kinds', () => {
   assert.ok(kinds.filter(k => k === 'tool_use').length >= 3);
 });
 
-test('tool_use NR has canonical key field', () => {
+test('tool_use NR has category for bash tools; key is NOT set by adapter', () => {
   const records = [{
     type: 'assistant', timestamp: '2026-06-09T10:00:00.000Z',
     message: { content: [
-      { type: 'tool_use', name: 'Read',       input: { file_path: 'a.mjs' } },
-      { type: 'tool_use', name: 'Write',      input: { file_path: 'b.mjs' } },
-      { type: 'tool_use', name: 'Edit',       input: { file_path: 'c.mjs' } },
-      { type: 'tool_use', name: 'Grep',       input: { pattern: 'foo' } },
-      { type: 'tool_use', name: 'Agent',      input: {} },
-      { type: 'tool_use', name: 'Bash',       input: { command: 'git status' } },
-      { type: 'tool_use', name: 'WebFetch',   input: {} },
-      { type: 'tool_use', name: 'MyCustom',   input: {} },
+      { type: 'tool_use', name: 'Read',     input: { file_path: 'a.mjs' } },
+      { type: 'tool_use', name: 'Bash',     input: { command: 'git status' } },
+      { type: 'tool_use', name: 'Bash',     input: { command: 'node --test' } },
+      { type: 'tool_use', name: 'Bash',     input: { command: 'ls -la' } },
+      { type: 'tool_use', name: 'Write',    input: { file_path: 'b.mjs' } },
     ]},
   }];
   const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
-  const keys = nrs.map(r => r.key);
-  assert.deepEqual(keys, ['read','write','edit','grep_glob','agent','bash_git','web','other']);
+  // Non-bash tools: no category
+  assert.equal(nrs[0].category, null);  // Read
+  assert.equal(nrs[4].category, null);  // Write
+  // Bash tools carry structural bash category
+  assert.equal(nrs[1].category, 'git');
+  assert.equal(nrs[2].category, 'node');
+  assert.equal(nrs[3].category, 'fs');
+  // Sonic key is NOT derived by adapters (sonic domain belongs to resolveSonic/transformer)
+  assert.equal(nrs[0].key, undefined);
+  assert.equal(nrs[1].key, undefined);
 });
 
 test('content_block text NR carries text field', () => {

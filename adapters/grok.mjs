@@ -7,7 +7,6 @@
 import {
   grokRecordTs, grokSessionUpdate, isGrokToolFailure,
 } from '../lib/grok-helpers.mjs';
-import { toolNameToKey } from '../lib/event-types.mjs';
 import { categorizeBash } from '../lib/analyze-helpers.mjs';
 
 const HARNESS = 'grok';
@@ -62,8 +61,7 @@ export function recordsToNormalized(records) {
       toolTitles.set(upd.toolCallId, title);
       out.push({
         kind: 'tool_use', harness: HARNESS, ts,
-        tool: title,
-        key:  toolNameToKey(title, category),
+        tool: title, category,
         input: {
           file_path: raw.path || raw.file_path,
           command:   raw.command,

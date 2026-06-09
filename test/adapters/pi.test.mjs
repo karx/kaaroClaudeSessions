@@ -50,22 +50,25 @@ test('recordsToNormalized — emits expected kinds', () => {
   assert.ok(kinds.filter(k => k === 'tool_use').length >= 2);
 });
 
-test('tool_use NR has canonical key field', () => {
+test('tool_use NR has category for bash tools; key is NOT set by adapter', () => {
   const records = [{
     type: 'message', id: 'a01', timestamp: '2026-06-09T10:00:00.000Z',
     message: {
       role: 'assistant',
       content: [
-        { type: 'toolCall', id: 'tc01', name: 'read',  arguments: { path: 'a.mjs' } },
-        { type: 'toolCall', id: 'tc02', name: 'bash',  arguments: { command: 'git status' } },
-        { type: 'toolCall', id: 'tc03', name: 'write', arguments: { path: 'b.mjs' } },
-        { type: 'toolCall', id: 'tc04', name: 'glob',  arguments: { pattern: '**/*.mjs' } },
+        { type: 'toolCall', id: 'tc01', name: 'read', arguments: { path: 'a.mjs' } },
+        { type: 'toolCall', id: 'tc02', name: 'bash', arguments: { command: 'git status' } },
+        { type: 'toolCall', id: 'tc03', name: 'bash', arguments: { command: 'npm install' } },
       ],
     },
   }];
   const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
-  const keys = nrs.map(r => r.key);
-  assert.deepEqual(keys, ['read', 'bash_git', 'write', 'grep_glob']);
+  assert.equal(nrs[0].category, null);       // read — not bash
+  assert.equal(nrs[1].category, 'git');       // bash + git status
+  assert.equal(nrs[2].category, 'npm'); // bash + npm install
+  // Sonic key is NOT derived by adapters
+  assert.equal(nrs[0].key, undefined);
+  assert.equal(nrs[1].key, undefined);
 });
 
 test('unknown_record emitted for unrecognised record types', () => {

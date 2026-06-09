@@ -10,7 +10,6 @@ import {
   extractUserMessage,
   REC_TYPE_TO_TOOL,
 } from '../lib/antigravity-helpers.mjs';
-import { toolNameToKey } from '../lib/event-types.mjs';
 import { categorizeBash } from '../lib/analyze-helpers.mjs';
 
 const HARNESS = 'antigravity';
@@ -51,8 +50,7 @@ export function recordsToNormalized(records) {
         const category = isBash ? categorizeBash(command) : null;
         out.push({
           kind: 'tool_use', harness: HARNESS, ts,
-          tool: name,
-          key:  toolNameToKey(name, category),
+          tool: name, category,
           input: {
             file_path:     parseArgValue(args.AbsolutePath || args.TargetFile),
             command,

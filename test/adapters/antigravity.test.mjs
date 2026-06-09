@@ -81,21 +81,25 @@ test('recordsToNormalized — emits expected kinds', () => {
   assert.ok(kinds.includes('tool_result'));
 });
 
-test('tool_use NR has canonical key field', () => {
+test('tool_use NR has category for bash tools; key is NOT set by adapter', () => {
   const records = [{
     source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE',
     created_at: '2026-06-09T10:00:00Z',
     tool_calls: [
-      { name: 'view_file',            args: { AbsolutePath: '"d:\\\\src\\\\a.mjs"' } },
-      { name: 'replace_file_content', args: { AbsolutePath: '"d:\\\\src\\\\b.mjs"' } },
-      { name: 'run_command',          args: { CommandLine: '"git status"', Cwd: '"d:\\\\src"' } },
-      { name: 'grep_search',          args: { Pattern: 'foo' } },
-      { name: 'manage_task',          args: {} },
+      { name: 'view_file',   args: { AbsolutePath: '"d:\\\\src\\\\a.mjs"' } },
+      { name: 'run_command', args: { CommandLine: '"git status"', Cwd: '"d:\\\\src"' } },
+      { name: 'run_command', args: { CommandLine: '"npm test"',   Cwd: '"d:\\\\src"' } },
+      { name: 'grep_search', args: { Pattern: 'foo' } },
     ],
   }];
   const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
-  const keys = nrs.map(r => r.key);
-  assert.deepEqual(keys, ['read', 'edit', 'bash_git', 'grep_glob', 'other']);
+  assert.equal(nrs[0].category, null);       // view_file — not bash
+  assert.equal(nrs[1].category, 'git');   // run_command + git status
+  assert.equal(nrs[2].category, 'npm');   // run_command + npm test
+  assert.equal(nrs[3].category, null);       // grep_search — not bash
+  // Sonic key is NOT derived by adapters
+  assert.equal(nrs[0].key, undefined);
+  assert.equal(nrs[1].key, undefined);
 });
 
 test('scaffold NR emitted for EPHEMERAL_MESSAGE', () => {

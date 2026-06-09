@@ -5,7 +5,6 @@
  */
 
 import { extractTextFromContent, extractSkills, categorizeBash } from '../lib/analyze-helpers.mjs';
-import { toolNameToKey } from '../lib/event-types.mjs';
 
 const HARNESS = 'claude-code';
 
@@ -137,8 +136,7 @@ export function recordsToNormalized(records) {
           const category = isBash ? categorizeBash(block.input?.command) : null;
           out.push({
             kind: 'tool_use', harness: HARNESS, ts,
-            tool: name,
-            key:  toolNameToKey(name, category),
+            tool: name, category,
             input: block.input || {},
           });
         }

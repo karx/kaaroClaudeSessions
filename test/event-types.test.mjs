@@ -132,3 +132,59 @@ test('scaffold — family is system', () => {
 test('unknown — family is meta', () => {
   assert.equal(EVENT_TYPES.unknown.family, 'meta');
 });
+
+// ── toolNameToKey ─────────────────────────────────────────────────────────────
+
+import { toolNameToKey } from '../lib/event-types.mjs';
+
+test('toolNameToKey — CC tool names', () => {
+  assert.equal(toolNameToKey('Read'),        'read');
+  assert.equal(toolNameToKey('Write'),       'write');
+  assert.equal(toolNameToKey('Edit'),        'edit');
+  assert.equal(toolNameToKey('Grep'),        'grep_glob');
+  assert.equal(toolNameToKey('Glob'),        'grep_glob');
+  assert.equal(toolNameToKey('Agent'),       'agent');
+  assert.equal(toolNameToKey('WebFetch'),    'web');
+  assert.equal(toolNameToKey('WebSearch'),   'web');
+  assert.equal(toolNameToKey('Bash', 'git'), 'bash_git');
+  assert.equal(toolNameToKey('Bash', 'node'),'bash_run');
+  assert.equal(toolNameToKey('Bash', 'other'),'bash_other');
+  assert.equal(toolNameToKey('PowerShell', 'git'), 'bash_git');
+  assert.equal(toolNameToKey('Skill'),       'other');
+  assert.equal(toolNameToKey('TaskCreate'),  'other');
+});
+
+test('toolNameToKey — Antigravity tool names', () => {
+  assert.equal(toolNameToKey('view_file'),          'read');
+  assert.equal(toolNameToKey('write_to_file'),      'write');
+  assert.equal(toolNameToKey('replace_file_content'),'edit');
+  assert.equal(toolNameToKey('run_command', 'git'), 'bash_git');
+  assert.equal(toolNameToKey('run_command', 'node'),'bash_run');
+  assert.equal(toolNameToKey('run_command', 'other'),'bash_other');
+  assert.equal(toolNameToKey('grep_search'),        'grep_glob');
+  assert.equal(toolNameToKey('list_dir'),           'grep_glob');
+  assert.equal(toolNameToKey('manage_task'),        'other');
+  assert.equal(toolNameToKey('web_fetch'),          'web');
+  assert.equal(toolNameToKey('web_search'),         'web');
+});
+
+test('toolNameToKey — Grok tool names', () => {
+  assert.equal(toolNameToKey('Shell', 'git'),     'bash_git');
+  assert.equal(toolNameToKey('Shell', 'node'),    'bash_run');
+  assert.equal(toolNameToKey('StrReplace'),       'edit');
+  assert.equal(toolNameToKey('EditNotebook'),     'edit');
+  assert.equal(toolNameToKey('Web search:'),      'web');
+});
+
+test('toolNameToKey — Pi tool names', () => {
+  assert.equal(toolNameToKey('bash', 'git'),  'bash_git');
+  assert.equal(toolNameToKey('read'),         'read');
+  assert.equal(toolNameToKey('write'),        'write');
+  assert.equal(toolNameToKey('glob'),         'grep_glob');
+});
+
+test('toolNameToKey — unknown returns other', () => {
+  assert.equal(toolNameToKey('UnknownTool'), 'other');
+  assert.equal(toolNameToKey(''),            'other');
+  assert.equal(toolNameToKey(null),          'other');
+});

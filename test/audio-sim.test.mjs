@@ -600,6 +600,61 @@ test('resolveSonic CF — web_fetch uses CF preset mapping', () => {
   assert.ok(s.volMult > 0);
 });
 
+// ── New event types (Phase 4 — resolveSonic must handle all, never null) ─────
+
+test('resolveSonic — human_turn → pad instrument, family=human', () => {
+  const s = resolveSonic('human_turn', {}, DEFAULT_SETTINGS, { mappings: [] });
+  assert.ok(s !== null, 'human_turn must return non-null sonic');
+  assert.equal(s.instrument, 'pad');
+  assert.equal(s.fam, 'human');
+});
+
+test('resolveSonic — compact → sweep instrument, family=system', () => {
+  const s = resolveSonic('compact', {}, DEFAULT_SETTINGS, { mappings: [] });
+  assert.ok(s !== null, 'compact must return non-null');
+  assert.equal(s.instrument, 'sweep');
+  assert.equal(s.fam, 'system');
+});
+
+test('resolveSonic — chirp → woodblock instrument, family=context', () => {
+  const s = resolveSonic('chirp', {}, DEFAULT_SETTINGS, { mappings: [] });
+  assert.ok(s !== null, 'chirp must return non-null');
+  assert.equal(s.instrument, 'woodblock');
+  assert.equal(s.fam, 'context');
+});
+
+test('resolveSonic — permission → tick instrument, family=system', () => {
+  const s = resolveSonic('permission', {}, DEFAULT_SETTINGS, { mappings: [] });
+  assert.ok(s !== null, 'permission must return non-null');
+  assert.equal(s.instrument, 'tick');
+});
+
+test('resolveSonic — scaffold → woodblock instrument', () => {
+  const s = resolveSonic('scaffold', {}, DEFAULT_SETTINGS, { mappings: [] });
+  assert.ok(s !== null, 'scaffold must return non-null');
+  assert.equal(s.instrument, 'woodblock');
+});
+
+test('resolveSonic — unknown event type → catch-all (never null)', () => {
+  const s = resolveSonic('completely_unknown_event', {}, DEFAULT_SETTINGS, { mappings: [] });
+  assert.ok(s !== null, 'unknown event must return non-null catch-all');
+  assert.ok(s.instrument, 'catch-all must have an instrument');
+  assert.equal(s.key, 'completely_unknown_event');
+  assert.ok(s.fam, 'catch-all must have a family');
+});
+
+test('resolveSonic — tool_call with data.key uses key directly (no tool name lookup)', () => {
+  const s = resolveSonic('tool_call', { key: 'read' }, DEFAULT_SETTINGS, { mappings: [] });
+  assert.equal(s.key, 'read');
+  assert.equal(s.instrument, 'harp');
+});
+
+test('resolveSonic — tool_call with data.key=bash_git ignores data.tool', () => {
+  const s = resolveSonic('tool_call', { key: 'bash_git', tool: 'SomeRandomTool' }, DEFAULT_SETTINGS, { mappings: [] });
+  assert.equal(s.key, 'bash_git');
+  assert.equal(s.instrument, 'snare');
+});
+
 // ── ALL_KEYS now includes 'web' ───────────────────────────────────────────────
 
 const ALL_KEYS = ['read','write','edit','grep_glob','bash_git','bash_run','bash_other','agent','other','tokens','words','web'];

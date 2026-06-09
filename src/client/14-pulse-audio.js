@@ -22,7 +22,7 @@
   window.AUDIO_FAMILIES = [
     { id: 'file',    label: 'File Ops', color: '#2a6a2a', tools: ['read', 'write', 'edit', 'grep_glob'] },
     { id: 'system',  label: 'System',   color: '#2a3a7a', tools: ['bash_git', 'bash_run', 'bash_other'] },
-    { id: 'ai',      label: 'AI',       color: '#6a2a7a', tools: ['agent', 'other'] },
+    { id: 'ai',      label: 'AI',       color: '#6a2a7a', tools: ['agent', 'other', 'web'] },
     { id: 'context', label: 'Context',  color: '#2a5a6a', tools: ['tokens', 'words'] },
   ];
 
@@ -37,7 +37,7 @@
       read: 'harp', write: 'bass', edit: 'pling',
       bash_git: 'snare', bash_run: 'hat', bash_other: 'kick',
       grep_glob: 'bit', agent: 'bell', other: 'harp',
-      tokens: 'flute', words: 'bell',
+      web: 'bell', tokens: 'flute', words: 'bell',
     },
     scale:       'major_pentatonic',
     noteMode:    'path_hash',
@@ -135,6 +135,7 @@
     bash_run:   { pan: -0.30, sendAmt: 0.04, brightness: 3500  },
     bash_other: { pan: -0.30, sendAmt: 0.04, brightness: 3500  },
     other:      { pan:  0.00, sendAmt: 0.08, brightness: 6000  },
+    web:        { pan:  0.45, sendAmt: 0.28, brightness: 5800  },
     tokens:     { pan:  0.00, sendAmt: 0.00, brightness: 5000  }, // brightness overridden by cache_ratio
     words:      { pan:  0.20, sendAmt: 0.15, brightness: 9000  },
   };
@@ -155,13 +156,17 @@
 
     if (event === 'tool_call') {
       const tool = (data.tool || '').toLowerCase();
-      if      (tool === 'read' || tool === 'view_file')                            key = 'read';
-      else if (tool === 'write')                                                    key = 'write';
-      else if (tool === 'edit')                                                     key = 'edit';
-      else if (tool === 'grep' || tool === 'glob' || tool === 'grep_search')       key = 'grep_glob';
+      if      (tool === 'read'  || tool === 'view_file' || tool === 'read_file')    key = 'read';
+      else if (tool === 'write' || tool === 'write_to_file')                        key = 'write';
+      else if (tool === 'edit'  || tool === 'replace_file_content'
+               || tool === 'search_replace')                                        key = 'edit';
+      else if (tool === 'grep'  || tool === 'glob' || tool === 'grep_search'
+               || tool === 'list_dir')                                              key = 'grep_glob';
       else if (tool === 'agent')                                                    key = 'agent';
-      else if (tool === 'bash' || tool === 'powershell' || tool === 'shell' || tool === 'run_command')
-        key = bashKey(data.category || 'other');
+      else if (tool === 'bash'  || tool === 'powershell' || tool === 'shell'
+               || tool === 'run_command')                                           key = bashKey(data.category || 'other');
+      else if (tool === 'web_fetch' || tool === 'web_search'
+               || tool === 'web search:')                                           key = 'web';
       else key = 'other';
       instrument = S.instruments[key] || 'harp';
 

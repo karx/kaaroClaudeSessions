@@ -1,0 +1,28 @@
+# AUDIO TRANSCRIPT SNAPSHOT
+# session=transcript
+# preset=cognitive-flow
+# scale=major_pentatonic  noteMode=path_hash  bpm=100
+# generated=2026-06-09  projectRoot=60 (fixed)
+# tool_call=18  words=3  tokens=0  total=21  silent=44
+# ──────────────────────────────────────────────────────────────────────
+t+0.000s       tool_call   view_file       read         harp    hz=    440  vol=0.65  pan=+0.05  bri= 6500  rv=0.05         [FILE   ]
+t+0.000s       tool_call   view_file       read         harp    hz=  329.6  vol=0.65  pan=+0.05  bri= 6500  rv=0.05         [FILE   ]
+t+0.000s       words        383w "These are **Audio Transcript"  words        bell    hz=  523.3  vol=0.90  pan=+0.22  bri= 9000  rv=0.14  oct+1  [CONTEXT]
+t+0.000s       tool_call   list_dir        other        harp    hz=  261.6  vol=0.60  pan=+0.00  bri= 6500  rv=0.06         [AI     ]
+t+0.000s       tool_call   list_dir        other        harp    hz=  261.6  vol=0.60  pan=+0.00  bri= 6500  rv=0.06         [AI     ]
+t+0.000s       tool_call   grep_search     grep_glob    bit     hz=    392  vol=0.55  pan=+0.10  bri= 5000  rv=0.03         [FILE   ]
+t+0.000s       tool_call   view_file       read         harp    hz=    392  vol=0.65  pan=+0.05  bri= 6500  rv=0.05         [FILE   ]
+t+0.000s       tool_call   grep_search     grep_glob    bit     hz=    392  vol=0.55  pan=+0.10  bri= 5000  rv=0.03         [FILE   ]
+t+0.000s       tool_call   view_file       read         harp    hz=    440  vol=0.65  pan=+0.05  bri= 6500  rv=0.05         [FILE   ]
+t+0.000s       tool_call   run_command     bash_run     kick    hz=    392  vol=1.00  pan=-0.32  bri= 2800  rv=0.03         [SYSTEM ]
+t+0.000s       tool_call   run_command     bash_run     kick    hz=  261.6  vol=1.00  pan=-0.32  bri= 2800  rv=0.03         [SYSTEM ]
+t+0.000s       tool_call   manage_task     other        harp    hz=  261.6  vol=0.60  pan=+0.00  bri= 6500  rv=0.06         [AI     ]
+t+0.000s       words        407w "By running the `sim-audio.mj"  words        bell    hz=  523.3  vol=0.90  pan=+0.22  bri= 9000  rv=0.14  oct+1  [CONTEXT]
+t+0.000s       tool_call   view_file       read         harp    hz=  329.6  vol=0.65  pan=+0.05  bri= 6500  rv=0.05         [FILE   ]
+t+0.000s       tool_call   write_to_file   write        bass    hz=    440  vol=1.30  pan=-0.20  bri=10000  rv=0.04         [FILE   ]
+t+0.000s       words        235w "I have drafted the requireme"  words        bell    hz=  523.3  vol=0.90  pan=+0.22  bri= 9000  rv=0.14  oct+1  [CONTEXT]
+t+0.000s       tool_call   grep_search     grep_glob    bit     hz=  329.6  vol=0.55  pan=+0.10  bri= 5000  rv=0.03         [FILE   ]
+t+0.000s       tool_call   grep_search     grep_glob    bit     hz=  329.6  vol=0.55  pan=+0.10  bri= 5000  rv=0.03         [FILE   ]
+t+0.000s       tool_call   view_file       read         harp    hz=    440  vol=0.65  pan=+0.05  bri= 6500  rv=0.05         [FILE   ]
+t+0.000s       tool_call   view_file       read         harp    hz=  261.6  vol=0.65  pan=+0.05  bri= 6500  rv=0.05         [FILE   ]
+t+0.000s       tool_call   replace_file_content  edit         pling   hz=    392  vol=1.00  pan=-0.12  bri= 8500  rv=0.04         [FILE   ]

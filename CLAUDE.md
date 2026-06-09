@@ -130,6 +130,8 @@ Test files map to modules:
 - `test/context-tree.test.mjs` → `lib/context-tree.mjs`
 - `test/beat-clock.test.mjs` → `lib/beat-clock.mjs`
 - `test/ticker-store.test.mjs` → `lib/ticker-store.mjs`
+- `test/audio-sim.test.mjs` → `lib/audio-sim.mjs` + `lib/audio-presets.mjs` (resolveSonic, resolveHz, simulateSession, all 3 presets; Grok tool aliases; web key)
+- `test/grok-helpers.test.mjs` → `lib/grok-helpers.mjs` (grokToolWhere path extraction, grokRecordTs, grokSessionUpdate)
 
 ## Known coverage gaps
 

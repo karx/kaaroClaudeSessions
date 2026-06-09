@@ -127,6 +127,52 @@ test('recordsToNormalized — Grok no turnStartMs chunks do not cause turn count
   assert.ok(contentBlockCount >= 2);
 });
 
+test('tool_use NR has canonical key field', () => {
+  const records = [
+    {
+      method: 'session/update',
+      params: { update: { sessionUpdate: 'tool_call', toolCallId: 'c1', title: 'Shell',
+        rawInput: { command: 'node --test', working_directory: 'D:\\src' } } },
+      _meta: { agentTimestampMs: 1 },
+    },
+    {
+      method: 'session/update',
+      params: { update: { sessionUpdate: 'tool_call', toolCallId: 'c2', title: 'Read',
+        rawInput: { path: 'D:\\src\\index.mjs' } } },
+      _meta: { agentTimestampMs: 2 },
+    },
+  ];
+  const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
+  assert.equal(nrs.length, 2);
+  assert.equal(nrs[0].key, 'bash_run');
+  assert.equal(nrs[1].key, 'read');
+});
+
+test('content_block text NR carries text field', () => {
+  const records = [{
+    method: 'session/update',
+    params: { update: { sessionUpdate: 'agent_message_chunk',
+      content: { text: 'Analysing the output now.' } } },
+    _meta: { agentTimestampMs: 1 },
+  }];
+  const nrs = recordsToNormalized(records).filter(r => r.kind === 'content_block');
+  assert.equal(nrs.length, 1);
+  assert.equal(nrs[0].text, 'Analysing the output now.');
+});
+
+test('unknown_record emitted for unrecognised update types', () => {
+  const records = [{
+    method: 'session/update',
+    params: { update: { sessionUpdate: 'some_future_event', data: {} } },
+    _meta: { agentTimestampMs: 1 },
+  }];
+  const nrs = recordsToNormalized(records);
+  const unknowns = nrs.filter(r => r.kind === 'unknown_record');
+  assert.equal(unknowns.length, 1);
+  assert.equal(unknowns[0].raw_type, 'some_future_event');
+  assert.equal(unknowns[0].harness, 'grok');
+});
+
 test('adapter + reducer golden regression matches parseGrokRecords', () => {
   const viaParse = parseGrokRecords(GOLDEN_RECORDS, SESSION_ID, ENCODED_CWD, SUMMARY, SIGNALS);
   enrichSession(viaParse);

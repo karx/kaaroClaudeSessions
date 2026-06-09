@@ -81,6 +81,46 @@ test('recordsToNormalized — emits expected kinds', () => {
   assert.ok(kinds.includes('tool_result'));
 });
 
+test('tool_use NR has canonical key field', () => {
+  const records = [{
+    source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE',
+    created_at: '2026-06-09T10:00:00Z',
+    tool_calls: [
+      { name: 'view_file',            args: { AbsolutePath: '"d:\\\\src\\\\a.mjs"' } },
+      { name: 'replace_file_content', args: { AbsolutePath: '"d:\\\\src\\\\b.mjs"' } },
+      { name: 'run_command',          args: { CommandLine: '"git status"', Cwd: '"d:\\\\src"' } },
+      { name: 'grep_search',          args: { Pattern: 'foo' } },
+      { name: 'manage_task',          args: {} },
+    ],
+  }];
+  const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
+  const keys = nrs.map(r => r.key);
+  assert.deepEqual(keys, ['read', 'edit', 'bash_git', 'grep_glob', 'other']);
+});
+
+test('scaffold NR emitted for EPHEMERAL_MESSAGE', () => {
+  const records = [{
+    source: 'SYSTEM', type: 'EPHEMERAL_MESSAGE', created_at: '2026-06-09T10:00:00Z',
+    content: 'You are in planning mode. Research before acting.',
+  }];
+  const nrs = recordsToNormalized(records);
+  const scaffolds = nrs.filter(r => r.kind === 'scaffold');
+  assert.equal(scaffolds.length, 1);
+  assert.equal(scaffolds[0].harness, 'antigravity');
+  assert.ok(scaffolds[0].content_preview.startsWith('You are in planning mode'));
+});
+
+test('unknown_record emitted for unrecognised record types', () => {
+  const records = [
+    { source: 'MODEL', type: 'SOME_FUTURE_TYPE', created_at: '2026-06-09T10:00:00Z' },
+  ];
+  const nrs = recordsToNormalized(records);
+  const unknowns = nrs.filter(r => r.kind === 'unknown_record');
+  assert.equal(unknowns.length, 1);
+  assert.equal(unknowns[0].raw_type, 'SOME_FUTURE_TYPE');
+  assert.equal(unknowns[0].harness, 'antigravity');
+});
+
 test('adapter + reducer golden regression matches parseAntigravityRecords', () => {
   const viaParse = parseAntigravityRecords(GOLDEN_RECORDS, SESSION_ID);
   enrichSession(viaParse);

@@ -4,9 +4,14 @@
  * Converts Claude Code JSONL records → NormalizedRecord[].
  */
 
-import { extractTextFromContent, extractSkills } from '../lib/analyze-helpers.mjs';
+import { extractTextFromContent, extractSkills, categorizeBash } from '../lib/analyze-helpers.mjs';
+import { toolNameToKey } from '../lib/event-types.mjs';
 
 const HARNESS = 'claude-code';
+
+const KNOWN_TYPES = new Set([
+  'permission-mode', 'system', 'ai-title', 'user', 'assistant',
+]);
 
 function stripFirstUserMessage(text) {
   return text
@@ -25,16 +30,20 @@ export function recordsToNormalized(records) {
 
   for (const rec of records) {
     const ts = rec.timestamp ?? null;
+    let handled = false;
 
     if (rec.type === 'permission-mode') {
+      handled = true;
       out.push({ kind: 'permission_mode', harness: HARNESS, ts, mode: rec.permissionMode });
     }
 
     if (rec.type === 'system' && rec.subtype === 'compact_boundary') {
+      handled = true;
       out.push({ kind: 'context_reset', harness: HARNESS, ts });
     }
 
     if (rec.type === 'ai-title') {
+      handled = true;
       out.push({
         kind: 'session_meta', harness: HARNESS, ts,
         ai_title: rec.aiTitle || rec.title || null,
@@ -42,6 +51,7 @@ export function recordsToNormalized(records) {
     }
 
     if (rec.type === 'system' && rec.subtype === 'turn_duration') {
+      handled = true;
       out.push({
         kind: 'session_meta', harness: HARNESS, ts,
         slug:         rec.slug,
@@ -57,6 +67,7 @@ export function recordsToNormalized(records) {
     }
 
     if (rec.type === 'user' && rec.message) {
+      handled = true;
       const text = extractTextFromContent(rec.message.content);
       let userText = null;
       if (!firstUserSeen) {
@@ -95,6 +106,7 @@ export function recordsToNormalized(records) {
     }
 
     if (rec.type === 'assistant' && rec.message) {
+      handled = true;
       const msg = rec.message;
       out.push({
         kind: 'assistant_turn', harness: HARNESS, ts,
@@ -116,18 +128,27 @@ export function recordsToNormalized(records) {
 
       for (const block of (msg.content || [])) {
         const bt = block.type || 'unknown';
-        out.push({ kind: 'content_block', harness: HARNESS, ts, block_type: bt });
+        const cbNR = { kind: 'content_block', harness: HARNESS, ts, block_type: bt };
+        if (bt === 'text') cbNR.text = block.text;
+        out.push(cbNR);
         if (bt === 'tool_use') {
+          const name = block.name || 'unknown';
+          const isBash = ['bash', 'powershell', 'shell', 'run_command'].includes(name.toLowerCase());
+          const category = isBash ? categorizeBash(block.input?.command) : null;
           out.push({
             kind: 'tool_use', harness: HARNESS, ts,
-            tool: block.name || 'unknown',
+            tool: name,
+            key:  toolNameToKey(name, category),
             input: block.input || {},
           });
         }
       }
     }
+
+    if (!handled) {
+      out.push({ kind: 'unknown_record', harness: HARNESS, ts, raw_type: rec.type });
+    }
   }
 
   return out;
 }
-

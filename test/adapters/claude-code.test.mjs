@@ -61,6 +61,52 @@ test('recordsToNormalized — emits expected kinds', () => {
   assert.ok(kinds.filter(k => k === 'tool_use').length >= 3);
 });
 
+test('tool_use NR has canonical key field', () => {
+  const records = [{
+    type: 'assistant', timestamp: '2026-06-09T10:00:00.000Z',
+    message: { content: [
+      { type: 'tool_use', name: 'Read',       input: { file_path: 'a.mjs' } },
+      { type: 'tool_use', name: 'Write',      input: { file_path: 'b.mjs' } },
+      { type: 'tool_use', name: 'Edit',       input: { file_path: 'c.mjs' } },
+      { type: 'tool_use', name: 'Grep',       input: { pattern: 'foo' } },
+      { type: 'tool_use', name: 'Agent',      input: {} },
+      { type: 'tool_use', name: 'Bash',       input: { command: 'git status' } },
+      { type: 'tool_use', name: 'WebFetch',   input: {} },
+      { type: 'tool_use', name: 'MyCustom',   input: {} },
+    ]},
+  }];
+  const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
+  const keys = nrs.map(r => r.key);
+  assert.deepEqual(keys, ['read','write','edit','grep_glob','agent','bash_git','web','other']);
+});
+
+test('content_block text NR carries text field', () => {
+  const records = [{
+    type: 'assistant', timestamp: '2026-06-09T10:00:00.000Z',
+    message: { content: [
+      { type: 'text', text: 'Running the tests now.' },
+      { type: 'text', text: 'Ok.' },
+    ]},
+  }];
+  const nrs = recordsToNormalized(records).filter(r => r.kind === 'content_block');
+  assert.equal(nrs.length, 2);
+  assert.equal(nrs[0].text, 'Running the tests now.');
+  assert.equal(nrs[1].text, 'Ok.');
+});
+
+test('unknown_record emitted for unrecognised record types', () => {
+  const records = [
+    { type: 'some_future_type', timestamp: '2026-06-09T10:00:00.000Z', data: {} },
+    { type: 'another_unknown', timestamp: '2026-06-09T10:00:01.000Z' },
+  ];
+  const nrs = recordsToNormalized(records);
+  const unknowns = nrs.filter(r => r.kind === 'unknown_record');
+  assert.equal(unknowns.length, 2);
+  assert.equal(unknowns[0].raw_type, 'some_future_type');
+  assert.equal(unknowns[1].raw_type, 'another_unknown');
+  assert.equal(unknowns[0].harness, 'claude-code');
+});
+
 test('adapter + reducer golden regression matches analyzeSession', () => {
   const projectId = 'D--src-myapp';
   const { dir, filePath } = writeTempJsonl(GOLDEN_RECORDS);

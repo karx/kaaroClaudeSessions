@@ -657,17 +657,19 @@ test('resolveSonic — tool_call with data.key=bash_git ignores data.tool', () =
 
 // ── ALL_KEYS now includes 'web' ───────────────────────────────────────────────
 
-const ALL_KEYS = ['read','write','edit','grep_glob','bash_git','bash_run','bash_other','agent','other','tokens','words','web'];
+import { EVENT_TYPE_KEYS } from '../lib/event-types.mjs';
+
+const ALL_KEYS = [...EVENT_TYPE_KEYS];
 
 for (const [slug, preset] of Object.entries(AUDIO_PRESETS)) {
-  test(`preset ${slug} — instruments covers all 12 keys (incl web)`, () => {
+  test(`preset ${slug} — instruments covers all event type keys`, () => {
     const inst = preset.settings.instruments;
-    for (const key of ['read','write','edit','grep_glob','bash_git','bash_run','bash_other','agent','other','tokens','words','web']) {
+    for (const key of ALL_KEYS) {
       assert.ok(inst[key], `instrument missing for key "${key}" in preset "${slug}"`);
     }
   });
 
-  test(`preset ${slug} — mappings cover all 12 primary keys (at least once)`, () => {
+  test(`preset ${slug} — mappings cover all event type keys (at least once)`, () => {
     const coveredKeys = new Set(
       preset.mappings
         .map(r => r.match.key)

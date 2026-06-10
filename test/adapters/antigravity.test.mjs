@@ -114,6 +114,39 @@ test('scaffold NR emitted for EPHEMERAL_MESSAGE', () => {
   assert.ok(scaffolds[0].content_preview.startsWith('You are in planning mode'));
 });
 
+test('MODEL DONE result types emit tool_result NR', () => {
+  const resultTypes = ['VIEW_FILE', 'LIST_DIRECTORY', 'RUN_COMMAND', 'GREP_SEARCH', 'CODE_ACTION'];
+  for (const type of resultTypes) {
+    const records = [{ source: 'MODEL', type, status: 'DONE', created_at: '2026-06-09T10:00:00Z', content: 'ok' }];
+    const nrs = recordsToNormalized(records);
+    const tr = nrs.find(r => r.kind === 'tool_result');
+    assert.ok(tr, `${type} should emit tool_result NR`);
+    assert.equal(tr.error, false, `${type} DONE should not be an error`);
+  }
+});
+
+test('SYSTEM_MESSAGE emits scaffold NR', () => {
+  const records = [{
+    source: 'SYSTEM', type: 'SYSTEM_MESSAGE', created_at: '2026-06-09T10:00:00Z',
+    content: 'You are operating in safe mode.',
+  }];
+  const nrs = recordsToNormalized(records);
+  const scaffold = nrs.find(r => r.kind === 'scaffold');
+  assert.ok(scaffold, 'SYSTEM_MESSAGE should emit scaffold NR');
+  assert.ok(scaffold.content_preview.startsWith('You are operating'));
+});
+
+test('ERROR_MESSAGE emits tool_error NR', () => {
+  const records = [{
+    source: 'MODEL', type: 'ERROR_MESSAGE', status: 'ERROR', created_at: '2026-06-09T10:00:00Z',
+    content: 'Permission denied.',
+  }];
+  const nrs = recordsToNormalized(records);
+  const te = nrs.find(r => r.kind === 'tool_result');
+  assert.ok(te, 'ERROR_MESSAGE should emit tool_result NR');
+  assert.equal(te.error, true);
+});
+
 test('unknown_record emitted for unrecognised record types', () => {
   const records = [
     { source: 'MODEL', type: 'SOME_FUTURE_TYPE', created_at: '2026-06-09T10:00:00Z' },

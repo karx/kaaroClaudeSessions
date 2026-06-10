@@ -119,6 +119,24 @@ test('permission_mode NR → permission pulse', () => {
   assert.equal(pulse.data.mode, 'default');
 });
 
+// ── mode_shift → mode_shift pulse ───────────────────────────────────────────
+
+test('mode_shift NR → mode_shift pulse with mode field', () => {
+  const nrs = [{ kind: 'mode_shift', harness: 'claude-code', ts: TS, mode: 'plan' }];
+  const [pulse] = normRecordsToPulses(nrs, CTX);
+  assert.equal(pulse.event, 'mode_shift');
+  assert.equal(pulse.data.mode, 'plan');
+});
+
+// ── attachment → attachment pulse ────────────────────────────────────────────
+
+test('attachment NR → attachment pulse with subtype field', () => {
+  const nrs = [{ kind: 'attachment', harness: 'claude-code', ts: TS, subtype: 'task_reminder' }];
+  const [pulse] = normRecordsToPulses(nrs, CTX);
+  assert.equal(pulse.event, 'attachment');
+  assert.equal(pulse.data.subtype, 'task_reminder');
+});
+
 // ── scaffold → scaffold pulse ─────────────────────────────────────────────────
 
 test('scaffold NR → scaffold pulse', () => {

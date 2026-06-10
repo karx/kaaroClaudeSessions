@@ -10,6 +10,7 @@ const HARNESS = 'claude-code';
 
 const KNOWN_TYPES = new Set([
   'permission-mode', 'system', 'ai-title', 'user', 'assistant',
+  'mode', 'attachment', 'last-prompt', 'file-history-snapshot',
 ]);
 
 function stripFirstUserMessage(text) {
@@ -39,6 +40,29 @@ export function recordsToNormalized(records) {
     if (rec.type === 'system' && rec.subtype === 'compact_boundary') {
       handled = true;
       out.push({ kind: 'context_reset', harness: HARNESS, ts });
+    }
+
+    if (rec.type === 'mode') {
+      handled = true;
+      out.push({ kind: 'mode_shift', harness: HARNESS, ts, mode: rec.mode || null });
+    }
+
+    if (rec.type === 'attachment') {
+      handled = true;
+      out.push({
+        kind: 'attachment', harness: HARNESS, ts,
+        subtype: rec.attachment?.type || null,
+      });
+    }
+
+    if (rec.type === 'last-prompt') {
+      handled = true;
+      out.push({ kind: 'session_meta', harness: HARNESS, ts, last_prompt: rec.lastPrompt || null });
+    }
+
+    if (rec.type === 'file-history-snapshot') {
+      handled = true;
+      out.push({ kind: 'session_meta', harness: HARNESS, ts });
     }
 
     if (rec.type === 'ai-title') {

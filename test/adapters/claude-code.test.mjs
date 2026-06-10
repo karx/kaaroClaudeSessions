@@ -99,6 +99,41 @@ test('content_block text NR carries text field', () => {
   assert.equal(nrs[1].text, 'Ok.');
 });
 
+test('mode record emits mode_shift NR', () => {
+  const records = [{ type: 'mode', mode: 'plan', sessionId: 'abc' }];
+  const nrs = recordsToNormalized(records);
+  assert.equal(nrs.length, 1);
+  assert.equal(nrs[0].kind, 'mode_shift');
+  assert.equal(nrs[0].mode, 'plan');
+  assert.equal(nrs[0].harness, 'claude-code');
+});
+
+test('attachment record emits attachment NR with subtype', () => {
+  const records = [{
+    type: 'attachment', timestamp: '2026-06-09T10:00:00.000Z',
+    attachment: { type: 'task_reminder', content: 'Check the tests' },
+  }];
+  const nrs = recordsToNormalized(records);
+  assert.equal(nrs.length, 1);
+  assert.equal(nrs[0].kind, 'attachment');
+  assert.equal(nrs[0].subtype, 'task_reminder');
+  assert.equal(nrs[0].ts, '2026-06-09T10:00:00.000Z');
+});
+
+test('last-prompt record emits session_meta NR', () => {
+  const records = [{ type: 'last-prompt', lastPrompt: 'Run tests', sessionId: 'abc' }];
+  const nrs = recordsToNormalized(records);
+  assert.equal(nrs.length, 1);
+  assert.equal(nrs[0].kind, 'session_meta');
+});
+
+test('file-history-snapshot record emits session_meta NR', () => {
+  const records = [{ type: 'file-history-snapshot', messageId: 'm1', snapshot: {} }];
+  const nrs = recordsToNormalized(records);
+  assert.equal(nrs.length, 1);
+  assert.equal(nrs[0].kind, 'session_meta');
+});
+
 test('unknown_record emitted for unrecognised record types', () => {
   const records = [
     { type: 'some_future_type', timestamp: '2026-06-09T10:00:00.000Z', data: {} },

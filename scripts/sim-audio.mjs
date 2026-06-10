@@ -217,7 +217,8 @@ function printSummary() {
     console.log('\n  JSONL breakdown:');
     for (const [t, n] of Object.entries(silentTypes).sort((a, b) => b[1] - a[1])) {
       const isAudioSource =
-        t === 'assistant' ||
+        t === 'assistant' || t === 'user' ||  // CC / Pi produce audio from both
+        t === 'system' || t === 'permission-mode' ||
         (harness === 'grok'        && t === 'session/update') ||
         (harness === 'antigravity' && (t === 'PLANNER_RESPONSE' || t === 'USER_INPUT' || t === 'EPHEMERAL_MESSAGE'));
       const audible = isAudioSource ? ' (source of audio events)' : ' ← silent';

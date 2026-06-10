@@ -201,12 +201,16 @@ function printSummary() {
   console.log(`│    tool_call:  ${summary.tool_call}`);
   console.log(`│    tokens:     ${summary.tokens}`);
   console.log(`│    words:      ${summary.words}`);
-  console.log(`│    human_turn: ${summary.human_turn ?? 0}`);
-  console.log(`│    compact:    ${summary.compact ?? 0}`);
-  console.log(`│    scaffold:   ${summary.scaffold ?? 0}`);
-  console.log(`│    permission: ${summary.permission ?? 0}`);
-  console.log(`│    chirp:      ${summary.chirp ?? 0}`);
-  console.log(`│    unknown:    ${summary.unknown ?? 0}`);
+  console.log(`│    human_turn:  ${summary.human_turn ?? 0}`);
+  console.log(`│    compact:     ${summary.compact ?? 0}`);
+  console.log(`│    scaffold:    ${summary.scaffold ?? 0}`);
+  console.log(`│    permission:  ${summary.permission ?? 0}`);
+  console.log(`│    chirp:       ${summary.chirp ?? 0}`);
+  console.log(`│    mode_shift:  ${summary.mode_shift ?? 0}`);
+  console.log(`│    attachment:  ${summary.attachment ?? 0}`);
+  console.log(`│    tool_result: ${summary.tool_result ?? 0}`);
+  console.log(`│    tool_error:  ${summary.tool_error ?? 0}`);
+  console.log(`│    unknown:     ${summary.unknown ?? 0}`);
   console.log(`└─ SILENT (instrument=off): ${summary.silent}`);
   if (showSilent) {
     const silentTypes = {};
@@ -217,10 +221,17 @@ function printSummary() {
     console.log('\n  JSONL breakdown:');
     for (const [t, n] of Object.entries(silentTypes).sort((a, b) => b[1] - a[1])) {
       const isAudioSource =
-        t === 'assistant' || t === 'user' ||  // CC / Pi produce audio from both
+        // CC / Pi
+        t === 'assistant' || t === 'user' ||
         t === 'system' || t === 'permission-mode' ||
-        (harness === 'grok'        && t === 'session/update') ||
-        (harness === 'antigravity' && (t === 'PLANNER_RESPONSE' || t === 'USER_INPUT' || t === 'EPHEMERAL_MESSAGE'));
+        t === 'mode' || t === 'attachment' ||
+        t === 'ai-title' || t === 'last-prompt' || t === 'file-history-snapshot' ||
+        // Grok
+        (harness === 'grok' && t === 'session/update') ||
+        // Antigravity
+        (harness === 'antigravity' && ['PLANNER_RESPONSE', 'USER_INPUT', 'EPHEMERAL_MESSAGE',
+          'SYSTEM_MESSAGE', 'ERROR_MESSAGE', 'VIEW_FILE', 'RUN_COMMAND',
+          'CODE_ACTION', 'LIST_DIRECTORY', 'GREP_SEARCH'].includes(t));
       const audible = isAudioSource ? ' (source of audio events)' : ' ← silent';
       console.log(`    ${t.padEnd(28)} ${n}${audible}`);
     }

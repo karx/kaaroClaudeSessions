@@ -36,6 +36,7 @@ override via `mappings[]` rules.
 | `scaffold` | SYSTEM | woodblock | 0.00 | 0.35 | 2500 | −1 | System injection |
 | `tool_result` | SYSTEM | harp | +0.05 | 0.40 | 5000 | 0 | Tool success |
 | `tool_error` | SYSTEM | buzz | −0.10 | 0.90 | 1500 | −1 | Tool failure |
+| `thinking` | CONTEXT | pad | −0.10 | 0.25 | 4000 | −1 | Extended thinking — deliberation before acting |
 | `unknown` | META | tick | 0.00 | 0.25 | 3000 | 0 | Catch-all |
 
 ### Brightness encoding (special rule for `tokens`)
@@ -140,33 +141,27 @@ Cap at 1.20. A 500-char prompt = full volume. Single word = 0.50.
 
 ---
 
-### 6. `unknown` — 1600+ events in a CC session; too many ticks
+### 6. `unknown` — reduced from 1600+ to ~4 real unknowns per CC session ✓
 
-The remaining `unknown` events come from:
+**Resolved (2026-06-10).** The bulk of unknowns came from:
 
-| Source | Count (approx) | Fix |
+| Source | Count (approx) | Resolution |
 |---|---|---|
-| `assistant_turn` NR (one per turn) | ~350 | Silence explicitly (`instrument: 'off'`) in presets |
-| `content_block/tool_use` (pre-tool marker) | ~350 | Same |
-| `session_meta` (ai-title, last-prompt, file-history-snapshot) | ~230 | Same |
-| `branch_change`, `skill_invoke` | ~50 | Map to chime/bell if desired |
-| Actual `unknown_record` (unrecognized types) | ~70 | Leave as tick — diagnostic |
+| `branch_change` dedup (was emitting on every user record) | ~400 | CC adapter now deduplicates — only emits on actual change |
+| `assistant_turn` NR (structural wrapper) | ~350 | Silenced via `nr_kind` preset rule |
+| `content_block/tool_use` (pre-tool marker) | ~350 | Silenced via `nr_kind` preset rule |
+| `content_block/thinking` | ~110 | Mapped to new `thinking` event type (soft pad) |
+| `session_meta` (ai-title, last-prompt, etc.) | ~230 | Silenced via `nr_kind` preset rule |
+| Actual `unknown_record` (unrecognized types) | ~4 | Left as tick — diagnostic signal |
 
-The right lever is **preset silencing** for structural NRs, not removing them from
-the pipeline. Add to each preset's `mappings[]`:
+The remaining audible unknowns (`unknown_record` from unrecognized JSONL types) are
+intentional — they surface coverage gaps and are useful for debugging.
+
+`ruleMatches()` in `lib/audio-sim.mjs` supports `nr_kind` as a match key:
 
 ```js
-// Silence structural scaffold noise
-{ match: { type: 'unknown', nr_kind: 'assistant_turn' },   instrument: 'off' },
-{ match: { type: 'unknown', nr_kind: 'content_block' },    instrument: 'off' },
-{ match: { type: 'unknown', nr_kind: 'session_meta' },     instrument: 'off' },
+{ match: { type: 'unknown', nr_kind: 'assistant_turn' }, set: { instrument: 'off', volMult: 0.00 } },
 ```
-
-The diagnostic unknowns (raw `unknown_record` from unrecognized JSONL types) can
-stay audible — they're useful signals.
-
-**Note:** The `match` system in `resolveSonic` needs to support `nr_kind` as a match
-key if it doesn't already. Check `ruleMatches()` in `lib/audio-sim.mjs`.
 
 ---
 
@@ -195,12 +190,14 @@ Implementation sites:
 1. **`mode_shift` octave-by-mode** — 5 lines in `resolveSonic`, 1 test
 2. **`attachment` octave-by-subtype** — 10 lines in `resolveSonic`, 1 test  
 3. **`human_turn` volume-by-length** — 5 lines in transformer + resolveSonic, 1 test
-4. **Silence structural unknowns in presets** — add 3 mapping rules per preset
+4. ~~**Silence structural unknowns in presets**~~ ✓ Done (2026-06-10)
+5. ~~**`branch_change` dedup in CC adapter**~~ ✓ Done (2026-06-10)
+6. ~~**`thinking` event type**~~ ✓ Done (2026-06-10)
 
 ### Medium (half day)
 
-5. **`tokens` volume-by-size** — new field in transformer, 5 lines in resolveSonic
-6. **`ruleMatches` nr_kind support** — extend match key handler in `lib/audio-sim.mjs`
+7. **`tokens` volume-by-size** — new field in transformer, 5 lines in resolveSonic
+8. ~~**`ruleMatches` nr_kind support**~~ ✓ Done (2026-06-10)
 
 ### Larger effort (1–2 days)
 

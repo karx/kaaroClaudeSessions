@@ -25,7 +25,9 @@ No `npm install` needed — zero external dependencies. D3 v7 and 3d-force-graph
 **HTTP endpoints** (served by `serve.mjs`):
 - `GET /` — serves `graph.html` (no-cache)
 - `GET /daw` (or `/builder`, `/audio`) — dedicated **Live Pulse DAW Builder** page (pure event stream, no graph). Full sonic axis mapping, simulator, timbre lab, rule-based audio profiles, large interactive DAW canvas. Works only when served (needs /events).
-- `GET /events` — SSE stream; emits lifecycle events (`status`, `updated`) AND live pulse events (`tool_call`, `tokens`, `words`) on every JSONL change
+- `GET /now` (or `/mission`, `/active`) — **Mission Control** page (`src/now.html`, static, Register A terminal style): live active-session board with per-harness rollup, session cards (status, last tool, token burn, errors), ai_title/branch enrichment from graph-data.
+- `GET /events` — SSE stream; emits lifecycle events (`status`, `updated`, `error`) AND live pulse events (`tool_call`, `tokens`, `words`, …) on every JSONL change, plus throttled `now` snapshots (≤1/s) of the active-session state
+- `GET /api/active` — Mission Control snapshot from `lib/active-state.mjs` (`{ generated_at, sessions[], by_harness, totals }`)
 - `GET /graph-data.json` — current graph payload for incremental updates
 - `GET /status` — JSON `{ rebuilding, lastBuilt, clients, port }` (debug)
 - `GET /api/trace/:session_id` — reconstructed context tree for one session (mtime-cached)
@@ -52,6 +54,12 @@ Four-layer pipeline, each stage independently testable:
 **`analyze.mjs`** walks every `~/.claude/projects/<projectId>/*.jsonl` file (one JSONL = one session). Extracts token usage, tool calls, file ops (Read/Write/Edit with paths), bash categories, skills (from `<command-name>` tags), first user message, git branch, and model. Also extracts: `context_resets` (compact_boundary count), `ai_title` (from `<ai-title>` tags), `subagent_count` (Agent tool_use count), `branches[]` (all git branches seen). Outputs `sessions` array + `rollup` object (global aggregates). Skills from `BUILTIN_COMMANDS` are stored under `builtin_commands`, not `skills`.
 
 **`analyze-pi.mjs`** — Pi harness adapter. Same output shape as `analyze.mjs` for Pi session files. **Does not yet extract** `context_resets`, `ai_title`, `subagent_count`, or `branches` — these are CC-only for now.
+
+**`analyze-opencode.mjs`** — opencode Harness Hook. Reads `~/.local/share/opencode/storage/{session,message,part}/` JSON trees; assembles info + messages (chronological) with parts embedded as `_parts`; adapter in `adapters/opencode.mjs`. Watch uses `read_mode: 'json'` (whole-file JSON parse, not JSONL tail). Tool parts emit only on `completed`/`error` status; `step-finish` tokens silenced (message envelope is authoritative).
+
+**`analyze-copilot.mjs`** — GitHub Copilot (VS Code) Harness Hook. Scans per-workspace `chatSessions/*.jsonl` op-logs (kind 0=snapshot, 1=set, 2=append) + old `*.json` dumps; project attribution from `workspace.json`; optional title enrichment from `state.vscdb` SQLite (`readChatSessionIndex`, zero-dep via `node:sqlite`, graceful `{}` fallback). Adapter in `adapters/copilot.mjs`; pure URI/tool helpers in `lib/copilot-helpers.mjs`. Tokens are output-only (`completionTokens`).
+
+**`lib/active-state.mjs`** — Mission Control core. Pure live per-session activity store fed by pulse objects: `createActiveState()`, `applyPulse(state, pulse, now)`, `snapshotActive(state, now)` (active/idle status, burn rate over 60s window, per-harness rollups, eviction). No `Date.now()` inside — caller supplies `now`.
 
 **`lib/graph-data.mjs`** — pure functions with no I/O: `calcRecencyScore`, `calcRecencyLevel`, `assignProjectColors`, `buildFileNodesAndEdges`, `isSessionInFlight`, `filterSessionsByDateRange`. Re-exported from `build.mjs` for backward-compat test imports.
 
@@ -132,6 +140,11 @@ Test files map to modules:
 - `test/ticker-store.test.mjs` → `lib/ticker-store.mjs`
 - `test/audio-sim.test.mjs` → `lib/audio-sim.mjs` + `lib/audio-presets.mjs` (resolveSonic, resolveHz, simulateSession, all 3 presets; Grok tool aliases; web key)
 - `test/grok-helpers.test.mjs` → `lib/grok-helpers.mjs` (grokToolWhere path extraction, grokRecordTs, grokSessionUpdate)
+- `test/active-state.test.mjs` → `lib/active-state.mjs` (Mission Control store: pulses, burn rate, status, rollups)
+- `test/opencode-adapter.test.mjs` → `adapters/opencode.mjs` (+ toolNameToKey opencode/task aliases)
+- `test/analyze-opencode.test.mjs` → `analyze-opencode.mjs` (read/analyze/scan over temp storage tree)
+- `test/copilot-adapter.test.mjs` → `adapters/copilot.mjs` + `lib/copilot-helpers.mjs` (op-log mapping, URI decode, aliases)
+- `test/analyze-copilot.test.mjs` → `analyze-copilot.mjs` (workspace attribution, both formats, real SQLite index fixture)
 
 ## Known coverage gaps
 

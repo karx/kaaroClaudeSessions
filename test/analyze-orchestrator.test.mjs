@@ -69,7 +69,7 @@ test('buildSessionsOutput — sorts sessions by first_timestamp', () => {
 test('parseHarnessFlags', () => {
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs']), ['claude-code']);
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs', '--all-harnesses']),
-    ['claude-code', 'pi', 'antigravity', 'grok', 'opencode']);
+    ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot']);
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs', '--harness=pi']), ['pi']);
 });
 

@@ -25,6 +25,8 @@ import { recordsToNormalized as piNorm }   from './adapters/pi.mjs';
 import { recordsToNormalized as agNorm }   from './adapters/antigravity.mjs';
 import { recordsToNormalized as grokNorm } from './adapters/grok.mjs';
 import { recordsToNormalized as ocNorm }   from './adapters/opencode.mjs';
+import { recordsToNormalized as cpNorm }   from './adapters/copilot.mjs';
+import { workspaceFolderPath } from './analyze-copilot.mjs';
 import { reconstructTraceTree } from './lib/context-tree.mjs';
 import { readGrokSession } from './analyze-grok.mjs';
 import { getEnabledHarnesses, getHarness } from './lib/harness-registry.mjs';
@@ -53,6 +55,7 @@ const NR_ADAPTERS_SERVE = {
   'antigravity': agNorm,
   'grok':        grokNorm,
   'opencode':    ocNorm,
+  'copilot':     cpNorm,
 };
 
 const HARNESS_CAPS_SERVE = {
@@ -61,7 +64,24 @@ const HARNESS_CAPS_SERVE = {
   'antigravity': { tokens: false },
   'grok':        { tokens: false },
   'opencode':    { tokens: true  },
+  'copilot':     { tokens: true  },
 };
+
+// Copilot ctx lacks project attribution (it lives in <ws>/workspace.json,
+// not the watched file path) — resolve + cache per workspace hash.
+const copilotWsLabels = new Map();
+function copilotProjectLabel(chatSessionPath, wsHash) {
+  if (!wsHash) return null;
+  if (copilotWsLabels.has(wsHash)) return copilotWsLabels.get(wsHash);
+  let label = null;
+  try {
+    const wsJson = path.join(path.dirname(chatSessionPath), '..', 'workspace.json');
+    const folder = workspaceFolderPath(JSON.parse(fs.readFileSync(wsJson, 'utf8')));
+    if (folder) label = folder.split('/').pop();
+  } catch { /* unattributed workspace */ }
+  copilotWsLabels.set(wsHash, label);
+  return label;
+}
 
 function emitPulses(records, ctx) {
   const adaptFn = NR_ADAPTERS_SERVE[ctx.harness] ?? ccNorm;
@@ -78,6 +98,9 @@ function emitPulses(records, ctx) {
 function tailAndPulse(filePath, ctx) {
   try {
     if (ctx.read_mode === 'json') return jsonAndPulse(filePath, ctx);
+    if (ctx.harness === 'copilot' && !ctx.project_label) {
+      ctx = { ...ctx, project_label: copilotProjectLabel(filePath, ctx.workspace_hash) };
+    }
     const offset = offsetMap.get(filePath) ?? 0;
     const { records, newOffset } = tailRead(filePath, offset);
     offsetMap.set(filePath, newOffset);
@@ -139,7 +162,8 @@ let lastBuilt      = null;
 
 function run(script, extraArgs = []) {
   return new Promise((resolve, reject) => {
-    execFile(process.execPath, [script, ...extraArgs], { cwd: __dirname }, (err, stdout, stderr) => {
+    // --disable-warning: node:sqlite (copilot index) emits an ExperimentalWarning per process
+    execFile(process.execPath, ['--disable-warning=ExperimentalWarning', script, ...extraArgs], { cwd: __dirname }, (err, stdout, stderr) => {
       if (stdout) process.stdout.write(stdout);
       if (stderr) process.stderr.write(stderr);
       if (err) reject(err); else resolve();

@@ -112,3 +112,23 @@ test('processWatchFilename — opencode ignores non-transcript storage noise', (
   assert.equal(processWatchFilename('opencode', 'session_diff/ses_x.json', ROOT), null);
   assert.equal(processWatchFilename('opencode', 'migration', ROOT), null);
 });
+
+test('processWatchFilename — copilot chatSessions jsonl op-log', () => {
+  const r = processWatchFilename(
+    'copilot',
+    'e07ec4b76ec1cba51ba84e69683d85e4/chatSessions/052d579c-9e9f-4c40-989b-b6923159f2dd.jsonl',
+    ROOT,
+  );
+  assert.ok(r);
+  assert.equal(r.ctx.harness, 'copilot');
+  assert.equal(r.ctx.session_id, '052d579c-9e9f-4c40-989b-b6923159f2dd');
+  assert.equal(r.ctx.slug, '052d579c');
+  assert.equal(r.ctx.workspace_hash, 'e07ec4b76ec1cba51ba84e69683d85e4');
+  assert.equal(r.rebuildArg, null);
+});
+
+test('processWatchFilename — copilot ignores old .json dumps and state.vscdb', () => {
+  assert.equal(processWatchFilename('copilot', 'e07e/chatSessions/old.json', ROOT), null);
+  assert.equal(processWatchFilename('copilot', 'e07e/state.vscdb', ROOT), null);
+  assert.equal(processWatchFilename('copilot', 'e07e/chatEditingSessions/x.jsonl', ROOT), null);
+});

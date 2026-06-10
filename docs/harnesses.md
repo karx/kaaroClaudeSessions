@@ -13,6 +13,7 @@ It is intended to be **self-growing**: when adding or discovering differences fo
 | Antigravity   | `antigravity` | `~/.gemini/antigravity/brain/`  | No     | Yes          | No                 | Tokenless (size_proxy = tool_calls). No project_id (always null). Uses `transcript.jsonl` (preferred) or `overview.txt`. |
 | Grok          | `grok`        | (via `GROK_SESSIONS_ROOT`)      | No     | Yes          | Yes                | Tokenless (size_proxy = tool_calls). Streaming chunks: dedup on `turnStartMs` when present; content blocks for text handled separately. Rich meta from summary/signals. |
 | opencode      | `opencode`    | `~/.local/share/opencode/storage/` | Yes | Yes          | No                 | Session spread across three JSON trees: `session/<proj>/ses_*.json` (info), `message/<ses>/msg_*.json` (roles + full token breakdown incl. cache read/write), `part/<msg>/prt_*.json` (text/reasoning/tool/step/patch). Whole-file JSON watch (`read_mode: 'json'`), not JSONL tail. Tool parts emit only on completed/error (file is rewritten across states). step-finish tokens silenced (message envelope is authoritative). Project id derived from `info.directory` path → unifies with CC project ids. |
+| GitHub Copilot | `copilot`    | VS Code `workspaceStorage/` (per-OS) | Partial | Yes      | No                 | Per-workspace `chatSessions/<uuid>.jsonl` op-log (kind 0=snapshot, 1=set, 2=append) — live-tailable; old `<uuid>.json` dumps analysis-only. Tokens = `completionTokens` output only (no input/cache). Tool calls = `toolInvocationSerialized` (toolId, file URIs) + `textEditGroup` (agent-mode edits). UI-state set-ops (inputState/modelState/result) silenced. Project attribution from `workspace.json` folder URI. Optional title/lastMessage enrichment from `state.vscdb` SQLite via `node:sqlite` (graceful `{}` fallback). |
 
 ## Optional Session Fields by Harness
 
@@ -20,7 +21,7 @@ See `lib/sessions-schema.mjs` OPTIONAL_SESSION_FIELDS for the full list.
 
 Populated (✓) / absent or partial (—) as of latest:
 
-- `context_resets`, `ai_title`, `subagent_count`, `branches`: ✓ for claude-code + grok; — for pi + antigravity. opencode: `ai_title` ✓ (session info `title`), others —.
+- `context_resets`, `ai_title`, `subagent_count`, `branches`: ✓ for claude-code + grok; — for pi + antigravity. opencode: `ai_title` ✓ (session info `title`), others —. copilot: `ai_title` ✓ (customTitle op or SQLite index), others —.
 - `message_count`: Authoritative from harness metadata when available (CC `turn_duration`); derived as `user_turns + assistant_turns` fallback for others.
 - `content_blocks` / `thinking_count`: Populated via `content_block` normalized records (CC/Grok). Used for UI dots and panels.
 

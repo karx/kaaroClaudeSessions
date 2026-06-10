@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kaaro-sessions — mission control</title>
+<style>
+  /* Register A — Financial Terminal */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: #000000;
+    color: #ccccaa;
+    font: 12px 'IBM Plex Mono', 'Courier New', monospace;
+    line-height: 1.35;
+    display: grid;
+    grid-template-rows: 28px 1fr 18px;
+    overflow: hidden;
+  }
+
+  /* ── Topbar ─────────────────────────────────────────────────────────── */
+  #topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 12px;
+    background: #080800;
+    border-bottom: 1px solid #1e1e00;
+    user-select: none;
+  }
+  #topbar .title { color: #ff6600; letter-spacing: 0.1em; font-weight: 700; }
+  #topbar .nav a { color: #445544; text-decoration: none; margin-left: 12px; letter-spacing: 0.08em; }
+  #topbar .nav a:hover { color: #ffaa00; }
+  #topbar .spacer { flex: 1; }
+  #live-badge { color: #00ff88; letter-spacing: 0.08em; }
+  #live-badge.err { color: #ff5555; }
+  #live-badge.dim { color: #445544; }
+
+  /* ── Main ───────────────────────────────────────────────────────────── */
+  #main { overflow-y: auto; padding: 12px; }
+
+  /* Per-harness rollup strip */
+  #harness-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .harness-cell {
+    background: #080800; border: 1px solid #1e1e00;
+    padding: 6px 10px; min-width: 150px;
+  }
+  .harness-cell .hname { color: #ffaa00; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; }
+  .harness-cell .hstats { color: #445544; font-size: 11px; margin-top: 2px; }
+  .harness-cell .hstats b { color: #e8e000; font-weight: 400; }
+  .harness-cell .hstats .on { color: #00ff88; }
+
+  /* Session cards */
+  #cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 8px; }
+  .card {
+    background: #101008; border: 1px solid #1e1e00;
+    padding: 8px 10px; cursor: default;
+  }
+  .card.active { border-left: 2px solid #00ff88; }
+  .card.idle   { border-left: 2px solid #445544; }
+  .card .row1 { display: flex; align-items: baseline; gap: 8px; }
+  .card .status { font-size: 10px; letter-spacing: 0.08em; }
+  .card.active .status { color: #00ff88; }
+  .card.idle   .status { color: #445544; }
+  .card .slug { color: #00cccc; font-weight: 700; }
+  .card .project { color: #ffaa00; }
+  .card .harness { color: #445544; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; margin-left: auto; }
+  .card .titleline { color: #ccccaa; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .toolline { margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .toolline .sym { color: #ff6600; }
+  .card .toolline .tool { color: #ff6600; }
+  .card .toolline .where { color: #445544; }
+  .card .preview { color: #445544; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
+  .card .metrics { display: flex; gap: 12px; margin-top: 5px; font-size: 10px; color: #445544; }
+  .card .metrics b { color: #e8e000; font-weight: 400; }
+  .card .metrics .errs b { color: #ff5555; }
+  .card .metrics .ago { margin-left: auto; }
+  .card.active .metrics .ago { color: #00ff88; }
+  .card .burn { color: #e8e000; }
+
+  #empty {
+    color: #445544; padding: 40px 12px; letter-spacing: 0.08em;
+  }
+  #empty .hint { margin-top: 8px; font-size: 11px; }
+
+  /* ── Status bar ─────────────────────────────────────────────────────── */
+  #statusbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 12px;
+    background: #080800; border-top: 1px solid #1e1e00;
+    color: #445544; font-size: 10px; letter-spacing: 0.05em;
+    user-select: none; white-space: nowrap; overflow: hidden;
+  }
+  #statusbar .err { color: #ff5555; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <span class="title">◈ MISSION CONTROL</span>
+  <span class="nav">
+    <a href="/">graph</a>
+    <a href="/daw">daw</a>
+  </span>
+  <span class="spacer"></span>
+  <span id="live-badge" class="dim">◌ connecting…</span>
+</div>
+
+<div id="main">
+  <div id="harness-strip"></div>
+  <div id="cards"></div>
+  <div id="empty" hidden>
+    ━━━ no live sessions observed yet ━━━
+    <div class="hint">cards appear the moment any watched harness writes a transcript record · history lives in the <a href="/" style="color:#ffaa00">graph</a></div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <span id="sys">boot</span>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const $badge = document.getElementById('live-badge');
+  const $strip = document.getElementById('harness-strip');
+  const $cards = document.getElementById('cards');
+  const $empty = document.getElementById('empty');
+  const $sys   = document.getElementById('sys');
+
+  let snap = null;           // latest /api/active payload
+  let meta = {};             // session_id → { ai_title, branch } from graph-data
+  let lastPulseAt = null;
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  function setBadge(text, cls) { $badge.textContent = text; $badge.className = cls || ''; }
+  function sys(text, isErr) { $sys.textContent = text; $sys.className = isErr ? 'err' : ''; }
+
+  function fmtTok(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+    return String(n);
+  }
+
+  function fmtAgo(sec) {
+    if (sec < 60) return sec + 's';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm' + (sec % 60) + 's';
+    return Math.floor(sec / 3600) + 'h' + Math.floor((sec % 3600) / 60) + 'm';
+  }
+
+  function lastTool(s) {
+    if (!s.last_tool) return '';
+    const t = s.last_tool;
+    const whereBits = t.where ? String(t.where).replace(/\\/g, '/').split('/').pop() : (t.why || '');
+    return '<div class="toolline"><span class="sym">▸</span> <span class="tool">' + esc(t.tool || '?') +
+      '</span> <span class="where">· ' + esc(String(whereBits).slice(0, 48)) + '</span></div>';
+  }
+
+  function render() {
+    if (!snap) return;
+    const nowMs = Date.now();
+
+    // harness rollup strip
+    $strip.innerHTML = Object.entries(snap.by_harness).map(([h, v]) =>
+      '<div class="harness-cell"><div class="hname">' + esc(h) + '</div>' +
+      '<div class="hstats"><span class="on">' + v.active + '▲</span> / ' + v.sessions + ' ses · ' +
+      '<b>' + v.tool_calls + '</b> tools · <b>' + fmtTok(v.tokens_work) + '</b> tok</div></div>'
+    ).join('');
+
+    // session cards — recompute seconds_since locally so the 1s tick stays honest
+    $empty.hidden = snap.sessions.length > 0;
+    $cards.innerHTML = snap.sessions.map(s => {
+      const sec = Math.max(0, Math.round((nowMs - s.last_seen) / 1000));
+      const m = meta[s.session_id] || {};
+      const title = m.ai_title || s.last_preview || '';
+      return '<div class="card ' + s.status + '">' +
+        '<div class="row1">' +
+          '<span class="status">' + (s.status === 'active' ? '● ACTIVE' : '○ IDLE') + '</span>' +
+          '<span class="slug">' + esc(s.slug) + '</span>' +
+          '<span class="project">' + esc(s.project || '—') + (m.branch ? ' · ' + esc(m.branch) : '') + '</span>' +
+          '<span class="harness">' + esc(s.harness) + '</span>' +
+        '</div>' +
+        (title ? '<div class="titleline">' + esc(String(title).slice(0, 80)) + '</div>' : '') +
+        lastTool(s) +
+        '<div class="metrics">' +
+          '<span><b>' + s.tool_calls + '</b> tools</span>' +
+          (s.tool_errors ? '<span class="errs"><b>' + s.tool_errors + '</b> err</span>' : '') +
+          '<span><b>' + fmtTok(s.tokens_work) + '</b> tok</span>' +
+          (s.burn_rate_per_min ? '<span class="burn">' + fmtTok(s.burn_rate_per_min) + '/min</span>' : '') +
+          '<span><b>' + s.human_turns + '</b> ⌨</span>' +
+          (s.compacts ? '<span><b>' + s.compacts + '</b> ⊜</span>' : '') +
+          '<span class="ago">' + fmtAgo(sec) + ' ago</span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    const a = snap.totals.active, t = snap.totals.sessions;
+    sys('observing ' + t + ' session' + (t === 1 ? '' : 's') + ' · ' + a + ' active' +
+        (lastPulseAt ? ' · last pulse ' + fmtAgo(Math.round((nowMs - lastPulseAt) / 1000)) + ' ago' : ''));
+  }
+
+  async function fetchActive() {
+    try {
+      const r = await fetch('/api/active');
+      snap = await r.json();
+      render();
+    } catch { sys('cannot reach /api/active — is serve.mjs running?', true); }
+  }
+
+  // graph-data enrichment: session ai_title + branch, refreshed on every `updated`
+  async function fetchMeta() {
+    try {
+      const r = await fetch('/graph-data.json?t=' + Date.now());
+      const d = await r.json();
+      meta = {};
+      for (const n of d.nodes || []) {
+        if (n.type !== 'session') continue;
+        meta[n.id] = { ai_title: n.ai_title || null, branch: (n.branches && n.branches[0]) || n.git_branch || null };
+      }
+      render();
+    } catch { /* enrichment is optional */ }
+  }
+
+  // ── Boot ritual ──────────────────────────────────────────────────────
+  sys('connecting to /events…');
+  const es = new EventSource('/events');
+
+  es.onopen = () => { setBadge('⬤ LIVE', ''); };
+  es.onerror = (e) => { if (!e.data) setBadge('◌ reconnecting', 'dim'); };
+
+  es.addEventListener('now', e => {
+    try { snap = JSON.parse(e.data); lastPulseAt = Date.now(); render(); } catch {}
+  });
+  es.addEventListener('status', e => { if (e.data === 'rebuilding') setBadge('◌ building…', 'dim'); });
+  es.addEventListener('updated', () => { setBadge('⬤ LIVE', ''); fetchMeta(); });
+  es.addEventListener('error', e => {
+    if (!e.data) return; // transport errors have no payload
+    setBadge('⚠ build failed', 'err');
+    sys('rebuild failed: ' + String(e.data).slice(0, 120), true);
+  });
+
+  fetchActive();
+  fetchMeta();
+  setInterval(render, 1000);          // local seconds tick
+  setInterval(fetchActive, 30_000);   // safety re-sync (status flips happen server-side)
+}());
+</script>
+</body>
+</html>

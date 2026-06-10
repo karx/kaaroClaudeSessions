@@ -59,7 +59,7 @@ Four-layer pipeline, each stage independently testable:
 
 **`lib/sessions-schema.mjs`** — canonical contract for `sessions-data.json`. `validateSessionsData()` returns `{ ok, errors[] }`. Any new adapter (Pi, opencode, Copilot) must produce data satisfying this schema. Optional fields are enumerated in `OPTIONAL_SESSION_FIELDS` — graph builder consumes them when present, skips when absent.
 
-**`lib/pulse-parser.mjs`** — converts a single raw JSONL record into zero or more SSE pulse objects. Dispatches on record shape: CC records (`type === 'assistant'`) and Pi records (`type === 'message', role === 'assistant'`). Emits `tool_call`, `tokens`, and `words` pulse types. Pure — no I/O.
+**`lib/pulse-transformer.mjs`** — converts `NormalizedRecord[]` (adapter output) into typed pulse objects for `resolveSonic`. Every NR emits ≥1 pulse (catch-all `unknown` if unmapped). Key derivation (`read`/`bash_git`/…) from `nr.tool + nr.category` happens here via `toolNameToKey` — adapters are sonic-unaware. Replaces the archived `lib/pulse-adapters.mjs`.
 
 **`lib/jsonl-tail.mjs`** — reads only new bytes from a JSONL file given a byte offset. Returns `{ records[], newOffset }`. Used by `serve.mjs` to tail active sessions without re-parsing the whole file.
 
@@ -125,7 +125,7 @@ Test files map to modules:
 - `test/build-features.test.mjs` → `build.mjs` / `lib/graph-data.mjs`
 - `test/graph-pipeline.test.mjs` → `lib/graph-pipeline.mjs`
 - `test/schema.test.mjs` → `lib/sessions-schema.mjs`
-- `test/pulse-parser.test.mjs` → `lib/pulse-parser.mjs`
+- `test/pulse-transformer.test.mjs` → `lib/pulse-transformer.mjs`
 - `test/jsonl-tail.test.mjs` → `lib/jsonl-tail.mjs`
 - `test/context-tree.test.mjs` → `lib/context-tree.mjs`
 - `test/beat-clock.test.mjs` → `lib/beat-clock.mjs`
@@ -139,5 +139,3 @@ Test files map to modules:
 - **`src/client/*.js`** — browser JS; pure logic (e.g. `blockGeom`, `_toolBars`) testable but not yet extracted
 - **`analyze-pi.mjs`** — does not extract `context_resets`, `ai_title`, `subagent_count`, or `branches`; graph-pipeline tests do not verify passthrough of these new fields
 - **`lib/graph-pipeline.mjs`** — `tools_top`, `context_resets`, `ai_title`, `subagent_count`, `branches` passthrough not yet covered by `test/graph-pipeline.test.mjs`
-- **`lib/pulse-adapters.mjs`** — to be moved to `ARCHIVE/lib/pulse-adapters.mjs` once `audio-sim.mjs`'s `simulateSession` and `serve.mjs` are migrated from `parsePulse` to `normRecordsToPulses` (both still depend on raw-JSONL path)
-- **`lib/audio-sim.mjs` `simulateSession`** — still accepts raw JSONL records; planned migration to NR[] will let `parsePulse` be retired

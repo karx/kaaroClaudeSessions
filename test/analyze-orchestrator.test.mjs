@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+﻿import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildSessionsOutput } from '../lib/analyze-orchestrator.mjs';
 import { parseHarnessFlags } from '../lib/scan-harnesses.mjs';
@@ -69,11 +69,11 @@ test('buildSessionsOutput — sorts sessions by first_timestamp', () => {
 test('parseHarnessFlags', () => {
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs']), ['claude-code']);
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs', '--all-harnesses']),
-    ['claude-code', 'pi', 'antigravity', 'grok']);
+    ['claude-code', 'pi', 'antigravity', 'grok', 'opencode']);
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs', '--harness=pi']), ['pi']);
 });
 
-// ── scanHarnesses error isolation (CODE-REVIEW-FINDINGS #8) ────────────────────
+// â”€â”€ scanHarnesses error isolation (CODE-REVIEW-FINDINGS #8) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // One harness scanner throwing (e.g. FS error mid-scan on Windows for Grok)
 // must not abort the entire rebuild. Other harnesses' data must still be returned.
 test('scanHarnesses — isolates per-harness scanner errors (continues on failure)', async (t) => {

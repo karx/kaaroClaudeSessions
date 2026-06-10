@@ -24,6 +24,7 @@ import { recordsToNormalized as ccNorm }   from './adapters/claude-code.mjs';
 import { recordsToNormalized as piNorm }   from './adapters/pi.mjs';
 import { recordsToNormalized as agNorm }   from './adapters/antigravity.mjs';
 import { recordsToNormalized as grokNorm } from './adapters/grok.mjs';
+import { recordsToNormalized as ocNorm }   from './adapters/opencode.mjs';
 import { reconstructTraceTree } from './lib/context-tree.mjs';
 import { readGrokSession } from './analyze-grok.mjs';
 import { getEnabledHarnesses, getHarness } from './lib/harness-registry.mjs';
@@ -51,6 +52,7 @@ const NR_ADAPTERS_SERVE = {
   'pi':          piNorm,
   'antigravity': agNorm,
   'grok':        grokNorm,
+  'opencode':    ocNorm,
 };
 
 const HARNESS_CAPS_SERVE = {
@@ -58,25 +60,52 @@ const HARNESS_CAPS_SERVE = {
   'pi':          { tokens: true  },
   'antigravity': { tokens: false },
   'grok':        { tokens: false },
+  'opencode':    { tokens: true  },
 };
 
+function emitPulses(records, ctx) {
+  const adaptFn = NR_ADAPTERS_SERVE[ctx.harness] ?? ccNorm;
+  const caps    = HARNESS_CAPS_SERVE[ctx.harness] ?? { tokens: true };
+  const nrs     = adaptFn(records);
+  const nowMs   = Date.now();
+  for (const pulse of normRecordsToPulses(nrs, ctx, caps)) {
+    applyPulse(activeState, pulse, nowMs);
+    notify(pulse.event, JSON.stringify(pulse.data));
+  }
+  scheduleNowBroadcast();
+}
+
 function tailAndPulse(filePath, ctx) {
-  const offset = offsetMap.get(filePath) ?? 0;
   try {
+    if (ctx.read_mode === 'json') return jsonAndPulse(filePath, ctx);
+    const offset = offsetMap.get(filePath) ?? 0;
     const { records, newOffset } = tailRead(filePath, offset);
     offsetMap.set(filePath, newOffset);
     if (!records.length) return;
-    const harness = ctx.harness || 'claude-code';
-    const adaptFn = NR_ADAPTERS_SERVE[harness] ?? ccNorm;
-    const caps    = HARNESS_CAPS_SERVE[harness] ?? { tokens: true };
-    const nrs     = adaptFn(records);
-    const nowMs   = Date.now();
-    for (const pulse of normRecordsToPulses(nrs, ctx, caps)) {
-      applyPulse(activeState, pulse, nowMs);
-      notify(pulse.event, JSON.stringify(pulse.data));
-    }
-    scheduleNowBroadcast();
+    emitPulses(records, ctx);
   } catch { /* tail errors must not affect the main rebuild flow */ }
+}
+
+// Whole-file JSON harnesses (opencode): each watched file is one pretty-printed
+// JSON document, rewritten in place. Skip unchanged content via size+mtime
+// signature; fill session identity from the body when the path lacks it
+// (part/<messageID>/… files carry sessionID inside the JSON only).
+function jsonAndPulse(filePath, ctx) {
+  const stat = fs.statSync(filePath);
+  const sig = `${stat.size}:${stat.mtimeMs}`;
+  if (offsetMap.get(filePath) === sig) return;
+  offsetMap.set(filePath, sig);
+
+  const obj = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const sessionId = ctx.session_id || obj.sessionID || null;
+  if (!sessionId) return;
+  const dir = obj.directory ? obj.directory.replace(/\\/g, '/').split('/').pop() : null;
+  emitPulses([obj], {
+    ...ctx,
+    session_id: sessionId,
+    slug: ctx.slug || sessionId.replace(/^ses_/, '').slice(0, 8),
+    project_label: ctx.project_label || dir,
+  });
 }
 
 // ── Mission Control active-session state (/api/active + SSE `now`) ───────────

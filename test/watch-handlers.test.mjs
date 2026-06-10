@@ -69,3 +69,46 @@ test('processWatchFilename — grok updates.jsonl', () => {
 test('processWatchFilename — unknown harness', () => {
   assert.equal(processWatchFilename('unknown', 'foo.jsonl', ROOT), null);
 });
+
+test('processWatchFilename — opencode session info json', () => {
+  const r = processWatchFilename(
+    'opencode',
+    'session/global/ses_4a89582bbffe03xj4Y14Qtss1q.json',
+    ROOT,
+  );
+  assert.ok(r);
+  assert.equal(r.ctx.harness, 'opencode');
+  assert.equal(r.ctx.session_id, 'ses_4a89582bbffe03xj4Y14Qtss1q');
+  assert.equal(r.ctx.slug, '4a89582b');
+  assert.equal(r.ctx.read_mode, 'json'); // whole-file JSON, not JSONL tail
+  assert.equal(r.rebuildArg, null);
+});
+
+test('processWatchFilename — opencode message json carries session id from dir', () => {
+  const r = processWatchFilename(
+    'opencode',
+    'message/ses_4a89582bbffe03xj4Y14Qtss1q/msg_b5769c31f001Wjs4cv6.json',
+    ROOT,
+  );
+  assert.ok(r);
+  assert.equal(r.ctx.session_id, 'ses_4a89582bbffe03xj4Y14Qtss1q');
+  assert.equal(r.ctx.read_mode, 'json');
+});
+
+test('processWatchFilename — opencode part json resolves session from content later', () => {
+  const r = processWatchFilename(
+    'opencode',
+    'part/msg_b5769c31f001Wjs4cv6/prt_b57584550001nzWf.json',
+    ROOT,
+  );
+  assert.ok(r);
+  assert.equal(r.ctx.harness, 'opencode');
+  assert.equal(r.ctx.session_id, null); // sessionID lives inside the JSON body
+  assert.equal(r.ctx.read_mode, 'json');
+});
+
+test('processWatchFilename — opencode ignores non-transcript storage noise', () => {
+  assert.equal(processWatchFilename('opencode', 'project/global.json', ROOT), null);
+  assert.equal(processWatchFilename('opencode', 'session_diff/ses_x.json', ROOT), null);
+  assert.equal(processWatchFilename('opencode', 'migration', ROOT), null);
+});

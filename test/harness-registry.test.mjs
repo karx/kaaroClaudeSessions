@@ -1,12 +1,12 @@
-import { test } from 'node:test';
+﻿import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   HARNESS_REGISTRY, HARNESS_IDS, getHarness, getEnabledHarnesses,
 } from '../lib/harness-registry.mjs';
 
 test('HARNESS_REGISTRY — known harnesses', () => {
-  assert.deepEqual(HARNESS_IDS, ['claude-code', 'pi', 'antigravity', 'grok']);
-  assert.equal(HARNESS_REGISTRY.length, 4);
+  assert.deepEqual(HARNESS_IDS, ['claude-code', 'pi', 'antigravity', 'grok', 'opencode']);
+  assert.equal(HARNESS_REGISTRY.length, 5);
 });
 
 test('getHarness — claude-code watch config', () => {

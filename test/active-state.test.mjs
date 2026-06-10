@@ -218,6 +218,14 @@ test('pulses without session_id are ignored', () => {
   assert.equal(snapshotActive(state, T0).sessions.length, 0);
 });
 
+test('project backfills when a later pulse carries it (opencode part files)', () => {
+  const state = createActiveState();
+  applyPulse(state, pulse('tool_call', { project: null, tool: 'read', key: 'read', where: 'a', why: null }), T0);
+  assert.equal(snapshotActive(state, T0).sessions[0].project, null);
+  applyPulse(state, pulse('unknown', { project: 'bun-ai-minecraft', nr_kind: 'session_meta' }), T0 + 1000);
+  assert.equal(snapshotActive(state, T0 + 1000).sessions[0].project, 'bun-ai-minecraft');
+});
+
 test('unknown pulse events still bump last_seen/last_event', () => {
   const state = createActiveState();
   applyPulse(state, pulse('thinking', { block_type: 'thinking' }), T0);

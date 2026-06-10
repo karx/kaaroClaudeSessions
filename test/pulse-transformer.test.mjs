@@ -202,6 +202,27 @@ test('every NR in a mixed batch emits ≥1 pulse', () => {
 
 // ── synthetic tokens from assistant_turn ─────────────────────────────────────
 
+// ── content_block/thinking → thinking pulse ──────────────────────────────────
+
+test('content_block thinking NR → thinking pulse with block_type', () => {
+  const nrs = [{ kind: 'content_block', harness: 'claude-code', ts: TS,
+    block_type: 'thinking' }];
+  const [pulse] = normRecordsToPulses(nrs, CTX);
+  assert.equal(pulse.event, 'thinking');
+  assert.equal(pulse.data.block_type, 'thinking');
+  assert.equal(pulse.data.nr_kind, 'content_block');
+});
+
+test('content_block thinking: non-text non-thinking block still produces unknown (diagnostics)', () => {
+  const nrs = [{ kind: 'content_block', harness: 'claude-code', ts: TS,
+    block_type: 'tool_use' }];
+  const [pulse] = normRecordsToPulses(nrs, CTX);
+  assert.equal(pulse.event, 'unknown');
+  assert.equal(pulse.data.block_type, 'tool_use');
+});
+
+// ── synthetic tokens from assistant_turn ─────────────────────────────────────
+
 test('assistant_turn + capabilities.tokens:false → synthetic tokens pulse', () => {
   const nrs = [{ kind: 'assistant_turn', harness: 'antigravity', ts: TS,
     content_length: 400 }];

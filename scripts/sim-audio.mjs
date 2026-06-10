@@ -208,6 +208,7 @@ function printSummary() {
   console.log(`│    chirp:       ${summary.chirp ?? 0}`);
   console.log(`│    mode_shift:  ${summary.mode_shift ?? 0}`);
   console.log(`│    attachment:  ${summary.attachment ?? 0}`);
+  console.log(`│    thinking:    ${summary.thinking ?? 0}`);
   console.log(`│    tool_result: ${summary.tool_result ?? 0}`);
   console.log(`│    tool_error:  ${summary.tool_error ?? 0}`);
   console.log(`│    unknown:     ${summary.unknown ?? 0}`);

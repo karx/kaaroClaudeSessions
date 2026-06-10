@@ -198,10 +198,16 @@ function printSummary() {
   console.log(`│  PRESET: ${preset.name} — ${preset.tag}`);
   console.log(`│  scale=${preset.settings.scale}  noteMode=${preset.settings.noteMode}  bpm=${preset.settings.bpm}`);
   console.log(`├─ AUDIBLE EVENTS: ${summary.total}`);
-  console.log(`│    tool_call: ${summary.tool_call}`);
-  console.log(`│    tokens:    ${summary.tokens}`);
-  console.log(`│    words:     ${summary.words}`);
-  console.log(`└─ SILENT RECORDS: ${summary.silent}`);
+  console.log(`│    tool_call:  ${summary.tool_call}`);
+  console.log(`│    tokens:     ${summary.tokens}`);
+  console.log(`│    words:      ${summary.words}`);
+  console.log(`│    human_turn: ${summary.human_turn ?? 0}`);
+  console.log(`│    compact:    ${summary.compact ?? 0}`);
+  console.log(`│    scaffold:   ${summary.scaffold ?? 0}`);
+  console.log(`│    permission: ${summary.permission ?? 0}`);
+  console.log(`│    chirp:      ${summary.chirp ?? 0}`);
+  console.log(`│    unknown:    ${summary.unknown ?? 0}`);
+  console.log(`└─ SILENT (instrument=off): ${summary.silent}`);
   if (showSilent) {
     const silentTypes = {};
     for (const rec of records) {
@@ -210,8 +216,11 @@ function printSummary() {
     }
     console.log('\n  JSONL breakdown:');
     for (const [t, n] of Object.entries(silentTypes).sort((a, b) => b[1] - a[1])) {
-      const audible = (t === 'assistant' || (harness === 'grok' && t === 'session/update'))
-        ? ' (source of audio events)' : ' ← silent';
+      const isAudioSource =
+        t === 'assistant' ||
+        (harness === 'grok'        && t === 'session/update') ||
+        (harness === 'antigravity' && (t === 'PLANNER_RESPONSE' || t === 'USER_INPUT' || t === 'EPHEMERAL_MESSAGE'));
+      const audible = isAudioSource ? ' (source of audio events)' : ' ← silent';
       console.log(`    ${t.padEnd(28)} ${n}${audible}`);
     }
   }

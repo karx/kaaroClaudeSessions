@@ -398,33 +398,36 @@ test('simulateSession — text <3 words → no words event', () => {
   assert.equal(events.filter(e => e.event === 'words').length, 0);
 });
 
-test('simulateSession — permission-mode record is silent', () => {
+test('simulateSession — permission-mode record produces permission event', () => {
   const records = [
     { type: 'permission-mode', permissionMode: 'plan' },
     ccAssistant([ccTool('Read', { file_path: 'x.js' })]),
   ];
-  const { summary } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
-  assert.equal(summary.silent, 1);
+  const { events, summary } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
+  assert.ok(events.some(e => e.event === 'permission'), 'permission-mode record must produce permission event');
   assert.equal(summary.tool_call, 1);
+  assert.equal(summary.silent, 0); // all records now produce ≥1 pulse in the NR pipeline
 });
 
-test('simulateSession — compact_boundary record is silent', () => {
+test('simulateSession — compact_boundary record produces compact event', () => {
   const records = [
     { type: 'system', subtype: 'compact_boundary' },
     ccAssistant([ccTool('Write', { file_path: 'x.js' })]),
   ];
-  const { summary } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
-  assert.equal(summary.silent, 1);
+  const { events, summary } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
+  assert.ok(events.some(e => e.event === 'compact'), 'compact_boundary record must produce compact event');
+  assert.equal(summary.silent, 0);
 });
 
-test('simulateSession — user text message is silent', () => {
+test('simulateSession — user record produces human_turn event', () => {
   const records = [
     { type: 'user', message: { content: 'Do the thing' } },
     ccAssistant([ccTool('Read', { file_path: 'x.js' })]),
   ];
   const { events, summary } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
-  assert.equal(summary.silent, 1);
-  assert.equal(events.length, 2); // tool_call + tokens
+  assert.ok(events.some(e => e.event === 'human_turn'), 'user record must produce human_turn event');
+  assert.equal(summary.tool_call, 1);
+  assert.equal(summary.silent, 0);
 });
 
 test('simulateSession — instrument=off excluded from events', () => {
@@ -476,7 +479,7 @@ test('formatTranscript — lines contain instrument, hz, pan, bri, rv fields', (
   const records = [ccAssistant([ccTool('Agent')])];
   const { events } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   const lines = formatTranscript(events);
-  assert.equal(lines.length, 2); // tool_call + tokens
+  // NR pipeline produces more events per assistant record (assistant_turn, tokens, content_block, tool_call)
   const tcLine = lines.find(l => l.includes('tool_call'));
   assert.ok(tcLine.includes('bell'),  'instrument');
   assert.ok(tcLine.includes('hz='),   'hz field');

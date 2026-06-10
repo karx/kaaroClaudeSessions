@@ -18,8 +18,12 @@ import path         from 'path';
 import { execFile, exec } from 'child_process';
 import { fileURLToPath }  from 'url';
 
-import { tailRead }     from './lib/jsonl-tail.mjs';
-import { parsePulse }   from './lib/pulse-parser.mjs';
+import { tailRead }             from './lib/jsonl-tail.mjs';
+import { normRecordsToPulses } from './lib/pulse-transformer.mjs';
+import { recordsToNormalized as ccNorm }   from './adapters/claude-code.mjs';
+import { recordsToNormalized as piNorm }   from './adapters/pi.mjs';
+import { recordsToNormalized as agNorm }   from './adapters/antigravity.mjs';
+import { recordsToNormalized as grokNorm } from './adapters/grok.mjs';
 import { reconstructTraceTree } from './lib/context-tree.mjs';
 import { readGrokSession } from './analyze-grok.mjs';
 import { getEnabledHarnesses, getHarness } from './lib/harness-registry.mjs';
@@ -41,14 +45,32 @@ const offsetMap = new Map(); // filePath → last-read byte offset
 
 // ── Pulse helpers ─────────────────────────────────────────────────────────────
 
+const NR_ADAPTERS_SERVE = {
+  'claude-code': ccNorm,
+  'pi':          piNorm,
+  'antigravity': agNorm,
+  'grok':        grokNorm,
+};
+
+const HARNESS_CAPS_SERVE = {
+  'claude-code': { tokens: true  },
+  'pi':          { tokens: true  },
+  'antigravity': { tokens: false },
+  'grok':        { tokens: false },
+};
+
 function tailAndPulse(filePath, ctx) {
   const offset = offsetMap.get(filePath) ?? 0;
   try {
     const { records, newOffset } = tailRead(filePath, offset);
     offsetMap.set(filePath, newOffset);
-    for (const rec of records)
-      for (const pulse of parsePulse(rec, ctx))
-        notify(pulse.event, JSON.stringify(pulse.data));
+    if (!records.length) return;
+    const harness = ctx.harness || 'claude-code';
+    const adaptFn = NR_ADAPTERS_SERVE[harness] ?? ccNorm;
+    const caps    = HARNESS_CAPS_SERVE[harness] ?? { tokens: true };
+    const nrs     = adaptFn(records);
+    for (const pulse of normRecordsToPulses(nrs, ctx, caps))
+      notify(pulse.event, JSON.stringify(pulse.data));
   } catch { /* tail errors must not affect the main rebuild flow */ }
 }
 

@@ -29,6 +29,7 @@ import { readGrokSession } from './analyze-grok.mjs';
 import { getEnabledHarnesses, getHarness } from './lib/harness-registry.mjs';
 import { processWatchFilename } from './lib/watch-handlers.mjs';
 import { resolveSessionFile, invalidateSessionResolveCache } from './lib/session-resolver.mjs';
+import { createActiveState, applyPulse, snapshotActive } from './lib/active-state.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
@@ -69,9 +70,28 @@ function tailAndPulse(filePath, ctx) {
     const adaptFn = NR_ADAPTERS_SERVE[harness] ?? ccNorm;
     const caps    = HARNESS_CAPS_SERVE[harness] ?? { tokens: true };
     const nrs     = adaptFn(records);
-    for (const pulse of normRecordsToPulses(nrs, ctx, caps))
+    const nowMs   = Date.now();
+    for (const pulse of normRecordsToPulses(nrs, ctx, caps)) {
+      applyPulse(activeState, pulse, nowMs);
       notify(pulse.event, JSON.stringify(pulse.data));
+    }
+    scheduleNowBroadcast();
   } catch { /* tail errors must not affect the main rebuild flow */ }
+}
+
+// ── Mission Control active-session state (/api/active + SSE `now`) ───────────
+
+const activeState = createActiveState();
+let nowBroadcastTimer = null;
+
+// Throttle: at most one `now` broadcast per second, trailing-edge,
+// so bursty multi-record tails collapse into a single snapshot push.
+function scheduleNowBroadcast() {
+  if (nowBroadcastTimer) return;
+  nowBroadcastTimer = setTimeout(() => {
+    nowBroadcastTimer = null;
+    notify('now', JSON.stringify(snapshotActive(activeState, Date.now())));
+  }, 1000);
 }
 
 function notify(event, data = '') {
@@ -249,6 +269,13 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.url === '/api/active') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
+      'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(snapshotActive(activeState, Date.now())));
+    return;
+  }
+
   if (req.url.startsWith('/api/trace/')) {
     const sessionId = decodeURIComponent(req.url.slice('/api/trace/'.length)).replace(/\.jsonl$/, '');
     if (!sessionId) { res.writeHead(400); res.end('missing session_id'); return; }
@@ -287,6 +314,15 @@ const server = http.createServer((req, res) => {
     }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(fs.readFileSync(dawPath));
+    return;
+  }
+
+  // ── Mission Control (/now): live active-session board ──────────────────────
+  if (req.url === '/now' || req.url === '/mission' || req.url === '/active') {
+    const nowPath = path.join(__dirname, 'src', 'now.html');
+    if (!fs.existsSync(nowPath)) { res.writeHead(404); res.end('now.html missing'); return; }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.end(fs.readFileSync(nowPath));
     return;
   }
 

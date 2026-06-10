@@ -82,6 +82,11 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   });
 
   es.addEventListener('status',e=>{ if(e.data==='rebuilding') setBadge('◌ building…','#555'); });
+  es.addEventListener('error',e=>{
+    if(!e.data) return; // EventSource transport errors have no data; SSE error events do
+    setBadge('⚠ build failed','#ff4444');
+    tickerAdd('✖ rebuild failed: '+String(e.data).slice(0,60),'#ff4444');
+  });
   es.onerror=()=>setBadge('◌ reconnecting','#888');
   es.onopen=()=>setBadge('⬤ LIVE','#00ff88');
 

@@ -658,6 +658,40 @@ test('resolveSonic — tool_call with data.key=bash_git ignores data.tool', () =
   assert.equal(s.instrument, 'snare');
 });
 
+// ── ruleMatches nr_kind support ──────────────────────────────────────────────
+
+test('ruleMatches nr_kind: rule with nr_kind silences matching unknown event', () => {
+  const profile = {
+    mappings: [
+      { match: { type: 'unknown', nr_kind: 'assistant_turn' }, set: { instrument: 'off', volMult: 0.00 } },
+    ],
+  };
+  const s = resolveSonic('unknown', { nr_kind: 'assistant_turn' }, CF.settings, profile);
+  assert.equal(s.instrument, 'off');
+});
+
+test('ruleMatches nr_kind: rule does not silence different nr_kind', () => {
+  const profile = {
+    mappings: [
+      { match: { type: 'unknown', nr_kind: 'assistant_turn' }, set: { instrument: 'off', volMult: 0.00 } },
+    ],
+  };
+  const s = resolveSonic('unknown', { nr_kind: 'session_meta' }, CF.settings, profile);
+  assert.notEqual(s.instrument, 'off');
+});
+
+test('ruleMatches nr_kind: rule without nr_kind matches all unknowns regardless of nr_kind', () => {
+  const profile = {
+    mappings: [
+      { match: { key: 'unknown' }, set: { volMult: 0.05 } },
+    ],
+  };
+  const s1 = resolveSonic('unknown', { nr_kind: 'assistant_turn' }, CF.settings, profile);
+  const s2 = resolveSonic('unknown', { nr_kind: 'session_meta' }, CF.settings, profile);
+  assert.equal(s1.volMult, 0.05);
+  assert.equal(s2.volMult, 0.05);
+});
+
 // ── ALL_KEYS now includes 'web' ───────────────────────────────────────────────
 
 import { EVENT_TYPE_KEYS } from '../lib/event-types.mjs';

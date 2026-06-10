@@ -27,6 +27,7 @@ function stripFirstUserMessage(text) {
 export function recordsToNormalized(records) {
   const out = [];
   let firstUserSeen = false;
+  let lastBranch    = null;
 
   for (const rec of records) {
     const ts = rec.timestamp ?? null;
@@ -85,8 +86,10 @@ export function recordsToNormalized(records) {
         cwd:          rec.cwd,
         branch:       rec.gitBranch,
       });
-      if (rec.gitBranch)
+      if (rec.gitBranch && rec.gitBranch !== lastBranch) {
+        lastBranch = rec.gitBranch;
         out.push({ kind: 'branch_change', harness: HARNESS, ts, branch: rec.gitBranch });
+      }
     }
 
     if (rec.type === 'user' && rec.message) {
@@ -109,8 +112,10 @@ export function recordsToNormalized(records) {
         cwd: rec.cwd, branch: rec.gitBranch,
       });
 
-      if (rec.gitBranch)
+      if (rec.gitBranch && rec.gitBranch !== lastBranch) {
+        lastBranch = rec.gitBranch;
         out.push({ kind: 'branch_change', harness: HARNESS, ts, branch: rec.gitBranch });
+      }
 
       for (const s of extractSkills(text)) {
         out.push({ kind: 'skill_invoke', harness: HARNESS, ts, skill: s });

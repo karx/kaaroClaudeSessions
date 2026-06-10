@@ -134,6 +134,38 @@ test('file-history-snapshot record emits session_meta NR', () => {
   assert.equal(nrs[0].kind, 'session_meta');
 });
 
+test('branch_change dedup: only emits on first occurrence and on actual change', () => {
+  const records = [
+    { type: 'user', timestamp: '2026-06-09T10:00:00.000Z', gitBranch: 'main',
+      message: { content: [{ type: 'text', text: 'Run the tests please now' }] } },
+    { type: 'user', timestamp: '2026-06-09T10:01:00.000Z', gitBranch: 'main',
+      message: { content: [{ type: 'text', text: 'Run them again please' }] } },
+    { type: 'user', timestamp: '2026-06-09T10:02:00.000Z', gitBranch: 'feat/new-thing',
+      message: { content: [{ type: 'text', text: 'Switched to new branch now' }] } },
+    { type: 'user', timestamp: '2026-06-09T10:03:00.000Z', gitBranch: 'feat/new-thing',
+      message: { content: [{ type: 'text', text: 'Same branch another message' }] } },
+  ];
+  const nrs = recordsToNormalized(records).filter(r => r.kind === 'branch_change');
+  assert.equal(nrs.length, 2, 'only first main + first feat/new-thing');
+  assert.equal(nrs[0].branch, 'main');
+  assert.equal(nrs[1].branch, 'feat/new-thing');
+});
+
+test('branch_change dedup works across user and turn_duration records', () => {
+  const records = [
+    { type: 'user', timestamp: '2026-06-09T10:00:00.000Z', gitBranch: 'main',
+      message: { content: [{ type: 'text', text: 'Start the session now' }] } },
+    { type: 'system', subtype: 'turn_duration', timestamp: '2026-06-09T10:01:00.000Z',
+      slug: 'x', durationMs: 1000, messageCount: 1, gitBranch: 'main' },
+    { type: 'system', subtype: 'turn_duration', timestamp: '2026-06-09T10:02:00.000Z',
+      slug: 'x', durationMs: 2000, messageCount: 2, gitBranch: 'feat/abc' },
+  ];
+  const nrs = recordsToNormalized(records).filter(r => r.kind === 'branch_change');
+  assert.equal(nrs.length, 2, 'main (from user) then feat/abc (from second turn_duration)');
+  assert.equal(nrs[0].branch, 'main');
+  assert.equal(nrs[1].branch, 'feat/abc');
+});
+
 test('unknown_record emitted for unrecognised record types', () => {
   const records = [
     { type: 'some_future_type', timestamp: '2026-06-09T10:00:00.000Z', data: {} },

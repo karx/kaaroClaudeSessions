@@ -14,7 +14,7 @@ import {
   TOOL_ACTION_KEYS,
   EVENT_TYPE_KEYS,
   FAMILIES,
-} from '../lib/event-types.mjs';
+} from '../hooks/event-types.mjs';
 
 const REQUIRED_SONIC = ['family', 'instrument', 'pan', 'sendAmt', 'brightness', 'volMult', 'octave', 'desc'];
 
@@ -135,7 +135,7 @@ test('unknown — family is meta', () => {
 
 // ── toolNameToKey ─────────────────────────────────────────────────────────────
 
-import { toolNameToKey } from '../lib/event-types.mjs';
+import { toolNameToKey } from '../hooks/event-types.mjs';
 
 test('toolNameToKey — CC tool names', () => {
   assert.equal(toolNameToKey('Read'),        'read');

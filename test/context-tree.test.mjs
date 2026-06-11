@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { reconstructContextTree } from '../lib/context-tree.mjs';
+import { reconstructContextTree } from '../hooks/context-tree.mjs';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { buildSessionsOutput } from '../lib/analyze-orchestrator.mjs';
 import { parseHarnessFlags } from '../lib/scan-harnesses.mjs';
-import { validateSessionsData } from '../lib/sessions-schema.mjs';
+import { validateSessionsData } from '../hooks/sessions-schema.mjs';
 
 function makeSession(id, harness, projectId, overrides = {}) {
   return {

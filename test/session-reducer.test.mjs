@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { reduceSession } from '../lib/session-reducer.mjs';
+import { reduceSession } from '../hooks/session-reducer.mjs';
 
 const META = {
   session_id:      'sess-uuid-1234',

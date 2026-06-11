@@ -16,7 +16,7 @@ import {
   scanCopilotSessions,
   readChatSessionIndex,
   workspaceFolderPath,
-} from '../analyze-copilot.mjs';
+} from '../hooks/analyzers/analyze-copilot.mjs';
 
 let root;
 const WS = 'e07ec4b76ec1cba51ba84e69683d85e4';

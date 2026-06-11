@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recordsToNormalized } from '../../adapters/grok.mjs';
-import { reduceSession } from '../../lib/session-reducer.mjs';
-import { enrichSession } from '../../lib/enrich-session.mjs';
-import { parseGrokRecords } from '../../analyze-grok.mjs';
+import { recordsToNormalized } from '../../hooks/adapters/grok.mjs';
+import { reduceSession } from '../../hooks/session-reducer.mjs';
+import { enrichSession } from '../../hooks/enrich-session.mjs';
+import { parseGrokRecords } from '../../hooks/analyzers/analyze-grok.mjs';
 
 const SESSION_ID = '019ea1c9-46ee-77e0-bf36-f87a6403b5db';
 const ENCODED_CWD = 'D%3A%5Csrc%5CkaaroSessions';

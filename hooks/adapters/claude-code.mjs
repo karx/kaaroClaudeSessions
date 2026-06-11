@@ -4,7 +4,7 @@
  * Converts Claude Code JSONL records → NormalizedRecord[].
  */
 
-import { extractTextFromContent, extractSkills, categorizeBash } from '../lib/analyze-helpers.mjs';
+import { extractTextFromContent, extractSkills, categorizeBash } from '../helpers/analyze-helpers.mjs';
 
 const HARNESS = 'claude-code';
 

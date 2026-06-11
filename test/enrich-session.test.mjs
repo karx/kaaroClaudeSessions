@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { enrichSession } from '../lib/enrich-session.mjs';
+import { enrichSession } from '../hooks/enrich-session.mjs';
 
 function baseSession(overrides = {}) {
   return {

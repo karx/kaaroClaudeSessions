@@ -8,7 +8,7 @@ import {
   detectWorkspace,
   extractModelChange,
   extractUserMessage,
-} from '../analyze-antigravity.mjs';
+} from '../hooks/analyzers/analyze-antigravity.mjs';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

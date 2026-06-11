@@ -16,21 +16,21 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recordsToNormalized as ccToNorm } from '../adapters/claude-code.mjs';
-import { recordsToNormalized as piToNorm } from '../adapters/pi.mjs';
-import { recordsToNormalized as agToNorm } from '../adapters/antigravity.mjs';
-import { recordsToNormalized as grokToNorm } from '../adapters/grok.mjs';
-import { EVENT_TYPES } from '../lib/event-types.mjs';
-import { reduceSession } from '../lib/session-reducer.mjs';
-import { enrichSession } from '../lib/enrich-session.mjs';
+import { recordsToNormalized as ccToNorm } from '../hooks/adapters/claude-code.mjs';
+import { recordsToNormalized as piToNorm } from '../hooks/adapters/pi.mjs';
+import { recordsToNormalized as agToNorm } from '../hooks/adapters/antigravity.mjs';
+import { recordsToNormalized as grokToNorm } from '../hooks/adapters/grok.mjs';
+import { EVENT_TYPES } from '../hooks/event-types.mjs';
+import { reduceSession } from '../hooks/session-reducer.mjs';
+import { enrichSession } from '../hooks/enrich-session.mjs';
 import { analyzeSession, parseJsonlFile, deriveLabel } from '../analyze.mjs';
-import { parsePiRecords, derivePiLabel } from '../analyze-pi.mjs';
+import { parsePiRecords, derivePiLabel } from '../hooks/analyzers/analyze-pi.mjs';
 import {
   parseAntigravityRecords,
   deriveAntigravityProjectId,
   deriveAntigravityLabel,
   detectWorkspace,
-} from '../analyze-antigravity.mjs';
+} from '../hooks/analyzers/analyze-antigravity.mjs';
 import { writeFileSync, mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

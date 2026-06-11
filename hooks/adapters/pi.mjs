@@ -4,7 +4,7 @@
  * Converts Pi JSONL records → NormalizedRecord[].
  */
 
-import { categorizeBash } from '../lib/analyze-helpers.mjs';
+import { categorizeBash } from '../helpers/analyze-helpers.mjs';
 
 const HARNESS = 'pi';
 

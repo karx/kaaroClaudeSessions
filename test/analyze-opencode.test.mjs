@@ -14,7 +14,7 @@ import {
   readOpencodeSession,
   analyzeOpencodeSession,
   scanOpencodeSessions,
-} from '../analyze-opencode.mjs';
+} from '../hooks/analyzers/analyze-opencode.mjs';
 
 let root; // temp storage root
 

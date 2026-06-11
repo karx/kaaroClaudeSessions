@@ -18,10 +18,10 @@ import fs   from 'fs';
 import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
-import { enrichSession } from './lib/enrich-session.mjs';
-import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
-import { recordsToNormalized } from './adapters/antigravity.mjs';
-import { reduceSession } from './lib/session-reducer.mjs';
+import { enrichSession } from '../enrich-session.mjs';
+import { buildSessionsOutput } from '../../lib/analyze-orchestrator.mjs';
+import { recordsToNormalized } from '../adapters/antigravity.mjs';
+import { reduceSession } from '../session-reducer.mjs';
 import {
   parseArgValue,
   deriveAntigravityProjectId,
@@ -29,7 +29,7 @@ import {
   detectWorkspace,
   extractModelChange,
   extractUserMessage,
-} from './lib/antigravity-helpers.mjs';
+} from '../helpers/antigravity-helpers.mjs';
 
 export {
   parseArgValue,
@@ -42,7 +42,7 @@ export {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-import { ANTIGRAVITY_BRAIN_ROOT } from './lib/harness-paths.mjs';
+import { ANTIGRAVITY_BRAIN_ROOT } from '../harness-paths.mjs';
 export { ANTIGRAVITY_BRAIN_ROOT };
 const OUT_FILE = path.join(process.cwd(), 'sessions-data.json');
 

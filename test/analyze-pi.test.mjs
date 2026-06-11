@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { derivePiLabel, parsePiRecords } from '../analyze-pi.mjs';
+import { derivePiLabel, parsePiRecords } from '../hooks/analyzers/analyze-pi.mjs';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

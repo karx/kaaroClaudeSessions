@@ -9,17 +9,17 @@
 import fs   from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { enrichSession } from './lib/enrich-session.mjs';
-import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
-import { recordsToNormalized } from './adapters/grok.mjs';
-import { reduceSession } from './lib/session-reducer.mjs';
+import { enrichSession } from '../enrich-session.mjs';
+import { buildSessionsOutput } from '../../lib/analyze-orchestrator.mjs';
+import { recordsToNormalized } from '../adapters/grok.mjs';
+import { reduceSession } from '../session-reducer.mjs';
 import {
   deriveGrokProjectId,
   deriveGrokLabel,
   decodeGrokCwd,
   grokRecordTs,
-} from './lib/grok-helpers.mjs';
-import { GROK_SESSIONS_ROOT } from './lib/harness-paths.mjs';
+} from '../helpers/grok-helpers.mjs';
+import { GROK_SESSIONS_ROOT } from '../harness-paths.mjs';
 
 export { GROK_SESSIONS_ROOT };
 

@@ -20,7 +20,7 @@
  * emission keeps live pulse counts equal to post-hoc analysis counts.
  */
 
-import { categorizeBash } from '../lib/analyze-helpers.mjs';
+import { categorizeBash } from '../helpers/analyze-helpers.mjs';
 
 const HARNESS = 'opencode';
 

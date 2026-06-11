@@ -14,13 +14,13 @@ import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
 import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
-import { recordsToNormalized } from './adapters/claude-code.mjs';
-import { reduceSession } from './lib/session-reducer.mjs';
-import { enrichSession } from './lib/enrich-session.mjs';
+import { recordsToNormalized } from './hooks/adapters/claude-code.mjs';
+import { reduceSession } from './hooks/session-reducer.mjs';
+import { enrichSession } from './hooks/enrich-session.mjs';
 import {
   deriveLabel, normPath, categorizeBash,
   extractTextFromContent, extractSkills,
-} from './lib/analyze-helpers.mjs';
+} from './hooks/helpers/analyze-helpers.mjs';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   grokToolWhere, grokToolWhy, grokRecordTs, grokSessionUpdate,
-} from '../lib/grok-helpers.mjs';
+} from '../hooks/helpers/grok-helpers.mjs';
 
 // ── grokToolWhere ─────────────────────────────────────────────────────────────
 

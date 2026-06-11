@@ -7,10 +7,10 @@ import {
   readGrokSession,
   parseGrokRecords,
   scanGrokSessions,
-} from '../analyze-grok.mjs';
+} from '../hooks/analyzers/analyze-grok.mjs';
 import {
   decodeGrokCwd, deriveGrokProjectId, deriveGrokLabel,
-} from '../lib/grok-helpers.mjs';
+} from '../hooks/helpers/grok-helpers.mjs';
 
 test('decodeGrokCwd and project derivation', async t => {
   await t.test('decodes url-encoded Windows cwd', () => {

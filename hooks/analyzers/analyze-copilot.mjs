@@ -19,16 +19,16 @@ import fs   from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { enrichSession } from './lib/enrich-session.mjs';
-import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
-import { recordsToNormalized } from './adapters/copilot.mjs';
-import { reduceSession } from './lib/session-reducer.mjs';
-import { copilotUriToPath } from './lib/copilot-helpers.mjs';
+import { enrichSession } from '../enrich-session.mjs';
+import { buildSessionsOutput } from '../../lib/analyze-orchestrator.mjs';
+import { recordsToNormalized } from '../adapters/copilot.mjs';
+import { reduceSession } from '../session-reducer.mjs';
+import { copilotUriToPath } from '../helpers/copilot-helpers.mjs';
 import {
   deriveAntigravityProjectId as deriveProjectIdFromPath,
   deriveAntigravityLabel as deriveLabelFromPath,
-} from './lib/antigravity-helpers.mjs';
-import { COPILOT_WORKSPACE_STORAGE_ROOT } from './lib/harness-paths.mjs';
+} from '../helpers/antigravity-helpers.mjs';
+import { COPILOT_WORKSPACE_STORAGE_ROOT } from '../harness-paths.mjs';
 
 export { COPILOT_WORKSPACE_STORAGE_ROOT };
 

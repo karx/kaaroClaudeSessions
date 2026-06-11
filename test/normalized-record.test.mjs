@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RECORD_KINDS, isNormalizedRecord } from '../lib/normalized-record.mjs';
+import { RECORD_KINDS, isNormalizedRecord } from '../hooks/normalized-record.mjs';
 
 test('RECORD_KINDS — contains expected kinds', () => {
   for (const k of [

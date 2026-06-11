@@ -7,7 +7,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normRecordsToPulses } from '../lib/pulse-transformer.mjs';
+import { normRecordsToPulses } from '../hooks/pulse-transformer.mjs';
 
 const CTX = {
   session_id:    'aaaabbbb-0000-0000-0000-000000000000',

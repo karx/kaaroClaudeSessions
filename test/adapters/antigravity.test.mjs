@@ -1,14 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recordsToNormalized } from '../../adapters/antigravity.mjs';
-import { reduceSession } from '../../lib/session-reducer.mjs';
-import { enrichSession } from '../../lib/enrich-session.mjs';
+import { recordsToNormalized } from '../../hooks/adapters/antigravity.mjs';
+import { reduceSession } from '../../hooks/session-reducer.mjs';
+import { enrichSession } from '../../hooks/enrich-session.mjs';
 import {
   parseAntigravityRecords,
   deriveAntigravityProjectId,
   deriveAntigravityLabel,
   detectWorkspace,
-} from '../../analyze-antigravity.mjs';
+} from '../../hooks/analyzers/analyze-antigravity.mjs';
 
 const SESSION_ID = 'c7f6b422-2184-4e11-ad6d-535a069e7347';
 

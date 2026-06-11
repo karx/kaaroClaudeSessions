@@ -3,15 +3,15 @@ import fs   from 'fs';
 import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
-import { deriveLabel, parseJsonlFile } from './analyze.mjs';
-import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
-import { recordsToNormalized } from './adapters/pi.mjs';
-import { reduceSession } from './lib/session-reducer.mjs';
-import { enrichSession } from './lib/enrich-session.mjs';
+import { deriveLabel, parseJsonlFile } from '../../analyze.mjs';
+import { buildSessionsOutput } from '../../lib/analyze-orchestrator.mjs';
+import { recordsToNormalized } from '../adapters/pi.mjs';
+import { reduceSession } from '../session-reducer.mjs';
+import { enrichSession } from '../enrich-session.mjs';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-import { PI_SESSIONS_ROOT } from './lib/harness-paths.mjs';
+import { PI_SESSIONS_ROOT } from '../harness-paths.mjs';
 const OUT_FILE         = path.join(process.cwd(), 'sessions-data.json');
 
 // ── Pi project label ──────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   HARNESS_REGISTRY, HARNESS_IDS, getHarness, getEnabledHarnesses,
-} from '../lib/harness-registry.mjs';
+} from '../hooks/registry.mjs';
 
 test('HARNESS_REGISTRY — known harnesses', () => {
   assert.deepEqual(HARNESS_IDS, ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot']);

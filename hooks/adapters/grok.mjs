@@ -6,8 +6,8 @@
 
 import {
   grokRecordTs, grokSessionUpdate, isGrokToolFailure,
-} from '../lib/grok-helpers.mjs';
-import { categorizeBash } from '../lib/analyze-helpers.mjs';
+} from '../helpers/grok-helpers.mjs';
+import { categorizeBash } from '../helpers/analyze-helpers.mjs';
 
 const HARNESS = 'grok';
 const ASSISTANT_CHUNKS = new Set(['agent_message_chunk', 'agent_thought_chunk']);

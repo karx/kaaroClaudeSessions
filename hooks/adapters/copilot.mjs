@@ -23,7 +23,7 @@
  * through the unknown_record catch-all.
  */
 
-import { copilotToolName, copilotUriToPath, invocationFilePath } from '../lib/copilot-helpers.mjs';
+import { copilotToolName, copilotUriToPath, invocationFilePath } from '../helpers/copilot-helpers.mjs';
 
 const HARNESS = 'copilot';
 

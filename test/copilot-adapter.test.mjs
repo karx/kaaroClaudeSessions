@@ -8,10 +8,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { recordsToNormalized } from '../adapters/copilot.mjs';
-import { copilotUriToPath, copilotToolName } from '../lib/copilot-helpers.mjs';
-import { reduceSession } from '../lib/session-reducer.mjs';
-import { toolNameToKey } from '../lib/event-types.mjs';
+import { recordsToNormalized } from '../hooks/adapters/copilot.mjs';
+import { copilotUriToPath, copilotToolName } from '../hooks/helpers/copilot-helpers.mjs';
+import { reduceSession } from '../hooks/session-reducer.mjs';
+import { toolNameToKey } from '../hooks/event-types.mjs';
 
 const T_CREATE = 1779124637563;
 const T_REQ    = 1780942410161;

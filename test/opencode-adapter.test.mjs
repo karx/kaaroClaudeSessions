@@ -7,9 +7,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { recordsToNormalized } from '../adapters/opencode.mjs';
-import { reduceSession } from '../lib/session-reducer.mjs';
-import { toolNameToKey } from '../lib/event-types.mjs';
+import { recordsToNormalized } from '../hooks/adapters/opencode.mjs';
+import { reduceSession } from '../hooks/session-reducer.mjs';
+import { toolNameToKey } from '../hooks/event-types.mjs';
 
 // ── fixtures (shapes from real storage) ──────────────────────────────────────
 

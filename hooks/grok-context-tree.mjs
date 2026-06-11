@@ -7,7 +7,7 @@
 
 import {
   grokRecordTs, grokSessionUpdate, isGrokToolFailure,
-} from './grok-helpers.mjs';
+} from './helpers/grok-helpers.mjs';
 
 const COMPACT_EVENTS = new Set(['auto_compact_completed', 'compaction_checkpoint']);
 const THOUGHT = 'agent_thought_chunk';

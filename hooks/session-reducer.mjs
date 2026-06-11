@@ -5,7 +5,7 @@
  * Pure — no I/O. enrichSession() runs after this.
  */
 
-import { normPath, categorizeBash, BUILTIN_COMMANDS } from './analyze-helpers.mjs';
+import { normPath, categorizeBash, BUILTIN_COMMANDS } from './helpers/analyze-helpers.mjs';
 
 export const FILE_OP_TOOLS = {
   Read: 'read', Write: 'write', Edit: 'edit',

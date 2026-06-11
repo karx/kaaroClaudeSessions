@@ -694,7 +694,7 @@ test('ruleMatches nr_kind: rule without nr_kind matches all unknowns regardless 
 
 // ── ALL_KEYS now includes 'web' ───────────────────────────────────────────────
 
-import { EVENT_TYPE_KEYS } from '../lib/event-types.mjs';
+import { EVENT_TYPE_KEYS } from '../hooks/event-types.mjs';
 
 const ALL_KEYS = [...EVENT_TYPE_KEYS];
 

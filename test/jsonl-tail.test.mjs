@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync, rmSync, appendFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { tailRead } from '../lib/jsonl-tail.mjs';
+import { tailRead } from '../hooks/jsonl-tail.mjs';
 
 // ── Temp file helpers ─────────────────────────────────────────────────────────
 

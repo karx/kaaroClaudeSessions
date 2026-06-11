@@ -17,12 +17,12 @@
  * cross-cutting changes. See Architecture Note in analyze-intelligence.md.
  */
 
-import { deriveLabel } from './analyze-helpers.mjs';
+import { deriveLabel } from './helpers/analyze-helpers.mjs';
 import {
   CLAUDE_PROJECTS_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
   OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT,
 } from './harness-paths.mjs';
-import { deriveGrokProjectId, deriveGrokLabel } from './grok-helpers.mjs';
+import { deriveGrokProjectId, deriveGrokLabel } from './helpers/grok-helpers.mjs';
 
 export {
   PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT, OPENCODE_STORAGE_ROOT,

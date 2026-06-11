@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { reconstructGrokContextTree } from '../lib/grok-context-tree.mjs';
+import { reconstructGrokContextTree } from '../hooks/grok-context-tree.mjs';
 
 const SESSION_ID = '019ea1c9-46ee-77e0-bf36-f87a6403b5db';
 const TURN = 1780830788417;

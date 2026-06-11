@@ -15,15 +15,15 @@ import fs   from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { enrichSession } from './lib/enrich-session.mjs';
-import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
-import { recordsToNormalized } from './adapters/opencode.mjs';
-import { reduceSession } from './lib/session-reducer.mjs';
+import { enrichSession } from '../enrich-session.mjs';
+import { buildSessionsOutput } from '../../lib/analyze-orchestrator.mjs';
+import { recordsToNormalized } from '../adapters/opencode.mjs';
+import { reduceSession } from '../session-reducer.mjs';
 import {
   deriveAntigravityProjectId as deriveProjectIdFromPath,
   deriveAntigravityLabel as deriveLabelFromPath,
-} from './lib/antigravity-helpers.mjs';
-import { OPENCODE_STORAGE_ROOT } from './lib/harness-paths.mjs';
+} from '../helpers/antigravity-helpers.mjs';
+import { OPENCODE_STORAGE_ROOT } from '../harness-paths.mjs';
 
 export { OPENCODE_STORAGE_ROOT };
 

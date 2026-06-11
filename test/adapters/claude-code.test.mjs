@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { recordsToNormalized } from '../../adapters/claude-code.mjs';
-import { reduceSession } from '../../lib/session-reducer.mjs';
-import { enrichSession } from '../../lib/enrich-session.mjs';
+import { recordsToNormalized } from '../../hooks/adapters/claude-code.mjs';
+import { reduceSession } from '../../hooks/session-reducer.mjs';
+import { enrichSession } from '../../hooks/enrich-session.mjs';
 import { analyzeSession, parseJsonlFile, deriveLabel } from '../../analyze.mjs';
 
 function writeTempJsonl(records, sessionId = 'golden-sess') {

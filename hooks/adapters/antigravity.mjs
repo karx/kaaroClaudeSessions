@@ -9,8 +9,8 @@ import {
   extractModelChange,
   extractUserMessage,
   REC_TYPE_TO_TOOL,
-} from '../lib/antigravity-helpers.mjs';
-import { categorizeBash } from '../lib/analyze-helpers.mjs';
+} from '../helpers/antigravity-helpers.mjs';
+import { categorizeBash } from '../helpers/analyze-helpers.mjs';
 
 const HARNESS = 'antigravity';
 

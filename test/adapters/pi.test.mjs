@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recordsToNormalized } from '../../adapters/pi.mjs';
-import { reduceSession } from '../../lib/session-reducer.mjs';
-import { enrichSession } from '../../lib/enrich-session.mjs';
-import { parsePiRecords, derivePiLabel } from '../../analyze-pi.mjs';
+import { recordsToNormalized } from '../../hooks/adapters/pi.mjs';
+import { reduceSession } from '../../hooks/session-reducer.mjs';
+import { enrichSession } from '../../hooks/enrich-session.mjs';
+import { parsePiRecords, derivePiLabel } from '../../hooks/analyzers/analyze-pi.mjs';
 
 const SESSION_ID = '019dca2b-f4f5-7609-96ae-fe883f7a03db';
 const PROJECT_ID = '--D--src-ebrain--';

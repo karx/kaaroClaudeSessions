@@ -13,7 +13,7 @@ import {
   applyPulse,
   snapshotActive,
   DEFAULT_THRESHOLDS,
-} from '../lib/active-state.mjs';
+} from '../surface/active-state.mjs';
 
 const T0 = 1_750_000_000_000; // arbitrary fixed epoch ms
 

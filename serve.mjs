@@ -30,9 +30,9 @@ import { workspaceFolderPath } from './hooks/analyzers/analyze-copilot.mjs';
 import { reconstructTraceTree } from './hooks/context-tree.mjs';
 import { readGrokSession } from './hooks/analyzers/analyze-grok.mjs';
 import { getEnabledHarnesses, getHarness } from './hooks/registry.mjs';
-import { processWatchFilename } from './lib/watch-handlers.mjs';
-import { resolveSessionFile, invalidateSessionResolveCache } from './lib/session-resolver.mjs';
-import { createActiveState, applyPulse, snapshotActive } from './lib/active-state.mjs';
+import { processWatchFilename } from './surface/watch-handlers.mjs';
+import { resolveSessionFile, invalidateSessionResolveCache } from './surface/session-resolver.mjs';
+import { createActiveState, applyPulse, snapshotActive } from './surface/active-state.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');

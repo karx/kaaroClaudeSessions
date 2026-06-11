@@ -9,7 +9,7 @@ import {
   resolveAntigravitySession,
   resolveGrokSession,
   resolveSessionFile,
-} from '../lib/session-resolver.mjs';
+} from '../surface/session-resolver.mjs';
 
 function makeTemp(prefix) {
   const dir = join(tmpdir(), prefix + '-' + Date.now());

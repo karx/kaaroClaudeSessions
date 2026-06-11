@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { processWatchFilename } from '../lib/watch-handlers.mjs';
+import { processWatchFilename } from '../surface/watch-handlers.mjs';
 
 const ROOT = 'C:/fake/root';
 

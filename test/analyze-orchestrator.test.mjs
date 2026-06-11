@@ -1,7 +1,7 @@
 ﻿import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSessionsOutput } from '../lib/analyze-orchestrator.mjs';
-import { parseHarnessFlags } from '../lib/scan-harnesses.mjs';
+import { buildSessionsOutput } from '../surface/analyze-orchestrator.mjs';
+import { parseHarnessFlags } from '../surface/scan-harnesses.mjs';
 import { validateSessionsData } from '../hooks/sessions-schema.mjs';
 
 function makeSession(id, harness, projectId, overrides = {}) {
@@ -78,7 +78,7 @@ test('parseHarnessFlags', () => {
 // must not abort the entire rebuild. Other harnesses' data must still be returned.
 test('scanHarnesses — isolates per-harness scanner errors (continues on failure)', async (t) => {
   // Dynamic import so we can mutate the test seam SCANNERS for this test only.
-  const scanMod = await import('../lib/scan-harnesses.mjs');
+  const scanMod = await import('../surface/scan-harnesses.mjs');
   const origGrok = scanMod.SCANNERS.grok;
 
   // Force a throw for 'grok' (simulates EPERM or corrupt data in one harness).

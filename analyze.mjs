@@ -13,7 +13,7 @@ import fs   from 'fs';
 import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
-import { buildSessionsOutput } from './lib/analyze-orchestrator.mjs';
+import { buildSessionsOutput } from './surface/analyze-orchestrator.mjs';
 import { recordsToNormalized } from './hooks/adapters/claude-code.mjs';
 import { reduceSession } from './hooks/session-reducer.mjs';
 import { enrichSession } from './hooks/enrich-session.mjs';
@@ -260,7 +260,7 @@ function writeOutput(output) {
 }
 
 async function main() {
-  const { parseHarnessFlags, scanHarnesses } = await import('./lib/scan-harnesses.mjs');
+  const { parseHarnessFlags, scanHarnesses } = await import('./surface/scan-harnesses.mjs');
   const harnessIds = parseHarnessFlags(process.argv);
   const multiHarness = harnessIds.length > 1 || process.argv.includes('--all-harnesses');
 

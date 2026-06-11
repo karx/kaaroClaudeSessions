@@ -19,7 +19,7 @@ import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
 import { enrichSession } from '../enrich-session.mjs';
-import { buildSessionsOutput } from '../../lib/analyze-orchestrator.mjs';
+import { buildSessionsOutput } from '../../surface/analyze-orchestrator.mjs';
 import { recordsToNormalized } from '../adapters/antigravity.mjs';
 import { reduceSession } from '../session-reducer.mjs';
 import {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStore, addEntry, toggleSticky, clearEntries } from '../lib/ticker-store.mjs';
+import { createStore, addEntry, toggleSticky, clearEntries } from '../experience/audio/ticker-store.mjs';
 
 // ── createStore ───────────────────────────────────────────────────────────────
 

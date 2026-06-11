@@ -8,12 +8,12 @@
  *   JSONL records → parsePulse() → pulses → resolveSonic() → SimEvent[]
  */
 
-import { EVENT_TYPES, toolNameToKey } from '../hooks/event-types.mjs';
-import { normRecordsToPulses } from '../hooks/pulse-transformer.mjs';
-import { recordsToNormalized as ccNorm }   from '../hooks/adapters/claude-code.mjs';
-import { recordsToNormalized as piNorm }   from '../hooks/adapters/pi.mjs';
-import { recordsToNormalized as agNorm }   from '../hooks/adapters/antigravity.mjs';
-import { recordsToNormalized as grokNorm } from '../hooks/adapters/grok.mjs';
+import { EVENT_TYPES, toolNameToKey } from '../../hooks/event-types.mjs';
+import { normRecordsToPulses } from '../../hooks/pulse-transformer.mjs';
+import { recordsToNormalized as ccNorm }   from '../../hooks/adapters/claude-code.mjs';
+import { recordsToNormalized as piNorm }   from '../../hooks/adapters/pi.mjs';
+import { recordsToNormalized as agNorm }   from '../../hooks/adapters/antigravity.mjs';
+import { recordsToNormalized as grokNorm } from '../../hooks/adapters/grok.mjs';
 
 const NR_ADAPTERS = {
   'claude-code': ccNorm,

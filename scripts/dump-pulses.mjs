@@ -33,8 +33,8 @@ import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
 
-import { dumpSession }            from '../lib/audio-sim.mjs';
-import { getPreset, PRESET_SLUGS } from '../lib/audio-presets.mjs';
+import { dumpSession }            from '../experience/audio/audio-sim.mjs';
+import { getPreset, PRESET_SLUGS } from '../experience/audio/audio-presets.mjs';
 
 const __DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT  = path.resolve(__DIR, '..');

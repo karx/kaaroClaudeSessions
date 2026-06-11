@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildGraph } from '../lib/graph-pipeline.mjs';
+import { buildGraph } from '../experience/graph-pipeline.mjs';
 
 // ── fixture ───────────────────────────────────────────────────────────────────
 function makeData(overrides = {}) {

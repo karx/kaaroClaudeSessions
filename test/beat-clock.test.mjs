@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bpmToInterval, beatPosition, eventsInWindow, pushBeatEvent } from '../lib/beat-clock.mjs';
+import { bpmToInterval, beatPosition, eventsInWindow, pushBeatEvent } from '../experience/audio/beat-clock.mjs';
 
 // ── bpmToInterval ─────────────────────────────────────────────────────────────
 

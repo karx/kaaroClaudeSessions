@@ -15,8 +15,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { resolveSonic, resolveHz, simulateSession, formatTranscript, SCALES, TOOL_FAMILY, DEFAULT_SETTINGS } from '../lib/audio-sim.mjs';
-import { getPreset, AUDIO_PRESETS, PRESET_SLUGS } from '../lib/audio-presets.mjs';
+import { resolveSonic, resolveHz, simulateSession, formatTranscript, SCALES, TOOL_FAMILY, DEFAULT_SETTINGS } from '../experience/audio/audio-sim.mjs';
+import { getPreset, AUDIO_PRESETS, PRESET_SLUGS } from '../experience/audio/audio-presets.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 

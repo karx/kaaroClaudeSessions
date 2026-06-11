@@ -372,7 +372,7 @@ const server = http.createServer((req, res) => {
 
   // ── Mission Control (/now): live active-session board ──────────────────────
   if (req.url === '/now' || req.url === '/mission' || req.url === '/active') {
-    const nowPath = path.join(__dirname, 'src', 'now.html');
+    const nowPath = path.join(__dirname, 'experience', 'pages', 'now.html');
     if (!fs.existsSync(nowPath)) { res.writeHead(404); res.end('now.html missing'); return; }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(fs.readFileSync(nowPath));
@@ -390,7 +390,7 @@ const server = http.createServer((req, res) => {
     '/site.webmanifest':     'site.webmanifest',
     '/robots.txt':           'robots.txt',
     '/generate-og-png.html': 'generate-og-png.html',
-    '/src/og-image.svg':     'src/og-image.svg',
+    '/src/og-image.svg':     'experience/pages/og-image.svg', // legacy URL kept for OG meta consumers
   };
   const staticRel = STATIC_MAP[req.url.split('?')[0]];
   if (staticRel) {

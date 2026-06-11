@@ -19,8 +19,8 @@ import { fileURLToPath } from 'url';
 
 import {
   IN_FLIGHT_COLOR, parseMinSessions,
-} from './lib/graph-data.mjs';
-import { buildGraph } from './lib/graph-pipeline.mjs';
+} from './experience/graph-data.mjs';
+import { buildGraph } from './experience/graph-pipeline.mjs';
 
 const CWD = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,7 +32,7 @@ export {
   filterVisibleGraph,
   EDGE_COLORS, GRAPH_BACKGROUND,
   FORCE_PARAMS_DEFAULTS, FORCE_PARAMS_BOUNDS, clampForceParam,
-} from './lib/graph-data.mjs';
+} from './experience/graph-data.mjs';
 
 /**
  * Single-pass %%PLACEHOLDER%% substitution (autoconf / CMake configure_file pattern).
@@ -51,7 +51,7 @@ export function applySubstitutions(template, subs) {
 
 // ── DAW Builder (dedicated live-pulse pure audio profile builder) ────────────
 function buildDaw() {
-  const dawTemplatePath = path.join(CWD, 'src', 'daw-template.html');
+  const dawTemplatePath = path.join(CWD, 'experience', 'pages', 'daw-template.html');
   if (!fs.existsSync(dawTemplatePath)) {
     console.warn('DAW template missing — skipping daw-builder.html');
     return;
@@ -64,7 +64,7 @@ function buildDaw() {
     '19-daw-builder.js',
   ];
 
-  const clientDir = path.join(CWD, 'src', 'client');
+  const clientDir = path.join(CWD, 'experience', 'client');
   let dawClientSrc = '';
   for (const m of dawModules) {
     const p = path.join(clientDir, m);
@@ -109,7 +109,7 @@ function run() {
   );
 
   // ── Concatenate client JS files in numeric order ───────────────────────────
-  const clientDir = path.join(CWD, 'src', 'client');
+  const clientDir = path.join(CWD, 'experience', 'client');
   const clientJS  = fs.readdirSync(clientDir)
     .filter(f => f.endsWith('.js'))
     .sort()
@@ -125,7 +125,7 @@ function run() {
   });
 
   const html = applySubstitutions(
-    fs.readFileSync(path.join(CWD, 'src', 'template.html'), 'utf8'),
+    fs.readFileSync(path.join(CWD, 'experience', 'pages', 'template.html'), 'utf8'),
     { '%%MIN_FILE_SESSIONS%%': String(minSessions), '%%CLIENT_JS%%': injectedJS },
   );
 

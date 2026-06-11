@@ -82,7 +82,7 @@ Four-layer pipeline, each stage independently testable:
 
 **`src/template.html`** — HTML skeleton with `%%PLACEHOLDER%%` markers. `%%CLIENT_JS%%` receives the concatenated + data-injected browser JS. `%%MIN_FILE_SESSIONS%%` sets the range slider default.
 
-**`src/client/`** — browser JS split into 17 numbered modules, concatenated in order by `build.mjs`. `01-data.js` receives injected data (`%%GRAPH_JSON%%`, `%%TIMELINE_JSON%%`, `%%COLOR_INDEX_JSON%%`, `%%IN_FLIGHT_COLOR%%`) and defines global `GRAPH`, `TIMELINE`, `W`, `H`. Key constants: `TL_H = 154` (total bottom chrome height; graph canvas avoids this), `TIMELINE_H = 60` (height of `#timeline` strip; draw coordinates inside it). These two constants serve different purposes — do not conflate.
+**`src/client/`** — browser JS split into 20 numbered modules, concatenated in order by `build.mjs`. `01-data.js` receives injected data (`%%GRAPH_JSON%%`, `%%TIMELINE_JSON%%`, `%%COLOR_INDEX_JSON%%`, `%%IN_FLIGHT_COLOR%%`) and defines global `GRAPH`, `TIMELINE`, `W`, `H`. Key constants: `TL_H = 154` (total bottom chrome height; graph canvas avoids this), `TIMELINE_H = 60` (height of `#timeline` strip; draw coordinates inside it). These two constants serve different purposes — do not conflate.
 
 Layout modules and their responsibilities:
 - `06-force-layout.js` — D3 force simulation

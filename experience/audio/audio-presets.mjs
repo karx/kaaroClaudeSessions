@@ -25,7 +25,7 @@ export const AUDIO_PRESETS = {
         thinking:'pad',
         // structural
         compact:'sweep', permission:'tick', scaffold:'woodblock',
-        tool_error:'buzz', tool_result:'harp',
+        tool_error:'buzz', tool_result:'harp', api_error:'buzz',
         // catch-all
         unknown:'tick',
       },
@@ -70,6 +70,7 @@ export const AUDIO_PRESETS = {
       { match: { key:'scaffold'   }, set: { volMult:0.30, pan: 0.00, send:0.01, brightness: 2500, octave:-1 } },
       // Tool error: loud buzz oct-1, slight left — errors demand attention but stay dark/low to signal failure
       { match: { key:'tool_error' }, set: { volMult:0.80, pan:-0.10, send:0.05, brightness: 1500, octave:-1 } },
+      { match: { key:'api_error'  }, set: { volMult:1.30, pan: 0.00, send:0.10, brightness:  900, octave:-2 } },
       // Tool result: quiet harp — successful response is passive receipt, not action; same instrument as read
       { match: { key:'tool_result'}, set: { volMult:0.35, pan: 0.05, send:0.03, brightness: 5000 } },
       // Unknown: minimal tick — diagnostic signal, not music; low vol to stay audible without cluttering
@@ -101,7 +102,7 @@ export const AUDIO_PRESETS = {
         thinking:'pad',
         // structural
         compact:'sweep', permission:'tick', scaffold:'woodblock',
-        tool_error:'buzz', tool_result:'harp',
+        tool_error:'buzz', tool_result:'harp', api_error:'buzz',
         // catch-all
         unknown:'tick',
       },
@@ -140,6 +141,7 @@ export const AUDIO_PRESETS = {
       { match: { key:'permission' }, set: { volMult:0.55, pan: 0.00, send:0.00, brightness: 3000 } },
       { match: { key:'scaffold'   }, set: { volMult:0.30, pan: 0.00, send:0.01, brightness: 2500, octave:-1 } },
       { match: { key:'tool_error' }, set: { volMult:1.20, pan:-0.10, send:0.08, brightness: 1200, octave:-1 } },
+      { match: { key:'api_error'  }, set: { volMult:1.50, pan: 0.00, send:0.12, brightness:  800, octave:-2 } },
       { match: { key:'tool_result'}, set: { volMult:0.40, pan: 0.05, send:0.03, brightness: 5000 } },
       { match: { key:'unknown'    }, set: { volMult:0.20, pan: 0.00, send:0.00, brightness: 3000 } },
       // Silence structural NR envelope noise
@@ -166,7 +168,7 @@ export const AUDIO_PRESETS = {
         thinking:'pad',
         // structural
         compact:'sweep', permission:'tick', scaffold:'woodblock',
-        tool_error:'buzz', tool_result:'harp',
+        tool_error:'buzz', tool_result:'harp', api_error:'buzz',
         // catch-all
         unknown:'tick',
       },
@@ -204,6 +206,7 @@ export const AUDIO_PRESETS = {
       { match: { key:'permission' }, set: { volMult:0.30, pan: 0.00, send:0.00, brightness: 3000 } },
       { match: { key:'scaffold'   }, set: { volMult:0.25, pan: 0.00, send:0.01, brightness: 2500, octave:-1 } },
       { match: { key:'tool_error' }, set: { volMult:0.90, pan:-0.10, send:0.05, brightness: 1500, octave:-1 } },
+      { match: { key:'api_error'  }, set: { volMult:1.30, pan: 0.00, send:0.10, brightness:  900, octave:-2 } },
       { match: { key:'tool_result'}, set: { volMult:0.35, pan: 0.05, send:0.03, brightness: 5000 } },
       { match: { key:'unknown'    }, set: { volMult:0.15, pan: 0.00, send:0.00, brightness: 3000 } },
       // Silence structural NR envelope noise

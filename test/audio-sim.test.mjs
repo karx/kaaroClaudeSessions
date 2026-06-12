@@ -755,3 +755,32 @@ test('integration â€” real CC session produces valid transcript with CF pre
     assert.ok(ev.hz > 0,                        `event ${ev.event} hz must be positive`);
   }
 });
+
+// ── E5: error distinctness + bash bucket regression guards ───────────────────
+
+test('every preset — tool_error and api_error sound unlike any tool action', () => {
+  const TOOL_ACTION = ['read', 'write', 'edit', 'grep_glob', 'agent', 'bash_git', 'bash_run', 'bash_other', 'web', 'other'];
+  for (const [slug, preset] of Object.entries(AUDIO_PRESETS)) {
+    const inst = preset.settings.instruments;
+    for (const errKey of ['tool_error', 'api_error']) {
+      for (const k of TOOL_ACTION) {
+        assert.notEqual(inst[errKey], inst[k],
+          `${slug}: ${errKey} (${inst[errKey]}) must not share an instrument with ${k}`);
+      }
+    }
+  }
+});
+
+test('every preset — the three bash buckets have three distinct instruments', () => {
+  for (const [slug, preset] of Object.entries(AUDIO_PRESETS)) {
+    const inst = preset.settings.instruments;
+    const set = new Set([inst.bash_git, inst.bash_run, inst.bash_other]);
+    assert.equal(set.size, 3, `${slug}: bash_git/bash_run/bash_other must be distinguishable`);
+  }
+});
+
+test('resolveSonic — api_error pulses resolve to the api_error profile', () => {
+  const s = cfSim('api_error', { message: 'quota exceeded', code: 'rate_limit' });
+  assert.equal(s.key, 'api_error');
+  assert.ok(s.volMult >= 1.0, 'api errors must be prominent');
+});

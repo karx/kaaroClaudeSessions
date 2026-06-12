@@ -322,6 +322,12 @@ export const EVENT_TYPES = {
     desc: 'Tool result — successful response payload; volume scales with payload size',
   },
 
+  api_error: {
+    family: 'system', instrument: 'buzz', pan: 0.00, sendAmt: 0.10,
+    brightness: 900, volMult: 1.30, octave: -2,
+    desc: 'Harness/API failure — quota exceeded, rate limit, auth error; the loudest, lowest alarm in the mix',
+  },
+
   thinking: {
     family: 'context', instrument: 'pad', pan: -0.10, sendAmt: 0.06,
     brightness: 4000, volMult: 0.25, octave: -1,

@@ -32,7 +32,10 @@ function toIso(ms) {
 }
 
 function keypath(op) {
-  return (op.k || []).map(x => (typeof x === 'number' ? '#' : x)).join('.');
+  // k is an array of path segments in the real op-log; tolerate a bare string
+  // or missing k so a malformed op degrades to unknown_record, never a throw
+  const k = Array.isArray(op.k) ? op.k : (typeof op.k === 'string' ? [op.k] : []);
+  return k.map(x => (typeof x === 'number' ? '#' : x)).join('.');
 }
 
 function plainText(md) {

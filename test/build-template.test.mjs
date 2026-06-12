@@ -96,3 +96,17 @@ test('client core placeholder exists and is injected by the bundle assembly', as
   const core = fs.readFileSync('experience/client/00-core.js', 'utf8');
   assert.ok(core.includes('%%CLIENT_CORE%%'));
 });
+
+// ── Register A token injection (E2) ───────────────────────────────────────────
+
+test('all page templates carry the %%TOKENS_CSS%% marker', async () => {
+  const fs = await import('node:fs');
+  for (const p of ['experience/pages/template.html', 'experience/pages/daw-template.html', 'experience/pages/now.html']) {
+    assert.ok(fs.readFileSync(p, 'utf8').includes('%%TOKENS_CSS%%'), `${p} missing marker`);
+  }
+});
+
+test('00-core carries the %%KAARO_TOKENS%% marker for canvas JS', async () => {
+  const fs = await import('node:fs');
+  assert.ok(fs.readFileSync('experience/client/00-core.js', 'utf8').includes('%%KAARO_TOKENS%%'));
+});

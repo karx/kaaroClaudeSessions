@@ -2,6 +2,7 @@ sessions-data.json
 graph.html
 graph-data.json
 daw-builder.html
+now.html
 node_modules/
 /agent-tools/
 /.claude/settings.local.json

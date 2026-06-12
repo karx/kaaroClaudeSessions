@@ -21,6 +21,7 @@ import {
   IN_FLIGHT_COLOR, parseMinSessions,
 } from './experience/graph-data.mjs';
 import { buildGraph } from './experience/graph-pipeline.mjs';
+import { TOKENS, tokensToCss } from './experience/design-tokens.mjs';
 
 const CWD = path.dirname(fileURLToPath(import.meta.url));
 
@@ -62,6 +63,27 @@ function loadClientCore() {
   return stripExports(fs.readFileSync(path.join(CWD, 'experience', 'client-core.mjs'), 'utf8'));
 }
 
+// Substitutions shared by every page artifact (Register A tokens).
+function tokenSubs() {
+  return {
+    '%%TOKENS_CSS%%':   tokensToCss(),
+    '%%KAARO_TOKENS%%': JSON.stringify(TOKENS),
+  };
+}
+
+// ── Mission Control (/now) — static page through the same substitution path ──
+function buildNow() {
+  const nowTemplatePath = path.join(CWD, 'experience', 'pages', 'now.html');
+  if (!fs.existsSync(nowTemplatePath)) {
+    console.warn('now template missing — skipping now.html');
+    return;
+  }
+  const html = applySubstitutions(fs.readFileSync(nowTemplatePath, 'utf8'), tokenSubs());
+  const outPath = path.join(CWD, 'now.html');
+  fs.writeFileSync(outPath, html, 'utf8');
+  console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB) — Mission Control`);
+}
+
 // ── DAW Builder (dedicated live-pulse pure audio profile builder) ────────────
 function buildDaw() {
   const dawTemplatePath = path.join(CWD, 'experience', 'pages', 'daw-template.html');
@@ -92,11 +114,12 @@ function buildDaw() {
   // No heavy data injection needed for the pure live builder (it consumes /events directly).
   const injected = applySubstitutions(dawClientSrc, {
     '%%CLIENT_CORE%%': loadClientCore(),
+    ...tokenSubs(),
   });
 
   const dawHtml = applySubstitutions(
     fs.readFileSync(dawTemplatePath, 'utf8'),
-    { '%%DAW_CLIENT_JS%%': injected },
+    { '%%DAW_CLIENT_JS%%': injected, ...tokenSubs() },
   );
 
   const dawOut = path.join(CWD, 'daw-builder.html');
@@ -136,19 +159,21 @@ function run() {
     '%%TIMELINE_JSON%%':    JSON.stringify(timeline),
     '%%COLOR_INDEX_JSON%%': JSON.stringify(COLOR_TO_INDEX),
     '%%IN_FLIGHT_COLOR%%':  IN_FLIGHT_COLOR,
+    ...tokenSubs(),
   });
 
   const html = applySubstitutions(
     fs.readFileSync(path.join(CWD, 'experience', 'pages', 'template.html'), 'utf8'),
-    { '%%MIN_FILE_SESSIONS%%': String(minSessions), '%%CLIENT_JS%%': injectedJS },
+    { '%%MIN_FILE_SESSIONS%%': String(minSessions), '%%CLIENT_JS%%': injectedJS, ...tokenSubs() },
   );
 
   const outPath = path.join(CWD, 'graph.html');
   fs.writeFileSync(outPath, html, 'utf8');
   console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB)`);
 
-  // Always produce the dedicated live-pulse DAW builder page as well.
+  // Always produce the dedicated live-pulse DAW builder + Mission Control pages.
   buildDaw();
+  buildNow();
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) run();

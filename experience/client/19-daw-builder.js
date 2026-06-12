@@ -453,10 +453,12 @@
   const MATCH_KEYS = [
     'read', 'write', 'edit', 'grep_glob',
     'bash_git', 'bash_run', 'bash_other',
-    'agent', 'other', 'tokens', 'words',
+    'agent', 'other', 'web', 'tokens', 'words', 'chirp',
+    'human_turn', 'compact', 'permission', 'mode_shift',
+    'attachment', 'scaffold', 'tool_error', 'api_error',
   ];
-  const MATCH_HARNESSES = ['claude-code', 'pi', 'antigravity', 'grok'];
-  const INST_NAMES = ['harp', 'bass', 'bell', 'flute', 'bit', 'pling', 'snare', 'kick', 'hat', 'off'];
+  const MATCH_HARNESSES = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot'];
+  const INST_NAMES = ['harp', 'bass', 'bell', 'flute', 'bit', 'pling', 'snare', 'kick', 'hat', 'buzz', 'off'];
   const DEGREE_MODES = ['path_hash', 'sequential', 'random', 'root'];
 
   function buildMapTab(body) {

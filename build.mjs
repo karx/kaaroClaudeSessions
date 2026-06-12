@@ -22,6 +22,7 @@ import {
 } from './experience/graph-data.mjs';
 import { buildGraph } from './experience/graph-pipeline.mjs';
 import { TOKENS, tokensToCss } from './experience/design-tokens.mjs';
+import { HARNESS_REGISTRY } from './hooks/registry.mjs';
 
 const CWD = path.dirname(fileURLToPath(import.meta.url));
 
@@ -159,6 +160,8 @@ function run() {
     '%%TIMELINE_JSON%%':    JSON.stringify(timeline),
     '%%COLOR_INDEX_JSON%%': JSON.stringify(COLOR_TO_INDEX),
     '%%IN_FLIGHT_COLOR%%':  IN_FLIGHT_COLOR,
+    '%%TRACE_HARNESSES%%':  JSON.stringify(
+      HARNESS_REGISTRY.filter(h => h.capabilities.trace).map(h => h.id)),
     ...tokenSubs(),
   });
 

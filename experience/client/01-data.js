@@ -16,3 +16,6 @@ const PROJ_R = NODE_RADII.PROJ_R;
 
 // Active history-view filters — consumed via sessionMatchesFilters (core).
 const SESSION_FILTERS = { harnesses: null, projects: null, from: null, to: null };
+
+// Harnesses whose sessions can serve /api/trace (from the registry at build time).
+const TRACE_HARNESSES = new Set(%%TRACE_HARNESSES%%);

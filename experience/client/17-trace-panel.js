@@ -57,8 +57,10 @@
   // â”€â”€ Public: returns HTML to embed in the session panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Called from 05-interaction.js showPanel() when context_resets > 0.
   function traceSection(d) {
-    if (!d.context_resets) return '';
-    const n = d.context_resets + 1;
+    // Gated on the harness's trace capability (registry-injected at build);
+    // single-segment sessions render one strip + VIEW THREAD.
+    if (!TRACE_HARNESSES.has(d.harness)) return '';
+    const n = (d.context_resets || 0) + 1;
     return `<div class="psep"></div>` +
       `<div class="p-section-hd ctx-hd" data-trace-id="${d.id}">` +
         `â—† CONTEXT WINDOWS <span class="ctx-n">(${n})</span>` +

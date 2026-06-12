@@ -20,7 +20,7 @@ import { recordsToNormalized as ccToNorm } from '../hooks/adapters/claude-code.m
 import { recordsToNormalized as piToNorm } from '../hooks/adapters/pi.mjs';
 import { recordsToNormalized as agToNorm } from '../hooks/adapters/antigravity.mjs';
 import { recordsToNormalized as grokToNorm } from '../hooks/adapters/grok.mjs';
-import { EVENT_TYPES } from '../hooks/event-types.mjs';
+import { EVENT_TYPES } from '../experience/audio/event-registry.mjs';
 import { reduceSession } from '../hooks/session-reducer.mjs';
 import { enrichSession } from '../hooks/enrich-session.mjs';
 import { analyzeSession, parseJsonlFile, deriveLabel } from '../analyze.mjs';
@@ -67,7 +67,7 @@ function finalizeAntigravity(session, records) {
   return session;
 }
 
-// ── Sample Trace validation ───────────────────────────────────────────────────
+// â”€â”€ Sample Trace validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // For each EVENT_TYPES entry with samples, run the adapter and assert output
 // contains at least one NR matching all fields in the expect entry.
 
@@ -91,7 +91,7 @@ for (const [eventKey, entry] of Object.entries(EVENT_TYPES)) {
   for (const [harness, sample] of Object.entries(entry.samples)) {
     const adapterFn = ADAPTERS[harness];
     if (!adapterFn) continue;
-    test(`sample trace — ${eventKey}/${harness} v${sample.version}`, () => {
+    test(`sample trace â€” ${eventKey}/${harness} v${sample.version}`, () => {
       const nrs = adapterFn([sample.record]);
       for (const expectedNR of sample.expect) {
         const match = nrs.find(nr => partialMatch(nr, expectedNR));
@@ -104,7 +104,7 @@ for (const [eventKey, entry] of Object.entries(EVENT_TYPES)) {
   }
 }
 
-test('pipeline internal consistency — claude-code', () => {
+test('pipeline internal consistency â€” claude-code', () => {
   const records = [
     {
       type: 'user', timestamp: '2026-05-01T10:00:00.000Z', gitBranch: 'feat/x',
@@ -139,7 +139,7 @@ test('pipeline internal consistency — claude-code', () => {
   }
 });
 
-test('harness parity — pi', () => {
+test('harness parity â€” pi', () => {
   const records = [
     {
       type: 'session', timestamp: '2026-04-26T14:22:51.638Z', cwd: 'D:\\src\\ebrain',
@@ -175,7 +175,7 @@ test('harness parity — pi', () => {
   assertParity(legacy, pipeline, 'pi');
 });
 
-test('harness parity — antigravity', () => {
+test('harness parity â€” antigravity', () => {
   const records = [
     {
       source: 'USER_EXPLICIT', type: 'USER_INPUT', created_at: '2026-06-07T00:15:33Z',

@@ -1,14 +1,14 @@
 /**
- * lib/audio-sim.mjs — server-side audio simulation engine.
+ * lib/audio-sim.mjs â€” server-side audio simulation engine.
  *
  * Pure mirror of src/client/14-pulse-audio.js resolveSonic logic.
  * No Web Audio API, no DOM, no I/O.
  *
  * Pipeline:
- *   JSONL records → parsePulse() → pulses → resolveSonic() → SimEvent[]
+ *   JSONL records â†’ parsePulse() â†’ pulses â†’ resolveSonic() â†’ SimEvent[]
  */
 
-import { EVENT_TYPES, toolNameToKey } from '../../hooks/event-types.mjs';
+import { EVENT_TYPES, toolNameToKey } from './event-registry.mjs';
 import { normRecordsToPulses } from '../../hooks/pulse-transformer.mjs';
 import { recordsToNormalized as ccNorm }   from '../../hooks/adapters/claude-code.mjs';
 import { recordsToNormalized as piNorm }   from '../../hooks/adapters/pi.mjs';
@@ -29,7 +29,7 @@ const HARNESS_CAPS = {
   'grok':        { tokens: false },
 };
 
-// ── Scales (mirrors 14-pulse-audio.js) ───────────────────────────────────────
+// â”€â”€ Scales (mirrors 14-pulse-audio.js) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const SCALES = {
   major_pentatonic: [0, 2, 4, 7, 9],
   minor_pentatonic: [0, 3, 5, 7, 10],
@@ -38,12 +38,12 @@ export const SCALES = {
   dorian:           [0, 2, 3, 5, 7, 9, 10],
 };
 
-// ── Family map (derived from EVENT_TYPES for backward compat) ─────────────────
+// â”€â”€ Family map (derived from EVENT_TYPES for backward compat) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const TOOL_FAMILY = Object.fromEntries(
   Object.entries(EVENT_TYPES).map(([k, v]) => [k, v.family])
 );
 
-// ── Spatial defaults (derived from EVENT_TYPES for backward compat) ───────────
+// â”€â”€ Spatial defaults (derived from EVENT_TYPES for backward compat) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const SPATIAL = Object.fromEntries(
   Object.entries(EVENT_TYPES).map(([k, v]) => [k, { pan: v.pan, sendAmt: v.sendAmt, brightness: v.brightness }])
 );
@@ -59,7 +59,7 @@ export const DEFAULT_SETTINGS = {
   bpm:      120,
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function strHash(s) {
   if (!s) return 0;
@@ -88,7 +88,7 @@ function ruleMatches(rule, evType, data, key) {
   return true;
 }
 
-// ── resolveSonic ──────────────────────────────────────────────────────────────
+// â”€â”€ resolveSonic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /**
  * Pure mirror of 14-pulse-audio.js resolveSonic().
  * @param {string} event    'tool_call' | 'tokens' | 'words' | 'human_turn' | etc.
@@ -135,7 +135,7 @@ export function resolveSonic(event, data, settings = DEFAULT_SETTINGS, profile =
   const hBias = (data && data.harness) ? (HARNESS_PAN_BIAS[data.harness] || 0) : 0;
   pan = Math.max(-1, Math.min(1, pan + hBias));
 
-  // Mapping rules — first match wins
+  // Mapping rules â€” first match wins
   for (const rule of (P.mappings || [])) {
     if (!ruleMatches(rule, event, data, key)) continue;
     const eff = rule.set || {};
@@ -154,7 +154,7 @@ export function resolveSonic(event, data, settings = DEFAULT_SETTINGS, profile =
   return { key, instrument, volMult, octave, degreeMode, scale, fam, pan, sendAmt, brightness };
 }
 
-// ── resolveHz ─────────────────────────────────────────────────────────────────
+// â”€â”€ resolveHz â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /**
  * Deterministic pitch. Mirrors noteHz() from 14-pulse-audio.js.
  * Uses `projectRoot` (MIDI note, default 60=C4) instead of graph lookup.
@@ -168,7 +168,7 @@ export function resolveHz(data, sonic, projectRoot = 60, seqState = { idx: 0 }) 
   if (mode === 'root') {
     degree = 0;
   } else if (mode === 'random') {
-    // Deterministic "random": hash of where+ts so same input → same pitch
+    // Deterministic "random": hash of where+ts so same input â†’ same pitch
     degree = strHash((data.where || '') + String(data.ts || '')) % iv.length;
   } else if (mode === 'sequential') {
     seqState.idx = (seqState.idx + 1) % iv.length;
@@ -183,7 +183,7 @@ export function resolveHz(data, sonic, projectRoot = 60, seqState = { idx: 0 }) 
   return parseFloat(midiToHz(midi).toFixed(1));
 }
 
-// ── simulateSession ───────────────────────────────────────────────────────────
+// â”€â”€ simulateSession â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /**
  * Run a full JSONL session through the audio pipeline.
  *
@@ -243,11 +243,11 @@ export function simulateSession(records, ctx = {}, settings = DEFAULT_SETTINGS, 
   return { events, summary, silentCount };
 }
 
-// ── dumpSession ──────────────────────────────────────────────────────────────
+// â”€â”€ dumpSession â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /**
- * Full pipeline dump — every NR → pulse, with sonic resolution and NR metadata.
+ * Full pipeline dump â€” every NR â†’ pulse, with sonic resolution and NR metadata.
  * Returns one row per pulse; audible:false rows are included (instrument='off').
- * Designed for debugging and refinement — not for production audio playback.
+ * Designed for debugging and refinement â€” not for production audio playback.
  *
  * @returns {object[]} DumpRow[]
  */
@@ -306,10 +306,10 @@ export function dumpSession(records, ctx = {}, settings = DEFAULT_SETTINGS, prof
   return rows;
 }
 
-// ── formatTranscript ──────────────────────────────────────────────────────────
+// â”€â”€ formatTranscript â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /**
  * Render SimEvent[] to a text transcript (one event per line).
- * Stable and diffable — use for snapshots.
+ * Stable and diffable â€” use for snapshots.
  */
 export function formatTranscript(events) {
   return events.map(ev => {
@@ -345,7 +345,7 @@ export function formatTranscript(events) {
   });
 }
 
-// ── formatSnapshotHeader ──────────────────────────────────────────────────────
+// â”€â”€ formatSnapshotHeader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export function formatSnapshotHeader(sessionId, presetSlug, summary, settings) {
   const now = new Date().toISOString().slice(0, 10);
   return [
@@ -355,6 +355,6 @@ export function formatSnapshotHeader(sessionId, presetSlug, summary, settings) {
     `# scale=${settings.scale || '?'}  noteMode=${settings.noteMode || '?'}  bpm=${settings.bpm || '?'}`,
     `# generated=${now}  projectRoot=60 (fixed)`,
     `# tool_call=${summary.tool_call}  words=${summary.words}  tokens=${summary.tokens}  total=${summary.total}  silent=${summary.silent}`,
-    `# ${'─'.repeat(70)}`,
+    `# ${'â”€'.repeat(70)}`,
   ].join('\n');
 }

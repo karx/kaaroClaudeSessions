@@ -13,13 +13,13 @@ const SL = {
 // â”€â”€ Swimlane: color helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BRANCH_PALETTE = ['#00aaff','#ff4488','#cc44ff','#ff8800','#00ff88','#ffcc00','#00cccc','#44ffaa','#ff88cc','#8844ff'];
 function branchColor(branch) {
-  if (!branch || branch === '__no-branch__') return '#334455';
+  if (!branch || branch === '__no-branch__') return KAARO_TOKENS.dim;
   let h = 0;
   for (let i = 0; i < branch.length; i++) h = (Math.imul(h, 31) + branch.charCodeAt(i)) | 0;
   return BRANCH_PALETTE[Math.abs(h) % BRANCH_PALETTE.length];
 }
 function modelColor(model) {
-  if (!model) return '#445566';
+  if (!model) return KAARO_TOKENS.dim;
   if (model.includes('opus'))   return '#cc44ff';
   if (model.includes('sonnet')) return '#00aaff';
   if (model.includes('haiku'))  return '#00cccc';
@@ -79,7 +79,7 @@ function renderSwimlane() {
   const tsSess = sessions.filter(s => s.first_timestamp);
   if (!tsSess.length) {
     decorLayer.append('text').attr('x', W/2).attr('y', H/2)
-      .attr('text-anchor','middle').attr('font-size',13).attr('fill','#2a2a44')
+      .attr('text-anchor','middle').attr('font-size',13).attr('fill',KAARO_TOKENS.dim)
       .attr('font-family','Courier New,monospace').text('No sessions in range');
     return;
   }

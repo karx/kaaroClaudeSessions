@@ -88,7 +88,7 @@ function drawArcDecor() {
       .attr('stroke', '#252545').attr('stroke-width', 1);
     decorLayer.append('text')
       .attr('x', x).attr('y', bottomY + 24).attr('text-anchor', 'middle')
-      .attr('font-size', 8).attr('fill', '#2a2a44').attr('font-family', 'Courier New,monospace')
+      .attr('font-size', 8).attr('fill', KAARO_TOKENS.dim).attr('font-family', 'Courier New,monospace')
       .text(d3.timeFormat('%b %d')(t));
   });
 
@@ -147,8 +147,8 @@ function computeFileSharedArcs(opts) {
     const spanDays = (nA.first_timestamp && nB.first_timestamp)
       ? Math.abs(+new Date(nA.first_timestamp) - +new Date(nB.first_timestamp)) / 864e5 : 0;
     if (spanDays > maxSpan) return;
-    const color = colorBy === 'file' ? (p.colors[0] || '#4455cc')
-                : colorBy === 'project' ? nA.color : '#2a3a5a';
+    const color = colorBy === 'file' ? (p.colors[0] || KAARO_TOKENS.accent)
+                : colorBy === 'project' ? nA.color : KAARO_TOKENS.dim;
     arcs.push({ x1: nA.x, y1: nA.y, x2: nB.x, y2: nB.y,
       count: p.files.size, color, spanDays, files: [...p.files], sidA: p.sidA, sidB: p.sidB });
   });

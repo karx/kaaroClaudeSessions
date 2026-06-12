@@ -31,7 +31,7 @@
   #topbar .nav a { color: #445544; text-decoration: none; margin-left: 12px; letter-spacing: 0.08em; }
   #topbar .nav a:hover { color: #ffaa00; }
   #topbar .spacer { flex: 1; }
-  #live-badge { color: #00ff88; letter-spacing: 0.08em; }
+  #live-badge { color: var(--k-geo); letter-spacing: 0.08em; }
   #live-badge.err { color: #ff5555; }
   #live-badge.dim { color: #445544; }
 
@@ -47,7 +47,7 @@
   .harness-cell .hname { color: #ffaa00; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; }
   .harness-cell .hstats { color: #445544; font-size: 11px; margin-top: 2px; }
   .harness-cell .hstats b { color: #e8e000; font-weight: 400; }
-  .harness-cell .hstats .on { color: #00ff88; }
+  .harness-cell .hstats .on { color: var(--k-geo); }
 
   /* Session cards */
   #cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 8px; }
@@ -55,11 +55,11 @@
     background: #101008; border: 1px solid #1e1e00;
     padding: 8px 10px; cursor: default;
   }
-  .card.active { border-left: 2px solid #00ff88; }
+  .card.active { border-left: 2px solid var(--k-geo); }
   .card.idle   { border-left: 2px solid #445544; }
   .card .row1 { display: flex; align-items: baseline; gap: 8px; }
   .card .status { font-size: 10px; letter-spacing: 0.08em; }
-  .card.active .status { color: #00ff88; }
+  .card.active .status { color: var(--k-geo); }
   .card.idle   .status { color: #445544; }
   .card .slug { color: #00cccc; font-weight: 700; }
   .card .project { color: #ffaa00; }
@@ -74,7 +74,7 @@
   .card .metrics b { color: #e8e000; font-weight: 400; }
   .card .metrics .errs b { color: #ff5555; }
   .card .metrics .ago { margin-left: auto; }
-  .card.active .metrics .ago { color: #00ff88; }
+  .card.active .metrics .ago { color: var(--k-geo); }
   .card .burn { color: #e8e000; }
 
   #empty {

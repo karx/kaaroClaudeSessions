@@ -156,7 +156,7 @@
 
     const scrollSec = S.scrollMs / 1000;
     const startSec  = Math.floor(scrollSec / 10) * 10;
-    ctx.fillStyle = '#2a3050'; ctx.font = "7px 'IBM Plex Mono',monospace";
+    ctx.fillStyle = KAARO_TOKENS.dim; ctx.font = "7px 'IBM Plex Mono',monospace";
     for (let sec = startSec; sec <= scrollSec + S.windowMs / 1000 + 10; sec += 10) {
       const x = W - (now / 1000 - sec) * PX_PER_SEC + scrollSec * PX_PER_SEC;
       if (x < -2 || x > W + 2) continue;
@@ -200,10 +200,10 @@
 
     ctx.globalAlpha = 0.92;
     ctx.fillStyle = '#06061a'; ctx.fillRect(tx, ty, bw, bh);
-    ctx.strokeStyle = '#2a3050'; ctx.lineWidth = 1;
+    ctx.strokeStyle = KAARO_TOKENS.dim; ctx.lineWidth = 1;
     ctx.strokeRect(tx + 0.5, ty + 0.5, bw - 1, bh - 1);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = '#8899cc'; ctx.font = "9px 'IBM Plex Mono',monospace";
+    ctx.fillStyle = KAARO_TOKENS.body; ctx.font = "9px 'IBM Plex Mono',monospace";
     lines.forEach((ln, i) => ctx.fillText(ln, tx + pad, ty + pad + lh * i + 9));
   }
 
@@ -280,7 +280,7 @@
 
     // labels
     const last = recent[recent.length - 1];
-    ctx.fillStyle = '#2a3050'; ctx.font = "7px 'IBM Plex Mono',monospace";
+    ctx.fillStyle = KAARO_TOKENS.dim; ctx.font = "7px 'IBM Plex Mono',monospace";
     ctx.fillText(
       'DENSITY ' + (last.density * 5).toFixed(1) + '/s  ' +
       'BPM~' + Math.round(last.bpm * 240) + '  ' +
@@ -344,7 +344,7 @@
   function buildMixerStrips() {
     const mixer = document.getElementById('mixer'); if (!mixer) return;
     for (const lane of FAMILY_LANES) {
-      const col   = FAMILY_LABEL_COLORS[lane.id] || '#4455cc';
+      const col   = FAMILY_LABEL_COLORS[lane.id] || KAARO_TOKENS.accent;
       const strip = document.createElement('div');
       strip.className = 'ch-strip'; strip.dataset.family = lane.id;
       strip.innerHTML = `
@@ -801,7 +801,7 @@
       // Log
       const logDiv = $('sim-log');
       const line = document.createElement('div');
-      line.style.padding = '1px 0'; line.style.borderBottom = '1px dotted #0e0e22';
+      line.style.padding = '1px 0'; line.style.borderBottom = '1px dotted '+KAARO_TOKENS.border+'';
       line.textContent = new Date().toLocaleTimeString() + '  ' + type + '  ' + tool + '  ' + project;
       logDiv.appendChild(line);
       while (logDiv.children.length > 30) logDiv.removeChild(logDiv.firstChild);
@@ -1185,7 +1185,7 @@
     requestAnimationFrame(drawDaw);
     requestAnimationFrame(drawAuto);
 
-    console.log('%c[kaaro-daw] Cognitive DAW v2 ready â€” 4 family lanes Â· reverb Â· stereo Â· pressure automation', 'color:#4455cc');
+    console.log('%c[kaaro-daw] Cognitive DAW v2 ready â€” 4 family lanes Â· reverb Â· stereo Â· pressure automation', 'color:'+KAARO_TOKENS.accent);
   }
 
   boot();

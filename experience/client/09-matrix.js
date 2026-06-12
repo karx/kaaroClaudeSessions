@@ -28,7 +28,7 @@ function renderMatrix() {
   bar.innerHTML=`<span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#ffcc00" fill-opacity=".75"/></svg>edit</span>
     <span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#00ff88" fill-opacity=".75"/></svg>write</span>
     <span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#1e4a66" fill-opacity=".8"/></svg>read only</span>
-    <span style="margin-left:auto;color:#2a2a44;font-size:10px">${files.length} files Ã— ${sessions.length} sessions</span>`;
+    <span style="margin-left:auto;color:${KAARO_TOKENS.dim};font-size:10px">${files.length} files Ã— ${sessions.length} sessions</span>`;
   mv.appendChild(bar);
   const msvg=d3.select(mv).append('svg').attr('width',svgW).attr('height',svgH).style('display','block');
   const hg=msvg.append('g').attr('transform',`translate(${LABEL_W},0)`);

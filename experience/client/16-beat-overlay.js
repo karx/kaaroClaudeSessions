@@ -155,7 +155,7 @@
 
     tooltip.style.cssText = `display:block;left:${left}px;top:${top}px`;
     tooltip.innerHTML = [
-      `<div class="dtt-proj" style="color:${ev.color||'#8899cc'}">${ev.project || '?'}</div>`,
+      `<div class="dtt-proj" style="color:${ev.color||KAARO_TOKENS.body}">${ev.project || '?'}</div>`,
       `<div class="dtt-tool">${label}${ev.category ? ' Â· '+ev.category : ''}</div>`,
       where ? `<div class="dtt-where">${where}</div>` : '',
       ev.slug    ? `<div class="dtt-slug">${ev.slug}</div>` : '',
@@ -257,7 +257,7 @@
     // scroll position readout
     if (!_isLive) {
       const secAgo = Math.round(_scrollPx / PX_PER_SEC);
-      ctx.fillStyle = '#2a3a5a';
+      ctx.fillStyle = KAARO_TOKENS.dim;
       ctx.font = "8px 'IBM Plex Mono',monospace";
       const txt = `-${secAgo}s`;
       ctx.fillText(txt, W / 2 - ctx.measureText(txt).width / 2, 12);

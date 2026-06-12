@@ -611,7 +611,7 @@
     const btn = document.createElement('div');
     btn.id    = 'sound-btn';
     btn.title = 'Toggle pulse sounds';
-    btn.style.cssText = 'position:fixed;top:8px;right:110px;background:#0e0e22;color:#2a3050;font:bold 10px \'IBM Plex Mono\',monospace;padding:3px 9px;z-index:9998;cursor:pointer;user-select:none;border:1px solid #1c1c34;transition:color .15s,background .15s,border-color .15s;letter-spacing:1px';
+    btn.style.cssText = 'position:fixed;top:8px;right:110px;background:'+KAARO_TOKENS.card+';color:'+KAARO_TOKENS.dim+';font:bold 10px \'IBM Plex Mono\',monospace;padding:3px 9px;z-index:9998;cursor:pointer;user-select:none;border:1px solid '+KAARO_TOKENS.border+';transition:color .15s,background .15s,border-color .15s;letter-spacing:1px';
     btn.textContent = 'â™ª OFF';
     document.body.appendChild(btn);
     btn.addEventListener('click', () => {
@@ -622,7 +622,7 @@
         btn.textContent = 'â™ª ON';  btn.style.color = '#00ff88'; btn.style.background = '#061a0e'; btn.style.borderColor = '#1a4a2a';
       } else {
         _stopClick();
-        btn.textContent = 'â™ª OFF'; btn.style.color = '#2a3050'; btn.style.background = '#0e0e22'; btn.style.borderColor = '#1c1c34';
+        btn.textContent = 'â™ª OFF'; btn.style.color = KAARO_TOKENS.dim; btn.style.background = KAARO_TOKENS.card; btn.style.borderColor = KAARO_TOKENS.border;
       }
     });
     // Expose muted state + toggle for DAW builder's own mute button

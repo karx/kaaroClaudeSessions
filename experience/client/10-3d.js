@@ -16,7 +16,7 @@ const layout3D = {
     const nodes3d=GRAPH.nodes.filter(n=>!hiddenIds.has(n.id)).map(n=>({...n}));
     const links3d=GRAPH.edges.filter(e=>{const s=e.source?.id??e.source,t=e.target?.id??e.target;if(hiddenIds.has(s)||hiddenIds.has(t))return false;if(e.type==='branch'&&!showBranch)return false;if(e.type==='read'&&!showReads)return false;return true;}).map(e=>({source:e.source?.id??e.source,target:e.target?.id??e.target,type:e.type,weight:e.weight}));
     this._g=ForceGraph3D({controlType:'orbit'})(document.getElementById('three-view'))
-      .width(W).height(H).backgroundColor('#080810')
+      .width(W).height(H).backgroundColor(KAARO_TOKENS.bg)
       .graphData({nodes:nodes3d,links:links3d})
       .nodeId('id').nodeLabel('label').nodeColor(d=>d.color).nodeVal(d=>nodeRadius(d)*1.8).nodeOpacity(0.85)
       .linkColor(e=>EDGE_COLORS[e.type]||'#444').linkOpacity(0.4).linkWidth(e=>edgeWidth(e, MAX_WEIGHT))

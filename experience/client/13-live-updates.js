@@ -19,7 +19,7 @@ window.updateGraph = function(newData) {
 // â”€â”€ Live status badge + pulse ticker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   const badge=document.createElement('div');
-  badge.style.cssText='position:fixed;top:8px;right:12px;background:#00ff88;color:#000;font:bold 10px \'IBM Plex Mono\',monospace;padding:3px 8px;z-index:9998;cursor:default;user-select:none;transition:background 0.15s';
+  badge.style.cssText='position:fixed;top:8px;right:12px;background:'+KAARO_TOKENS.geo+';color:#000;font:bold 10px \'IBM Plex Mono\',monospace;padding:3px 8px;z-index:9998;cursor:default;user-select:none;transition:background 0.15s';
   badge.title='Live â€” updates when sessions change'; document.body.appendChild(badge);
   function setBadge(t,c){badge.textContent=t;badge.style.background=c;}
   setBadge('â¬¤ LIVE','#00ff88');
@@ -56,7 +56,7 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   function tickerAdd(text, color) {
     const li = document.createElement('li');
     li.className = 'pulse-entry';
-    li.style.color = color || '#445566';
+    li.style.color = color || KAARO_TOKENS.dim;
     li.textContent = text;
     ticker.appendChild(li);
     const max = tickerSticky ? TICKER_MAX_STICKY : TICKER_MAX_EPH;
@@ -78,14 +78,14 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
       window.updateGraph(d);
       setBadge('â†» '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),'#00cc66');
       setTimeout(()=>setBadge('â¬¤ LIVE','#00ff88'),3000);
-    }catch(e){setBadge('âš  error','#ff4444');}
+    }catch(e){setBadge('âš  error',KAARO_TOKENS.err);}
   });
 
   es.addEventListener('status',e=>{ if(e.data==='rebuilding') setBadge('â—Œ buildingâ€¦','#555'); });
   es.addEventListener('error',e=>{
     if(!e.data) return; // EventSource transport errors have no data; SSE error events do
-    setBadge('âš  build failed','#ff4444');
-    tickerAdd('âœ– rebuild failed: '+String(e.data).slice(0,60),'#ff4444');
+    setBadge('âš  build failed',KAARO_TOKENS.err);
+    tickerAdd('âœ– rebuild failed: '+String(e.data).slice(0,60),KAARO_TOKENS.err);
   });
   es.onerror=()=>setBadge('â—Œ reconnecting','#888');
   es.onopen=()=>setBadge('â¬¤ LIVE','#00ff88');
@@ -94,7 +94,7 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
     try{
       const d=JSON.parse(e.data);
       const projNode=GRAPH.nodes.find(n=>n.type==='project'&&n.label===d.project);
-      const color=projNode?.color||'#334455';
+      const color=projNode?.color||KAARO_TOKENS.dim;
       const file=d.where? ' Â· '+(d.where.replace(/\\/g,'/').split('/').pop()||d.where).slice(0,28) :'';
       tickerAdd(d.tool+file+'  ['+d.slug+']', color);
       if(window.playPulse) window.playPulse('tool_call',d);
@@ -111,7 +111,7 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   es.addEventListener('words',e=>{
     try{
       const d=JSON.parse(e.data);
-      tickerAdd('"'+d.preview.slice(0,52)+'"  ['+d.slug+']','#2a3a5a');
+      tickerAdd('"'+d.preview.slice(0,52)+'"  ['+d.slug+']',KAARO_TOKENS.dim);
       if(window.playPulse) window.playPulse('words',d);
     }catch{}
   });

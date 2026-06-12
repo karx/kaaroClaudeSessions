@@ -143,7 +143,7 @@
       const off = mProjs.includes(p.label);
       const col = off ? '#334' : p.color;
       const bg  = off ? 'transparent' : p.color + '22';
-      const bdr = off ? '#1c1c34' : p.color;
+      const bdr = off ? KAARO_TOKENS.border : p.color;
       return `<button class="ap-mute-chip" style="color:${col};background:${bg};border-color:${bdr};${off?'text-decoration:line-through':''}"
                       data-mute-proj="${p.label.replace(/"/g,'&quot;')}">${p.label}</button>`;
     }).join('');
@@ -330,7 +330,7 @@
   window._apClose = function() {
     panel.classList.remove('open');
     const b = document.getElementById('audio-settings-btn');
-    if (b) { b.style.color='#2a3050'; b.style.background='#0e0e22'; b.style.borderColor='#1c1c34'; }
+    if (b) { b.style.color=KAARO_TOKENS.dim; b.style.background=KAARO_TOKENS.card; b.style.borderColor=KAARO_TOKENS.border; }
   };
 
   // â”€â”€ Helper: refresh only the family selector after an individual change â”€â”€â”€â”€â”€â”€â”€
@@ -347,7 +347,7 @@
     if (!b) return;
     const f = window.AUDIO_SETTINGS.filter || {};
     const active = (f.mutedFamilies?.length||0) + (f.mutedProjects?.length||0) > 0;
-    b.style.color = active ? '#ff9944' : (panel.classList.contains('open') ? '#aabbff' : '#2a3050');
+    b.style.color = active ? '#ff9944' : (panel.classList.contains('open') ? KAARO_TOKENS.label : KAARO_TOKENS.dim);
   }
 
   // â”€â”€ âš™ Settings button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -355,7 +355,7 @@
     const btn = document.createElement('div');
     btn.id    = 'audio-settings-btn';
     btn.title = 'Audio settings â€” metronome, instruments, filter';
-    btn.style.cssText = 'position:fixed;top:8px;right:160px;background:#0e0e22;color:#2a3050;font:bold 12px \'IBM Plex Mono\',monospace;padding:2px 8px;z-index:9998;cursor:pointer;user-select:none;border:1px solid #1c1c34;transition:color .15s,background .15s,border-color .15s;letter-spacing:0';
+    btn.style.cssText = 'position:fixed;top:8px;right:160px;background:'+KAARO_TOKENS.card+';color:'+KAARO_TOKENS.dim+';font:bold 12px \'IBM Plex Mono\',monospace;padding:2px 8px;z-index:9998;cursor:pointer;user-select:none;border:1px solid '+KAARO_TOKENS.border+';transition:color .15s,background .15s,border-color .15s;letter-spacing:0';
     btn.textContent = 'âš™';
     document.body.appendChild(btn);
 
@@ -364,9 +364,9 @@
       panel.classList.toggle('open');
       if (opening) {
         render();
-        btn.style.color='#aabbff'; btn.style.background='#0a0a22'; btn.style.borderColor='#2a3080';
+        btn.style.color=KAARO_TOKENS.label; btn.style.background=KAARO_TOKENS.card; btn.style.borderColor=KAARO_TOKENS.accent;
       } else {
-        btn.style.color='#2a3050'; btn.style.background='#0e0e22'; btn.style.borderColor='#1c1c34';
+        btn.style.color=KAARO_TOKENS.dim; btn.style.background=KAARO_TOKENS.card; btn.style.borderColor=KAARO_TOKENS.border;
       }
       _updateSettingsBtn();
     });

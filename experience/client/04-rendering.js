@@ -49,7 +49,7 @@ function renderNodeContent(el, d) {
         .style('animation-duration',spd).style('animation-delay','-0.7s').style('--po',opa);
   }
   if (d.type === 'project') {
-    el.append('circle').attr('r',PROJ_R).attr('fill','#080814').attr('stroke',d.color).attr('stroke-width',2.5);
+    el.append('circle').attr('r',PROJ_R).attr('fill',KAARO_TOKENS.bg).attr('stroke',d.color).attr('stroke-width',2.5);
     el.append('circle').attr('r',PROJ_R-7).attr('fill',d.color).attr('fill-opacity',.1);
   } else if (d.type === 'session') {
     if (d.inFlight) el.append('circle').attr('class','pring').attr('r',r+8).attr('stroke',IN_FLIGHT_COLOR).attr('stroke-width',2).attr('stroke-opacity',.9).style('animation-duration','0.8s');

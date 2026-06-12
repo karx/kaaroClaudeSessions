@@ -38,7 +38,7 @@
     const total = entries.reduce((s, [, n]) => s + n, 0) || 1;
     const segs  = entries.map(([name, n]) => {
       const pct   = (n / total * 100).toFixed(2);
-      const color = _C[name] || '#2a3a5a';
+      const color = _C[name] || KAARO_TOKENS.dim;
       return `<div class="thr-bar-seg" style="width:${pct}%;background:${color}" title="${esc(name)} Ã— ${n}">` +
              `<span class="thr-bar-lbl">${esc(name)}</span></div>`;
     }).join('');

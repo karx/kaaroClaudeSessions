@@ -21,13 +21,14 @@ import { fileURLToPath }  from 'url';
 import { tailRead }             from './hooks/jsonl-tail.mjs';
 import { reconstructTraceTree } from './hooks/context-tree.mjs';
 import { readGrokSession } from './hooks/analyzers/analyze-grok.mjs';
-import { getEnabledHarnesses, getHarness } from './hooks/registry.mjs';
+import { getEnabledHarnesses } from './hooks/registry.mjs';
 import { processWatchFilename } from './surface/watch-handlers.mjs';
 import { resolveSessionFile, invalidateSessionResolveCache } from './surface/session-resolver.mjs';
-import { createActiveState, snapshotActive } from './surface/active-state.mjs';
+import { createActiveState } from './surface/active-state.mjs';
 import { createHub } from './surface/sse-hub.mjs';
 import { createPulseEmitter } from './surface/pulse-emitter.mjs';
 import { createRebuilder } from './surface/rebuild-orchestrator.mjs';
+import { createRequestHandler } from './surface/http-routes.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
@@ -39,8 +40,7 @@ const BUILD_SCRIPT   = path.join(__dirname, 'build.mjs');
 
 // ── SSE clients ───────────────────────────────────────────────────────────────
 
-const hub    = createHub();
-const notify = hub.notify;
+const hub = createHub();
 
 // ── Pulse path (Stream) ───────────────────────────────────────────────────────
 // Mission Control active-session state (/api/active + SSE `now`) + pulses.
@@ -146,113 +146,22 @@ function buildTrace(filePath, projectId, sessionId, harness = 'claude-code') {
   }
 }
 
-// ── HTTP server ───────────────────────────────────────────────────────────────
+// ── HTTP server (routes live in surface/http-routes.mjs) ─────────────────────
 
-const server = http.createServer((req, res) => {
-  if (req.url === '/events') {
-    hub.addClient(res, req);
-    return;
-  }
-
-  if (req.url.startsWith('/graph-data.json')) {
-    if (!fs.existsSync(DATA_PATH)) { res.writeHead(503); res.end('{}'); return; }
-    try {
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-      res.end(fs.readFileSync(DATA_PATH));
-    } catch (e) { res.writeHead(500); res.end(e.message); }
-    return;
-  }
-
-  if (req.url === '/status') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    const { rebuilding, lastBuilt } = rebuilder.state;
-    res.end(JSON.stringify({ rebuilding, lastBuilt, clients: hub.size, port: PORT }));
-    return;
-  }
-
-  if (req.url === '/api/active') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
-      'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify(snapshotActive(activeState, Date.now())));
-    return;
-  }
-
-  if (req.url.startsWith('/api/trace/')) {
-    const sessionId = decodeURIComponent(req.url.slice('/api/trace/'.length)).replace(/\.jsonl$/, '');
-    if (!sessionId) { res.writeHead(400); res.end('missing session_id'); return; }
-    const found = resolveSessionFile(sessionId);
-    if (!found) { res.writeHead(404); res.end('session not found'); return; }
-    const harness = getHarness(found.harness);
-    if (!harness?.capabilities?.trace) {
-      res.writeHead(404); res.end('trace not supported for this harness'); return;
-    }
-    const tree = buildTrace(found.filePath, found.projectId, sessionId, found.harness);
-    if (!tree) { res.writeHead(500); res.end('reconstruction failed'); return; }
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
-      'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify(tree));
-    return;
-  }
-
-  if (req.url === '/' || req.url === '/graph.html') {
-    if (!fs.existsSync(HTML_PATH)) {
-      res.writeHead(503, { 'Content-Type': 'text/html' });
-      res.end('<html><body style="font:14px monospace;padding:40px;background:#111;color:#ccc"><h2>Building…</h2><p>Refresh in a few seconds.</p><script>setTimeout(()=>location.reload(),3000)</script></body></html>');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    res.end(fs.readFileSync(HTML_PATH));
-    return;
-  }
-
-  // ── Dedicated Live Pulse DAW Builder (pure event stream, no graph) ─────────
-  if (req.url === '/daw' || req.url === '/daw-builder' || req.url === '/audio' || req.url === '/builder') {
-    const dawPath = path.join(__dirname, 'daw-builder.html');
-    if (!fs.existsSync(dawPath)) {
-      res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end('<html><body style="font:14px monospace;padding:40px;background:#080810;color:#9aa0b8"><h2>DAW Builder not built yet</h2><p>Run <code>node build.mjs</code> (or the serve will trigger a build on next request in future).</p><p><a href="/" style="color:#4455cc">Back to main graph</a></p></body></html>');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    res.end(fs.readFileSync(dawPath));
-    return;
-  }
-
-  // ── Mission Control (/now): live active-session board ──────────────────────
-  if (req.url === '/now' || req.url === '/mission' || req.url === '/active') {
-    const nowPath = path.join(__dirname, 'experience', 'pages', 'now.html');
-    if (!fs.existsSync(nowPath)) { res.writeHead(404); res.end('now.html missing'); return; }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    res.end(fs.readFileSync(nowPath));
-    return;
-  }
-
-  // ── Static assets (favicon, manifest, og-image, robots, generate helper) ────
-  const STATIC_MIME = {
-    svg: 'image/svg+xml', png: 'image/png', webmanifest: 'application/manifest+json',
-    txt: 'text/plain', html: 'text/html; charset=utf-8',
-  };
-  const STATIC_MAP = {
-    '/favicon.svg':          'favicon.svg',
-    '/og-image.png':         'og-image.png',
-    '/site.webmanifest':     'site.webmanifest',
-    '/robots.txt':           'robots.txt',
-    '/generate-og-png.html': 'generate-og-png.html',
-    '/src/og-image.svg':     'experience/pages/og-image.svg', // legacy URL kept for OG meta consumers
-  };
-  const staticRel = STATIC_MAP[req.url.split('?')[0]];
-  if (staticRel) {
-    const fp = path.join(__dirname, staticRel);
-    if (fs.existsSync(fp)) {
-      const ext = path.extname(fp).slice(1).toLowerCase();
-      res.writeHead(200, { 'Content-Type': STATIC_MIME[ext] || 'application/octet-stream' });
-      res.end(fs.readFileSync(fp));
-      return;
-    }
-  }
-
-  res.writeHead(404); res.end('Not found');
-});
+const server = http.createServer(createRequestHandler({
+  hub,
+  activeState,
+  getStatus: () => ({ ...rebuilder.state, clients: hub.size, port: PORT }),
+  paths: {
+    root: __dirname,
+    html: HTML_PATH,
+    data: DATA_PATH,
+    daw:  path.join(__dirname, 'daw-builder.html'),
+    now:  path.join(__dirname, 'experience', 'pages', 'now.html'),
+  },
+  resolveSessionFile,
+  buildTrace,
+}));
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 

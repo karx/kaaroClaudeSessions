@@ -8,6 +8,7 @@ import { buildSessionsOutput } from '../../surface/analyze-orchestrator.mjs';
 import { recordsToNormalized } from '../adapters/pi.mjs';
 import { reduceSession } from '../session-reducer.mjs';
 import { enrichSession } from '../enrich-session.mjs';
+import { walkSessions, dirNames } from '../scan-walk.mjs';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -46,28 +47,14 @@ function analyzePiSession(projectId, filePath) {
 }
 
 export function scanPiSessions(root = PI_SESSIONS_ROOT) {
-  let projectEntries;
-  try {
-    projectEntries = fs.readdirSync(root, { withFileTypes: true });
-  } catch (err) {
-    if (err.code === 'ENOENT') return null;
-    throw err;
-  }
-
-  const allSessions = [];
-  for (const projectId of projectEntries.filter(d => d.isDirectory()).map(d => d.name).sort()) {
-    const pdir  = path.join(root, projectId);
-    const files = fs.readdirSync(pdir).filter(f => f.endsWith('.jsonl')).sort();
-    for (const file of files) {
-      try {
-        allSessions.push(analyzePiSession(projectId, path.join(pdir, file)));
-      } catch (err) {
-        console.error(`  !! ${file}: ${err.message}`);
+  return walkSessions(root, 'pi', function* (entries) {
+    for (const projectId of dirNames(entries)) {
+      const pdir = path.join(root, projectId);
+      for (const file of fs.readdirSync(pdir).filter(f => f.endsWith('.jsonl')).sort()) {
+        yield { id: file, analyze: () => analyzePiSession(projectId, path.join(pdir, file)) };
       }
     }
-  }
-
-  return { harness: 'pi', source_dir: root, sessions: allSessions };
+  });
 }
 
 export { derivePiLabel, PI_SESSIONS_ROOT };

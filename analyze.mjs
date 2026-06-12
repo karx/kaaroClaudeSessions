@@ -30,6 +30,7 @@ const OUT_FILE             = path.join(process.cwd(), 'sessions-data.json');
 // ── JSONL I/O ─────────────────────────────────────────────────────────────────
 
 import { parseJsonlFile } from './hooks/jsonl-io.mjs';
+import { walkSessions, dirNames } from './hooks/scan-walk.mjs';
 
 function analyzeSession(projectId, filePath) {
   const { records, sizeBytes } = parseJsonlFile(filePath);
@@ -217,30 +218,14 @@ export {
 };
 
 export function scanClaudeCodeSessions(root = PROJECTS_ROOT) {
-  let projectEntries;
-  try {
-    projectEntries = fs.readdirSync(root, { withFileTypes: true });
-  } catch (err) {
-    if (err.code === 'ENOENT') return null;
-    throw err;
-  }
-
-  const allSessions = [];
-  const projectDirs = projectEntries.filter(d => d.isDirectory()).map(d => d.name).sort();
-
-  for (const projectId of projectDirs) {
-    const pdir  = path.join(root, projectId);
-    const files = fs.readdirSync(pdir).filter(f => f.endsWith('.jsonl')).sort();
-    for (const file of files) {
-      try {
-        allSessions.push(analyzeSession(projectId, path.join(pdir, file)));
-      } catch (err) {
-        console.error(`  !! ${file}: ${err.message}`);
+  return walkSessions(root, 'claude-code', function* (entries) {
+    for (const projectId of dirNames(entries)) {
+      const pdir = path.join(root, projectId);
+      for (const file of fs.readdirSync(pdir).filter(f => f.endsWith('.jsonl')).sort()) {
+        yield { id: file, analyze: () => analyzeSession(projectId, path.join(pdir, file)) };
       }
     }
-  }
-
-  return { harness: 'claude-code', source_dir: root, sessions: allSessions };
+  });
 }
 
 function writeOutput(output) {

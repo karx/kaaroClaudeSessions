@@ -65,8 +65,9 @@ export const KIND_FIELDS = {
   branch_change:   { required: { branch: 'string' }, optional: {} },
 
   // One assistant content block (text / thinking / tool_use envelope).
-  // text blocks <3 words become 'chirp' pulses, ≥3 'words'.
-  content_block:   { required: { block_type: 'string' }, optional: { text: 'string' } },
+  // text blocks <3 words become 'chirp' pulses, ≥3 'words'. chunk marks
+  // streamed fragments that concatenate without separators (grok).
+  content_block:   { required: { block_type: 'string' }, optional: { text: 'string', chunk: 'boolean' } },
 
   // Agent operating-mode shift (CC 'mode' records).
   mode_shift:      { required: {}, optional: { mode: 'string' } },

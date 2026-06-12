@@ -56,7 +56,8 @@ export function recordsToNormalized(records) {
       handled = true;
       ensureAssistantTurn(rec, ts);
       if (su === 'agent_message_chunk' && upd.content?.text) {
-        out.push({ kind: 'content_block', harness: HARNESS, ts, block_type: 'text', text: upd.content.text });
+        // chunk: streamed fragments concatenate without separators in trace text
+        out.push({ kind: 'content_block', harness: HARNESS, ts, block_type: 'text', text: upd.content.text, chunk: true });
       }
       if (su === 'agent_thought_chunk') {
         out.push({ kind: 'content_block', harness: HARNESS, ts, block_type: 'thinking' });

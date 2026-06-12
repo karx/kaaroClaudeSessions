@@ -33,11 +33,11 @@ function getForceParams() {
   };
 }
 
-function makeForceLink(edges) {
+function makeForceLink(edges, membershipStrength = 0.65) {
   const p = getForceParams();
   return d3.forceLink(edges != null ? edges : GRAPH.edges).id(d=>d.id)
     .distance(d=>d.type==='membership'? p.membershipDist :d.type==='branch'?95:d.type==='read'?80: p.fileDist)
-    .strength(d=>d.type==='membership'?.65:d.type==='branch'?.15:d.type==='read'?.08:.3);
+    .strength(d=>d.type==='membership'? membershipStrength :d.type==='branch'?.15:d.type==='read'?.08:.3);
 }
 
 const simulation = d3.forceSimulation(GRAPH.nodes)

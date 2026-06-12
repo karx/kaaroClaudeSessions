@@ -13,3 +13,6 @@ let W = window.innerWidth, H = window.innerHeight - TL_H;
 // (00-core.js ← experience/client-core.mjs): fmtTok, esc, TOOL_COLORS,
 // nodeRadius, EDGE_COLORS, edgeOpacity(d, MAX_WEIGHT), edgeWidth(d, MAX_WEIGHT).
 const PROJ_R = NODE_RADII.PROJ_R;
+
+// Active history-view filters — consumed via sessionMatchesFilters (core).
+const SESSION_FILTERS = { harnesses: null, projects: null, from: null, to: null };

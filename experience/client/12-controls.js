@@ -6,7 +6,7 @@ function applyFilters() {
   if (currentLayout === 'arc') {
     nodeSel.attr('display', d => {
       if (d.type !== 'session') return 'none';
-      if (tlFrom && d.date_str && d.date_str < tlFrom) return 'none';
+      if (!sessionMatchesFilters(d, SESSION_FILTERS)) return 'none';
       return null;
     });
     edgeSel.attr('display', 'none');
@@ -23,7 +23,7 @@ function applyFilters() {
   const hiddenNodes = new Set();
   nodeSel.attr('display', d => {
     if (d.type === 'session') {
-      if (tlFrom && d.date_str && d.date_str < tlFrom) { hiddenNodes.add(d.id); return 'none'; }
+      if (!sessionMatchesFilters(d, SESSION_FILTERS)) { hiddenNodes.add(d.id); return 'none'; }
       return null;
     }
     if (d.type === 'file') {
@@ -65,12 +65,71 @@ document.getElementById('cb-group').addEventListener('change', () => {
 document.getElementById('sl-min').addEventListener('input', function() {
   document.getElementById('sl-min-val').textContent = this.value; applyFilters();
 });
-document.getElementById('tf-from').addEventListener('change', function() {
-  tlFrom = this.value || null; applyFilters();
+function _afterFilterChange() {
+  applyFilters();
   if (currentLayout==='arc') { computeArcPositions(); drawArcDecor(); applyStaticPositions(); }
+}
+document.getElementById('tf-from').addEventListener('change', function() {
+  SESSION_FILTERS.from = this.value || null; _afterFilterChange();
+});
+document.getElementById('tf-to').addEventListener('change', function() {
+  SESSION_FILTERS.to = this.value || null; _afterFilterChange();
 });
 document.getElementById('tf-clear').addEventListener('click', () => {
-  document.getElementById('tf-from').value=''; tlFrom=null; applyFilters();
+  document.getElementById('tf-from').value=''; document.getElementById('tf-to').value='';
+  SESSION_FILTERS.from = SESSION_FILTERS.to = null;
+  SESSION_FILTERS.harnesses = SESSION_FILTERS.projects = null;
+  document.querySelectorAll('#harness-chips .hchip').forEach(b => { b.classList.remove('on'); b.style.color=''; b.style.borderColor=''; });
+  document.querySelectorAll('#proj-filter option').forEach(o => { o.selected = false; });
+  _afterFilterChange();
+});
+
+// ── Harness chips + project multi-select (populated from graph data) ─────────
+function buildFilterControls() {
+  const chipBox = document.getElementById('harness-chips');
+  const projSel = document.getElementById('proj-filter');
+  if (!chipBox || !projSel) return;
+
+  const harnesses = [...new Set(GRAPH.nodes.filter(n => n.type==='session').map(n => n.harness).filter(Boolean))].sort();
+  chipBox.innerHTML = '';
+  for (const h of harnesses) {
+    const b = document.createElement('button');
+    b.className = 'btn hchip';
+    b.textContent = h;
+    b.title = 'Toggle ' + h + ' sessions';
+    b.addEventListener('click', () => {
+      b.classList.toggle('on');
+      const on = [...chipBox.querySelectorAll('.hchip.on')].map(x => x.textContent);
+      SESSION_FILTERS.harnesses = on.length ? new Set(on) : null;
+      b.style.color = b.classList.contains('on') ? KAARO_TOKENS.accent : '';
+      b.style.borderColor = b.classList.contains('on') ? KAARO_TOKENS.accent : '';
+      _afterFilterChange();
+    });
+    chipBox.appendChild(b);
+  }
+
+  const prevSelected = new Set([...projSel.selectedOptions].map(o => o.value));
+  projSel.innerHTML = '';
+  const projects = GRAPH.nodes.filter(n => n.type==='project')
+    .sort((a, b) => a.label.localeCompare(b.label));
+  for (const p of projects) {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.label;
+    o.style.color = p.color;
+    o.selected = prevSelected.has(p.id);
+    projSel.appendChild(o);
+  }
+}
+document.getElementById('proj-filter').addEventListener('change', function() {
+  const sel = [...this.selectedOptions].map(o => o.value);
+  SESSION_FILTERS.projects = sel.length ? new Set(sel) : null;
+  _afterFilterChange();
+});
+buildFilterControls();
+
+// Free layout toggle — projects unpin, co-access clustering (force layout)
+document.getElementById('fp-free')?.addEventListener('change', () => {
+  if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.5).restart(); }
 });
 document.getElementById('btn-shake').addEventListener('click', ()=>{ if(currentLayout==='force') simulation.alpha(.4).restart(); });
 document.getElementById('btn-reset').addEventListener('click', ()=>svg.transition().duration(600).call(zoom.transform, initialTransform));

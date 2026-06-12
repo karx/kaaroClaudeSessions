@@ -55,7 +55,7 @@ function renderSwimlane() {
   const ML = 170, MT = 46, MR = 20, MB = 20;
 
   let sessions = GRAPH.nodes.filter(n => n.type === 'session')
-    .filter(s => !tlFrom || !s.date_str || s.date_str >= tlFrom);
+    .filter(s => sessionMatchesFilters(s, SESSION_FILTERS));
 
   const projects = GRAPH.nodes.filter(n => n.type === 'project');
 

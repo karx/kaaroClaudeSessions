@@ -13,7 +13,7 @@ window.updateGraph = function(newData) {
   nodeSel=joinNodes(GRAPH); nodeSel.call(drag); attachTooltip(nodeSel); attachClick(nodeSel);
   projLabelSel=labelLayer.selectAll('text.pl').data(GRAPH.nodes.filter(n=>n.type==='project'),d=>d.id).join('text').attr('class','pl').attr('text-anchor','middle').attr('fill',d=>d.color).attr('font-size',9).attr('letter-spacing',1).attr('pointer-events','none').text(d=>d.label.toUpperCase());
   LAYOUT_HANDLERS[currentLayout]?.enter?.();
-  buildTimeline(); updateStats(); applyFilters();
+  buildTimeline(); updateStats(); buildFilterControls(); applyFilters();
 };
 
 // â”€â”€ Live status badge + pulse ticker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

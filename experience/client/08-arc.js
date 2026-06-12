@@ -211,9 +211,9 @@ function drawArcArcs() {
 
   // Respect date filter
   const hiddenSids = new Set();
-  if (tlFrom) {
+  {
     GRAPH.nodes.filter(n => n.type === 'session').forEach(n => {
-      if (n.date_str && n.date_str < tlFrom) hiddenSids.add(n.id);
+      if (!sessionMatchesFilters(n, SESSION_FILTERS)) hiddenSids.add(n.id);
     });
   }
 

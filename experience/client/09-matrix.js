@@ -1,5 +1,5 @@
 // â”€â”€ Matrix layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-let tlFrom = null;
+// SESSION_FILTERS declared in 01-data; predicate from shared core.
 
 function renderMatrix() {
   const mv = document.getElementById('matrix-view');
@@ -9,7 +9,7 @@ function renderMatrix() {
   let files = GRAPH.nodes.filter(n => n.type === 'file' && n.session_count >= minSess);
   if (!showRo) files = files.filter(f => f.write > 0 || f.edit > 0);
   let sessions = GRAPH.nodes.filter(n => n.type === 'session')
-    .filter(n => !tlFrom || !n.date_str || n.date_str >= tlFrom)
+    .filter(n => sessionMatchesFilters(n, SESSION_FILTERS))
     .sort((a,b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1);
   if (!files.length || !sessions.length) { mv.innerHTML='<div class="mx-empty">No data â€” adjust filters</div>'; return; }
   files.sort((a,b)=>(b.write+b.edit)-(a.write+a.edit));

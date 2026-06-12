@@ -147,3 +147,32 @@ test('resolveSessionFile — dispatches by harness order', () => {
     rmSync(piRoot, { recursive: true, force: true });
   }
 });
+// ── opencode + copilot locators (N5 trace support) ────────────────────────────
+
+test('resolveSessionFile — locates opencode session info across buckets', async () => {
+  const { mkdirSync: mk, writeFileSync: wr, rmSync: rm } = await import('fs');
+  const { tmpdir } = await import('os');
+  const root = join(tmpdir(), 'kaaro-oc-loc-' + Date.now());
+  mk(join(root, 'session', 'bucketA'), { recursive: true });
+  wr(join(root, 'session', 'bucketA', 'ses_abc123.json'), '{"id":"ses_abc123"}', 'utf8');
+  try {
+    const found = resolveSessionFile('ses_abc123', { harness: 'opencode', roots: { opencode: root } });
+    assert.ok(found, 'opencode session located');
+    assert.equal(found.harness, 'opencode');
+    assert.ok(found.filePath.endsWith('ses_abc123.json'));
+  } finally { rm(root, { recursive: true, force: true }); }
+});
+
+test('resolveSessionFile — locates copilot chat session in workspace storage', async () => {
+  const { mkdirSync: mk, writeFileSync: wr, rmSync: rm } = await import('fs');
+  const { tmpdir } = await import('os');
+  const root = join(tmpdir(), 'kaaro-cp-loc-' + Date.now());
+  mk(join(root, 'ws-hash-1', 'chatSessions'), { recursive: true });
+  wr(join(root, 'ws-hash-1', 'chatSessions', 'sess-42.jsonl'), '{"kind":0,"v":{}}', 'utf8');
+  try {
+    const found = resolveSessionFile('sess-42', { harness: 'copilot', roots: { copilot: root } });
+    assert.ok(found, 'copilot session located');
+    assert.equal(found.harness, 'copilot');
+    assert.ok(found.filePath.endsWith('sess-42.jsonl'));
+  } finally { rm(root, { recursive: true, force: true }); }
+});

@@ -10,6 +10,7 @@ import fs   from 'fs';
 import path from 'path';
 import {
   CLAUDE_PROJECTS_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
+  OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT,
 } from './harness-paths.mjs';
 
 function sessionIdFromPiFilename(filename) {
@@ -102,6 +103,45 @@ export function locateGrokSession(sessionId, root = GROK_SESSIONS_ROOT) {
     const updates = path.join(root, encodedCwd, sessionId, 'updates.jsonl');
     if (fs.existsSync(updates)) {
       return { filePath: updates, projectId: encodedCwd, sessionId };
+    }
+  }
+  return null;
+}
+
+/**
+ * @param {string} sessionId — opencode info id (ses_…)
+ * @param {string} [root] — opencode storage root
+ * @returns {{ filePath: string, projectId: null, sessionId: string }|null}
+ */
+export function locateOpencodeSession(sessionId, root = OPENCODE_STORAGE_ROOT) {
+  if (!sessionId) return null;
+  const sessionRoot = path.join(root, 'session');
+  if (!fs.existsSync(sessionRoot)) return null;
+
+  for (const bucket of fs.readdirSync(sessionRoot)) {
+    const candidate = path.join(sessionRoot, bucket, `${sessionId}.json`);
+    if (fs.existsSync(candidate)) {
+      return { filePath: candidate, projectId: null, sessionId };
+    }
+  }
+  return null;
+}
+
+/**
+ * @param {string} sessionId — copilot chat session id
+ * @param {string} [root] — VS Code workspaceStorage root
+ * @returns {{ filePath: string, projectId: null, sessionId: string }|null}
+ */
+export function locateCopilotSession(sessionId, root = COPILOT_WORKSPACE_STORAGE_ROOT) {
+  if (!sessionId || !fs.existsSync(root)) return null;
+
+  for (const ws of fs.readdirSync(root)) {
+    const chatDir = path.join(root, ws, 'chatSessions');
+    for (const ext of ['jsonl', 'json']) {
+      const candidate = path.join(chatDir, `${sessionId}.${ext}`);
+      if (fs.existsSync(candidate)) {
+        return { filePath: candidate, projectId: null, sessionId };
+      }
     }
   }
   return null;

@@ -18,9 +18,6 @@ import path         from 'path';
 import { execFile, exec } from 'child_process';
 import { fileURLToPath }  from 'url';
 
-import { tailRead }             from './hooks/jsonl-tail.mjs';
-import { reconstructTraceTree } from './hooks/context-tree.mjs';
-import { readGrokSession } from './hooks/analyzers/analyze-grok.mjs';
 import { getEnabledHarnesses } from './hooks/registry.mjs';
 import { processWatchFilename } from './surface/watch-handlers.mjs';
 import { resolveSessionFile, invalidateSessionResolveCache } from './surface/session-resolver.mjs';
@@ -29,6 +26,7 @@ import { createHub } from './surface/sse-hub.mjs';
 import { createPulseEmitter } from './surface/pulse-emitter.mjs';
 import { createRebuilder } from './surface/rebuild-orchestrator.mjs';
 import { createRequestHandler } from './surface/http-routes.mjs';
+import { createTraceService } from './surface/trace-service.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
@@ -111,40 +109,9 @@ if (!watchCount) {
   console.warn('No harness directories found — live watch disabled');
 }
 
-// ── /api/trace cache + resolver ───────────────────────────────────────────────
+// ── /api/trace (registry-driven; see surface/trace-service.mjs) ──────────────
 
-const traceCache = new Map(); // filePath → { mtime, tree }
-
-function buildTrace(filePath, projectId, sessionId, harness = 'claude-code') {
-  try {
-    const mtime = fs.statSync(filePath).mtimeMs;
-    const cached = traceCache.get(filePath);
-    if (cached && cached.mtime === mtime) return cached.tree;
-
-    let records;
-    let traceOpts = {};
-    if (harness === 'grok') {
-      const grok = readGrokSession(path.dirname(filePath));
-      records = grok.records;
-      traceOpts = {
-        ai_title:    grok.summary?.generated_title || grok.summary?.session_summary || null,
-        git_branch:  grok.summary?.head_branch || null,
-      };
-    } else {
-      ({ records } = tailRead(filePath, 0));
-    }
-
-    const tree = {
-      session_id: sessionId,
-      project_id: projectId,
-      ...reconstructTraceTree(records, harness, traceOpts),
-    };
-    traceCache.set(filePath, { mtime, tree });
-    return tree;
-  } catch (e) {
-    return null;
-  }
-}
+const { buildTrace } = createTraceService();
 
 // ── HTTP server (routes live in surface/http-routes.mjs) ─────────────────────
 

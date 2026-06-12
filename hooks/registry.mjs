@@ -28,7 +28,19 @@ import { deriveGrokProjectId, deriveGrokLabel } from './helpers/grok-helpers.mjs
 import { copilotWorkspaceLabel } from './helpers/copilot-helpers.mjs';
 import {
   locateClaudeCodeSession, locatePiSession, locateAntigravitySession, locateGrokSession,
+  locateOpencodeSession, locateCopilotSession,
 } from './session-locators.mjs';
+import path from 'node:path';
+import { parseJsonlFile } from './jsonl-io.mjs';
+import { readGrokSession } from './analyzers/analyze-grok.mjs';
+import { readOpencodeSession } from './analyzers/analyze-opencode.mjs';
+import { readCopilotSession } from './analyzers/analyze-copilot.mjs';
+
+// Default transcript reader for JSONL-file harnesses; harness-specific
+// readers (grok dir+summary, opencode three-tree, copilot op-log) override.
+function readJsonlRecords(filePath) {
+  return { records: parseJsonlFile(filePath).records };
+}
 import { recordsToNormalized as ccAdapter }   from './adapters/claude-code.mjs';
 import { recordsToNormalized as piAdapter }   from './adapters/pi.mjs';
 import { recordsToNormalized as agAdapter }   from './adapters/antigravity.mjs';
@@ -59,6 +71,7 @@ export const HARNESS_REGISTRY = [
     adapter: ccAdapter,
     scan: { module: '../analyze.mjs', export: 'scanClaudeCodeSessions' },
     locateSession: locateClaudeCodeSession,
+    readSessionRecords: readJsonlRecords,
     roots: [CLAUDE_PROJECTS_ROOT],
     capabilities: {
       tokens: true, pulse: true, trace: true,
@@ -90,9 +103,10 @@ export const HARNESS_REGISTRY = [
     adapter: piAdapter,
     scan: { module: './analyzers/analyze-pi.mjs', export: 'scanPiSessions' },
     locateSession: locatePiSession,
+    readSessionRecords: readJsonlRecords,
     roots: [PI_SESSIONS_ROOT],
     capabilities: {
-      tokens: true, pulse: true, trace: false,
+      tokens: true, pulse: true, trace: true,
       context_resets: false, ai_title: false, subagent_count: false, branches: false,
       size_proxy: 'tokens_work',
     },
@@ -121,8 +135,11 @@ export const HARNESS_REGISTRY = [
     adapter: agAdapter,
     scan: { module: './analyzers/analyze-antigravity.mjs', export: 'scanAntigravitySessions' },
     locateSession: locateAntigravitySession,
+    readSessionRecords: readJsonlRecords,
     roots: [ANTIGRAVITY_BRAIN_ROOT],
     capabilities: {
+      // trace stays false: antigravity NRs carry no assistant text/thinking
+      // blocks, so reconstructed turns are degenerate (tool lists only).
       tokens: false, pulse: true, trace: false,
       context_resets: false, ai_title: false, subagent_count: false, branches: false,
       size_proxy: 'tool_calls',
@@ -155,6 +172,17 @@ export const HARNESS_REGISTRY = [
     adapter: grokAdapter,
     scan: { module: './analyzers/analyze-grok.mjs', export: 'scanGrokSessions' },
     locateSession: locateGrokSession,
+    // Session meta (title, branch) lives beside the transcript in summary.json.
+    readSessionRecords(filePath) {
+      const grok = readGrokSession(path.dirname(filePath));
+      return {
+        records: grok.records,
+        traceOpts: {
+          ai_title:   grok.summary?.generated_title || grok.summary?.session_summary || null,
+          git_branch: grok.summary?.head_branch || null,
+        },
+      };
+    },
     roots: [GROK_SESSIONS_ROOT],
     capabilities: {
       tokens: false, pulse: true, trace: true,
@@ -187,10 +215,16 @@ export const HARNESS_REGISTRY = [
     label: 'opencode',
     adapter: ocAdapter,
     scan: { module: './analyzers/analyze-opencode.mjs', export: 'scanOpencodeSessions' },
-    // locateSession: storage spreads a session across three JSON trees — added with N5 trace work
+    locateSession: locateOpencodeSession,
+    // filePath is the session info doc; messages + parts are assembled from
+    // the sibling storage trees (storageRoot = two levels up from the info).
+    readSessionRecords(filePath) {
+      const storageRoot = path.dirname(path.dirname(path.dirname(filePath)));
+      return { records: readOpencodeSession(storageRoot, filePath).records };
+    },
     roots: [OPENCODE_STORAGE_ROOT],
     capabilities: {
-      tokens: true, pulse: true, trace: false,
+      tokens: true, pulse: true, trace: true,
       context_resets: false, ai_title: true, subagent_count: false, branches: false,
       size_proxy: 'tokens_work',
     },
@@ -227,10 +261,13 @@ export const HARNESS_REGISTRY = [
     label: 'GitHub Copilot',
     adapter: cpAdapter,
     scan: { module: './analyzers/analyze-copilot.mjs', export: 'scanCopilotSessions' },
-    // locateSession: per-workspace chatSessions walk — added with N5 trace work
+    locateSession: locateCopilotSession,
+    readSessionRecords(filePath) {
+      return { records: readCopilotSession(filePath).records };
+    },
     roots: [COPILOT_WORKSPACE_STORAGE_ROOT],
     capabilities: {
-      tokens: true, pulse: true, trace: false, // output tokens only (completionTokens)
+      tokens: true, pulse: true, trace: true, // tokens are output-only (completionTokens)
       context_resets: false, ai_title: true, subagent_count: false, branches: false,
       size_proxy: 'tokens_work',
     },

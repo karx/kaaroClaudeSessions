@@ -147,6 +147,51 @@ export function evTimeX(ev, now, W, pxPerSec, scrollMs = 0) {
   return W - (now - ev.ts) / 1000 * pxPerSec + scrollMs / 1000 * pxPerSec;
 }
 
+// ── History-view filters ──────────────────────────────────────────────────────
+
+/**
+ * Does a session node pass the active filters?
+ * @param {{ harness?: string, project_id?: string, date_str?: string }} node
+ * @param {{ from?: string|null, to?: string|null,
+ *           harnesses?: Set<string>|null, projects?: Set<string>|null }} [f]
+ *   — from/to are inclusive YYYY-MM-DD bounds; empty/null sets mean
+ *   "no constraint"; undated sessions are never date-filtered.
+ */
+export function sessionMatchesFilters(node, f = {}) {
+  if (node.date_str) {
+    if (f.from && node.date_str < f.from) return false;
+    if (f.to   && node.date_str > f.to)   return false;
+  }
+  if (f.harnesses?.size && !f.harnesses.has(node.harness))   return false;
+  if (f.projects?.size  && !f.projects.has(node.project_id)) return false;
+  return true;
+}
+
+// ── Force layout profiles ─────────────────────────────────────────────────────
+
+/**
+ * Anchored (default): projects pinned on their ring, strong membership pull —
+ * the project-centric overview. Free: projects unpin and let go, sessions and
+ * files cluster purely by co-access (post-filter exploration mode).
+ * @param {boolean} free
+ */
+export function forceProfile(free) {
+  if (free) return {
+    projectPinned:      false,
+    membershipStrength: 0.05,
+    projectCharge:      -200,
+    grouping:           false,  // overrides the cluster-by-project checkbox
+    center:             true,
+  };
+  return {
+    projectPinned:      true,
+    membershipStrength: 0.65,
+    projectCharge:      -700,
+    grouping:           null,   // honor the cluster-by-project checkbox
+    center:             false,
+  };
+}
+
 // ── SSE wiring (one EventSource pattern for every page) ───────────────────────
 
 /**

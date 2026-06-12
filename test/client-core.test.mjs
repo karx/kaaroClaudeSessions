@@ -138,3 +138,38 @@ test('evTimeX — right-anchored time axis with scroll offset', async () => {
   assert.equal(evTimeX({ ts: now - 1000 }, now, 800, 30, 0), 770);
   assert.equal(evTimeX({ ts: now - 1000 }, now, 800, 30, 1000), 800, 'scrollMs shifts view back');
 });
+
+// ── History-view filters + free force profile (E3) ────────────────────────────
+
+test('sessionMatchesFilters — date range, harness set, project set', async () => {
+  const { sessionMatchesFilters } = await import('../experience/client-core.mjs');
+  const node = { type: 'session', harness: 'grok', project_id: 'P1', date_str: '2026-06-10' };
+
+  assert.equal(sessionMatchesFilters(node, {}), true, 'no filters → match');
+  assert.equal(sessionMatchesFilters(node, { from: '2026-06-01' }), true);
+  assert.equal(sessionMatchesFilters(node, { from: '2026-06-11' }), false);
+  assert.equal(sessionMatchesFilters(node, { to: '2026-06-10' }), true, 'to is inclusive');
+  assert.equal(sessionMatchesFilters(node, { to: '2026-06-09' }), false);
+  assert.equal(sessionMatchesFilters(node, { harnesses: new Set(['grok']) }), true);
+  assert.equal(sessionMatchesFilters(node, { harnesses: new Set(['pi']) }), false);
+  assert.equal(sessionMatchesFilters(node, { harnesses: new Set() }), true, 'empty set → no constraint');
+  assert.equal(sessionMatchesFilters(node, { projects: new Set(['P1']) }), true);
+  assert.equal(sessionMatchesFilters(node, { projects: new Set(['P2']) }), false);
+  assert.equal(sessionMatchesFilters({ ...node, date_str: undefined }, { from: '2026-06-11' }), true,
+    'undated sessions are never date-filtered');
+});
+
+test('forceProfile — anchored vs free layouts', async () => {
+  const { forceProfile } = await import('../experience/client-core.mjs');
+  const anchored = forceProfile(false);
+  assert.equal(anchored.projectPinned, true);
+  assert.equal(anchored.membershipStrength, 0.65);
+  assert.equal(anchored.center, false);
+
+  const free = forceProfile(true);
+  assert.equal(free.projectPinned, false, 'projects unpin');
+  assert.ok(free.membershipStrength < 0.1, 'membership links nearly let go');
+  assert.equal(free.center, true, 'a weak center keeps the free graph on screen');
+  assert.ok(Math.abs(free.projectCharge) < Math.abs(anchored.projectCharge),
+    'project repulsion de-weighted');
+});

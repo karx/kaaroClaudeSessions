@@ -52,3 +52,32 @@ test('getEnabledHarnesses — filters by id list', () => {
   assert.equal(enabled.length, 2);
   assert.ok(enabled.every(h => h.id === 'pi' || h.id === 'antigravity'));
 });
+// ── registry as single source of truth (N2) ──────────────────────────────────
+
+test('every descriptor carries its adapter function', () => {
+  for (const h of HARNESS_REGISTRY) {
+    assert.equal(typeof h.adapter, 'function', `${h.id}: missing adapter`);
+  }
+});
+
+test('every descriptor declares capabilities.tokens as a boolean', () => {
+  for (const h of HARNESS_REGISTRY) {
+    assert.equal(typeof h.capabilities.tokens, 'boolean', `${h.id}: capabilities.tokens`);
+  }
+});
+
+test('adapter functions produce NormalizedRecords (smoke)', async () => {
+  const { isNormalizedRecord } = await import('../hooks/normalized-record.mjs');
+  const h = getHarness('claude-code');
+  const nrs = h.adapter([{ type: 'system', subtype: 'compact_boundary', timestamp: 't' }]);
+  assert.equal(nrs.length, 1);
+  assert.ok(isNormalizedRecord(nrs[0]));
+});
+
+test('copilot watch config exposes resolveProjectLabel; others omit it', () => {
+  const cp = getHarness('copilot');
+  assert.equal(typeof cp.watch.resolveProjectLabel, 'function');
+  for (const id of ['claude-code', 'pi', 'antigravity', 'grok', 'opencode']) {
+    assert.equal(getHarness(id).watch.resolveProjectLabel, undefined, `${id} should omit it`);
+  }
+});

@@ -1,20 +1,22 @@
 /**
- * lib/harness-registry.mjs
+ * hooks/registry.mjs
  *
- * Declarative registry of session harness adapters.
- * serve.mjs and analyze-orchestrator consume this for discovery and watch config.
+ * Declarative registry of harness descriptors — THE single source of truth
+ * for everything per-harness: roots, capabilities, watch config, and the
+ * adapter (recordsToNormalized). serve.mjs, scan dispatch, and the
+ * experience layer (via /api/harnesses) all consume this.
  *
- * === Adding a new harness (easy hook-in goal) ===
- * 1. Add roots + entry in HARNESS_REGISTRY below (id, label, capabilities, watch.matchLogFile/ctxFromPath/rebuildArg).
- * 2. Implement adapters/<new>.mjs with recordsToNormalized() → NormalizedRecord[] (the common kinds).
- * 3. Add scanner + analyze<New>Session in analyze-<new>.mjs (can delegate heavily to reduceSession + normalized).
- * 4. Wire scanner in lib/scan-harnesses.mjs and the adapter in serve.mjs's NR_ADAPTERS_SERVE map.
- * 5. Optional: context-tree variant only if rich trace support is wanted.
- * 6. Add tests (adapter golden, reducer parity or independent correctness, pulse if applicable).
- * 7. Update docs/harnesses.md matrix.
- *
- * The normalized kinds + reducer + registry are designed so new harnesses require minimal
- * cross-cutting changes. See Architecture Note in analyze-intelligence.md.
+ * === Adding a new harness ===
+ * 1. Implement hooks/adapters/<new>.mjs with recordsToNormalized() → NormalizedRecord[]
+ *    (kinds per hooks/normalized-record.mjs — the compliance test enforces it).
+ * 2. Add the descriptor below: id, label, roots, capabilities, adapter,
+ *    watch.matchLogFile/ctxFromPath/rebuildArg.
+ * 3. Add scanner + analyze<New>Session in hooks/analyzers/analyze-<new>.mjs
+ *    (delegate to reduceSession + the adapter) and wire it in
+ *    surface/scan-harnesses.mjs.
+ * 4. Add tests: adapter golden + a golden session in
+ *    test/adapters/nr-compliance.test.mjs.
+ * 5. Update docs/harnesses.md matrix.
  */
 
 import { deriveLabel } from './helpers/analyze-helpers.mjs';
@@ -23,6 +25,13 @@ import {
   OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT,
 } from './harness-paths.mjs';
 import { deriveGrokProjectId, deriveGrokLabel } from './helpers/grok-helpers.mjs';
+import { copilotWorkspaceLabel } from './helpers/copilot-helpers.mjs';
+import { recordsToNormalized as ccAdapter }   from './adapters/claude-code.mjs';
+import { recordsToNormalized as piAdapter }   from './adapters/pi.mjs';
+import { recordsToNormalized as agAdapter }   from './adapters/antigravity.mjs';
+import { recordsToNormalized as grokAdapter } from './adapters/grok.mjs';
+import { recordsToNormalized as ocAdapter }   from './adapters/opencode.mjs';
+import { recordsToNormalized as cpAdapter }   from './adapters/copilot.mjs';
 
 export {
   PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT, OPENCODE_STORAGE_ROOT,
@@ -44,6 +53,7 @@ export const HARNESS_REGISTRY = [
   {
     id: 'claude-code',
     label: 'Claude Code',
+    adapter: ccAdapter,
     roots: [CLAUDE_PROJECTS_ROOT],
     capabilities: {
       tokens: true, pulse: true, trace: true,
@@ -72,6 +82,7 @@ export const HARNESS_REGISTRY = [
   {
     id: 'pi',
     label: 'Pi',
+    adapter: piAdapter,
     roots: [PI_SESSIONS_ROOT],
     capabilities: {
       tokens: true, pulse: true, trace: false,
@@ -100,6 +111,7 @@ export const HARNESS_REGISTRY = [
   {
     id: 'antigravity',
     label: 'Google Antigravity',
+    adapter: agAdapter,
     roots: [ANTIGRAVITY_BRAIN_ROOT],
     capabilities: {
       tokens: false, pulse: true, trace: false,
@@ -131,6 +143,7 @@ export const HARNESS_REGISTRY = [
   {
     id: 'grok',
     label: 'Grok Build',
+    adapter: grokAdapter,
     roots: [GROK_SESSIONS_ROOT],
     capabilities: {
       tokens: false, pulse: true, trace: true,
@@ -161,6 +174,7 @@ export const HARNESS_REGISTRY = [
   {
     id: 'opencode',
     label: 'opencode',
+    adapter: ocAdapter,
     roots: [OPENCODE_STORAGE_ROOT],
     capabilities: {
       tokens: true, pulse: true, trace: false,
@@ -198,6 +212,7 @@ export const HARNESS_REGISTRY = [
   {
     id: 'copilot',
     label: 'GitHub Copilot',
+    adapter: cpAdapter,
     roots: [COPILOT_WORKSPACE_STORAGE_ROOT],
     capabilities: {
       tokens: true, pulse: true, trace: false, // output tokens only (completionTokens)
@@ -218,10 +233,13 @@ export const HARNESS_REGISTRY = [
         return {
           harness: 'copilot', session_id,
           slug: session_id.slice(0, 8),
-          project_id: null, project_label: null, // workspace.json lookup happens in serve
+          project_id: null, project_label: null, // resolveProjectLabel fills this lazily
           workspace_hash: parts[0],
         };
       },
+      // Project attribution lives in <ws>/workspace.json, not the watched path —
+      // serve calls this when ctx.project_label is null (cached per ws hash).
+      resolveProjectLabel: (ctx, absPath) => copilotWorkspaceLabel(absPath, ctx.workspace_hash),
       rebuildArg: () => null,
     },
   },

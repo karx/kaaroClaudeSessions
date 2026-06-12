@@ -23,7 +23,7 @@ import { enrichSession } from '../enrich-session.mjs';
 import { buildSessionsOutput } from '../../surface/analyze-orchestrator.mjs';
 import { recordsToNormalized } from '../adapters/copilot.mjs';
 import { reduceSession } from '../session-reducer.mjs';
-import { copilotUriToPath } from '../helpers/copilot-helpers.mjs';
+import { copilotUriToPath, workspaceFolderPath } from '../helpers/copilot-helpers.mjs';
 import {
   deriveAntigravityProjectId as deriveProjectIdFromPath,
   deriveAntigravityLabel as deriveLabelFromPath,
@@ -31,14 +31,9 @@ import {
 import { COPILOT_WORKSPACE_STORAGE_ROOT } from '../harness-paths.mjs';
 
 export { COPILOT_WORKSPACE_STORAGE_ROOT };
+export { workspaceFolderPath }; // canonical home: hooks/helpers/copilot-helpers.mjs
 
 const OUT_FILE = path.join(process.cwd(), 'sessions-data.json');
-
-/** Decode a workspace.json document to its folder path, or null. */
-export function workspaceFolderPath(ws) {
-  if (!ws || typeof ws !== 'object' || !ws.folder) return null;
-  return copilotUriToPath(ws.folder);
-}
 
 /** Read chat.ChatSessionStore.index entries from state.vscdb; {} on any failure. */
 export function readChatSessionIndex(dbPath) {

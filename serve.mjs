@@ -20,13 +20,6 @@ import { fileURLToPath }  from 'url';
 
 import { tailRead }             from './hooks/jsonl-tail.mjs';
 import { normRecordsToPulses } from './hooks/pulse-transformer.mjs';
-import { recordsToNormalized as ccNorm }   from './hooks/adapters/claude-code.mjs';
-import { recordsToNormalized as piNorm }   from './hooks/adapters/pi.mjs';
-import { recordsToNormalized as agNorm }   from './hooks/adapters/antigravity.mjs';
-import { recordsToNormalized as grokNorm } from './hooks/adapters/grok.mjs';
-import { recordsToNormalized as ocNorm }   from './hooks/adapters/opencode.mjs';
-import { recordsToNormalized as cpNorm }   from './hooks/adapters/copilot.mjs';
-import { workspaceFolderPath } from './hooks/analyzers/analyze-copilot.mjs';
 import { reconstructTraceTree } from './hooks/context-tree.mjs';
 import { readGrokSession } from './hooks/analyzers/analyze-grok.mjs';
 import { getEnabledHarnesses, getHarness } from './hooks/registry.mjs';
@@ -48,47 +41,14 @@ const clients   = new Set();
 const offsetMap = new Map(); // filePath → last-read byte offset
 
 // ── Pulse helpers ─────────────────────────────────────────────────────────────
-
-const NR_ADAPTERS_SERVE = {
-  'claude-code': ccNorm,
-  'pi':          piNorm,
-  'antigravity': agNorm,
-  'grok':        grokNorm,
-  'opencode':    ocNorm,
-  'copilot':     cpNorm,
-};
-
-const HARNESS_CAPS_SERVE = {
-  'claude-code': { tokens: true  },
-  'pi':          { tokens: true  },
-  'antigravity': { tokens: false },
-  'grok':        { tokens: false },
-  'opencode':    { tokens: true  },
-  'copilot':     { tokens: true  },
-};
-
-// Copilot ctx lacks project attribution (it lives in <ws>/workspace.json,
-// not the watched file path) — resolve + cache per workspace hash.
-const copilotWsLabels = new Map();
-function copilotProjectLabel(chatSessionPath, wsHash) {
-  if (!wsHash) return null;
-  if (copilotWsLabels.has(wsHash)) return copilotWsLabels.get(wsHash);
-  let label = null;
-  try {
-    const wsJson = path.join(path.dirname(chatSessionPath), '..', 'workspace.json');
-    const folder = workspaceFolderPath(JSON.parse(fs.readFileSync(wsJson, 'utf8')));
-    if (folder) label = folder.split('/').pop();
-  } catch { /* unattributed workspace */ }
-  copilotWsLabels.set(wsHash, label);
-  return label;
-}
+// Adapter + capabilities come from the registry (single source of truth).
 
 function emitPulses(records, ctx) {
-  const adaptFn = NR_ADAPTERS_SERVE[ctx.harness] ?? ccNorm;
-  const caps    = HARNESS_CAPS_SERVE[ctx.harness] ?? { tokens: true };
-  const nrs     = adaptFn(records);
-  const nowMs   = Date.now();
-  for (const pulse of normRecordsToPulses(nrs, ctx, caps)) {
+  const harness = getHarness(ctx.harness);
+  if (!harness) return;
+  const nrs   = harness.adapter(records);
+  const nowMs = Date.now();
+  for (const pulse of normRecordsToPulses(nrs, ctx, harness.capabilities)) {
     applyPulse(activeState, pulse, nowMs);
     notify(pulse.event, JSON.stringify(pulse.data));
   }
@@ -98,8 +58,9 @@ function emitPulses(records, ctx) {
 function tailAndPulse(filePath, ctx) {
   try {
     if (ctx.read_mode === 'json') return jsonAndPulse(filePath, ctx);
-    if (ctx.harness === 'copilot' && !ctx.project_label) {
-      ctx = { ...ctx, project_label: copilotProjectLabel(filePath, ctx.workspace_hash) };
+    const resolveLabel = getHarness(ctx.harness)?.watch?.resolveProjectLabel;
+    if (resolveLabel && !ctx.project_label) {
+      ctx = { ...ctx, project_label: resolveLabel(ctx, filePath) };
     }
     const offset = offsetMap.get(filePath) ?? 0;
     const { records, newOffset } = tailRead(filePath, offset);

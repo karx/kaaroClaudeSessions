@@ -83,7 +83,14 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
       return;
     }
 
-    if (req.url === '/' || req.url === '/graph.html') {
+    if (req.url === '/' || req.url === '/graph' || req.url === '/graph.html' || req.url === '/home') {
+      // / is the landing page; /graph (+ old /graph.html bookmarks) is the
+      // history view. While home.html is not built yet, / falls back to the graph.
+      if ((req.url === '/' || req.url === '/home') && paths.home && fs.existsSync(paths.home)) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+        res.end(fs.readFileSync(paths.home));
+        return;
+      }
       if (!fs.existsSync(paths.html)) {
         res.writeHead(503, { 'Content-Type': 'text/html' });
         res.end('<html><body style="font:14px monospace;padding:40px;background:#111;color:#ccc"><h2>Building…</h2><p>Refresh in a few seconds.</p><script>setTimeout(()=>location.reload(),3000)</script></body></html>');
@@ -98,7 +105,7 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
     if (req.url === '/daw' || req.url === '/daw-builder' || req.url === '/audio' || req.url === '/builder') {
       if (!fs.existsSync(paths.daw)) {
         res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end('<html><body style="font:14px monospace;padding:40px;background:#080810;color:#9aa0b8"><h2>DAW Builder not built yet</h2><p>Run <code>node build.mjs</code> (or the serve will trigger a build on next request in future).</p><p><a href="/" style="color:#4455cc">Back to main graph</a></p></body></html>');
+        res.end('<html><body style="font:14px monospace;padding:40px;background:#080810;color:#9aa0b8"><h2>DAW Builder not built yet</h2><p>Run <code>node build.mjs</code> (or the serve will trigger a build on next request in future).</p><p><a href="/graph" style="color:#ff6600">Back to the graph</a></p></body></html>');
         return;
       }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });

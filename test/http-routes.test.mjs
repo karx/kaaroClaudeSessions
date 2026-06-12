@@ -157,3 +157,43 @@ test('unknown route → 404', async () => {
     assert.equal((await fetch(`${base}/definitely-not-a-route`)).status, 404);
   });
 });
+
+// ── E6: home landing page routing ─────────────────────────────────────────────
+
+test('GET / — serves home artifact; /graph keeps serving the graph', async () => {
+  const { mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = join(tmpdir(), 'kaaro-home-' + Date.now());
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'home.html'), '<html>KAARO HOME</html>', 'utf8');
+  writeFileSync(join(dir, 'graph.html'), '<html>GRAPH PAGE</html>', 'utf8');
+  try {
+    const deps = makeDeps();
+    deps.paths.home = join(dir, 'home.html');
+    deps.paths.html = join(dir, 'graph.html');
+    await withServer(deps, async (base) => {
+      assert.ok((await (await fetch(`${base}/`)).text()).includes('KAARO HOME'));
+      assert.ok((await (await fetch(`${base}/graph`)).text()).includes('GRAPH PAGE'));
+      assert.ok((await (await fetch(`${base}/graph.html`)).text()).includes('GRAPH PAGE'),
+        'old bookmarks keep working');
+    });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('GET / — falls back to the graph while home is not built yet', async () => {
+  const { mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = join(tmpdir(), 'kaaro-home2-' + Date.now());
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'graph.html'), '<html>GRAPH PAGE</html>', 'utf8');
+  try {
+    const deps = makeDeps();
+    deps.paths.home = join(dir, 'missing-home.html');
+    deps.paths.html = join(dir, 'graph.html');
+    await withServer(deps, async (base) => {
+      assert.ok((await (await fetch(`${base}/`)).text()).includes('GRAPH PAGE'));
+    });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

@@ -72,21 +72,24 @@ function tokenSubs() {
   };
 }
 
-// ── Mission Control (/now) — static page through the same substitution path ──
-function buildNow() {
-  const nowTemplatePath = path.join(CWD, 'experience', 'pages', 'now.html');
-  if (!fs.existsSync(nowTemplatePath)) {
-    console.warn('now template missing — skipping now.html');
+// ── Static pages (Mission Control, Home) through the substitution path ───────
+function buildStaticPage(templateName, outName, label) {
+  const templatePath = path.join(CWD, 'experience', 'pages', templateName);
+  if (!fs.existsSync(templatePath)) {
+    console.warn(`${templateName} missing — skipping ${outName}`);
     return;
   }
-  const html = applySubstitutions(fs.readFileSync(nowTemplatePath, 'utf8'), {
+  const html = applySubstitutions(fs.readFileSync(templatePath, 'utf8'), {
     '%%CLIENT_CORE%%': loadClientCore(),
     ...tokenSubs(),
   });
-  const outPath = path.join(CWD, 'now.html');
+  const outPath = path.join(CWD, outName);
   fs.writeFileSync(outPath, html, 'utf8');
-  console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB) — Mission Control`);
+  console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB) — ${label}`);
 }
+
+function buildNow()  { buildStaticPage('now.html',  'now.html',  'Mission Control'); }
+function buildHome() { buildStaticPage('home.html', 'home.html', 'Landing'); }
 
 // ── DAW Builder (dedicated live-pulse pure audio profile builder) ────────────
 function buildDaw() {
@@ -177,9 +180,10 @@ function run() {
   fs.writeFileSync(outPath, html, 'utf8');
   console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB)`);
 
-  // Always produce the dedicated live-pulse DAW builder + Mission Control pages.
+  // Always produce the dedicated live-pulse DAW builder + static pages.
   buildDaw();
   buildNow();
+  buildHome();
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) run();

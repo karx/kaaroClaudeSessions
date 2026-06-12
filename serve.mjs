@@ -121,6 +121,7 @@ const server = http.createServer(createRequestHandler({
   getStatus: () => ({ ...rebuilder.state, clients: hub.size, port: PORT }),
   paths: {
     root: __dirname,
+    home: path.join(__dirname, 'home.html'), // built artifact (landing page)
     html: HTML_PATH,
     data: DATA_PATH,
     daw:  path.join(__dirname, 'daw-builder.html'),

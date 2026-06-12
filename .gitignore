@@ -3,6 +3,7 @@ graph.html
 graph-data.json
 daw-builder.html
 now.html
+home.html
 node_modules/
 /agent-tools/
 /.claude/settings.local.json

@@ -26,15 +26,7 @@ export { GROK_SESSIONS_ROOT };
 const OUT_FILE = path.join(process.cwd(), 'sessions-data.json');
 const SESSION_DIR_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
 
-function parseJsonlFile(filePath) {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const records = [];
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) continue;
-    try { records.push(JSON.parse(line)); } catch { /* skip malformed */ }
-  }
-  return { records, sizeBytes: Buffer.byteLength(raw, 'utf8') };
-}
+import { parseJsonlFile } from '../jsonl-io.mjs';
 
 /**
  * Read a Grok session directory (multi-file).

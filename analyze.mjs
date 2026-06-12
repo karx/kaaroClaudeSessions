@@ -29,15 +29,7 @@ const OUT_FILE             = path.join(process.cwd(), 'sessions-data.json');
 
 // ── JSONL I/O ─────────────────────────────────────────────────────────────────
 
-function parseJsonlFile(filePath) {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const records = [];
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) continue;
-    try { records.push(JSON.parse(line)); } catch { /* skip malformed */ }
-  }
-  return { records, sizeBytes: Buffer.byteLength(raw, 'utf8') };
-}
+import { parseJsonlFile } from './hooks/jsonl-io.mjs';
 
 function analyzeSession(projectId, filePath) {
   const { records, sizeBytes } = parseJsonlFile(filePath);

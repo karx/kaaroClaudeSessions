@@ -104,3 +104,37 @@ test('resolveControlVisibility — only the active layout’s control panels sho
     'force-options': false, 'sl-options': false, 'sl-extra': false,
   });
 });
+
+// ── DAW lane geometry (extracted from 19-daw-builder) ─────────────────────────
+
+test('DAW_FAMILY_LANES — four family lanes with portions summing to ~0.88', async () => {
+  const { DAW_FAMILY_LANES } = await import('../experience/client-core.mjs');
+  assert.deepEqual(DAW_FAMILY_LANES.map(l => l.id), ['file', 'system', 'ai', 'context']);
+  const total = DAW_FAMILY_LANES.reduce((a, l) => a + l.portion, 0);
+  assert.ok(Math.abs(total - 0.88) < 1e-9);
+});
+
+test('computeLaneLayout — stacks lanes under the ruler, 18px minimum', async () => {
+  const { computeLaneLayout } = await import('../experience/client-core.mjs');
+  const rows = computeLaneLayout(420);
+  assert.equal(rows[0].y, 20, 'first lane starts under the 20px ruler');
+  assert.equal(rows[1].y, rows[0].y + rows[0].h, 'lanes stack');
+  assert.ok(rows.every(r => r.h >= 18));
+  const tiny = computeLaneLayout(40);
+  assert.ok(tiny.every(r => r.h === 18), 'minimum lane height enforced');
+});
+
+test('laneForEvent — routes by pulse family', async () => {
+  const { laneForEvent } = await import('../experience/client-core.mjs');
+  assert.equal(laneForEvent({ family: 'ai' }).id, 'ai');
+  assert.equal(laneForEvent({ family: 'nope' }), null);
+});
+
+test('evTimeX — right-anchored time axis with scroll offset', async () => {
+  const { evTimeX } = await import('../experience/client-core.mjs');
+  const now = 100_000;
+  // event now → right edge; 1s ago at 30px/s → 30px left of edge
+  assert.equal(evTimeX({ ts: now }, now, 800, 30, 0), 800);
+  assert.equal(evTimeX({ ts: now - 1000 }, now, 800, 30, 0), 770);
+  assert.equal(evTimeX({ ts: now - 1000 }, now, 800, 30, 1000), 800, 'scrollMs shifts view back');
+});

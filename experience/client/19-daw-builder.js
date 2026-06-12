@@ -30,34 +30,7 @@
   };
 
   // â”€â”€ Lane definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const FAMILY_LANES = [
-    {
-      id: 'file', label: 'FILE OPS', bg: '#0b1a0e', portion: 0.28,
-      toolColors: { write: '#00cc55', edit: '#ccaa00', read: '#3a6aaa', grep_glob: '#8844cc' },
-      blockW: e => e.key === 'write' ? 10 : e.key === 'edit' ? 8 : 5,
-      blockH: e => e.key === 'write' ? 0.85 : e.key === 'edit' ? 0.70 : 0.50,
-    },
-    {
-      id: 'system', label: 'SYSTEM', bg: '#0a0a18', portion: 0.20,
-      toolColors: { bash_git: '#cc5522', bash_run: '#dd7733', bash_other: '#555577' },
-      blockW: () => 7,
-      blockH: () => 0.70,
-    },
-    {
-      id: 'ai', label: 'AI / AGENT', bg: '#100818', portion: 0.25,
-      toolColors: { agent: '#cc2244', other: '#884466' },
-      blockW: e => e.key === 'agent' ? 14 : 8,
-      blockH: () => 0.85,
-    },
-    {
-      id: 'context', label: 'CONTEXT', bg: '#080c18', portion: 0.15,
-      toolColors: { tokens: '#00ddcc', words: '#00aaff' },
-      blockW: e => e.type === 'tokens' ? 3 : 8,
-      blockH: e => e.type === 'tokens'
-        ? Math.max(0.1, Math.min(0.8, Math.log1p((e.output || 0) / 200) * 0.35))
-        : Math.max(0.1, Math.min(0.85, (e.word_count || 0) / 80)),
-    },
-  ];
+  const FAMILY_LANES = DAW_FAMILY_LANES; // shared core (00-core.js)
 
   const FAMILY_LABEL_COLORS = {
     file: '#2a7a3a', system: '#3a5aaa', ai: '#aa3388', context: '#2a8aaa',
@@ -81,26 +54,13 @@
   }
 
   // â”€â”€ Lane layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  function computeLaneLayout(H) {
-    const usable = H - 20; // 20px ruler
-    let y = 20;
-    return FAMILY_LANES.map(lane => {
-      const h = Math.max(18, Math.floor(usable * lane.portion));
-      const r = { id: lane.id, y, h };
-      y += h;
-      return r;
-    });
-  }
-
-  function laneForEvent(ev) {
-    return FAMILY_LANES.find(l => l.id === ev.family) || null;
-  }
+  // computeLaneLayout / laneForEvent come from the shared core (00-core.js)
 
   // â”€â”€ Time helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function nowMs() { return S.isLive ? Date.now() : (S.frozenNow ?? Date.now()); }
 
   function evX(ev, now, W, PX_PER_SEC) {
-    return W - (now - ev.ts) / 1000 * PX_PER_SEC + S.scrollMs / 1000 * PX_PER_SEC;
+    return evTimeX(ev, now, W, PX_PER_SEC, S.scrollMs);
   }
 
   // â”€â”€ Draw DAW lanes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

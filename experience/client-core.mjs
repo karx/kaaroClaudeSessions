@@ -93,6 +93,60 @@ export function blockGeom(ev, trackH = 62) {
   return { h: 20, yOff: 2 };
 }
 
+// ── DAW lane geometry (Cognitive DAW Builder) ─────────────────────────────────
+// Lane tool colors are deliberately brighter variants of TOOL_COLORS — they sit
+// on the dark per-family lane backgrounds (visual contract, do not unify).
+
+export const DAW_FAMILY_LANES = [
+  {
+    id: 'file', label: 'FILE OPS', bg: '#0b1a0e', portion: 0.28,
+    toolColors: { write: '#00cc55', edit: '#ccaa00', read: '#3a6aaa', grep_glob: '#8844cc' },
+    blockW: e => e.key === 'write' ? 10 : e.key === 'edit' ? 8 : 5,
+    blockH: e => e.key === 'write' ? 0.85 : e.key === 'edit' ? 0.70 : 0.50,
+  },
+  {
+    id: 'system', label: 'SYSTEM', bg: '#0a0a18', portion: 0.20,
+    toolColors: { bash_git: '#cc5522', bash_run: '#dd7733', bash_other: '#555577' },
+    blockW: () => 7,
+    blockH: () => 0.70,
+  },
+  {
+    id: 'ai', label: 'AI / AGENT', bg: '#100818', portion: 0.25,
+    toolColors: { agent: '#cc2244', other: '#884466' },
+    blockW: e => e.key === 'agent' ? 14 : 8,
+    blockH: () => 0.85,
+  },
+  {
+    id: 'context', label: 'CONTEXT', bg: '#080c18', portion: 0.15,
+    toolColors: { tokens: '#00ddcc', words: '#00aaff' },
+    blockW: e => e.type === 'tokens' ? 3 : 8,
+    blockH: e => e.type === 'tokens'
+      ? Math.max(0.1, Math.min(0.8, Math.log1p((e.output || 0) / 200) * 0.35))
+      : Math.max(0.1, Math.min(0.85, (e.word_count || 0) / 80)),
+  },
+];
+
+/** Stack lanes under the ruler; every lane keeps an 18px minimum height. */
+export function computeLaneLayout(H, lanes = DAW_FAMILY_LANES, rulerH = 20) {
+  const usable = H - rulerH;
+  let y = rulerH;
+  return lanes.map(lane => {
+    const h = Math.max(18, Math.floor(usable * lane.portion));
+    const r = { id: lane.id, y, h };
+    y += h;
+    return r;
+  });
+}
+
+export function laneForEvent(ev, lanes = DAW_FAMILY_LANES) {
+  return lanes.find(l => l.id === ev.family) || null;
+}
+
+/** Right-anchored time axis: x of an event on a live-scrolling canvas. */
+export function evTimeX(ev, now, W, pxPerSec, scrollMs = 0) {
+  return W - (now - ev.ts) / 1000 * pxPerSec + scrollMs / 1000 * pxPerSec;
+}
+
 // ── SSE wiring (one EventSource pattern for every page) ───────────────────────
 
 /**

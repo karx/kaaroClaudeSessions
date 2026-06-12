@@ -233,3 +233,50 @@ test('unknown pulse events still bump last_seen/last_event', () => {
   assert.equal(s.last_event, 'thinking');
   assert.equal(s.tool_calls, 0);
 });
+
+// ── E4: recent-actions ring + permission/mode/api_error tracking ─────────────
+
+test('applyPulse — recent_actions ring keeps the last 50 actions, newest last', () => {
+  const state = createActiveState();
+  const base = { session_id: 's1', slug: 's1slug', harness: 'claude-code', project: 'p' };
+  for (let i = 0; i < 60; i++) {
+    applyPulse(state, { event: 'tool_call', data: { ...base, tool: 'Read', where: 'f' + i + '.mjs' } }, 1000 + i);
+  }
+  const snap = snapshotActive(state, 2000);
+  const actions = snap.sessions[0].recent_actions;
+  assert.equal(actions.length, 50, 'ring capped at 50');
+  assert.equal(actions.at(-1).where, 'f59.mjs', 'newest last');
+  assert.equal(actions[0].where, 'f10.mjs', 'oldest evicted');
+  assert.equal(actions.at(-1).type, 'tool_call');
+});
+
+test('applyPulse — errors, compacts, human turns and api errors land in the ring', () => {
+  const state = createActiveState();
+  const base = { session_id: 's2', slug: 's2slug', harness: 'grok', project: 'p' };
+  applyPulse(state, { event: 'tool_call', data: { ...base, tool: 'Shell', why: 'node --test' } }, 1);
+  applyPulse(state, { event: 'tool_error', data: { ...base, tool: 'Shell' } }, 2);
+  applyPulse(state, { event: 'compact', data: base }, 3);
+  applyPulse(state, { event: 'human_turn', data: { ...base, text: 'try again' } }, 4);
+  applyPulse(state, { event: 'api_error', data: { ...base, message: 'quota exceeded', code: 'rate_limit' } }, 5);
+
+  const s = snapshotActive(state, 10).sessions[0];
+  assert.deepEqual(s.recent_actions.map(a => a.type),
+    ['tool_call', 'tool_error', 'compact', 'human_turn', 'api_error']);
+  assert.equal(s.recent_actions[1].error, true);
+  assert.equal(s.recent_actions[4].message, 'quota exceeded');
+});
+
+test('applyPulse — permission / mode_shift / api_error update session fields', () => {
+  const state = createActiveState();
+  const base = { session_id: 's3', slug: 's3slug', harness: 'claude-code', project: 'p' };
+  applyPulse(state, { event: 'permission', data: { ...base, mode: 'acceptEdits' } }, 1);
+  applyPulse(state, { event: 'mode_shift', data: { ...base, mode: 'plan' } }, 2);
+  applyPulse(state, { event: 'api_error', data: { ...base, message: 'quota exceeded', code: 'rate_limit' } }, 3);
+
+  const s = snapshotActive(state, 10).sessions[0];
+  assert.equal(s.last_permission_mode, 'acceptEdits');
+  assert.equal(s.last_mode, 'plan');
+  assert.equal(s.api_errors, 1);
+  assert.equal(s.last_api_error.message, 'quota exceeded');
+  assert.equal(s.last_api_error.code, 'rate_limit');
+});

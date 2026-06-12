@@ -41,6 +41,11 @@ function getEntry(state, data, now) {
       human_turns: 0,
       last_human_ts: null,
       compacts: 0,
+      recent_actions: [],       // ring of the last RECENT_ACTIONS_MAX actions
+      last_permission_mode: null,
+      last_mode: null,
+      api_errors: 0,
+      last_api_error: null,
     };
     state.sessions.set(data.session_id, e);
   }
@@ -53,6 +58,14 @@ function getEntry(state, data, now) {
  * @param {object} pulse  — { event, data } (lifecycle pulses without data.session_id are ignored)
  * @param {number} now    — epoch ms
  */
+export const RECENT_ACTIONS_MAX = 50;
+
+// Mutate-in-place ring (same convention as the beat ring).
+function pushAction(e, action) {
+  e.recent_actions.push(action);
+  while (e.recent_actions.length > RECENT_ACTIONS_MAX) e.recent_actions.shift();
+}
+
 export function applyPulse(state, pulse, now, thresholds = DEFAULT_THRESHOLDS) {
   if (!pulse || typeof pulse !== 'object') return;
   const { event, data } = pulse;
@@ -73,10 +86,13 @@ export function applyPulse(state, pulse, now, thresholds = DEFAULT_THRESHOLDS) {
         why: data.why ?? null,
         ts: now,
       };
+      pushAction(e, { type: 'tool_call', ts: now, tool: data.tool ?? null,
+        key: data.key ?? null, where: data.where ?? null, why: data.why ?? null });
       break;
 
     case 'tool_error':
       e.tool_errors++;
+      pushAction(e, { type: 'tool_error', ts: now, tool: data.tool ?? null, error: true });
       break;
 
     case 'tokens': {
@@ -99,10 +115,29 @@ export function applyPulse(state, pulse, now, thresholds = DEFAULT_THRESHOLDS) {
     case 'human_turn':
       e.human_turns++;
       e.last_human_ts = now;
+      pushAction(e, { type: 'human_turn', ts: now, text: data.text ?? null });
       break;
 
     case 'compact':
       e.compacts++;
+      pushAction(e, { type: 'compact', ts: now });
+      break;
+
+    case 'permission':
+      if (data.mode) e.last_permission_mode = data.mode;
+      pushAction(e, { type: 'permission', ts: now, mode: data.mode ?? null });
+      break;
+
+    case 'mode_shift':
+      if (data.mode) e.last_mode = data.mode;
+      pushAction(e, { type: 'mode_shift', ts: now, mode: data.mode ?? null });
+      break;
+
+    case 'api_error':
+      e.api_errors++;
+      e.last_api_error = { message: data.message ?? null, code: data.code ?? null, ts: now };
+      pushAction(e, { type: 'api_error', ts: now, error: true,
+        message: data.message ?? null, code: data.code ?? null });
       break;
 
     default:
@@ -162,6 +197,11 @@ export function snapshotActive(state, now, overrides = {}) {
       human_turns: e.human_turns,
       last_human_ts: e.last_human_ts,
       compacts: e.compacts,
+      recent_actions: [...e.recent_actions],
+      last_permission_mode: e.last_permission_mode,
+      last_mode: e.last_mode,
+      api_errors: e.api_errors,
+      last_api_error: e.last_api_error,
     });
 
     const h = by_harness[e.harness] ??= { sessions: 0, active: 0, tool_calls: 0, tokens_work: 0 };

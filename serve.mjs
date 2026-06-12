@@ -26,6 +26,7 @@ import { getEnabledHarnesses, getHarness } from './hooks/registry.mjs';
 import { processWatchFilename } from './surface/watch-handlers.mjs';
 import { resolveSessionFile, invalidateSessionResolveCache } from './surface/session-resolver.mjs';
 import { createActiveState, applyPulse, snapshotActive } from './surface/active-state.mjs';
+import { createHub } from './surface/sse-hub.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
@@ -37,7 +38,8 @@ const BUILD_SCRIPT   = path.join(__dirname, 'build.mjs');
 
 // ── SSE clients ───────────────────────────────────────────────────────────────
 
-const clients   = new Set();
+const hub    = createHub();
+const notify = hub.notify;
 const offsetMap = new Map(); // filePath → last-read byte offset
 
 // ── Pulse helpers ─────────────────────────────────────────────────────────────
@@ -107,13 +109,6 @@ function scheduleNowBroadcast() {
   }, 1000);
 }
 
-function notify(event, data = '') {
-  const payload = `event: ${event}\ndata: ${data}\n\n`;
-  for (const res of clients) {
-    try { res.write(payload); } catch { clients.delete(res); }
-  }
-}
-
 // ── Rebuild pipeline ──────────────────────────────────────────────────────────
 
 let rebuilding     = false;
@@ -150,7 +145,7 @@ async function rebuild(target = null) {
     await run(ANALYZE_SCRIPT, analyzeArgs);
     await run(BUILD_SCRIPT);
     lastBuilt = new Date();
-    console.log(`Done in ${((Date.now() - t0) / 1000).toFixed(1)}s — ${clients.size} client(s) connected`);
+    console.log(`Done in ${((Date.now() - t0) / 1000).toFixed(1)}s — ${hub.size} client(s) connected`);
     notify('updated', lastBuilt.toISOString());
   } catch (e) {
     console.error('Rebuild failed:', e.message);
@@ -253,18 +248,7 @@ function buildTrace(filePath, projectId, sessionId, harness = 'claude-code') {
 
 const server = http.createServer((req, res) => {
   if (req.url === '/events') {
-    res.writeHead(200, {
-      'Content-Type':  'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection':    'keep-alive',
-    });
-    res.write(':\n\n');
-    res.write('event: connected\ndata: ok\n\n');
-    clients.add(res);
-    const hb = setInterval(() => {
-      try { res.write(':\n\n'); } catch { clearInterval(hb); clients.delete(res); }
-    }, 25_000);
-    req.on('close', () => { clearInterval(hb); clients.delete(res); });
+    hub.addClient(res, req);
     return;
   }
 
@@ -279,7 +263,7 @@ const server = http.createServer((req, res) => {
 
   if (req.url === '/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ rebuilding, lastBuilt, clients: clients.size, port: PORT }));
+    res.end(JSON.stringify({ rebuilding, lastBuilt, clients: hub.size, port: PORT }));
     return;
   }
 

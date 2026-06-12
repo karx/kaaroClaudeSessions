@@ -19,6 +19,7 @@ import { enrichSession } from '../enrich-session.mjs';
 import { buildSessionsOutput } from '../../surface/analyze-orchestrator.mjs';
 import { recordsToNormalized } from '../adapters/opencode.mjs';
 import { reduceSession } from '../session-reducer.mjs';
+import { walkSessions, dirNames } from '../scan-walk.mjs';
 import {
   deriveAntigravityProjectId as deriveProjectIdFromPath,
   deriveAntigravityLabel as deriveLabelFromPath,
@@ -102,28 +103,17 @@ export function analyzeOpencodeSession(storageRoot, infoPath) {
 
 export function scanOpencodeSessions(storageRoot = OPENCODE_STORAGE_ROOT) {
   const sessionRoot = path.join(storageRoot, 'session');
-  let buckets;
-  try {
-    buckets = fs.readdirSync(sessionRoot, { withFileTypes: true });
-  } catch (err) {
-    if (err.code === 'ENOENT') return null;
-    throw err;
-  }
-
-  const sessions = [];
-  for (const bucket of buckets.filter(d => d.isDirectory()).map(d => d.name).sort()) {
-    for (const infoPath of listJsonFiles(path.join(sessionRoot, bucket))) {
-      if (!path.basename(infoPath).startsWith('ses_')) continue;
-      try {
-        const session = analyzeOpencodeSession(storageRoot, infoPath);
-        if (session) sessions.push(session);
-      } catch (err) {
-        console.error(`  !! [opencode] ${bucket}/${path.basename(infoPath)}: ${err.message}`);
+  return walkSessions(sessionRoot, 'opencode', function* (entries) {
+    for (const bucket of dirNames(entries)) {
+      for (const infoPath of listJsonFiles(path.join(sessionRoot, bucket))) {
+        if (!path.basename(infoPath).startsWith('ses_')) continue;
+        yield {
+          id: `${bucket}/${path.basename(infoPath)}`,
+          analyze: () => analyzeOpencodeSession(storageRoot, infoPath),
+        };
       }
     }
-  }
-
-  return { harness: 'opencode', source_dir: storageRoot, sessions };
+  }, { sourceDir: storageRoot });
 }
 
 function main() {

@@ -14,12 +14,14 @@
 import fs from 'fs';
 
 /**
- * @param {string} root
+ * @param {string} root — directory whose entries feed the iterate generator
  * @param {string} harness
  * @param {(entries: import('fs').Dirent[]) => Iterable<{ id: string, analyze: () => object|null }>} iterate
+ * @param {{ sourceDir?: string }} [opts] — envelope source_dir when it differs
+ *   from the listed root (opencode lists <storage>/session but reports <storage>)
  * @returns {{ harness: string, source_dir: string, sessions: object[] }|null}
  */
-export function walkSessions(root, harness, iterate) {
+export function walkSessions(root, harness, iterate, opts = {}) {
   let entries;
   try {
     entries = fs.readdirSync(root, { withFileTypes: true });
@@ -37,7 +39,7 @@ export function walkSessions(root, harness, iterate) {
       console.error(`  !! [${harness}] ${id}: ${err.message}`);
     }
   }
-  return { harness, source_dir: root, sessions };
+  return { harness, source_dir: opts.sourceDir ?? root, sessions };
 }
 
 /**

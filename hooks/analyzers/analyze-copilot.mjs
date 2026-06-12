@@ -23,6 +23,7 @@ import { enrichSession } from '../enrich-session.mjs';
 import { buildSessionsOutput } from '../../surface/analyze-orchestrator.mjs';
 import { recordsToNormalized } from '../adapters/copilot.mjs';
 import { reduceSession } from '../session-reducer.mjs';
+import { walkSessions, dirNames } from '../scan-walk.mjs';
 import { copilotUriToPath, workspaceFolderPath } from '../helpers/copilot-helpers.mjs';
 import {
   deriveAntigravityProjectId as deriveProjectIdFromPath,
@@ -101,59 +102,48 @@ export function analyzeCopilotSession(filePath, projectInfo = {}) {
 }
 
 export function scanCopilotSessions(wsRoot = COPILOT_WORKSPACE_STORAGE_ROOT) {
-  let wsDirs;
-  try {
-    wsDirs = fs.readdirSync(wsRoot, { withFileTypes: true });
-  } catch (err) {
-    if (err.code === 'ENOENT') return null;
-    throw err;
-  }
+  return walkSessions(wsRoot, 'copilot', function* (entries) {
+    for (const ws of dirNames(entries)) {
+      const wsDir = path.join(wsRoot, ws);
+      const chatDir = path.join(wsDir, 'chatSessions');
+      let files;
+      try { files = fs.readdirSync(chatDir); } catch { continue; }
 
-  const sessions = [];
-  for (const ws of wsDirs.filter(d => d.isDirectory()).map(d => d.name).sort()) {
-    const wsDir = path.join(wsRoot, ws);
-    const chatDir = path.join(wsDir, 'chatSessions');
-    let files;
-    try { files = fs.readdirSync(chatDir); } catch { continue; }
-
-    let projectInfo = {};
-    try {
-      const folder = workspaceFolderPath(
-        JSON.parse(fs.readFileSync(path.join(wsDir, 'workspace.json'), 'utf8'))
-      );
-      if (folder) {
-        projectInfo = {
-          project_id: deriveProjectIdFromPath(folder),
-          project_label: deriveLabelFromPath(folder),
-          cwd: folder,
-        };
-      }
-    } catch { /* unattributed workspace */ }
-
-    const index = readChatSessionIndex(path.join(wsDir, 'state.vscdb'));
-
-    for (const f of files) {
-      if (!/\.(jsonl|json)$/.test(f)) continue;
+      let projectInfo = {};
       try {
-        const session = analyzeCopilotSession(path.join(chatDir, f), projectInfo);
-        if (!session) continue;
-        const entry = index[session.session_id];
-        if (entry?.title && !session.ai_title && entry.title !== 'New Chat') {
-          session.ai_title = entry.title;
+        const folder = workspaceFolderPath(
+          JSON.parse(fs.readFileSync(path.join(wsDir, 'workspace.json'), 'utf8'))
+        );
+        if (folder) {
+          projectInfo = {
+            project_id: deriveProjectIdFromPath(folder),
+            project_label: deriveLabelFromPath(folder),
+            cwd: folder,
+          };
         }
-        if (entry?.lastMessageDate) {
-          const last = new Date(entry.lastMessageDate).toISOString();
-          if (!session.last_timestamp || last > session.last_timestamp) session.last_timestamp = last;
-        }
-        if (entry?.isEmpty && !session.user_turns) continue; // indexed-empty + no turns → skip
-        sessions.push(session);
-      } catch (err) {
-        console.error(`  !! [copilot] ${ws}/${f}: ${err.message}`);
+      } catch { /* unattributed workspace */ }
+
+      const index = readChatSessionIndex(path.join(wsDir, 'state.vscdb'));
+
+      for (const f of files) {
+        if (!/\.(jsonl|json)$/.test(f)) continue;
+        yield { id: `${ws}/${f}`, analyze: () => {
+          const session = analyzeCopilotSession(path.join(chatDir, f), projectInfo);
+          if (!session) return null;
+          const entry = index[session.session_id];
+          if (entry?.title && !session.ai_title && entry.title !== 'New Chat') {
+            session.ai_title = entry.title;
+          }
+          if (entry?.lastMessageDate) {
+            const last = new Date(entry.lastMessageDate).toISOString();
+            if (!session.last_timestamp || last > session.last_timestamp) session.last_timestamp = last;
+          }
+          if (entry?.isEmpty && !session.user_turns) return null; // indexed-empty + no turns → skip
+          return session;
+        } };
       }
     }
-  }
-
-  return { harness: 'copilot', source_dir: wsRoot, sessions };
+  });
 }
 
 function main() {

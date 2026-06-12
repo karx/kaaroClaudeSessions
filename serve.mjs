@@ -27,6 +27,7 @@ import { resolveSessionFile, invalidateSessionResolveCache } from './surface/ses
 import { createActiveState, snapshotActive } from './surface/active-state.mjs';
 import { createHub } from './surface/sse-hub.mjs';
 import { createPulseEmitter } from './surface/pulse-emitter.mjs';
+import { createRebuilder } from './surface/rebuild-orchestrator.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
@@ -49,11 +50,6 @@ const { tailAndPulse } = createPulseEmitter({ hub, activeState });
 
 // ── Rebuild pipeline ──────────────────────────────────────────────────────────
 
-let rebuilding     = false;
-let pendingRebuild = false;
-let debounceTimer  = null;
-let lastBuilt      = null;
-
 function run(script, extraArgs = []) {
   return new Promise((resolve, reject) => {
     // --disable-warning: node:sqlite (copilot index) emits an ExperimentalWarning per process
@@ -65,42 +61,10 @@ function run(script, extraArgs = []) {
   });
 }
 
-async function rebuild(target = null) {
-  if (rebuilding) {
-    pendingRebuild = true;
-    return;
-  }
-  rebuilding = true;
-  const t0 = Date.now();
-  console.log(`\n[${new Date().toLocaleTimeString()}] Rebuilding…`);
-  notify('status', 'rebuilding');
-
-  try {
-    // Use targeted arg (e.g. --session=...) when provided by watch handler.
-    // analyze.mjs will take the fast path (parseSessionFlag + mergeSessionIntoData)
-    // for supported cases instead of a full multi-harness scan.
-    const analyzeArgs = target?.rebuildArg ? [target.rebuildArg] : ['--all-harnesses'];
-    await run(ANALYZE_SCRIPT, analyzeArgs);
-    await run(BUILD_SCRIPT);
-    lastBuilt = new Date();
-    console.log(`Done in ${((Date.now() - t0) / 1000).toFixed(1)}s — ${hub.size} client(s) connected`);
-    notify('updated', lastBuilt.toISOString());
-  } catch (e) {
-    console.error('Rebuild failed:', e.message);
-    notify('error', e.message.slice(0, 200));
-  } finally {
-    rebuilding = false;
-    if (pendingRebuild) {
-      pendingRebuild = false;
-      rebuild();
-    }
-  }
-}
-
-function scheduleRebuild(target = null) {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => rebuild(target), 1500);
-}
+const rebuilder = createRebuilder({
+  hub, runScript: run, analyzeScript: ANALYZE_SCRIPT, buildScript: BUILD_SCRIPT,
+});
+const { rebuild, scheduleRebuild } = rebuilder;
 
 // ── File watcher (registry-driven) ────────────────────────────────────────────
 
@@ -201,6 +165,7 @@ const server = http.createServer((req, res) => {
 
   if (req.url === '/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
+    const { rebuilding, lastBuilt } = rebuilder.state;
     res.end(JSON.stringify({ rebuilding, lastBuilt, clients: hub.size, port: PORT }));
     return;
   }

@@ -22,15 +22,17 @@ node --test test/graph-pipeline.test.mjs test/schema.test.mjs  # multiple files
 
 No `npm install` needed — zero external dependencies. D3 v7 and 3d-force-graph are loaded from CDN inside the generated HTML.
 
-**HTTP endpoints** (served by `serve.mjs`):
-- `GET /` — serves `graph.html` (no-cache)
-- `GET /daw` (or `/builder`, `/audio`) — dedicated **Live Pulse DAW Builder** page (pure event stream, no graph). Full sonic axis mapping, simulator, timbre lab, rule-based audio profiles, large interactive DAW canvas. Works only when served (needs /events).
-- `GET /now` (or `/mission`, `/active`) — **Mission Control** page (`experience/pages/now.html`, static, Register A terminal style): live active-session board with per-harness rollup, session cards (status, last tool, token burn, errors), ai_title/branch enrichment from graph-data.
-- `GET /events` — SSE stream; emits lifecycle events (`status`, `updated`, `error`) AND live pulse events (`tool_call`, `tokens`, `words`, …) on every JSONL change, plus throttled `now` snapshots (≤1/s) of the active-session state
-- `GET /api/active` — Mission Control snapshot from `surface/active-state.mjs` (`{ generated_at, sessions[], by_harness, totals }`)
+**HTTP endpoints** (routes in `surface/http-routes.mjs`, composed by `serve.mjs`):
+- `GET /` (or `/home`) — **landing page** (`home.html` built artifact): Register A boot ritual + three view tiles (graph/now/daw) with live stats and `g`/`n`/`d` shortcuts. Falls back to the graph until built.
+- `GET /graph` (or legacy `/graph.html`) — the **history view** `graph.html` (no-cache)
+- `GET /daw` (or `/builder`, `/audio`) — dedicated **Live Pulse DAW Builder** page (pure event stream, no graph). Full sonic axis mapping, simulator, timbre lab, rule-based audio profiles per event type, session legend with context-pressure bars. Works only when served (needs /events).
+- `GET /now` (or `/mission`, `/active`) — **Mission Control** (`now.html` built artifact, Register A): per-harness rollup with capability badges, expandable session cards (recent-actions feed, on-demand context-window strip, mode/permission chips, api-error line).
+- `GET /events` — SSE stream; lifecycle events (`status`, `updated`, `error`), live pulse events (`tool_call`, `tokens`, `words`, `human_turn`, `compact`, `permission`, `mode_shift`, `tool_error`, `api_error`, `chirp`, …), plus throttled `now` snapshots (≤1/s)
+- `GET /api/active` — Mission Control snapshot from `surface/active-state.mjs` (`{ generated_at, sessions[] (incl. recent_actions ring), by_harness, totals }`)
+- `GET /api/harnesses` — registry descriptors `{ id, label, capabilities }` — the experience layer's capability source
 - `GET /graph-data.json` — current graph payload for incremental updates
 - `GET /status` — JSON `{ rebuilding, lastBuilt, clients, port }` (debug)
-- `GET /api/trace/:session_id` — reconstructed context tree for one session (mtime-cached)
+- `GET /api/trace/:session_id` — context tree via `surface/trace-service.mjs` (mtime-cached; all harnesses except antigravity)
 
 ## Architecture
 
@@ -57,8 +59,10 @@ Observability Surface (HTTP endpoints + SSE events) only. Root `analyze.mjs`,
 
 Repository layout:
 - `hooks/` — registry.mjs (THE single source of truth: adapter, scan, locateSession, readSessionRecords, capabilities per harness), normalized-record.mjs (NR contract), action-keys.mjs, session-reducer.mjs, enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, trace-tree.mjs, jsonl-io.mjs, jsonl-tail.mjs, scan-walk.mjs, session-locators.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-pi/-antigravity/-grok/-opencode/-copilot), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
-- `surface/` — active-state.mjs, session-resolver.mjs, watch-handlers.mjs, scan-harnesses.mjs, analyze-orchestrator.mjs
-- `experience/` — `client/` (20 numbered browser modules), `pages/` (template.html, now.html, daw-template.html, og-image.svg), `audio/` (audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs
+- `surface/` — http-routes.mjs, sse-hub.mjs, pulse-emitter.mjs, rebuild-orchestrator.mjs, trace-service.mjs, active-state.mjs, session-resolver.mjs, watch-handlers.mjs, scan-harnesses.mjs, analyze-orchestrator.mjs (all tested; serve.mjs only composes)
+- `experience/` — client-core.mjs (shared browser helpers, Node-tested, injected as `%%CLIENT_CORE%%`), design-tokens.mjs (Register A `--k-*` tokens, injected as `%%TOKENS_CSS%%` + `KAARO_TOKENS`), `client/` (21 numbered browser modules incl. 00-core placeholder), `pages/` (template.html, now.html, daw-template.html, home.html, og-image.svg), `audio/` (event-registry, audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs
+
+**Adding a harness**: see the checklist at the top of `hooks/registry.mjs` — one adapter, one analyzer (using `hooks/scan-walk.mjs`), one registry descriptor, tests (golden + `test/adapters/nr-compliance.test.mjs` entry). Nothing else changes.
 
 ### Build pipeline
 
@@ -71,11 +75,17 @@ Four-stage pipeline, each stage independently testable:
         ↓ experience/graph-pipeline.mjs (pure data transform)
   { nodes, edges, timeline }
         ↓ build.mjs                     (thin orchestrator: I/O + template injection)
-  experience/pages/template.html + experience/client/01-*.js
+  experience/pages/*.html + experience/client/*.js + client-core + design tokens
         ↓
-  graph.html                            (self-contained, data inlined — gitignored)
+  graph.html · daw-builder.html · now.html · home.html   (built artifacts — gitignored)
   graph-data.json                       (SSE incremental update payload — gitignored)
 ```
+
+Every page artifact receives `%%TOKENS_CSS%%` (Register A `--k-*` block) and the
+shared client core (`%%CLIENT_CORE%%`, export-stripped from
+`experience/client-core.mjs`); the graph bundle additionally gets graph data and
+`%%TRACE_HARNESSES%%` from the registry. `graph.html` stays a single
+self-contained file.
 
 **`serve.mjs`** owns the runtime: runs `analyze.mjs` then `build.mjs` as child processes via `execFile`, watches `~/.claude/projects/` for `.jsonl` changes (1500 ms debounce), and pushes `event: updated` over SSE so the browser calls `window.updateGraph(newData)` without a full reload. Also tails new JSONL bytes on every change and emits live pulse SSE events. Also watches `PI_SESSIONS_ROOT` if present.
 
@@ -174,6 +184,15 @@ Test files map to modules:
 - `test/analyze-opencode.test.mjs` → `hooks/analyzers/analyze-opencode.mjs` (read/analyze/scan over temp storage tree)
 - `test/copilot-adapter.test.mjs` → `hooks/adapters/copilot.mjs` + `hooks/helpers/copilot-helpers.mjs` (op-log mapping, URI decode, aliases)
 - `test/analyze-copilot.test.mjs` → `hooks/analyzers/analyze-copilot.mjs` (workspace attribution, both formats, real SQLite index fixture)
+- `test/adapters/nr-compliance.test.mjs` → all six adapters vs the NR contract (sample traces + golden sessions) — the harness-format-change guard
+- `test/normalized-record.test.mjs` → `hooks/normalized-record.mjs` (KIND_FIELDS, validateNormalizedRecord)
+- `test/harness-parity.test.mjs` → sample traces + capability-enforced field parity (registry flags ARE the matrix)
+- `test/scan-walk.test.mjs` / `test/jsonl-io.test.mjs` → the shared scanner skeleton + JSONL reader
+- `test/sse-hub.test.mjs` / `test/pulse-emitter.test.mjs` / `test/rebuild-orchestrator.test.mjs` / `test/http-routes.test.mjs` → the decomposed serve runtime (ephemeral ports, no child processes)
+- `test/trace-tree.test.mjs` → `hooks/trace-tree.mjs` (parity vs archived oracles + all-harness sanity)
+- `test/trace-service.test.mjs` → `surface/trace-service.mjs` (per-harness /api/trace smokes, mtime cache)
+- `test/client-core.test.mjs` → `experience/client-core.mjs` (formatters, colors, geometry, SSE wiring, filters, force profiles, DAW legend)
+- `test/design-tokens.test.mjs` / `test/design-lint.test.mjs` → Register A tokens + the grammar guard (no blue chrome, no shadows/gradients/large radii)
 
 ## Known coverage gaps
 

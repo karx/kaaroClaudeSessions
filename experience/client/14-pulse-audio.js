@@ -38,6 +38,10 @@
       bash_git: 'snare', bash_run: 'hat', bash_other: 'kick',
       grep_glob: 'bit', agent: 'bell', other: 'harp',
       web: 'bell', tokens: 'flute', words: 'bell',
+      tool_error: 'buzz', api_error: 'buzz',
+      human_turn: 'bell', compact: 'kick',
+      permission: 'hat', mode_shift: 'hat',
+      chirp: 'pling', attachment: 'pling', scaffold: 'hat',
     },
     scale:       'major_pentatonic',
     noteMode:    'path_hash',
@@ -138,6 +142,15 @@
     web:        { pan:  0.45, sendAmt: 0.28, brightness: 5800  },
     tokens:     { pan:  0.00, sendAmt: 0.00, brightness: 5000  }, // brightness overridden by cache_ratio
     words:      { pan:  0.20, sendAmt: 0.15, brightness: 9000  },
+    tool_error: { pan: -0.10, sendAmt: 0.05, brightness: 1500  },
+    api_error:  { pan:  0.00, sendAmt: 0.10, brightness:  900  },
+    human_turn: { pan:  0.30, sendAmt: 0.25, brightness: 6000  },
+    compact:    { pan:  0.00, sendAmt: 0.30, brightness: 1200  },
+    permission: { pan: -0.10, sendAmt: 0.02, brightness: 7000  },
+    mode_shift: { pan: -0.10, sendAmt: 0.02, brightness: 7000  },
+    chirp:      { pan:  0.20, sendAmt: 0.10, brightness: 8000  },
+    attachment: { pan:  0.25, sendAmt: 0.15, brightness: 6500  },
+    scaffold:   { pan: -0.20, sendAmt: 0.05, brightness: 4000  },
   };
   const HARNESS_PAN_BIAS = { pi: -0.15, antigravity: 0.15, grok: 0.25 };
 
@@ -148,13 +161,31 @@
   }
 
   // â”€â”€ Sonic resolution (all axes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Cognition events: instrument/octave/volume profile (spatial axes in SPATIAL)
+  const COG_SOUND = {
+    tool_error: { instrument: 'buzz',  octave: -1, volMult: 1.10 },
+    api_error:  { instrument: 'buzz',  octave: -2, volMult: 1.40 },
+    human_turn: { instrument: 'bell',  octave: -1, volMult: 0.90 },
+    compact:    { instrument: 'kick',  octave: -2, volMult: 1.20 },
+    permission: { instrument: 'hat',   octave:  0, volMult: 0.50 },
+    mode_shift: { instrument: 'hat',   octave:  0, volMult: 0.50 },
+    chirp:      { instrument: 'pling', octave:  1, volMult: 0.35 },
+    attachment: { instrument: 'pling', octave:  0, volMult: 0.50 },
+    scaffold:   { instrument: 'hat',   octave: -1, volMult: 0.40 },
+  };
+
   function resolveSonic(event, data) {
     const S  = window.AUDIO_SETTINGS;
     const P  = window.AUDIO_PROFILE || {};
     let key = null, instrument = null, volMult = 1, octave = 0;
     let degreeMode = S.noteMode, scale = P.scale || S.scale;
 
-    if (event === 'tool_call') {
+    if (event === 'tool_call' && data.key) {
+      // canonical key arrives on every pulse from hooks/pulse-transformer
+      key = data.key;
+      instrument = S.instruments[key] || 'harp';
+
+    } else if (event === 'tool_call') {
       const tool = (data.tool || '').toLowerCase();
       if      (tool === 'read'  || tool === 'view_file' || tool === 'read_file')    key = 'read';
       else if (tool === 'write' || tool === 'write_to_file')                        key = 'write';
@@ -176,6 +207,12 @@
 
     } else if (event === 'words') {
       key = 'words'; instrument = S.instruments.words || 'bell'; octave = 1;
+
+    } else if (COG_SOUND[event]) {
+      key = event;
+      const cog = COG_SOUND[event];
+      instrument = S.instruments[key] || cog.instrument;
+      octave = cog.octave; volMult = cog.volMult;
     }
 
     // Spatial defaults
@@ -505,7 +542,20 @@
     src.connect(f); f.connect(g); g.connect(out); src.start(at); src.stop(at + 0.04);
   }
 
-  const INSTS = { harp, bass, bell, flute, bit, pling, snare, kick, hat };
+  // buzz: sawtooth with a downward pitch sweep — the unmistakable failure voice
+  function buzz(c, at, hz, vol, out) {
+    const o = c.createOscillator(); o.type = 'sawtooth';
+    const f0 = Math.max(60, hz || 160);
+    o.frequency.setValueAtTime(f0, at);
+    o.frequency.exponentialRampToValueAtTime(Math.max(36, f0 * 0.35), at + 0.22);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(Math.min(0.6, (vol != null ? vol : 0.4) * 1.1), at + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, at + 0.26);
+    o.connect(g); g.connect(out); o.start(at); o.stop(at + 0.27);
+  }
+
+  const INSTS = { harp, bass, bell, flute, bit, pling, snare, kick, hat, buzz };
   window.INSTS = INSTS;
   const PERC  = new Set(['snare', 'kick', 'hat']);
 
@@ -530,9 +580,16 @@
   }
 
   // â”€â”€ Main pulse dispatcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Cognition events ride the same ring + audio path: structural/human signals
+  // with registry-defined sonic profiles (W-COG surfacing).
+  const COGNITION_EVENTS = new Set([
+    'human_turn', 'compact', 'permission', 'mode_shift',
+    'tool_error', 'api_error', 'chirp', 'attachment', 'scaffold',
+  ]);
+
   window.playPulse = function (event, data) {
     try {
-      if (event === 'tool_call' || event === 'words' || event === 'tokens') {
+      if (event === 'tool_call' || event === 'words' || event === 'tokens' || COGNITION_EVENTS.has(event)) {
         const sonic = resolveSonic(event, data);
 
         // Track cache ratios for pressure
@@ -566,6 +623,8 @@
           key:         sonic.key,
           family:      sonic.fam,
           output:      data.output    || 0,
+          input:       data.input     || 0,
+          cache_read:  data.cache_read || 0,
           word_count:  data.word_count || 0,
           cache_ratio: cacheRatio,
           pan:         sonic.pan,
@@ -602,6 +661,12 @@
         const deg = Math.min(iv.length - 1, Math.floor((data.word_count || 0) / 15));
         const hz  = noteHz(data.project, deg, r.octave ?? 1);
         schedVoice(name, hz, 0.11 * r.volMult, r);
+
+      } else if (COGNITION_EVENTS.has(event)) {
+        if (!passesFilter(r.key, data.project)) return;
+        const name = r.instrument; if (name === 'off') return;
+        const hz = noteHz(data.project, 0, r.octave || 0);
+        schedVoice(name, hz, 0.12 * r.volMult, r);
       }
     } catch { /* audio must never break UI */ }
   };

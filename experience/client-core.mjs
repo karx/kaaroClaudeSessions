@@ -84,6 +84,13 @@ export function blockGeom(ev, trackH = 62) {
   const t = (ev.tool || '').toLowerCase();
   if (ev.type === 'tokens') return { h: 4,  yOff: trackH - 4  };
   if (ev.type === 'words')  return { h: 8,  yOff: trackH - 13 };
+  // Cognition events: structural markers (full-height for resets/failures,
+  // medium for human presence, low ticks for mode chrome, faint chirps)
+  if (ev.type === 'compact' || ev.type === 'tool_error' || ev.type === 'api_error')
+    return { h: trackH - 4, yOff: 2 };
+  if (ev.type === 'human_turn') return { h: 36, yOff: 2 };
+  if (ev.type === 'permission' || ev.type === 'mode_shift') return { h: 12, yOff: 2 };
+  if (ev.type === 'chirp') return { h: 5, yOff: trackH - 22 };
   if (t === 'write')                       return { h: 52, yOff: 2 };
   if (t === 'edit')                        return { h: 46, yOff: 2 };
   if (t === 'agent' || t === 'task')       return { h: 40, yOff: 2 };
@@ -145,6 +152,74 @@ export function laneForEvent(ev, lanes = DAW_FAMILY_LANES) {
 /** Right-anchored time axis: x of an event on a live-scrolling canvas. */
 export function evTimeX(ev, now, W, pxPerSec, scrollMs = 0) {
   return W - (now - ev.ts) / 1000 * pxPerSec + scrollMs / 1000 * pxPerSec;
+}
+
+/**
+ * Context pressure: how full a session's context window is, from the latest
+ * tokens pulse (input + cache_read ≈ current prompt context size).
+ * @returns {number} 0..1
+ */
+export function contextPressure(inputTokens, cacheRead, windowTokens = 200_000) {
+  const ctx = (inputTokens || 0) + (cacheRead || 0);
+  return Math.max(0, Math.min(1, ctx / windowTokens));
+}
+
+/**
+ * Distinct sessions seen in the beat ring, newest first, each with its latest
+ * context pressure (null until a tokens pulse has been seen).
+ * @param {object[]} ring — beat-ring entries (ts ascending)
+ * @param {number} [max] — legend size cap
+ */
+export function sessionLegend(ring, max = 6, windowTokens = 200_000) {
+  const bySlug = new Map(); // slug → entry (insertion order = recency, newest first)
+  for (let i = ring.length - 1; i >= 0; i--) {
+    const ev = ring[i];
+    if (!ev.slug) continue;
+    let entry = bySlug.get(ev.slug);
+    if (!entry) {
+      if (bySlug.size >= max) continue; // newer sessions already filled the legend
+      entry = { slug: ev.slug, project: ev.project || null, color: ev.color || null,
+                pressure: null, lastTs: ev.ts };
+      bySlug.set(ev.slug, entry);
+    }
+    if (entry.pressure === null && ev.type === 'tokens') {
+      entry.pressure = contextPressure(ev.input, ev.cache_read, windowTokens);
+    }
+  }
+  return [...bySlug.values()];
+}
+
+// ── Cognition pulse vocabulary (ticker / overlays) ────────────────────────────
+
+export const PULSE_GLYPHS = {
+  human_turn: '⌨', compact: '⟲', permission: '⚙', mode_shift: '⚙',
+  tool_error: '✖', api_error: '⊘', attachment: '⊕', scaffold: '▤',
+};
+
+/**
+ * Ticker line for a cognition pulse. Returns { text, role } or null when the
+ * event should stay out of the ticker (chirps — too chatty).
+ * Roles: 'err' | 'human' | 'context' | 'dim' (consumer maps role → color).
+ */
+export function pulseTickerEntry(event, data = {}) {
+  const g = PULSE_GLYPHS[event];
+  const tag = data.slug ? '  [' + data.slug + ']' : '';
+  switch (event) {
+    case 'human_turn':
+      return { text: g + ' "' + String(data.text || 'prompt').slice(0, 48) + '"' + tag, role: 'human' };
+    case 'compact':
+      return { text: g + ' context compacted' + tag, role: 'context' };
+    case 'permission':
+      return { text: g + ' perm → ' + (data.mode || '?') + tag, role: 'dim' };
+    case 'mode_shift':
+      return { text: g + ' mode → ' + (data.mode || '?') + tag, role: 'dim' };
+    case 'tool_error':
+      return { text: g + ' ' + (data.tool || 'tool') + ' failed' + tag, role: 'err' };
+    case 'api_error':
+      return { text: g + ' ' + (data.message || 'api error') + (data.code ? ' [' + data.code + ']' : '') + tag, role: 'err' };
+    default:
+      return null;
+  }
 }
 
 // ── History-view filters ──────────────────────────────────────────────────────

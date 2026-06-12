@@ -125,6 +125,13 @@
         ctx.globalAlpha = hot ? 0.95 : (0.4 + 0.4 * fade);
         ctx.fillRect(Math.round(x), by, bw, 2);
 
+        // 2px bottom stripe: project color — note attribution at a glance
+        if (ev.color) {
+          ctx.fillStyle = ev.color;
+          ctx.fillRect(Math.round(x), by + bh - 2, bw, 2);
+          ctx.fillStyle = col;
+        }
+
         if (hot) {
           ctx.globalAlpha = 1;
           ctx.strokeStyle = '#e0e8ff'; ctx.lineWidth = 1;
@@ -187,6 +194,7 @@
     const x = evX(ev, now, W, PX_PER_SEC);
     const lines = [
       (ev.tool || ev.label || ev.type) + (ev.harness ? ' [' + ev.harness + ']' : ''),
+      ev.slug    ? 'ses: ' + ev.slug : null,
       ev.project ? 'proj: ' + ev.project : null,
       ev.where   ? 'where: ' + String(ev.where).replace(/\\/g, '/').slice(-36) : null,
       ev.output  ? 'out: ' + ev.output + ' tok' : null,
@@ -1164,7 +1172,33 @@
   }
 
   // â”€â”€ Boot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Session legend + context pressure (footer): who is playing, and how full
+  // each session's context window is (latest tokens pulse, via shared core).
+  function renderSessionLegend() {
+    const el = document.getElementById('daw-sessions');
+    if (!el) return;
+    const legend = sessionLegend(window._beatRing || [], 5);
+    if (!legend.length) { el.innerHTML = '<span style="color:var(--k-dim)">no sessions yet</span>'; return; }
+    el.innerHTML = legend.map(s => {
+      const pct = s.pressure != null ? Math.round(s.pressure * 100) : null;
+      const barW = 36;
+      const fill = pct != null ? Math.round(barW * s.pressure) : 0;
+      const warn = pct != null && pct >= 75;
+      return '<span style="display:inline-flex;align-items:center;gap:4px">' +
+        '<span style="width:7px;height:7px;background:' + (s.color || 'var(--k-dim)') + ';display:inline-block"></span>' +
+        '<span style="color:var(--k-body)">' + esc(s.slug) + '</span>' +
+        (s.project ? '<span style="color:var(--k-dim)">' + esc(s.project) + '</span>' : '') +
+        (pct != null
+          ? '<span title="context pressure: ' + pct + '% of window" style="width:' + barW + 'px;height:5px;border:1px solid var(--k-border);display:inline-block;position:relative">' +
+            '<span style="position:absolute;left:0;top:0;bottom:0;width:' + fill + 'px;background:' + (warn ? 'var(--k-err)' : 'var(--k-select)') + '"></span></span>' +
+            '<span style="color:' + (warn ? 'var(--k-err)' : 'var(--k-dim)') + '">' + pct + '%</span>'
+          : '') +
+        '</span>';
+    }).join('');
+  }
+
   function boot() {
+    setInterval(renderSessionLegend, 1000);
     resizeBothCanvases();
     window.addEventListener('resize', () => { resizeBothCanvases(); _dawCtx = null; _autoCtx = null; });
 

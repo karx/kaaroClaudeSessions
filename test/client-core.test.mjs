@@ -173,3 +173,67 @@ test('forceProfile — anchored vs free layouts', async () => {
   assert.ok(Math.abs(free.projectCharge) < Math.abs(anchored.projectCharge),
     'project repulsion de-weighted');
 });
+
+// ── E5: cognition pulse glyphs + ticker entries ───────────────────────────────
+
+test('pulseTickerEntry — glyphs, text, and roles per cognition event', async () => {
+  const { pulseTickerEntry } = await import('../experience/client-core.mjs');
+
+  const human = pulseTickerEntry('human_turn', { slug: 'abc12345', text: 'fix the auth bug please' });
+  assert.ok(human.text.startsWith('⌨'));
+  assert.ok(human.text.includes('fix the auth bug'));
+  assert.equal(human.role, 'human');
+
+  const compact = pulseTickerEntry('compact', { slug: 'abc12345' });
+  assert.ok(compact.text.startsWith('⟲'));
+  assert.equal(compact.role, 'context');
+
+  const perm = pulseTickerEntry('permission', { slug: 'abc12345', mode: 'acceptEdits' });
+  assert.ok(perm.text.includes('acceptEdits'));
+
+  const terr = pulseTickerEntry('tool_error', { slug: 'abc12345', tool: 'Bash' });
+  assert.ok(terr.text.startsWith('✖'));
+  assert.equal(terr.role, 'err');
+
+  const aerr = pulseTickerEntry('api_error', { slug: 'abc12345', message: 'quota exceeded', code: 'rate_limit' });
+  assert.ok(aerr.text.includes('quota exceeded'));
+  assert.equal(aerr.role, 'err');
+
+  assert.equal(pulseTickerEntry('chirp', {}), null, 'chirps stay out of the ticker');
+});
+
+test('blockGeom — cognition events get distinct canvas geometry', () => {
+  const trackH = 62;
+  assert.deepEqual(blockGeom({ type: 'compact' }, trackH),    { h: 58, yOff: 2 }, 'compact = full-height divider');
+  assert.deepEqual(blockGeom({ type: 'tool_error' }, trackH), { h: 58, yOff: 2 });
+  assert.deepEqual(blockGeom({ type: 'api_error' }, trackH),  { h: 58, yOff: 2 });
+  assert.deepEqual(blockGeom({ type: 'human_turn' }, trackH), { h: 36, yOff: 2 });
+  assert.deepEqual(blockGeom({ type: 'permission' }, trackH), { h: 12, yOff: 2 });
+  assert.deepEqual(blockGeom({ type: 'mode_shift' }, trackH), { h: 12, yOff: 2 });
+  assert.deepEqual(blockGeom({ type: 'chirp' }, trackH),      { h: 5,  yOff: 40 });
+});
+
+// ── E5: DAW session legend + context pressure ─────────────────────────────────
+
+test('contextPressure — context tokens vs window, clamped 0..1', async () => {
+  const { contextPressure } = await import('../experience/client-core.mjs');
+  assert.equal(contextPressure(50_000, 50_000, 200_000), 0.5);
+  assert.equal(contextPressure(0, 0), 0);
+  assert.equal(contextPressure(300_000, 0, 200_000), 1, 'clamped');
+});
+
+test('sessionLegend — newest-first distinct sessions with latest context pressure', async () => {
+  const { sessionLegend } = await import('../experience/client-core.mjs');
+  const ring = [
+    { type: 'tokens', ts: 1, slug: 'aaaa1111', project: 'pA', color: '#111111', input: 10_000, cache_read: 30_000 },
+    { type: 'tool_call', ts: 2, slug: 'bbbb2222', project: 'pB', color: '#222222', tool: 'Read' },
+    { type: 'tokens', ts: 3, slug: 'aaaa1111', project: 'pA', color: '#111111', input: 20_000, cache_read: 80_000 },
+  ];
+  const legend = sessionLegend(ring, 6, 200_000);
+  assert.equal(legend.length, 2);
+  assert.equal(legend[0].slug, 'aaaa1111', 'most recent first');
+  assert.equal(legend[0].pressure, 0.5, 'latest tokens pulse wins (20k+80k of 200k)');
+  assert.equal(legend[1].slug, 'bbbb2222');
+  assert.equal(legend[1].pressure, null, 'no tokens seen → unknown pressure');
+  assert.equal(sessionLegend(ring, 1, 200_000).length, 1, 'max cap');
+});

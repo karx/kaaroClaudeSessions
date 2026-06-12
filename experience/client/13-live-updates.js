@@ -115,6 +115,24 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
       if(window.playPulse) window.playPulse('words',d);
     }catch{}
   });
+
+  // ── Cognition pulses: human presence, structure, failures (W-COG) ──────────
+  const ROLE_COLORS = {
+    err:     KAARO_TOKENS.err,
+    human:   KAARO_TOKENS.select,
+    context: KAARO_TOKENS.label,
+    dim:     KAARO_TOKENS.dim,
+  };
+  for (const cogEvent of ['human_turn','compact','permission','mode_shift','tool_error','api_error','chirp','attachment','scaffold']) {
+    es.addEventListener(cogEvent, e => {
+      try {
+        const d = JSON.parse(e.data);
+        const entry = pulseTickerEntry(cogEvent, d);
+        if (entry) tickerAdd(entry.text, ROLE_COLORS[entry.role] || KAARO_TOKENS.dim);
+        if (window.playPulse) window.playPulse(cogEvent, d);
+      } catch {}
+    });
+  }
 }
 
 bootComplete();

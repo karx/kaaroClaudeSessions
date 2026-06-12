@@ -249,11 +249,11 @@ select.hdr-sel {
   </div><!-- /#daw-body -->
 
   <footer style="height:22px;background:var(--k-panel);border-top:1px solid var(--k-border);
-                 display:flex;align-items:center;padding:0 10px;font-size:8px;
-                 color:#222;flex-shrink:0;">
-    <span>Live from /events · edits persist in localStorage · export PROF to share</span>
+                 display:flex;align-items:center;gap:10px;padding:0 10px;font-size:8px;
+                 color:#222;flex-shrink:0;overflow:hidden;white-space:nowrap;">
+    <span id="daw-sessions" style="display:flex;gap:10px;align-items:center;"></span>
     <span style="margin-left:auto;color:var(--k-dim);">
-      ESC=live · wheel=scrub · click block → capture to MAP · S=solo lane · Ctrl+M=mute lane
+      ESC=live · wheel=scrub · click block → capture to MAP · S=solo · Ctrl+M=mute
     </span>
   </footer>
 

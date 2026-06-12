@@ -17,9 +17,14 @@
   // Block geometry + stripe colors come from the shared core (00-core.js):
   // blockGeom(ev, H_TRACK) — ambient floor strips under top-anchored activity
   // spikes; toolColor(tool) — the same semantic vocabulary as the panel bars.
+  const _COG_STRIPE = {
+    tool_error: KAARO_TOKENS.err, api_error: KAARO_TOKENS.err,
+    human_turn: KAARO_TOKENS.select, compact: KAARO_TOKENS.label,
+    permission: KAARO_TOKENS.dim, mode_shift: KAARO_TOKENS.dim,
+  };
   function _toolStripeColor(ev) {
     if (ev.type === 'tokens' || ev.type === 'words') return null;
-    return toolColor(ev.tool);
+    return _COG_STRIPE[ev.type] ?? toolColor(ev.tool);
   }
 
   // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

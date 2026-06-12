@@ -1,4 +1,4 @@
-// ── DAW Feed Widget ────────────────────────────────────────────────────────────
+// â”€â”€ DAW Feed Widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Interactive live event feed above the timeline bar (bottom:74px, height:80px).
 // Scroll back with wheel or drag to inspect history. Hover for details and
 // to highlight the corresponding session node in the force graph.
@@ -14,42 +14,15 @@
   const BLOCK_W    = 7;
   const MAX_HIST_MS = 5 * 60 * 1000;       // 5 minutes of scrollable history
 
-  // ── Block geometry ─────────────────────────────────────────────────────────
-  // Two-layer model:
-  //   Activity spikes — top-anchored (yOff=2), height = significance.
-  //                     Write tallest → Edit → Agent → Read → Bash → Grep.
-  //   Ambient floor   — tokens + words pinned to the bottom, independent layer.
-  // This creates a consistent "waveform from the ceiling" so you can read a
-  // session's phase (write-heavy vs read-heavy vs bash-heavy) at a glance.
-  function blockGeom(ev) {
-    const t = (ev.tool || '').toLowerCase();
-    // Ambient floor strips — always below all activity spikes
-    if (ev.type === 'tokens') return { h: 4,  yOff: H_TRACK - 4  };
-    if (ev.type === 'words')  return { h: 8,  yOff: H_TRACK - 13 };
-    // Activity spikes — all top-anchored
-    if (t === 'write')                          return { h: 52, yOff: 2 };
-    if (t === 'edit')                           return { h: 46, yOff: 2 };
-    if (t === 'agent')                          return { h: 40, yOff: 2 };
-    if (t === 'read')                           return { h: 32, yOff: 2 };
-    if (t === 'bash' || t === 'powershell')     return { h: 22, yOff: 2 };
-    if (t === 'grep' || t === 'glob')           return { h: 14, yOff: 2 };
-    return { h: 20, yOff: 2 };
-  }
-
-  // Tool-type colour for the 2px stripe at the top of each activity block.
-  // Matches the semantic colour vocabulary used in the session panel bars.
-  const _TOOL_STRIPE = {
-    write:'#00bb55', edit:'#ccaa00', read:'#2a5c8a',
-    bash:'#cc6622', powershell:'#cc6622',
-    grep:'#7733aa', glob:'#7733aa',
-    agent:'#cc2244', toolsearch:'#6644aa',
-  };
+  // Block geometry + stripe colors come from the shared core (00-core.js):
+  // blockGeom(ev, H_TRACK) — ambient floor strips under top-anchored activity
+  // spikes; toolColor(tool) — the same semantic vocabulary as the panel bars.
   function _toolStripeColor(ev) {
     if (ev.type === 'tokens' || ev.type === 'words') return null;
-    return _TOOL_STRIPE[(ev.tool || '').toLowerCase()] || null;
+    return toolColor(ev.tool);
   }
 
-  // ── State ──────────────────────────────────────────────────────────────────
+  // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let _scrollPx      = 0;
   let _isLive        = true;
   let _frozenNow     = null;
@@ -57,7 +30,7 @@
   let _mouseX        = 0, _mouseY = 0;
   let _dragging      = false, _dragOriX = 0, _dragOriScroll = 0;
 
-  // ── DOM ────────────────────────────────────────────────────────────────────
+  // â”€â”€ DOM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const widget  = document.createElement('div');
   widget.id     = 'daw-widget';
   document.body.appendChild(widget);
@@ -75,7 +48,7 @@
   resize();
   window.addEventListener('resize', resize);
 
-  // ── Input ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   widget.addEventListener('wheel', e => {
     e.preventDefault();
     _scrollPx = Math.max(0, _scrollPx + (e.deltaX || e.deltaY) * 0.8);
@@ -115,7 +88,7 @@
 
   function _nowMs() { return _isLive ? Date.now() : (_frozenNow ?? Date.now()); }
 
-  // ── Graph highlight ────────────────────────────────────────────────────────
+  // â”€â”€ Graph highlight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const FILE_TOOLS = new Set(['Read', 'Write', 'Edit', 'read', 'write', 'edit']);
 
   function _restoreHighlight() {
@@ -145,19 +118,19 @@
     if (projNode) highlight(projNode.id);
   }
 
-  // ── Coordinate helpers ─────────────────────────────────────────────────────
+  // â”€â”€ Coordinate helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function evScreenX(ev, nowMs) {
     return canvas.width - (nowMs - ev.ts) / 1000 * PX_PER_SEC + _scrollPx;
   }
 
-  // ── Hover detection ────────────────────────────────────────────────────────
+  // â”€â”€ Hover detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function findHovered(nowMs) {
     const ring = window._beatRing || [];
     for (let i = ring.length - 1; i >= 0; i--) {
       const ev = ring[i];
       const x  = evScreenX(ev, nowMs);
       if (x < -BLOCK_W || x > canvas.width + BLOCK_W) continue;
-      const g  = blockGeom(ev);
+      const g  = blockGeom(ev, H_TRACK);
       const ty = H_HEADER + g.yOff;
       if (_mouseX >= x - 2 && _mouseX <= x + BLOCK_W + 2 &&
           _mouseY >= ty - 2 && _mouseY <= ty + g.h + 2) return ev;
@@ -165,7 +138,7 @@
     return null;
   }
 
-  // ── Tooltip ────────────────────────────────────────────────────────────────
+  // â”€â”€ Tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function renderTooltip(ev) {
     if (!ev) { tooltip.style.display = 'none'; return; }
     const rect = widget.getBoundingClientRect();
@@ -183,7 +156,7 @@
     tooltip.style.cssText = `display:block;left:${left}px;top:${top}px`;
     tooltip.innerHTML = [
       `<div class="dtt-proj" style="color:${ev.color||'#8899cc'}">${ev.project || '?'}</div>`,
-      `<div class="dtt-tool">${label}${ev.category ? ' · '+ev.category : ''}</div>`,
+      `<div class="dtt-tool">${label}${ev.category ? ' Â· '+ev.category : ''}</div>`,
       where ? `<div class="dtt-where">${where}</div>` : '',
       ev.slug    ? `<div class="dtt-slug">${ev.slug}</div>` : '',
       ev.preview ? `<div class="dtt-preview">${ev.preview.slice(0, 90)}</div>` : '',
@@ -191,7 +164,7 @@
     ].join('');
   }
 
-  // ── Draw ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Draw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function draw() {
     requestAnimationFrame(draw);
     const W    = canvas.width;
@@ -223,7 +196,7 @@
     ctx.strokeStyle = '#07071a';
     ctx.beginPath(); ctx.moveTo(0, H_TOTAL - 0.5); ctx.lineTo(W, H_TOTAL - 0.5); ctx.stroke();
 
-    // time grid — 10s intervals
+    // time grid â€” 10s intervals
     const gridPx = 10 * PX_PER_SEC;
     const phase  = (_isLive ? 0 : (_frozenNow - Date.now()) / 1000 * PX_PER_SEC) - _scrollPx;
     const firstX = ((W + phase) % gridPx + gridPx) % gridPx;
@@ -238,7 +211,7 @@
       const x   = evScreenX(ev, now);
       if (x < -BLOCK_W - 4 || x > W + 4) continue;
       const age  = now - ev.ts;
-      const g    = blockGeom(ev);
+      const g    = blockGeom(ev, H_TRACK);
       const ty   = H_HEADER + g.yOff;
       const hot  = ev === _hovered;
       const fade = Math.max(0.12, 1 - age / MAX_HIST_MS);
@@ -276,10 +249,10 @@
       ctx.beginPath(); ctx.moveTo(W - 1, H_HEADER); ctx.lineTo(W - 1, H_TOTAL); ctx.stroke();
     }
 
-    // ◆ FEED label
+    // â—† FEED label
     ctx.fillStyle = '#1a2a48';
     ctx.font = "bold 8px 'IBM Plex Mono',monospace";
-    ctx.fillText('◆ FEED', 8, 12);
+    ctx.fillText('â—† FEED', 8, 12);
 
     // scroll position readout
     if (!_isLive) {
@@ -307,7 +280,7 @@
 
     ctx.fillStyle = _isLive ? '#00cc60' : '#3a4466';
     ctx.font      = "bold 8px 'IBM Plex Mono',monospace";
-    ctx.fillText(_isLive ? 'LIVE' : '◀ LIVE', btnX + 16, 13);
+    ctx.fillText(_isLive ? 'LIVE' : 'â—€ LIVE', btnX + 16, 13);
   }
 
   requestAnimationFrame(draw);

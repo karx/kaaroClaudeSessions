@@ -1,4 +1,4 @@
-// ── Filters ───────────────────────────────────────────────────────────────────
+// â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function applyFilters() {
   if (currentLayout === 'matrix')   { renderMatrix();   return; }
   if (currentLayout === '3d')       { layout3D.exit(); layout3D.enter(); return; }
@@ -75,7 +75,7 @@ document.getElementById('tf-clear').addEventListener('click', () => {
 document.getElementById('btn-shake').addEventListener('click', ()=>{ if(currentLayout==='force') simulation.alpha(.4).restart(); });
 document.getElementById('btn-reset').addEventListener('click', ()=>svg.transition().duration(600).call(zoom.transform, initialTransform));
 
-// ── Force physics controls ────────────────────────────────────────────────────
+// â”€â”€ Force physics controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const FP_DEFAULTS = { 'fp-charge-s': -130, 'fp-charge-f': -55, 'fp-link-m': 125, 'fp-link-f': 60, 'fp-vdecay': 38 };
 
 ['fp-charge-s','fp-charge-f','fp-link-m','fp-link-f','fp-vdecay'].forEach(id => {
@@ -115,15 +115,15 @@ document.getElementById('btn-fit').addEventListener('click', () => {
 });
 applyFilters();
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function updateStats() {
   const dr=GRAPH.meta.date_range;
   document.getElementById('stats').textContent=
-    `${GRAPH.nodes.filter(n=>n.type==='project').length} projects · ${GRAPH.nodes.filter(n=>n.type==='session').length} sessions · ${GRAPH.nodes.filter(n=>n.type==='file').length} files · ${GRAPH.edges.length} edges · ${dr.first.slice(0,10)} → ${dr.last.slice(0,10)}`;
+    `${GRAPH.nodes.filter(n=>n.type==='project').length} projects Â· ${GRAPH.nodes.filter(n=>n.type==='session').length} sessions Â· ${GRAPH.nodes.filter(n=>n.type==='file').length} files Â· ${GRAPH.edges.length} edges Â· ${dr.first.slice(0,10)} â†’ ${dr.last.slice(0,10)}`;
 }
 updateStats();
 
-// ── Timeline ──────────────────────────────────────────────────────────────────
+// â”€â”€ Timeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function buildTimeline() {
   const tlSvg=d3.select('#tl-svg'),tw=window.innerWidth,th=TIMELINE_H;
   tlSvg.attr('width',tw).attr('height',th);
@@ -141,7 +141,7 @@ function buildTimeline() {
     .attr('r',d=>3+4*Math.sqrt(d.tokens_work/maxWork))
     .attr('fill',d=>d.color).attr('fill-opacity',.85)
     .attr('stroke',d=>d.tool_errors>=8?'#ff2244':'none').attr('stroke-width',1.5).style('cursor','pointer')
-    .on('mouseover',(ev,d)=>{tip.style.display='block';tip.innerHTML=`<strong style="color:${d.color}">${d.slug}</strong><div class="meta">${d.date_str} · ${d.project}</div><div class="meta">AI work: ${fmtT(d.tokens_work)}</div>${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;})
+    .on('mouseover',(ev,d)=>{tip.style.display='block';tip.innerHTML=`<strong style="color:${d.color}">${d.slug}</strong><div class="meta">${d.date_str} Â· ${d.project}</div><div class="meta">AI work: ${fmtTok(d.tokens_work)}</div>${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;})
     .on('mousemove',ev=>{tip.style.left=Math.min(ev.clientX+16,W-340)+'px';tip.style.top=(ev.clientY-tip.offsetHeight-10)+'px';})
     .on('mouseout',()=>tip.style.display='none')
     .on('click',(ev,d)=>{
@@ -165,10 +165,10 @@ function buildTimeline() {
 function toggleWidget(id) {
   const el=document.getElementById(id);
   const col=el.classList.toggle('collapsed');
-  el.querySelector('.widget-toggle').textContent=col?'+':'−';
+  el.querySelector('.widget-toggle').textContent=col?'+':'âˆ’';
 }
 
-// ── Arc-specific controls ─────────────────────────────────────────────────────
+// â”€â”€ Arc-specific controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function refreshArc() {
   if (currentLayout !== 'arc') return;
   computeArcPositions(); drawArcDecor(); applyStaticPositions(); applyFilters();
@@ -189,7 +189,7 @@ document.getElementById('arc-max-span')?.addEventListener('input', function() {
   refreshArc();
 });
 
-// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+// â”€â”€ Keyboard shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SHORTCUTS_DEF = [
   { key:'f', label:'F',      desc:'Force graph layout',   action:()=>setLayout('force') },
   { key:'s', label:'S',      desc:'Swimlane timeline',    action:()=>setLayout('swimlane') },
@@ -208,7 +208,7 @@ function renderHelpPanel() {
   const el = document.getElementById('help-content');
   if (!el) return;
   el.innerHTML = [
-    '<div class="help-h">◆ SHORTCUTS <span class="help-hint">press key to live-test</span></div>',
+    '<div class="help-h">â—† SHORTCUTS <span class="help-hint">press key to live-test</span></div>',
     ...SHORTCUTS_DEF.map(s => {
       const on = _scEnabled(s.key);
       return `<div class="help-row" id="hrow-${s.key}">` +
@@ -218,11 +218,11 @@ function renderHelpPanel() {
         `</div>`;
     }),
     '<div class="help-sep"></div>',
-    '<div class="help-row"><span class="help-key">?</span><span class="help-desc">Toggle this panel</span><span class="help-fixed">—</span></div>',
-    '<div class="help-row"><span class="help-key">ESC</span><span class="help-desc">Close panel · deselect</span><span class="help-fixed">—</span></div>',
+    '<div class="help-row"><span class="help-key">?</span><span class="help-desc">Toggle this panel</span><span class="help-fixed">â€”</span></div>',
+    '<div class="help-row"><span class="help-key">ESC</span><span class="help-desc">Close panel Â· deselect</span><span class="help-fixed">â€”</span></div>',
     '<div class="help-sep"></div>',
-    '<div class="help-h">◆ MOUSE</div>',
-    '<div class="help-row"><span class="help-key">Drag</span><span class="help-desc">Pan · reposition node (force)</span></div>',
+    '<div class="help-h">â—† MOUSE</div>',
+    '<div class="help-row"><span class="help-key">Drag</span><span class="help-desc">Pan Â· reposition node (force)</span></div>',
     '<div class="help-row"><span class="help-key">Scroll</span><span class="help-desc">Zoom in / out</span></div>',
     '<div class="help-row"><span class="help-key">Click</span><span class="help-desc">Select and inspect</span></div>',
     '<div class="help-footer" id="help-close">[ CLOSE ]</div>',

@@ -1,4 +1,4 @@
-// ── Swimlane: settings accessors ──────────────────────────────────────────────
+// â”€â”€ Swimlane: settings accessors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SL = {
   get heightMetric() { return document.getElementById('sl-height-sel')?.value ?? 'tokens'; },
   get widthMode()    { return document.getElementById('sl-width-sel')?.value  ?? 'duration'; },
@@ -10,7 +10,7 @@ const SL = {
   get labelMode()    { return document.getElementById('sl-label-sel')?.value   ?? 'date'; },
 };
 
-// ── Swimlane: color helpers ───────────────────────────────────────────────────
+// â”€â”€ Swimlane: color helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BRANCH_PALETTE = ['#00aaff','#ff4488','#cc44ff','#ff8800','#00ff88','#ffcc00','#00cccc','#44ffaa','#ff88cc','#8844ff'];
 function branchColor(branch) {
   if (!branch || branch === '__no-branch__') return '#334455';
@@ -43,10 +43,10 @@ function getSessionColor(s, colorBy) {
   return s.color; // project
 }
 
-// ── Swimlane: bar positions (for timeline pan-to) ─────────────────────────────
+// â”€â”€ Swimlane: bar positions (for timeline pan-to) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const slBarPos = {};
 
-// ── Swimlane: main render ─────────────────────────────────────────────────────
+// â”€â”€ Swimlane: main render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function renderSwimlane() {
   slLayer.selectAll('*').remove();
   decorLayer.selectAll('*').remove();
@@ -133,7 +133,7 @@ function renderSwimlane() {
   }
   const totalH = curY + MB;
 
-  // ── Time grid ─────────────────────────────────────────────────────────────
+  // â”€â”€ Time grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const autoGrid  = span < 14*864e5 ? 'day' : span < 90*864e5 ? 'week' : 'month';
   const gridUnit  = SL.gridUnit === 'auto' ? autoGrid : SL.gridUnit;
   const timeIntvl = gridUnit==='day' ? d3.timeDay : gridUnit==='week' ? d3.timeMonday : d3.timeMonth;
@@ -152,7 +152,7 @@ function renderSwimlane() {
       .attr('fill','#252548').attr('font-family','Courier New,monospace').text(timeFmt(t));
   });
 
-  // ── Lane backgrounds + labels ─────────────────────────────────────────────
+  // â”€â”€ Lane backgrounds + labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   orderedProjects.forEach(proj => {
     const { y, h, branches, branchRows } = laneInfo[proj.id];
 
@@ -174,7 +174,7 @@ function renderSwimlane() {
             .attr('stroke','#111128').attr('stroke-width',0.5).attr('stroke-dasharray','4 4');
         }
         if (SL.branchLabels) {
-          const lbl = b==='__no-branch__' ? '?' : b.length>24 ? '…'+b.slice(-22) : b;
+          const lbl = b==='__no-branch__' ? '?' : b.length>24 ? 'â€¦'+b.slice(-22) : b;
           decorLayer.append('text').attr('x',ML-6).attr('y',row.y + row.h/2 + 3)
             .attr('text-anchor','end').attr('font-size',8)
             .attr('fill', branchColor(b)).attr('fill-opacity',0.7)
@@ -188,7 +188,7 @@ function renderSwimlane() {
   decorLayer.append('line').attr('x1',ML).attr('x2',ML).attr('y1',MT).attr('y2',curY)
     .attr('stroke','#141428').attr('stroke-width',1);
 
-  // ── Bar width helper ──────────────────────────────────────────────────────
+  // â”€â”€ Bar width helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const wm = SL.widthMode;
   function barW(s) {
     if (wm === 'duration' && s.duration_min && s.first_timestamp) {
@@ -199,7 +199,7 @@ function renderSwimlane() {
     return 12; // fixed
   }
 
-  // ── Group sessions by project → branch for lineage ────────────────────────
+  // â”€â”€ Group sessions by project â†’ branch for lineage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const pbSessions = {};
   sessions.forEach(s => {
     const b = s.git_branch || '__no-branch__';
@@ -211,7 +211,7 @@ function renderSwimlane() {
     for (const b in pbSessions[pid])
       pbSessions[pid][b].sort((a,c)=>(a.first_timestamp||'')<(c.first_timestamp||'')?-1:1);
 
-  // ── Draw branch lineage connectors (behind bars) ──────────────────────────
+  // â”€â”€ Draw branch lineage connectors (behind bars) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const colorBy = SL.colorBy;
   for (const [pid, branchMap] of Object.entries(pbSessions)) {
     const info = laneInfo[pid]; if (!info) continue;
@@ -235,7 +235,7 @@ function renderSwimlane() {
     }
   }
 
-  // ── Draw session bars ─────────────────────────────────────────────────────
+  // â”€â”€ Draw session bars â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const labelMode = SL.labelMode;
 
   sessions.forEach(s => {
@@ -302,10 +302,10 @@ function renderSwimlane() {
     }
 
     const tipHtml = () => `<strong style="color:${col}">${s.label}</strong>
-      <div class="meta">${s.date_str||'?'} · ${s.duration_min!=null?s.duration_min+'min':'?'} · ${s.model||'?'}</div>
+      <div class="meta">${s.date_str||'?'} Â· ${s.duration_min!=null?s.duration_min+'min':'?'} Â· ${s.model||'?'}</div>
       <div class="meta">branch: ${s.git_branch||'?'}</div>
-      <div class="meta">AI work: ${fmtT(s.tokens_work)} · ${s.tool_calls} calls · ${s.tool_errors} errors</div>
-      ${s.inFlight?`<div class="meta" style="color:${IN_FLIGHT_COLOR}">⬤ in flight</div>`:''}
+      <div class="meta">AI work: ${fmtTok(s.tokens_work)} Â· ${s.tool_calls} calls Â· ${s.tool_errors} errors</div>
+      ${s.inFlight?`<div class="meta" style="color:${IN_FLIGHT_COLOR}">â¬¤ in flight</div>`:''}
       ${s.skills?.length?'<div class="meta">/'+s.skills.join(' /')+'</div>':''}
       ${s.first_user_message?'<div class="body">'+s.first_user_message.slice(0,120)+'</div>':''}`;
 
@@ -323,9 +323,9 @@ function renderSwimlane() {
         });
   });
 
-  // ── Metric axis label ─────────────────────────────────────────────────────
+  // â”€â”€ Metric axis label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const metricNames = {tokens:'token work',calls:'tool calls',duration:'duration',errors:'errors'};
   decorLayer.append('text').attr('x',W-MR-2).attr('y',curY-4).attr('text-anchor','end')
     .attr('font-size',8).attr('fill','#252548').attr('font-family','Courier New,monospace')
-    .text(`bar height = ${metricNames[metric]||metric}  ·  bar width = ${wm}  ·  color = ${colorBy}`);
+    .text(`bar height = ${metricNames[metric]||metric}  Â·  bar width = ${wm}  Â·  color = ${colorBy}`);
 }

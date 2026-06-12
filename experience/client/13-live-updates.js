@@ -1,4 +1,4 @@
-// ── Live graph updates ────────────────────────────────────────────────────────
+// â”€â”€ Live graph updates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 window.updateGraph = function(newData) {
   const posById={};
   simulation.nodes().forEach(n=>{ posById[n.id]={x:n.x,y:n.y,vx:n.vx||0,vy:n.vy||0,fx:n.fx,fy:n.fy}; });
@@ -16,15 +16,15 @@ window.updateGraph = function(newData) {
   buildTimeline(); updateStats(); applyFilters();
 };
 
-// ── Live status badge + pulse ticker ─────────────────────────────────────────
+// â”€â”€ Live status badge + pulse ticker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   const badge=document.createElement('div');
   badge.style.cssText='position:fixed;top:8px;right:12px;background:#00ff88;color:#000;font:bold 10px \'IBM Plex Mono\',monospace;padding:3px 8px;z-index:9998;cursor:default;user-select:none;transition:background 0.15s';
-  badge.title='Live — updates when sessions change'; document.body.appendChild(badge);
+  badge.title='Live â€” updates when sessions change'; document.body.appendChild(badge);
   function setBadge(t,c){badge.textContent=t;badge.style.background=c;}
-  setBadge('⬤ LIVE','#00ff88');
+  setBadge('â¬¤ LIVE','#00ff88');
 
-  // Pulse ticker — scrolling feed of recent tool events
+  // Pulse ticker â€” scrolling feed of recent tool events
   const TICKER_MAX_EPH    = 20;
   const TICKER_MAX_STICKY = 500;
   let tickerSticky = localStorage.getItem('kaaro-ticker-sticky') === '1';
@@ -40,7 +40,7 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   function _applyTickerMode() {
     ticker.classList.toggle('sticky', tickerSticky);
     pinBtn.classList.toggle('on', tickerSticky);
-    pinBtn.textContent = tickerSticky ? '⊟ TICKER' : '⊞ TICKER';
+    pinBtn.textContent = tickerSticky ? 'âŠŸ TICKER' : 'âŠž TICKER';
     pinBtn.title = tickerSticky ? 'Unpin ticker (clear history)' : 'Pin ticker to keep history';
     if (!tickerSticky) ticker.replaceChildren();
     else ticker.scrollTop = ticker.scrollHeight;
@@ -71,31 +71,31 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
   const es=new EventSource('/events');
 
   es.addEventListener('updated',async()=>{
-    setBadge('◌ updating…','#555');
+    setBadge('â—Œ updatingâ€¦','#555');
     try{
       const r=await fetch('/graph-data.json?t='+Date.now());
       const d=await r.json();
       window.updateGraph(d);
-      setBadge('↻ '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),'#00cc66');
-      setTimeout(()=>setBadge('⬤ LIVE','#00ff88'),3000);
-    }catch(e){setBadge('⚠ error','#ff4444');}
+      setBadge('â†» '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),'#00cc66');
+      setTimeout(()=>setBadge('â¬¤ LIVE','#00ff88'),3000);
+    }catch(e){setBadge('âš  error','#ff4444');}
   });
 
-  es.addEventListener('status',e=>{ if(e.data==='rebuilding') setBadge('◌ building…','#555'); });
+  es.addEventListener('status',e=>{ if(e.data==='rebuilding') setBadge('â—Œ buildingâ€¦','#555'); });
   es.addEventListener('error',e=>{
     if(!e.data) return; // EventSource transport errors have no data; SSE error events do
-    setBadge('⚠ build failed','#ff4444');
-    tickerAdd('✖ rebuild failed: '+String(e.data).slice(0,60),'#ff4444');
+    setBadge('âš  build failed','#ff4444');
+    tickerAdd('âœ– rebuild failed: '+String(e.data).slice(0,60),'#ff4444');
   });
-  es.onerror=()=>setBadge('◌ reconnecting','#888');
-  es.onopen=()=>setBadge('⬤ LIVE','#00ff88');
+  es.onerror=()=>setBadge('â—Œ reconnecting','#888');
+  es.onopen=()=>setBadge('â¬¤ LIVE','#00ff88');
 
   es.addEventListener('tool_call',e=>{
     try{
       const d=JSON.parse(e.data);
       const projNode=GRAPH.nodes.find(n=>n.type==='project'&&n.label===d.project);
       const color=projNode?.color||'#334455';
-      const file=d.where? ' · '+(d.where.replace(/\\/g,'/').split('/').pop()||d.where).slice(0,28) :'';
+      const file=d.where? ' Â· '+(d.where.replace(/\\/g,'/').split('/').pop()||d.where).slice(0,28) :'';
       tickerAdd(d.tool+file+'  ['+d.slug+']', color);
       if(window.playPulse) window.playPulse('tool_call',d);
     }catch{}

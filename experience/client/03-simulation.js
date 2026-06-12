@@ -1,4 +1,4 @@
-// ── D3 simulation ─────────────────────────────────────────────────────────────
+// â”€â”€ D3 simulation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const projPos = {};
 function seedPositions(graphData) {
   const pnodes = graphData.nodes.filter(n => n.type === 'project');
@@ -43,5 +43,5 @@ function makeForceLink(edges) {
 const simulation = d3.forceSimulation(GRAPH.nodes)
   .force('link',      makeForceLink())
   .force('charge',    d3.forceManyBody().strength(d=>d.type==='project'?-700:d.type==='session'?-130:-55))
-  .force('collision', d3.forceCollide(d=>nodeR(d)+4).strength(0.85))
+  .force('collision', d3.forceCollide(d=>nodeRadius(d)+4).strength(0.85))
   .alphaDecay(0.006).velocityDecay(0.38);

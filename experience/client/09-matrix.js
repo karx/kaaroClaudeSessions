@@ -1,4 +1,4 @@
-// ── Matrix layout ─────────────────────────────────────────────────────────────
+// â”€â”€ Matrix layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let tlFrom = null;
 
 function renderMatrix() {
@@ -11,7 +11,7 @@ function renderMatrix() {
   let sessions = GRAPH.nodes.filter(n => n.type === 'session')
     .filter(n => !tlFrom || !n.date_str || n.date_str >= tlFrom)
     .sort((a,b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1);
-  if (!files.length || !sessions.length) { mv.innerHTML='<div class="mx-empty">No data — adjust filters</div>'; return; }
+  if (!files.length || !sessions.length) { mv.innerHTML='<div class="mx-empty">No data â€” adjust filters</div>'; return; }
   files.sort((a,b)=>(b.write+b.edit)-(a.write+a.edit));
   const opMap = {};
   GRAPH.edges.forEach(e => {
@@ -28,7 +28,7 @@ function renderMatrix() {
   bar.innerHTML=`<span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#ffcc00" fill-opacity=".75"/></svg>edit</span>
     <span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#00ff88" fill-opacity=".75"/></svg>write</span>
     <span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#1e4a66" fill-opacity=".8"/></svg>read only</span>
-    <span style="margin-left:auto;color:#2a2a44;font-size:10px">${files.length} files × ${sessions.length} sessions</span>`;
+    <span style="margin-left:auto;color:#2a2a44;font-size:10px">${files.length} files Ã— ${sessions.length} sessions</span>`;
   mv.appendChild(bar);
   const msvg=d3.select(mv).append('svg').attr('width',svgW).attr('height',svgH).style('display','block');
   const hg=msvg.append('g').attr('transform',`translate(${LABEL_W},0)`);

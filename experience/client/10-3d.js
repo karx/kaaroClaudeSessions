@@ -1,4 +1,4 @@
-// ── 3D layout ─────────────────────────────────────────────────────────────────
+// â”€â”€ 3D layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const layout3D = {
   _g: null,
   enter() {
@@ -7,7 +7,7 @@ const layout3D = {
     document.getElementById('three-view').style.display='block';
     simulation.stop();
     if (typeof ForceGraph3D === 'undefined') {
-      document.getElementById('three-view').innerHTML='<div style="color:#445;padding:60px;text-align:center;font-family:monospace;font-size:13px">Loading 3D library…<br>Try switching back once loaded.</div>';
+      document.getElementById('three-view').innerHTML='<div style="color:#445;padding:60px;text-align:center;font-family:monospace;font-size:13px">Loading 3D libraryâ€¦<br>Try switching back once loaded.</div>';
       return;
     }
     const showBranch=document.getElementById('cb-branch').checked, showReads=document.getElementById('cb-reads').checked;
@@ -18,8 +18,8 @@ const layout3D = {
     this._g=ForceGraph3D({controlType:'orbit'})(document.getElementById('three-view'))
       .width(W).height(H).backgroundColor('#080810')
       .graphData({nodes:nodes3d,links:links3d})
-      .nodeId('id').nodeLabel('label').nodeColor(d=>d.color).nodeVal(d=>nodeR(d)*1.8).nodeOpacity(0.85)
-      .linkColor(e=>EC[e.type]||'#444').linkOpacity(0.4).linkWidth(e=>edgeWidth(e))
+      .nodeId('id').nodeLabel('label').nodeColor(d=>d.color).nodeVal(d=>nodeRadius(d)*1.8).nodeOpacity(0.85)
+      .linkColor(e=>EDGE_COLORS[e.type]||'#444').linkOpacity(0.4).linkWidth(e=>edgeWidth(e, MAX_WEIGHT))
       .onNodeClick((node,ev)=>{ev.stopPropagation();selectedId=node.id;const orig=nodeById[node.id];if(orig)showPanel(orig);})
       .onBackgroundClick(()=>{selectedId=null;closePanel();});
   },

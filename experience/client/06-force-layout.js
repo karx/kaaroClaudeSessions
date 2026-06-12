@@ -1,4 +1,4 @@
-// ── Force layout ──────────────────────────────────────────────────────────────
+// â”€â”€ Force layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function restoreForceLayout() {
   const p = getForceParams();
   GRAPH.nodes.forEach(n => { if (n.type !== 'project') { n.fx = null; n.fy = null; } });
@@ -8,7 +8,7 @@ function restoreForceLayout() {
   simulation
     .force('link',      makeForceLink())
     .force('charge',    d3.forceManyBody().strength(d=>d.type==='project'?-700:d.type==='session'? p.sessionCharge : p.fileCharge))
-    .force('collision', d3.forceCollide(d=>nodeR(d)+4).strength(0.85))
+    .force('collision', d3.forceCollide(d=>nodeRadius(d)+4).strength(0.85))
     .velocityDecay(p.velocityDecay);
   if (document.getElementById('cb-group').checked) {
     simulation

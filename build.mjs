@@ -79,7 +79,10 @@ function buildNow() {
     console.warn('now template missing — skipping now.html');
     return;
   }
-  const html = applySubstitutions(fs.readFileSync(nowTemplatePath, 'utf8'), tokenSubs());
+  const html = applySubstitutions(fs.readFileSync(nowTemplatePath, 'utf8'), {
+    '%%CLIENT_CORE%%': loadClientCore(),
+    ...tokenSubs(),
+  });
   const outPath = path.join(CWD, 'now.html');
   fs.writeFileSync(outPath, html, 'utf8');
   console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB) — Mission Control`);

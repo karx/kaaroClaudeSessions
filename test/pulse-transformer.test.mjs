@@ -238,3 +238,62 @@ test('assistant_turn + capabilities.tokens:true → unknown pulse (no duplicate 
   const [pulse] = normRecordsToPulses(nrs, CTX, { tokens: true });
   assert.notEqual(pulse.event, 'tokens');
 });
+
+// ── api_error → api_error pulse ──────────────────────────────────────────────
+
+test('api_error NR → api_error pulse with message and code', () => {
+  const nrs = [{ kind: 'api_error', harness: 'claude-code', ts: TS,
+    message: 'quota exceeded', code: 'rate_limit' }];
+  const pulses = normRecordsToPulses(nrs, CTX);
+  assert.equal(pulses.length, 1);
+  assert.equal(pulses[0].event, 'api_error');
+  assert.equal(pulses[0].data.message, 'quota exceeded');
+  assert.equal(pulses[0].data.code, 'rate_limit');
+  assert.equal(pulses[0].data.slug, CTX.slug);
+});
+
+test('api_error NR without code → code null', () => {
+  const pulses = normRecordsToPulses(
+    [{ kind: 'api_error', harness: 'grok', ts: TS, message: 'auth failed' }], CTX);
+  assert.equal(pulses[0].event, 'api_error');
+  assert.equal(pulses[0].data.code, null);
+});
+
+// ── kind coverage — no RECORD_KIND silently falls through ────────────────────
+
+test('every RECORD_KIND maps to a named event or the explicit catch-all allowlist', async () => {
+  const { RECORD_KINDS, KIND_FIELDS } = await import('../hooks/normalized-record.mjs');
+
+  // Kinds whose pulses are deliberately the 'unknown' catch-all today.
+  // Removing a kind from this list requires giving it a real event mapping.
+  const EXPECTED_CATCH_ALL = new Set([
+    'session_meta',   // metadata envelope — no live signal
+    'skill_invoke',   // no dedicated event yet (candidate for E5 audio work)
+    'branch_change',  // no dedicated event yet
+    'assistant_turn', // synthetic tokens only when capabilities.tokens === false
+    'unknown_record', // catch-all by definition
+  ]);
+
+  const DUMMY = {
+    tokens: { input: 1, output: 1, cache_create: 0, cache_read: 0 },
+  };
+  function minimalNR(kind) {
+    const nr = { kind, harness: 'claude-code', ts: TS };
+    for (const [field, type] of Object.entries(KIND_FIELDS[kind].required)) {
+      nr[field] = DUMMY[type] ?? (type === 'number' ? 1 : type === 'object' ? {} : 'x');
+    }
+    if (kind === 'content_block') { nr.block_type = 'text'; nr.text = 'three word text'; }
+    return nr;
+  }
+
+  for (const kind of RECORD_KINDS) {
+    const [pulse] = normRecordsToPulses([minimalNR(kind)], CTX, { tokens: true });
+    assert.ok(pulse, `${kind}: no pulse emitted`);
+    if (EXPECTED_CATCH_ALL.has(kind)) {
+      assert.equal(pulse.event, 'unknown', `${kind}: expected catch-all`);
+    } else {
+      assert.notEqual(pulse.event, 'unknown',
+        `${kind}: silently fell through to catch-all — add a mapping or allowlist it`);
+    }
+  }
+});

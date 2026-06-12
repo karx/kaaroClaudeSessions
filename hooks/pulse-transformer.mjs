@@ -118,6 +118,13 @@ function transformRecord(nr, ctx, capabilities) {
       return { event: evt, data: { ...base(ctx, ts), tool: nr.tool } };
     }
 
+    case 'api_error': {
+      return {
+        event: 'api_error',
+        data: { ...base(ctx, ts), message: nr.message, code: nr.code ?? null },
+      };
+    }
+
     case 'unknown_record': {
       return { event: 'unknown', data: { ...base(ctx, ts), raw_type: nr.raw_type } };
     }

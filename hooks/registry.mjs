@@ -26,6 +26,9 @@ import {
 } from './harness-paths.mjs';
 import { deriveGrokProjectId, deriveGrokLabel } from './helpers/grok-helpers.mjs';
 import { copilotWorkspaceLabel } from './helpers/copilot-helpers.mjs';
+import {
+  locateClaudeCodeSession, locatePiSession, locateAntigravitySession, locateGrokSession,
+} from './session-locators.mjs';
 import { recordsToNormalized as ccAdapter }   from './adapters/claude-code.mjs';
 import { recordsToNormalized as piAdapter }   from './adapters/pi.mjs';
 import { recordsToNormalized as agAdapter }   from './adapters/antigravity.mjs';
@@ -54,6 +57,8 @@ export const HARNESS_REGISTRY = [
     id: 'claude-code',
     label: 'Claude Code',
     adapter: ccAdapter,
+    scan: { module: '../analyze.mjs', export: 'scanClaudeCodeSessions' },
+    locateSession: locateClaudeCodeSession,
     roots: [CLAUDE_PROJECTS_ROOT],
     capabilities: {
       tokens: true, pulse: true, trace: true,
@@ -83,6 +88,8 @@ export const HARNESS_REGISTRY = [
     id: 'pi',
     label: 'Pi',
     adapter: piAdapter,
+    scan: { module: './analyzers/analyze-pi.mjs', export: 'scanPiSessions' },
+    locateSession: locatePiSession,
     roots: [PI_SESSIONS_ROOT],
     capabilities: {
       tokens: true, pulse: true, trace: false,
@@ -112,6 +119,8 @@ export const HARNESS_REGISTRY = [
     id: 'antigravity',
     label: 'Google Antigravity',
     adapter: agAdapter,
+    scan: { module: './analyzers/analyze-antigravity.mjs', export: 'scanAntigravitySessions' },
+    locateSession: locateAntigravitySession,
     roots: [ANTIGRAVITY_BRAIN_ROOT],
     capabilities: {
       tokens: false, pulse: true, trace: false,
@@ -144,6 +153,8 @@ export const HARNESS_REGISTRY = [
     id: 'grok',
     label: 'Grok Build',
     adapter: grokAdapter,
+    scan: { module: './analyzers/analyze-grok.mjs', export: 'scanGrokSessions' },
+    locateSession: locateGrokSession,
     roots: [GROK_SESSIONS_ROOT],
     capabilities: {
       tokens: false, pulse: true, trace: true,
@@ -175,6 +186,8 @@ export const HARNESS_REGISTRY = [
     id: 'opencode',
     label: 'opencode',
     adapter: ocAdapter,
+    scan: { module: './analyzers/analyze-opencode.mjs', export: 'scanOpencodeSessions' },
+    // locateSession: storage spreads a session across three JSON trees — added with N5 trace work
     roots: [OPENCODE_STORAGE_ROOT],
     capabilities: {
       tokens: true, pulse: true, trace: false,
@@ -213,6 +226,8 @@ export const HARNESS_REGISTRY = [
     id: 'copilot',
     label: 'GitHub Copilot',
     adapter: cpAdapter,
+    scan: { module: './analyzers/analyze-copilot.mjs', export: 'scanCopilotSessions' },
+    // locateSession: per-workspace chatSessions walk — added with N5 trace work
     roots: [COPILOT_WORKSPACE_STORAGE_ROOT],
     capabilities: {
       tokens: true, pulse: true, trace: false, // output tokens only (completionTokens)
@@ -247,6 +262,20 @@ export const HARNESS_REGISTRY = [
 
 export function getHarness(id) {
   return HARNESS_REGISTRY.find(h => h.id === id) ?? null;
+}
+
+/**
+ * Dynamically import the scanner function declared by a descriptor's `scan`
+ * entry (module path relative to this file — declarative strings keep the
+ * registry free of static analyzer imports and import cycles).
+ * @param {string} id
+ * @returns {Promise<Function|null>}
+ */
+export async function loadScanner(id) {
+  const h = getHarness(id);
+  if (!h?.scan) return null;
+  const mod = await import(h.scan.module);
+  return mod[h.scan.export] ?? null;
 }
 
 export function getEnabledHarnesses(harnessIds = HARNESS_IDS) {

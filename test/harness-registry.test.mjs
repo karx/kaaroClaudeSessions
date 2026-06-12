@@ -81,3 +81,23 @@ test('copilot watch config exposes resolveProjectLabel; others omit it', () => {
     assert.equal(getHarness(id).watch.resolveProjectLabel, undefined, `${id} should omit it`);
   }
 });
+
+test('every descriptor declares a scan module + export for dispatch', () => {
+  for (const h of HARNESS_REGISTRY) {
+    assert.equal(typeof h.scan?.module, 'string', `${h.id}: scan.module`);
+    assert.equal(typeof h.scan?.export, 'string', `${h.id}: scan.export`);
+  }
+});
+
+test('loadScanner resolves a callable scanner from the descriptor', async () => {
+  const { loadScanner } = await import('../hooks/registry.mjs');
+  const scanner = await loadScanner('pi');
+  assert.equal(typeof scanner, 'function');
+  assert.equal(await loadScanner('nope'), null);
+});
+
+test('trace-capable file harnesses expose locateSession', () => {
+  for (const id of ['claude-code', 'pi', 'antigravity', 'grok']) {
+    assert.equal(typeof getHarness(id).locateSession, 'function', `${id}: locateSession`);
+  }
+});

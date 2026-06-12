@@ -288,7 +288,7 @@ async function main() {
     console.log('Scanning', PROJECTS_ROOT, '...');
   }
 
-  const results = scanHarnesses(harnessIds);
+  const results = await scanHarnesses(harnessIds);
   if (!results.length) {
     console.error('No harness data found.');
     process.exit(1);

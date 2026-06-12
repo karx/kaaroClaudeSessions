@@ -1,28 +1,16 @@
 /**
- * lib/scan-harnesses.mjs
+ * surface/scan-harnesses.mjs
  *
- * Runs per-harness directory scans. Kept separate from analyze-orchestrator
- * to avoid circular imports with analyze*.mjs entry points.
+ * Registry-driven per-harness scan dispatch. Scanners are declared on the
+ * registry descriptors (scan.module/scan.export) and dynamically imported —
+ * adding a harness requires no edits here.
  */
 
-import { scanClaudeCodeSessions } from '../analyze.mjs';
-import { scanPiSessions }         from '../hooks/analyzers/analyze-pi.mjs';
-import { scanAntigravitySessions } from '../hooks/analyzers/analyze-antigravity.mjs';
-import { scanGrokSessions }         from '../hooks/analyzers/analyze-grok.mjs';
-import { scanOpencodeSessions }     from '../hooks/analyzers/analyze-opencode.mjs';
-import { scanCopilotSessions }      from '../hooks/analyzers/analyze-copilot.mjs';
-import { HARNESS_IDS, getHarness } from '../hooks/registry.mjs';
+import { HARNESS_IDS, getHarness, loadScanner } from '../hooks/registry.mjs';
 
-// SCANNERS is exported primarily as a test seam to allow injecting
-// throwing scanners for error-isolation tests (see scan isolation in Phase 3).
-export const SCANNERS = {
-  'claude-code':  () => scanClaudeCodeSessions(),
-  'pi':           () => scanPiSessions(),
-  'antigravity':  () => scanAntigravitySessions(),
-  'grok':         () => scanGrokSessions(),
-  'opencode':     () => scanOpencodeSessions(),
-  'copilot':      () => scanCopilotSessions(),
-};
+// Pure override seam for tests: SCANNERS[id] (when set) wins over registry
+// dispatch. Empty in production.
+export const SCANNERS = {};
 
 export function parseHarnessFlags(argv = process.argv) {
   if (argv.includes('--all-harnesses'))
@@ -32,18 +20,25 @@ export function parseHarnessFlags(argv = process.argv) {
   return ['claude-code'];
 }
 
-export function scanHarnesses(harnessIds) {
+/**
+ * @param {string[]} harnessIds
+ * @param {{ rootOverrides?: Record<string, string> }} [opts] — test seam:
+ *   pass a root path to the scanner instead of its default.
+ * @returns {Promise<object[]>} per-harness scan results (errors isolated)
+ */
+export async function scanHarnesses(harnessIds, opts = {}) {
   const results = [];
   for (const id of harnessIds) {
     if (!getHarness(id)) {
       console.warn(`[scan] unknown harness: ${id}`);
       continue;
     }
-    const scanner = SCANNERS[id];
+    const scanner = SCANNERS[id] ?? await loadScanner(id);
     if (!scanner) continue;
     let result;
     try {
-      result = scanner();
+      const root = opts.rootOverrides?.[id];
+      result = root !== undefined ? scanner(root) : scanner();
     } catch (err) {
       console.warn(`[${id}] scanner error — skipped: ${err.message}`);
       continue; // isolate: do not abort other harnesses (finding #8)

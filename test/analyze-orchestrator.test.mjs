@@ -77,24 +77,32 @@ test('parseHarnessFlags', () => {
 // One harness scanner throwing (e.g. FS error mid-scan on Windows for Grok)
 // must not abort the entire rebuild. Other harnesses' data must still be returned.
 test('scanHarnesses — isolates per-harness scanner errors (continues on failure)', async (t) => {
-  // Dynamic import so we can mutate the test seam SCANNERS for this test only.
+  // SCANNERS is the override seam on top of registry dispatch — stub both
+  // harnesses so the test never touches the real filesystem.
   const scanMod = await import('../surface/scan-harnesses.mjs');
   const origGrok = scanMod.SCANNERS.grok;
+  const origCc   = scanMod.SCANNERS['claude-code'];
 
-  // Force a throw for 'grok' (simulates EPERM or corrupt data in one harness).
   scanMod.SCANNERS.grok = () => { throw new Error('simulated grok scanner failure'); };
+  scanMod.SCANNERS['claude-code'] = () =>
+    ({ harness: 'claude-code', source_dir: '/tmp', sessions: [{ session_id: 's1' }] });
 
   try {
-    // Call with multiple; the successful ones (at least the default behavior for
-    // claude-code which may return [] or null depending on FS, but the point is
-    // no throw escapes and we get an array result).
-    const results = scanMod.scanHarnesses(['claude-code', 'grok']);
-
-    // Must not have thrown; must return an array (possibly empty or partial).
+    const results = await scanMod.scanHarnesses(['claude-code', 'grok']);
     assert.ok(Array.isArray(results), 'scanHarnesses must return an array even if one scanner throws');
-    // We don't assert on length because real FS may vary, but the isolation contract is the key.
+    assert.equal(results.length, 1, 'the healthy harness still returns its sessions');
+    assert.equal(results[0].harness, 'claude-code');
   } finally {
-    // Restore for other tests / cleanliness.
     scanMod.SCANNERS.grok = origGrok;
+    scanMod.SCANNERS['claude-code'] = origCc;
   }
+});
+
+test('scanHarnesses — dispatches through the registry when no override is set', async () => {
+  const scanMod = await import('../surface/scan-harnesses.mjs');
+  // No SCANNERS override for 'pi': dispatch must find the scanner via the
+  // registry scan descriptor and call it against a nonexistent root → null →
+  // "root not found" skip path, returning an empty array without throwing.
+  const results = await scanMod.scanHarnesses(['pi'], { rootOverrides: { pi: 'Z:/definitely/not/here' } });
+  assert.deepEqual(results, []);
 });

@@ -49,6 +49,19 @@ export function applySubstitutions(template, subs) {
   return template.replace(/%%[A-Z_]+%%/g, k => subs[k] ?? k);
 }
 
+/**
+ * Strip top-level `export ` prefixes so experience/client-core.mjs (ESM for
+ * Node tests) doubles as a plain script for browser bundle injection.
+ * The core file's syntax contract: only `export function` / `export const`.
+ */
+export function stripExports(src) {
+  return src.replace(/^export (function|const)/gm, '$1');
+}
+
+function loadClientCore() {
+  return stripExports(fs.readFileSync(path.join(CWD, 'experience', 'client-core.mjs'), 'utf8'));
+}
+
 // ── DAW Builder (dedicated live-pulse pure audio profile builder) ────────────
 function buildDaw() {
   const dawTemplatePath = path.join(CWD, 'experience', 'pages', 'daw-template.html');
@@ -57,9 +70,10 @@ function buildDaw() {
     return;
   }
 
-  // Curated modules for the builder: core audio engine + live pulse bits + builder UI.
+  // Curated modules for the builder: shared core + audio engine + builder UI.
   // These run standalone (no full GRAPH dependency) when the page is the dedicated DAW view.
   const dawModules = [
+    '00-core.js',
     '14-pulse-audio.js',
     '19-daw-builder.js',
   ];
@@ -76,9 +90,8 @@ function buildDaw() {
   }
 
   // No heavy data injection needed for the pure live builder (it consumes /events directly).
-  // We still run applySubstitutions in case future %% placeholders appear in the modules.
   const injected = applySubstitutions(dawClientSrc, {
-    // Future: could inject server-known defaults or example profile here.
+    '%%CLIENT_CORE%%': loadClientCore(),
   });
 
   const dawHtml = applySubstitutions(
@@ -118,6 +131,7 @@ function run() {
 
   // ── Substitute %%PLACEHOLDERS%% — single-pass via applySubstitutions ─────────
   const injectedJS = applySubstitutions(clientJS, {
+    '%%CLIENT_CORE%%':      loadClientCore(),
     '%%GRAPH_JSON%%':       JSON.stringify({ nodes, edges, meta: data.meta }),
     '%%TIMELINE_JSON%%':    JSON.stringify(timeline),
     '%%COLOR_INDEX_JSON%%': JSON.stringify(COLOR_TO_INDEX),

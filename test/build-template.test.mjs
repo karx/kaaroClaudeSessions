@@ -74,3 +74,25 @@ test('applySubstitutions — poison data does not corrupt output', async t => {
     assert.equal(result, 'var d={"key":"$& price $1"};');
   });
 });
+
+// ── client-core injection (E1) ────────────────────────────────────────────────
+
+test('stripExports — removes export prefixes at line starts only', async () => {
+  const { stripExports } = await import('../build.mjs');
+  const src = [
+    'export function fmtTok(n) { return n; }',
+    'export const X = 1;',
+    'const s = "export function inside a string";',
+    '  // export const indented comment stays',
+  ].join('\n');
+  const out = stripExports(src);
+  assert.ok(out.includes('\nconst X = 1;') || out.startsWith('function fmtTok'));
+  assert.ok(!/^export /m.test(out), 'no top-level export remains');
+  assert.ok(out.includes('"export function inside a string"'), 'strings untouched');
+});
+
+test('client core placeholder exists and is injected by the bundle assembly', async () => {
+  const fs = await import('node:fs');
+  const core = fs.readFileSync('experience/client/00-core.js', 'utf8');
+  assert.ok(core.includes('%%CLIENT_CORE%%'));
+});

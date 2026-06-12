@@ -7,8 +7,8 @@
  *
  * SYNTAX CONTRACT: only `export function` / `export const` at top level —
  * build.mjs strips the `export ` prefix and injects the body into page
- * bundles as %%CLIENT_CORE%%, so this file must also be valid plain script.
- * Node tests import it as a normal ESM module.
+ * bundles via the CLIENT_CORE placeholder, so this file must also be valid
+ * plain script. Node tests import it as a normal ESM module.
  */
 
 // ── Formatters ────────────────────────────────────────────────────────────────

@@ -191,7 +191,7 @@ select.hdr-sel {
     <span class="sep">|</span>
     <span style="font-size:9px;color:#334;">BPM</span>
     <input id="daw-bpm" type="range" min="40" max="240" step="1" value="120"
-           style="width:80px;height:3px;cursor:pointer;accent-color:#4455cc;">
+           style="width:80px;height:3px;cursor:pointer;accent-color:var(--k-accent);">
     <span id="daw-bpm-val">120</span>
     <button class="hdr-btn" id="daw-tap">TAP</button>
 
@@ -248,11 +248,11 @@ select.hdr-sel {
 
   </div><!-- /#daw-body -->
 
-  <footer style="height:22px;background:#04040c;border-top:1px solid #0c0c22;
+  <footer style="height:22px;background:var(--k-panel);border-top:1px solid var(--k-border);
                  display:flex;align-items:center;padding:0 10px;font-size:8px;
                  color:#222;flex-shrink:0;">
     <span>Live from /events · edits persist in localStorage · export PROF to share</span>
-    <span style="margin-left:auto;color:#1a1a30;">
+    <span style="margin-left:auto;color:var(--k-dim);">
       ESC=live · wheel=scrub · click block → capture to MAP · S=solo lane · Ctrl+M=mute lane
     </span>
   </footer>

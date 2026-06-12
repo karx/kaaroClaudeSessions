@@ -598,7 +598,7 @@ button.btn:hover { background:#403d1e; }
 <div id="legend" class="widget">
   <h3>◆ LEGEND <span class="widget-toggle" onclick="toggleWidget('legend')">−</span></h3>
   <div class="widget-body">
-  <div class="leg"><div class="dot" style="background:#08081a;border:2px solid #aaa;box-sizing:border-box"></div>Project cluster</div>
+  <div class="leg"><div class="dot" style="background:var(--k-bg);border:2px solid #aaa;box-sizing:border-box"></div>Project cluster</div>
   <div class="leg"><div class="dot" style="background:#00aaff;opacity:.85"></div>Session (size = AI work)</div>
   <div class="leg"><div class="dia" style="background:#00cccc"></div>File (size = edits)</div>
   <div class="sep"></div>
@@ -630,7 +630,7 @@ button.btn:hover { background:#403d1e; }
     <span class="val" id="sl-min-val">%%MIN_FILE_SESSIONS%%</span>
   </div>
   <div class="sep"></div>
-  <div class="ctrl"><label style="flex-shrink:0;color:#556">From:</label><input type="date" id="tf-from" style="flex:1;min-width:0;background:#0c0c1e;border:1px solid #2a2a50;color:#8899cc;padding:2px 6px;font-family:inherit;font-size:10px"><button class="btn" id="tf-clear" style="padding:3px 7px">✕</button></div>
+  <div class="ctrl"><label style="flex-shrink:0;color:#556">From:</label><input type="date" id="tf-from" style="flex:1;min-width:0;background:var(--k-card);border:1px solid var(--k-border);color:var(--k-body);padding:2px 6px;font-family:inherit;font-size:10px"><button class="btn" id="tf-clear" style="padding:3px 7px">✕</button></div>
   <div class="ctrl"><button class="btn" id="btn-shake">⟳ Shake</button>&nbsp;<button class="btn" id="btn-reset">⌂ Reset</button>&nbsp;<button class="btn" id="btn-fit">⊡ Fit</button></div>
 
   <div id="force-options" style="display:block">
@@ -746,7 +746,7 @@ button.btn:hover { background:#403d1e; }
     </div>
     <div class="ctrl"><input type="checkbox" id="arc-group-proj"><label for="arc-group-proj">Group by project</label></div>
     <div id="arc-file-hub" style="display:none">
-      <div class="sl-section-hd" style="margin-top:8px">◆ FILE HUBS <span style="color:#2a3a5a;font-size:8px">(click to filter)</span></div>
+      <div class="sl-section-hd" style="margin-top:8px">◆ FILE HUBS <span style="color:var(--k-dim);font-size:8px">(click to filter)</span></div>
       <div id="arc-file-hub-list"></div>
     </div>
   </div>

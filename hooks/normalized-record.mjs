@@ -27,7 +27,9 @@ export const KIND_FIELDS = {
   // A human prompt entering the session. text is the cleaned first-user-message
   // (adapters null it for subsequent turns); cwd/branch/version/entrypoint are
   // CC envelope extras.
-  user_turn:       { required: {}, optional: { text: 'string', version: 'string', entrypoint: 'string', cwd: 'string', branch: 'string' } },
+  // display_text carries per-turn human text for trace/thread views; text is
+  // the cleaned FIRST user message only (session bundle semantics).
+  user_turn:       { required: {}, optional: { text: 'string', display_text: 'string', version: 'string', entrypoint: 'string', cwd: 'string', branch: 'string' } },
 
   // One assistant message envelope. content_length is the synthetic-token
   // proxy for harnesses with capabilities.tokens === false.

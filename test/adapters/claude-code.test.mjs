@@ -208,3 +208,58 @@ test('adapter + reducer golden regression matches analyzeSession', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+// ── Trace-fidelity fields (N5) ────────────────────────────────────────────────
+
+test('tool_use NR carries tool_id from the content block id', () => {
+  const nrs = recordsToNormalized([{
+    type: 'assistant', timestamp: 't',
+    message: { content: [
+      { type: 'tool_use', id: 'toolu_01abc', name: 'Read', input: { file_path: 'a.mjs' } },
+    ] },
+  }]);
+  const tu = nrs.find(r => r.kind === 'tool_use');
+  assert.equal(tu.tool_id, 'toolu_01abc');
+});
+
+test('tool_result NR carries tool_id and error_text for failures', () => {
+  const nrs = recordsToNormalized([{
+    type: 'user', timestamp: 't',
+    message: { content: [
+      { type: 'tool_result', tool_use_id: 'toolu_01abc', is_error: true,
+        content: [{ type: 'text', text: 'Command failed: exit code 1 -- missing file' }] },
+    ] },
+  }]);
+  const tr = nrs.find(r => r.kind === 'tool_result');
+  assert.equal(tr.error, true);
+  assert.equal(tr.tool_id, 'toolu_01abc');
+  assert.ok(tr.error_text.includes('exit code 1'));
+});
+
+test('tool_result NR — success results also carry tool_id (no error_text)', () => {
+  const nrs = recordsToNormalized([{
+    type: 'user', timestamp: 't',
+    message: { content: [
+      { type: 'tool_result', tool_use_id: 'toolu_02', content: [{ type: 'text', text: 'ok' }] },
+    ] },
+  }]);
+  const tr = nrs.find(r => r.kind === 'tool_result');
+  assert.ok(tr, 'success tool_result emitted for trace attachment');
+  assert.equal(tr.error, false);
+  assert.equal(tr.tool_id, 'toolu_02');
+  assert.equal(tr.error_text, undefined);
+});
+
+test('user_turn NR carries display_text on every human turn, not just the first', () => {
+  const nrs = recordsToNormalized([
+    { type: 'user', timestamp: 't1', message: { content: 'first prompt with enough text' } },
+    { type: 'user', timestamp: 't2', message: { content: 'second prompt also matters here' } },
+    { type: 'user', timestamp: 't3',
+      message: { content: [{ type: 'tool_result', tool_use_id: 'x', content: [] }] } },
+  ]);
+  const turns = nrs.filter(r => r.kind === 'user_turn');
+  assert.equal(turns.length, 3);
+  assert.ok(turns[0].display_text.includes('first prompt'));
+  assert.ok(turns[1].display_text.includes('second prompt'));
+  assert.equal(turns[1].text, null, 'text keeps first-user-message-only semantics');
+  assert.equal(turns[2].display_text, null, 'tool-result-only records carry no display text');
+});

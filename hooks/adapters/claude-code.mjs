@@ -106,8 +106,15 @@ export function recordsToNormalized(records) {
         }
       }
 
+      // display_text: per-turn human text for trace/thread views (text keeps
+      // first-user-message-only semantics for the session bundle).
+      const hasToolResults = Array.isArray(rec.message.content)
+        && rec.message.content.some(b => b.type === 'tool_result');
+      const displayText = !hasToolResults && text ? text.trim().slice(0, 500) || null : null;
+
       out.push({
         kind: 'user_turn', harness: HARNESS, ts, text: userText,
+        display_text: displayText,
         version: rec.version, entrypoint: rec.entrypoint,
         cwd: rec.cwd, branch: rec.gitBranch,
       });
@@ -123,12 +130,20 @@ export function recordsToNormalized(records) {
 
       if (Array.isArray(rec.message.content)) {
         for (const block of rec.message.content) {
-          if (block.type === 'tool_result' && block.is_error) {
-            out.push({
-              kind: 'tool_result', harness: HARNESS, ts, error: true,
-              tool: block.tool_name || 'unknown',
-            });
+          if (block.type !== 'tool_result') continue;
+          const nr = {
+            kind: 'tool_result', harness: HARNESS, ts,
+            error: !!block.is_error,
+            tool: block.tool_name || 'unknown',
+            tool_id: block.tool_use_id || undefined,
+          };
+          if (block.is_error) {
+            const raw = Array.isArray(block.content)
+              ? block.content.map(b => b.text || '').join(' ')
+              : String(block.content || '');
+            nr.error_text = raw.trim().slice(0, 300) || undefined;
           }
+          out.push(nr);
         }
       }
     }
@@ -166,6 +181,7 @@ export function recordsToNormalized(records) {
           out.push({
             kind: 'tool_use', harness: HARNESS, ts,
             tool: name, category,
+            tool_id: block.id || undefined,
             input: block.input || {},
           });
         }

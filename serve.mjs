@@ -19,14 +19,14 @@ import { execFile, exec } from 'child_process';
 import { fileURLToPath }  from 'url';
 
 import { tailRead }             from './hooks/jsonl-tail.mjs';
-import { normRecordsToPulses } from './hooks/pulse-transformer.mjs';
 import { reconstructTraceTree } from './hooks/context-tree.mjs';
 import { readGrokSession } from './hooks/analyzers/analyze-grok.mjs';
 import { getEnabledHarnesses, getHarness } from './hooks/registry.mjs';
 import { processWatchFilename } from './surface/watch-handlers.mjs';
 import { resolveSessionFile, invalidateSessionResolveCache } from './surface/session-resolver.mjs';
-import { createActiveState, applyPulse, snapshotActive } from './surface/active-state.mjs';
+import { createActiveState, snapshotActive } from './surface/active-state.mjs';
 import { createHub } from './surface/sse-hub.mjs';
+import { createPulseEmitter } from './surface/pulse-emitter.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
@@ -40,74 +40,12 @@ const BUILD_SCRIPT   = path.join(__dirname, 'build.mjs');
 
 const hub    = createHub();
 const notify = hub.notify;
-const offsetMap = new Map(); // filePath → last-read byte offset
 
-// ── Pulse helpers ─────────────────────────────────────────────────────────────
-// Adapter + capabilities come from the registry (single source of truth).
-
-function emitPulses(records, ctx) {
-  const harness = getHarness(ctx.harness);
-  if (!harness) return;
-  const nrs   = harness.adapter(records);
-  const nowMs = Date.now();
-  for (const pulse of normRecordsToPulses(nrs, ctx, harness.capabilities)) {
-    applyPulse(activeState, pulse, nowMs);
-    notify(pulse.event, JSON.stringify(pulse.data));
-  }
-  scheduleNowBroadcast();
-}
-
-function tailAndPulse(filePath, ctx) {
-  try {
-    if (ctx.read_mode === 'json') return jsonAndPulse(filePath, ctx);
-    const resolveLabel = getHarness(ctx.harness)?.watch?.resolveProjectLabel;
-    if (resolveLabel && !ctx.project_label) {
-      ctx = { ...ctx, project_label: resolveLabel(ctx, filePath) };
-    }
-    const offset = offsetMap.get(filePath) ?? 0;
-    const { records, newOffset } = tailRead(filePath, offset);
-    offsetMap.set(filePath, newOffset);
-    if (!records.length) return;
-    emitPulses(records, ctx);
-  } catch { /* tail errors must not affect the main rebuild flow */ }
-}
-
-// Whole-file JSON harnesses (opencode): each watched file is one pretty-printed
-// JSON document, rewritten in place. Skip unchanged content via size+mtime
-// signature; fill session identity from the body when the path lacks it
-// (part/<messageID>/… files carry sessionID inside the JSON only).
-function jsonAndPulse(filePath, ctx) {
-  const stat = fs.statSync(filePath);
-  const sig = `${stat.size}:${stat.mtimeMs}`;
-  if (offsetMap.get(filePath) === sig) return;
-  offsetMap.set(filePath, sig);
-
-  const obj = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  const sessionId = ctx.session_id || obj.sessionID || null;
-  if (!sessionId) return;
-  const dir = obj.directory ? obj.directory.replace(/\\/g, '/').split('/').pop() : null;
-  emitPulses([obj], {
-    ...ctx,
-    session_id: sessionId,
-    slug: ctx.slug || sessionId.replace(/^ses_/, '').slice(0, 8),
-    project_label: ctx.project_label || dir,
-  });
-}
-
-// ── Mission Control active-session state (/api/active + SSE `now`) ───────────
+// ── Pulse path (Stream) ───────────────────────────────────────────────────────
+// Mission Control active-session state (/api/active + SSE `now`) + pulses.
 
 const activeState = createActiveState();
-let nowBroadcastTimer = null;
-
-// Throttle: at most one `now` broadcast per second, trailing-edge,
-// so bursty multi-record tails collapse into a single snapshot push.
-function scheduleNowBroadcast() {
-  if (nowBroadcastTimer) return;
-  nowBroadcastTimer = setTimeout(() => {
-    nowBroadcastTimer = null;
-    notify('now', JSON.stringify(snapshotActive(activeState, Date.now())));
-  }, 1000);
-}
+const { tailAndPulse } = createPulseEmitter({ hub, activeState });
 
 // ── Rebuild pipeline ──────────────────────────────────────────────────────────
 

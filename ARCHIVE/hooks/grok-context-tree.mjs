@@ -1,13 +1,13 @@
 /**
- * lib/grok-context-tree.mjs
+ * ARCHIVED (N5): superseded by hooks/trace-tree.mjs (unified NR-based
+ * reconstruction). Kept as a FROZEN parity oracle for test/trace-tree.test.mjs.
  *
  * Reconstructs a ContextTree from Grok updates.jsonl ACP records.
- * Output shape matches lib/context-tree.mjs for thread/trace UI.
  */
 
 import {
   grokRecordTs, grokSessionUpdate, isGrokToolFailure,
-} from './helpers/grok-helpers.mjs';
+} from '../../hooks/helpers/grok-helpers.mjs';
 
 const COMPACT_EVENTS = new Set(['auto_compact_completed', 'compaction_checkpoint']);
 const THOUGHT = 'agent_thought_chunk';

@@ -1,13 +1,8 @@
 /**
- * lib/context-tree.mjs
+ * ARCHIVED (N5): superseded by hooks/trace-tree.mjs (unified NR-based
+ * reconstruction). Kept as a FROZEN parity oracle for test/trace-tree.test.mjs.
  *
- * Pure reconstruction of a session's context tree from raw JSONL records.
- * No file I/O — takes the already-parsed records array and returns a
- * ContextTree object describing segments and turns.
- *
- * Phase 1: segment-level aggregates (tool_summary, tokens, counts, branches).
- * Phase 2: per-turn detail — user text, assistant tool calls with sanitised
- *   inputs, tool-result error status, turn duration, thinking flag.
+ * Pure reconstruction of a session's context tree from raw CC JSONL records.
  */
 
 // ── Input sanitisation ────────────────────────────────────────────────────────

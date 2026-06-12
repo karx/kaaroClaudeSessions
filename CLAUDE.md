@@ -56,7 +56,7 @@ Observability Surface (HTTP endpoints + SSE events) only. Root `analyze.mjs`,
 `build.mjs`, `serve.mjs` are thin CLI/composition entries.
 
 Repository layout:
-- `hooks/` — registry.mjs, normalized-record.mjs, session-reducer.mjs, enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, event-types.mjs, jsonl-tail.mjs, context-tree.mjs, grok-context-tree.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-pi/-antigravity/-grok/-opencode/-copilot), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
+- `hooks/` — registry.mjs (THE single source of truth: adapter, scan, locateSession, readSessionRecords, capabilities per harness), normalized-record.mjs (NR contract), action-keys.mjs, session-reducer.mjs, enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, trace-tree.mjs, jsonl-io.mjs, jsonl-tail.mjs, scan-walk.mjs, session-locators.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-pi/-antigravity/-grok/-opencode/-copilot), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
 - `surface/` — active-state.mjs, session-resolver.mjs, watch-handlers.mjs, scan-harnesses.mjs, analyze-orchestrator.mjs
 - `experience/` — `client/` (20 numbered browser modules), `pages/` (template.html, now.html, daw-template.html, og-image.svg), `audio/` (audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs
 
@@ -99,7 +99,7 @@ Four-stage pipeline, each stage independently testable:
 
 **`hooks/jsonl-tail.mjs`** — reads only new bytes from a JSONL file given a byte offset. Returns `{ records[], newOffset }`. Used by `serve.mjs` to tail active sessions without re-parsing the whole file.
 
-**`hooks/context-tree.mjs`** — pure reconstruction of a session's context tree from raw JSONL records. `reconstructContextTree(records)` returns `{ ai_title, segments[] }`. Each segment spans between `compact_boundary` events and tracks: user/assistant turns, tool call counts by name, subagent count, thinking count, permission modes, branches, and tokens. Used by the `/api/trace/:session_id` endpoint.
+**`hooks/trace-tree.mjs`** — unified, pure ContextTree reconstruction from NormalizedRecords (any harness). `reconstructTraceFromNRs(nrs, opts)` returns `{ ai_title, segments[] }`. Each segment spans between `context_reset` NRs and tracks: user/assistant turns, tool call counts by name, subagent count, thinking count, permission modes, branches, and tokens. `surface/trace-service.mjs` feeds it (registry `readSessionRecords` → adapter → tree, mtime-cached) for the `/api/trace/:session_id` endpoint. Trace-capable today: claude-code, grok, pi, opencode, copilot (antigravity excluded — no assistant text in its NRs).
 
 **`experience/audio/beat-clock.mjs`** — pure BPM math: `bpmToInterval`, `beatPosition`, `eventsInWindow`, `pushBeatEvent`. No I/O, no AudioContext.
 
@@ -163,7 +163,8 @@ Test files map to modules:
 - `test/schema.test.mjs` → `hooks/sessions-schema.mjs`
 - `test/pulse-transformer.test.mjs` → `hooks/pulse-transformer.mjs`
 - `test/jsonl-tail.test.mjs` → `hooks/jsonl-tail.mjs`
-- `test/context-tree.test.mjs` → `hooks/context-tree.mjs`
+- `test/trace-tree.test.mjs` → `hooks/trace-tree.mjs` (parity vs archived per-harness oracles + all-harness sanity)
+- `test/trace-service.test.mjs` → `surface/trace-service.mjs` (per-harness /api/trace smokes, mtime cache)
 - `test/beat-clock.test.mjs` → `experience/audio/beat-clock.mjs`
 - `test/ticker-store.test.mjs` → `experience/audio/ticker-store.mjs`
 - `test/audio-sim.test.mjs` → `experience/audio/audio-sim.mjs` + `experience/audio/audio-presets.mjs` (resolveSonic, resolveHz, simulateSession, all 3 presets; Grok tool aliases; web key)

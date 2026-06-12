@@ -11,8 +11,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { reconstructTraceFromNRs } from '../hooks/trace-tree.mjs';
-import { reconstructContextTree } from '../hooks/context-tree.mjs';
-import { reconstructGrokContextTree } from '../hooks/grok-context-tree.mjs';
+// The superseded per-harness reconstructions live in ARCHIVE as FROZEN parity
+// oracles for this suite only — never import them from production code.
+import { reconstructContextTree } from '../ARCHIVE/hooks/context-tree.mjs';
+import { reconstructGrokContextTree } from '../ARCHIVE/hooks/grok-context-tree.mjs';
 import { recordsToNormalized as ccToNorm }   from '../hooks/adapters/claude-code.mjs';
 import { recordsToNormalized as grokToNorm } from '../hooks/adapters/grok.mjs';
 import { recordsToNormalized as piToNorm }   from '../hooks/adapters/pi.mjs';

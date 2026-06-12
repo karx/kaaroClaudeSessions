@@ -81,7 +81,7 @@ const SIGNALS = {
   primaryModelId: 'grok-composer-2.5-fast',
 };
 
-test('recordsToNormalized — emits expected kinds', () => {
+test('recordsToNormalized Ã¢â‚¬â€ emits expected kinds', () => {
   const norm = recordsToNormalized(GOLDEN_RECORDS);
   const kinds = norm.map(r => r.kind);
   assert.ok(kinds.includes('user_turn'));
@@ -90,7 +90,7 @@ test('recordsToNormalized — emits expected kinds', () => {
   assert.equal(kinds.filter(k => k === 'tool_use').length, 2);
 });
 
-test('recordsToNormalized — Grok no turnStartMs chunks do not cause turn count explosion (dedup robustness)', () => {
+test('recordsToNormalized Ã¢â‚¬â€ Grok no turnStartMs chunks do not cause turn count explosion (dedup robustness)', () => {
   // Simulate a streaming assistant response with many chunks but no _meta.turnStartMs
   // (the bypass case in review finding #4).
   const noKeyChunks = [
@@ -145,7 +145,7 @@ test('tool_use NR has category for bash tools; key is NOT set by adapter', () =>
   const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
   assert.equal(nrs.length, 2);
   assert.equal(nrs[0].category, 'node'); // Shell + node --test
-  assert.equal(nrs[1].category, null);        // Read — not bash
+  assert.equal(nrs[1].category, null);        // Read Ã¢â‚¬â€ not bash
   // Sonic key is NOT derived by adapters
   assert.equal(nrs[0].key, undefined);
   assert.equal(nrs[1].key, undefined);
@@ -195,4 +195,62 @@ test('adapter + reducer golden regression matches parseGrokRecords', () => {
   assert.equal(viaParse.tool_calls, 2);
   assert.equal(viaParse.project_id, 'D--src-kaaroSessions');
   assert.ok(viaParse.file_ops['d:/src/kaarosessions/todo.md']?.read, 1);
+});
+// Ã¢â€â‚¬Ã¢â€â‚¬ Trace-fidelity fields (N5) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+
+function su(update, meta = {}, method = 'session/update') {
+  return { timestamp: 1, method, params: { sessionId: 's', update }, _meta: meta };
+}
+
+test('assistant_turn NR emitted per turnStartMs change (temporal turn grouping)', () => {
+  const nrs = recordsToNormalized([
+    su({ sessionUpdate: 'user_message_chunk', content: { type: 'text', text: 'go do the thing' } }),
+    su({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'starting' } }, { turnStartMs: 100 }),
+    su({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ' now' } }, { turnStartMs: 100 }),
+    su({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'second turn' } }, { turnStartMs: 200 }),
+  ]);
+  assert.equal(nrs.filter(r => r.kind === 'assistant_turn').length, 2,
+    'one assistant_turn per turnStartMs, not per user-span');
+});
+
+test('agent_thought_chunk Ã¢â€ â€™ content_block thinking', () => {
+  const nrs = recordsToNormalized([
+    su({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'hmm' } }, { turnStartMs: 100 }),
+    su({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'more' } }, { turnStartMs: 100 }),
+  ]);
+  const thinks = nrs.filter(r => r.kind === 'content_block' && r.block_type === 'thinking');
+  assert.equal(thinks.length, 2, 'every thought chunk surfaces');
+  assert.equal(nrs.filter(r => r.kind === 'assistant_turn').length, 1);
+});
+
+test('tool_use carries tool_id and rich input for trace sanitisation', () => {
+  const nrs = recordsToNormalized([
+    su({ sessionUpdate: 'tool_call', toolCallId: 'c-9', title: 'StrReplace',
+      rawInput: { path: 'D:/x/a.mjs', old_string: 'aaa', new_string: 'bbb' } }),
+  ]);
+  const tu = nrs.find(r => r.kind === 'tool_use');
+  assert.equal(tu.tool_id, 'c-9');
+  assert.equal(tu.input.old_string, 'aaa');
+  assert.equal(tu.input.new_string, 'bbb');
+  assert.ok(tu.input.file_path.includes('a.mjs'));
+});
+
+test('failed tool_call_update carries tool_id and error_text from stderr', () => {
+  const nrs = recordsToNormalized([
+    su({ sessionUpdate: 'tool_call', toolCallId: 'c-1', title: 'Shell', rawInput: { command: 'node --test' } }),
+    su({ sessionUpdate: 'tool_call_update', toolCallId: 'c-1', status: 'completed',
+      rawOutput: { exit_code: 1, stderr: 'Error: 3 tests failing' } }),
+  ]);
+  const tr = nrs.find(r => r.kind === 'tool_result' && r.error);
+  assert.equal(tr.tool_id, 'c-1');
+  assert.ok(tr.error_text.includes('3 tests failing'));
+});
+
+test('user_turn carries display_text up to 500 chars regardless of the 8-char text rule', () => {
+  const nrs = recordsToNormalized([
+    su({ sessionUpdate: 'user_message_chunk', content: { type: 'text', text: 'ok go' } }),
+  ]);
+  const ut = nrs.find(r => r.kind === 'user_turn');
+  assert.equal(ut.text, null, 'short prompts stay out of first_user_message');
+  assert.equal(ut.display_text, 'ok go');
 });

@@ -20,7 +20,17 @@ const COMPACT_EVENTS   = new Set(['auto_compact_completed', 'compaction_checkpoi
 export function recordsToNormalized(records) {
   const out = [];
   const toolTitles = new Map();
-  let emittedAssistantSinceLastUser = false;
+  // Temporal turn grouping: a new assistant_turn opens whenever the ACP
+  // turnStartMs changes (grok runs several internal turns between user
+  // messages — each is a real turn for trace/thread views).
+  let currentTurnKey = null;
+
+  function ensureAssistantTurn(rec, ts) {
+    const key = rec._meta?.turnStartMs ?? '__none__';
+    if (currentTurnKey === key) return;
+    currentTurnKey = key;
+    out.push({ kind: 'assistant_turn', harness: HARNESS, ts });
+  }
 
   for (const rec of records) {
     const su  = grokSessionUpdate(rec);
@@ -35,20 +45,21 @@ export function recordsToNormalized(records) {
       out.push({
         kind: 'user_turn', harness: HARNESS, ts,
         text: text?.length >= 8 ? text.slice(0, 200) : null,
+        display_text: text ? text.slice(0, 500) : null,
       });
       const model = upd._meta?.modelId;
       if (model) out.push({ kind: 'session_meta', harness: HARNESS, ts, model, overwrite: true });
-      emittedAssistantSinceLastUser = false;
+      currentTurnKey = null;
     }
 
     if (ASSISTANT_CHUNKS.has(su)) {
       handled = true;
-      if (!emittedAssistantSinceLastUser) {
-        emittedAssistantSinceLastUser = true;
-        out.push({ kind: 'assistant_turn', harness: HARNESS, ts, content_block: su });
-      }
+      ensureAssistantTurn(rec, ts);
       if (su === 'agent_message_chunk' && upd.content?.text) {
         out.push({ kind: 'content_block', harness: HARNESS, ts, block_type: 'text', text: upd.content.text });
+      }
+      if (su === 'agent_thought_chunk') {
+        out.push({ kind: 'content_block', harness: HARNESS, ts, block_type: 'thinking' });
       }
     }
 
@@ -59,14 +70,14 @@ export function recordsToNormalized(records) {
       const isBash  = ['shell', 'bash'].includes(title.toLowerCase());
       const category = isBash ? categorizeBash(raw.command) : null;
       toolTitles.set(upd.toolCallId, title);
+      ensureAssistantTurn(rec, ts);
       out.push({
         kind: 'tool_use', harness: HARNESS, ts,
         tool: title, category,
-        input: {
-          file_path: raw.path || raw.file_path,
-          command:   raw.command,
-          description: raw.description,
-        },
+        tool_id: upd.toolCallId || undefined,
+        // raw keys pass through (pattern, glob_pattern, old/new_string…) so the
+        // trace sanitiser sees everything; file_path is the normalised alias.
+        input: { ...raw, file_path: raw.path || raw.file_path },
       });
     }
 
@@ -74,13 +85,19 @@ export function recordsToNormalized(records) {
       handled = true;
       if (isGrokToolFailure(upd)) {
         const title = toolTitles.get(upd.toolCallId) || upd.title || 'unknown';
-        out.push({ kind: 'tool_result', harness: HARNESS, ts, error: true, tool: title });
+        const stderr = upd.rawOutput?.stderr || upd.rawOutput?.stdout || '';
+        out.push({
+          kind: 'tool_result', harness: HARNESS, ts, error: true, tool: title,
+          tool_id: upd.toolCallId || undefined,
+          error_text: String(stderr).trim().slice(0, 300) || 'non-zero exit',
+        });
       }
     }
 
     if (COMPACT_EVENTS.has(su)) {
       handled = true;
       out.push({ kind: 'context_reset', harness: HARNESS, ts });
+      currentTurnKey = null;
     }
 
     if (!handled) {

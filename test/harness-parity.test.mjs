@@ -67,7 +67,7 @@ function finalizeAntigravity(session, records) {
   return session;
 }
 
-// â”€â”€ Sample Trace validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Sample Trace validation Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // For each EVENT_TYPES entry with samples, run the adapter and assert output
 // contains at least one NR matching all fields in the expect entry.
 
@@ -91,7 +91,7 @@ for (const [eventKey, entry] of Object.entries(EVENT_TYPES)) {
   for (const [harness, sample] of Object.entries(entry.samples)) {
     const adapterFn = ADAPTERS[harness];
     if (!adapterFn) continue;
-    test(`sample trace â€” ${eventKey}/${harness} v${sample.version}`, () => {
+    test(`sample trace Ã¢â‚¬â€ ${eventKey}/${harness} v${sample.version}`, () => {
       const nrs = adapterFn([sample.record]);
       for (const expectedNR of sample.expect) {
         const match = nrs.find(nr => partialMatch(nr, expectedNR));
@@ -104,7 +104,7 @@ for (const [eventKey, entry] of Object.entries(EVENT_TYPES)) {
   }
 }
 
-test('pipeline internal consistency â€” claude-code', () => {
+test('pipeline internal consistency Ã¢â‚¬â€ claude-code', () => {
   const records = [
     {
       type: 'user', timestamp: '2026-05-01T10:00:00.000Z', gitBranch: 'feat/x',
@@ -139,7 +139,7 @@ test('pipeline internal consistency â€” claude-code', () => {
   }
 });
 
-test('harness parity â€” pi', () => {
+test('harness parity Ã¢â‚¬â€ pi', () => {
   const records = [
     {
       type: 'session', timestamp: '2026-04-26T14:22:51.638Z', cwd: 'D:\\src\\ebrain',
@@ -175,7 +175,7 @@ test('harness parity â€” pi', () => {
   assertParity(legacy, pipeline, 'pi');
 });
 
-test('harness parity â€” antigravity', () => {
+test('harness parity Ã¢â‚¬â€ antigravity', () => {
   const records = [
     {
       source: 'USER_EXPLICIT', type: 'USER_INPUT', created_at: '2026-06-07T00:15:33Z',
@@ -204,3 +204,138 @@ test('harness parity â€” antigravity', () => {
   );
   assertParity(legacy, pipeline, 'antigravity');
 });
+// â”€â”€ Capability-enforced field parity (N3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// The registry capability flags ARE the parity matrix: a harness session must
+// populate context_resets / ai_title / subagent_count / branches iff its
+// descriptor claims the capability. Fixtures below are deliberately rich â€”
+// they exercise every populate path the harness format offers.
+
+import { getHarness } from '../hooks/registry.mjs';
+import { recordsToNormalized as ocToNorm } from '../hooks/adapters/opencode.mjs';
+import { recordsToNormalized as cpToNorm } from '../hooks/adapters/copilot.mjs';
+import { parseGrokRecords } from '../hooks/analyzers/analyze-grok.mjs';
+
+const CAPABILITY_FIELDS = ['context_resets', 'ai_title', 'subagent_count', 'branches'];
+
+const IS_DEFAULT = {
+  context_resets: v => v === 0,
+  ai_title:       v => v == null,
+  subagent_count: v => v === 0,
+  branches:       v => !Array.isArray(v) || v.length === 0,
+};
+
+const CAP_SESSION_BUILDERS = {
+  'claude-code': () => {
+    const records = [
+      { type: 'system', subtype: 'compact_boundary', timestamp: 't1' },
+      { type: 'ai-title', timestamp: 't2', aiTitle: 'Cap parity session' },
+      { type: 'user', timestamp: 't3', gitBranch: 'main',
+        message: { content: 'populate all capability fields please' } },
+      { type: 'assistant', timestamp: 't4',
+        message: { model: 'm', usage: { input_tokens: 1, output_tokens: 1 },
+          content: [{ type: 'tool_use', name: 'Agent', input: { description: 'sub work' } }] } },
+    ];
+    const s = reduceSession(ccToNorm(records), {
+      session_id: 'cap-cc', project_id: 'P', project_label: 'p',
+      harness: 'claude-code', capabilities: { size_proxy: 'tokens_work' },
+    });
+    enrichSession(s);
+    return s;
+  },
+
+  'pi': () => {
+    const records = [
+      { type: 'session', version: 3, id: 'cap-pi', timestamp: 't1', cwd: 'D:/x' },
+      { type: 'message', id: 'u1', timestamp: 't2',
+        message: { role: 'user', content: [{ type: 'text', text: 'rich pi fixture' }] } },
+      { type: 'message', id: 'a1', timestamp: 't3',
+        message: { role: 'assistant',
+          content: [{ type: 'toolCall', id: 'tc', name: 'bash', arguments: { command: 'git status' } }],
+          model: 'm', usage: { input: 1, output: 1 }, stopReason: 'end' } },
+    ];
+    return parsePiRecords(records, 'cap-pi', '--D--x--');
+  },
+
+  'antigravity': () => {
+    const records = [
+      { step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', status: 'DONE',
+        created_at: 't1', content: '<USER_REQUEST>rich</USER_REQUEST>' },
+      { step_index: 1, source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE',
+        created_at: 't2', content: 'ok',
+        tool_calls: [{ name: 'run_command', args: { CommandLine: '"git status"' } }] },
+    ];
+    const s = reduceSession(agToNorm(records), {
+      session_id: 'cap-ag', project_id: null, project_label: null,
+      harness: 'antigravity', capabilities: { size_proxy: 'tool_calls' },
+    });
+    enrichSession(s);
+    return s;
+  },
+
+  'grok': () => {
+    const records = [
+      { timestamp: 1, method: 'session/update',
+        params: { sessionId: 'cap-grok', update: {
+          sessionUpdate: 'user_message_chunk', content: { type: 'text', text: 'go' },
+          _meta: { modelId: 'grok-composer-2.5-fast' } } } },
+      { timestamp: 2, method: 'session/update',
+        params: { sessionId: 'cap-grok', update: {
+          sessionUpdate: 'tool_call', toolCallId: 'c1', title: 'Task',
+          rawInput: { description: 'spawn a subagent' } } } },
+      { timestamp: 3, method: '_x.ai/session/update',
+        params: { sessionId: 'cap-grok', update: { sessionUpdate: 'compaction_checkpoint', checkpoint_id: 'x' } } },
+    ];
+    const summary = {
+      info: { id: 'cap-grok', cwd: 'D:/x' },
+      generated_title: 'Cap parity grok', head_branch: 'feat/cap',
+    };
+    return parseGrokRecords(records, 'cap-grok', 'D%3A%5Cx', summary, null);
+  },
+
+  'opencode': () => {
+    const records = [
+      { id: 'ses_cap', version: '1.0.201', projectID: 'p', directory: 'D:/x',
+        title: 'Cap parity opencode', time: { created: 1, updated: 2 } },
+      { id: 'msg_u', sessionID: 'ses_cap', role: 'user', time: { created: 1 },
+        _parts: [{ id: 'prt_1', type: 'text', text: 'go' }] },
+    ];
+    const s = reduceSession(ocToNorm(records), {
+      session_id: 'ses_cap', project_id: 'p', project_label: 'x',
+      harness: 'opencode', capabilities: { size_proxy: 'tokens_work' },
+    });
+    enrichSession(s);
+    return s;
+  },
+
+  'copilot': () => {
+    const records = [
+      { kind: 0, v: { version: 3, sessionId: 'cap-cp', creationDate: 1,
+        customTitle: 'Cap parity copilot',
+        requests: [{ requestId: 'r1', timestamp: 2, modelId: 'm',
+          message: { text: 'go', parts: [] }, response: [], completionTokens: 5 }] } },
+    ];
+    const s = reduceSession(cpToNorm(records), {
+      session_id: 'cap-cp', project_id: null, project_label: null,
+      harness: 'copilot', capabilities: { size_proxy: 'tokens_work' },
+    });
+    enrichSession(s);
+    return s;
+  },
+};
+
+for (const [harness, build] of Object.entries(CAP_SESSION_BUILDERS)) {
+  test(`capability parity â€” ${harness} fields match registry flags`, () => {
+    const caps = getHarness(harness).capabilities;
+    const session = build();
+    for (const field of CAPABILITY_FIELDS) {
+      const v = session[field];
+      if (caps[field]) {
+        assert.ok(!IS_DEFAULT[field](v),
+          `${harness}: capabilities.${field}=true but rich fixture left it default (${JSON.stringify(v)})`);
+      } else {
+        assert.ok(IS_DEFAULT[field](v),
+          `${harness}: capabilities.${field}=false but session populated it (${JSON.stringify(v)}) â€” flip the flag`);
+      }
+    }
+  });
+}

@@ -27,6 +27,7 @@ const OUT_FILE = path.join(process.cwd(), 'sessions-data.json');
 const SESSION_DIR_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
 
 import { parseJsonlFile } from '../jsonl-io.mjs';
+import { walkSessions, dirNames } from '../scan-walk.mjs';
 
 /**
  * Read a Grok session directory (multi-file).
@@ -123,32 +124,18 @@ export function analyzeGrokSession(encodedCwd, sessionId, sessionsRoot = GROK_SE
 }
 
 export function scanGrokSessions(sessionsRoot = GROK_SESSIONS_ROOT) {
-  let projectEntries;
-  try {
-    projectEntries = fs.readdirSync(sessionsRoot, { withFileTypes: true });
-  } catch (err) {
-    if (err.code === 'ENOENT') return null;
-    throw err;
-  }
+  return walkSessions(sessionsRoot, 'grok', function* (entries) {
+    for (const proj of dirNames(entries)) {
+      const projDir = path.join(sessionsRoot, proj);
+      let sessionDirs;
+      try { sessionDirs = fs.readdirSync(projDir, { withFileTypes: true }); } catch { continue; }
 
-  const sessions = [];
-  for (const proj of projectEntries.filter(d => d.isDirectory()).map(d => d.name).sort()) {
-    const projDir = path.join(sessionsRoot, proj);
-    let sessionDirs;
-    try { sessionDirs = fs.readdirSync(projDir, { withFileTypes: true }); } catch { continue; }
-
-    for (const ent of sessionDirs.filter(d => d.isDirectory())) {
-      if (!SESSION_DIR_RE.test(ent.name)) continue;
-      try {
-        const session = analyzeGrokSession(proj, ent.name, sessionsRoot);
-        if (session) sessions.push(session);
-      } catch (err) {
-        console.error(`  !! [grok] ${proj}/${ent.name}: ${err.message}`);
+      for (const name of dirNames(sessionDirs)) {
+        if (!SESSION_DIR_RE.test(name)) continue;
+        yield { id: `${proj}/${name}`, analyze: () => analyzeGrokSession(proj, name, sessionsRoot) };
       }
     }
-  }
-
-  return { harness: 'grok', source_dir: sessionsRoot, sessions };
+  });
 }
 
 function main() {

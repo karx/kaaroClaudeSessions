@@ -49,6 +49,7 @@ const OUT_FILE = path.join(process.cwd(), 'sessions-data.json');
 // ── JSONL parser ──────────────────────────────────────────────────────────────
 
 import { parseJsonlFile } from '../jsonl-io.mjs';
+import { walkSessions, dirNames } from '../scan-walk.mjs';
 
 // ── Per-session analysis ──────────────────────────────────────────────────────
 
@@ -120,27 +121,11 @@ export function analyzeAntigravitySession(conversationId, brainDir) {
  * Scan all Antigravity conversations. Returns null if brain root is absent.
  */
 export function scanAntigravitySessions(brainDir = ANTIGRAVITY_BRAIN_ROOT) {
-  let conversationDirs;
-  try {
-    conversationDirs = fs.readdirSync(brainDir, { withFileTypes: true })
-      .filter(d => d.isDirectory() && !d.name.startsWith('.'))
-      .map(d => d.name)
-      .sort();
-  } catch (err) {
-    if (err.code === 'ENOENT') return null;
-    throw err;
-  }
-
-  const sessions = [];
-  for (const conversationId of conversationDirs) {
-    try {
-      const session = analyzeAntigravitySession(conversationId, brainDir);
-      if (session) sessions.push(session);
-    } catch (err) {
-      console.error(`  !! ${conversationId}: ${err.message}`);
+  return walkSessions(brainDir, 'antigravity', function* (entries) {
+    for (const conversationId of dirNames(entries, { skipHidden: true })) {
+      yield { id: conversationId, analyze: () => analyzeAntigravitySession(conversationId, brainDir) };
     }
-  }
-  return { harness: 'antigravity', source_dir: brainDir, sessions };
+  });
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

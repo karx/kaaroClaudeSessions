@@ -11,7 +11,7 @@ import { getHarness } from '../hooks/registry.mjs';
  * @param {string} harnessId
  * @param {string} filename — relative path from fs.watch
  * @param {string} rootDir — harness root directory
- * @returns {{ ctx: object, absPath: string, rebuildArg: string|null, relPath: string }|null}
+ * @returns {{ ctx: object, absPath: string, rebuildArg: string|null, harnessId: string, relPath: string }|null}
  */
 export function processWatchFilename(harnessId, filename, rootDir) {
   if (!filename) return null;
@@ -22,10 +22,12 @@ export function processWatchFilename(harnessId, filename, rootDir) {
   const ctx = harness.watch.ctxFromPath(relPath);
   if (!ctx) return null;
 
+  const rebuildArg = harness.watch.rebuildArg(relPath);
   return {
     ctx,
     absPath:     path.join(rootDir, filename),
-    rebuildArg:  harness.watch.rebuildArg(relPath),
+    rebuildArg,
+    harnessId,
     relPath,
   };
 }

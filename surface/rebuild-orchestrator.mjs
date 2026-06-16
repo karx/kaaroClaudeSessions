@@ -40,7 +40,15 @@ export function createRebuilder({
       // Use targeted arg (e.g. --session=...) when provided by watch handler.
       // analyze.mjs takes the fast path (parseSessionFlag + mergeSessionIntoData)
       // for supported cases instead of a full multi-harness scan.
-      const analyzeArgs = target?.rebuildArg ? [target.rebuildArg] : ['--all-harnesses'];
+      let analyzeArgs;
+      if (target?.rebuildArg) {
+        analyzeArgs = [target.rebuildArg];
+        if (target.harnessId) {
+          analyzeArgs.unshift(`--harness=${target.harnessId}`);
+        }
+      } else {
+        analyzeArgs = ['--all-harnesses'];
+      }
       await runScript(analyzeScript, analyzeArgs);
       await runScript(buildScript);
       lastBuilt = new Date();

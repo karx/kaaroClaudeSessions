@@ -80,7 +80,7 @@ function handleWatchEvent(harnessId, rootDir, filename) {
   // This enables the fast incremental path in analyze for supported harnesses (CC today)
   // instead of always doing a full --all-harnesses scan on every keystroke.
   if (event.rebuildArg) {
-    scheduleRebuild({ rebuildArg: event.rebuildArg });
+    scheduleRebuild({ rebuildArg: event.rebuildArg, harnessId: event.harnessId });
   } else {
     scheduleRebuild();
   }

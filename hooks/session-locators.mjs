@@ -10,7 +10,7 @@ import fs   from 'fs';
 import path from 'path';
 import {
   CLAUDE_PROJECTS_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
-  OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT,
+  OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
 } from './harness-paths.mjs';
 
 function sessionIdFromPiFilename(filename) {
@@ -142,6 +142,28 @@ export function locateCopilotSession(sessionId, root = COPILOT_WORKSPACE_STORAGE
       if (fs.existsSync(candidate)) {
         return { filePath: candidate, projectId: null, sessionId };
       }
+    }
+  }
+  return null;
+}
+
+/**
+ * @param {string} sessionId
+ * @param {string} [root]
+ * @returns {{ filePath: string, projectId: string, sessionId: string }|null}
+ */
+export function locateCommandCodeSession(sessionId, root = COMMANDCODE_PROJECTS_ROOT) {
+  if (!sessionId || !fs.existsSync(root)) return null;
+
+  for (const proj of fs.readdirSync(root)) {
+    const projPath = path.join(root, proj);
+    try {
+      if (!fs.statSync(projPath).isDirectory()) continue;
+    } catch { continue; }
+
+    const candidate = path.join(projPath, `${sessionId}.jsonl`);
+    if (fs.existsSync(candidate)) {
+      return { filePath: candidate, projectId: proj, sessionId };
     }
   }
   return null;

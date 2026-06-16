@@ -22,13 +22,13 @@
 import { deriveLabel } from './helpers/analyze-helpers.mjs';
 import {
   CLAUDE_PROJECTS_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
-  OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT,
+  OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
 } from './harness-paths.mjs';
 import { deriveGrokProjectId, deriveGrokLabel } from './helpers/grok-helpers.mjs';
 import { copilotWorkspaceLabel } from './helpers/copilot-helpers.mjs';
 import {
   locateClaudeCodeSession, locatePiSession, locateAntigravitySession, locateGrokSession,
-  locateOpencodeSession, locateCopilotSession,
+  locateOpencodeSession, locateCopilotSession, locateCommandCodeSession,
 } from './session-locators.mjs';
 import path from 'node:path';
 import { parseJsonlFile } from './jsonl-io.mjs';
@@ -47,20 +47,26 @@ import { recordsToNormalized as agAdapter }   from './adapters/antigravity.mjs';
 import { recordsToNormalized as grokAdapter } from './adapters/grok.mjs';
 import { recordsToNormalized as ocAdapter }   from './adapters/opencode.mjs';
 import { recordsToNormalized as cpAdapter }   from './adapters/copilot.mjs';
+import { recordsToNormalized as cmdAdapter }  from './adapters/command-code.mjs';
 
 export {
   PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT, OPENCODE_STORAGE_ROOT,
-  COPILOT_WORKSPACE_STORAGE_ROOT,
+  COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
 } from './harness-paths.mjs';
 
 function derivePiLabel(slug) {
   return deriveLabel(slug.replace(/^--/, '').replace(/--$/, ''));
 }
 
-export const HARNESS_IDS = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot'];
+export const HARNESS_IDS = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
 
 function opencodeSlug(sessionId) {
   return sessionId.replace(/^ses_/, '').slice(0, 8);
+}
+
+function deriveCCProjectLabel(projectId) {
+  // Project IDs are like "users-arshigoyal-kaaro-src-kaaro-sessions"
+  return deriveLabel(projectId.replace(/^users-[^-]+-/, ''));
 }
 
 /** @type {HarnessDescriptor[]} */
@@ -292,6 +298,40 @@ export const HARNESS_REGISTRY = [
       // Project attribution lives in <ws>/workspace.json, not the watched path —
       // serve calls this when ctx.project_label is null (cached per ws hash).
       resolveProjectLabel: (ctx, absPath) => copilotWorkspaceLabel(absPath, ctx.workspace_hash),
+      rebuildArg: () => null,
+    },
+  },
+  {
+    id: 'command-code',
+    label: 'Command Code',
+    adapter: cmdAdapter,
+    scan: { module: './analyzers/analyze-command-code.mjs', export: 'scanCommandCodeSessions' },
+    locateSession: locateCommandCodeSession,
+    readSessionRecords: readJsonlRecords,
+    roots: [COMMANDCODE_PROJECTS_ROOT],
+    capabilities: {
+      tokens: false, pulse: true, trace: true,
+      context_resets: false, ai_title: true, subagent_count: false, branches: true,
+      size_proxy: 'tool_calls',
+    },
+    watch: {
+      matchLogFile: (rel) => {
+        const n = rel.replace(/\\/g, '/');
+        return n.endsWith('.jsonl') && !n.endsWith('.checkpoints.jsonl');
+      },
+      ctxFromPath(relPath) {
+        const parts = relPath.replace(/\\/g, '/').split('/');
+        if (parts.length < 2) return null;
+        const project_id = parts[0];
+        const session_id = parts[1].replace(/\.jsonl$/, '');
+        return {
+          harness: 'command-code', session_id,
+          slug: session_id.slice(0, 8), project_id,
+          project_label: deriveCCProjectLabel(project_id),
+        };
+      },
+      // Incremental --session only works for claude-code in analyze.mjs.
+      // Return null so CC file changes trigger full --all-harnesses rebuild.
       rebuildArg: () => null,
     },
   },

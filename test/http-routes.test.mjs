@@ -73,7 +73,7 @@ test('GET /api/harnesses — registry descriptors as the UI source of truth', as
     const r = await fetch(`${base}/api/harnesses`);
     assert.equal(r.status, 200);
     const body = await r.json();
-    assert.equal(body.harnesses.length, 6);
+    assert.equal(body.harnesses.length, 7);
     const cc = body.harnesses.find(h => h.id === 'claude-code');
     assert.equal(cc.label, 'Claude Code');
     assert.equal(typeof cc.capabilities.tokens, 'boolean');

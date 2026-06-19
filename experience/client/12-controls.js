@@ -185,14 +185,17 @@ updateStats();
 // â”€â”€ Timeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function buildTimeline() {
   const tlSvg=d3.select('#tl-svg'),tw=window.innerWidth,th=TIMELINE_H;
-  tlSvg.attr('width',tw).attr('height',th);
   const dates=TIMELINE.map(d=>new Date(d.ts));
   if(!dates.length) return;
-  const xScale=d3.scaleTime().domain([d3.min(dates),d3.max(dates)]).range([40,tw-40]);
+  const spanDays = Math.max(1, (d3.max(dates) - d3.min(dates)) / 864e5);
+  // Make timeline scrollable: at least 20px per day, minimum 3000px
+  const minTimelineWidth = Math.max(3000, 40 + spanDays * 20);
+  tlSvg.attr('width', minTimelineWidth).attr('height', th);
+  const xScale=d3.scaleTime().domain([d3.min(dates),d3.max(dates)]).range([40, minTimelineWidth - 40]);
   const days=d3.timeDay.range(d3.min(dates),d3.timeDay.offset(d3.max(dates),1));
   tlSvg.selectAll('line.tl-tick').data(days).join('line').attr('class','tl-tick').attr('x1',d=>xScale(d)).attr('x2',d=>xScale(d)).attr('y1',th-20).attr('y2',th-4).attr('stroke','#1a1a2e').attr('stroke-width',1);
   tlSvg.selectAll('text.tl-label').data(days.filter((_,i)=>i%3===0)).join('text').attr('class','tl-label').attr('x',d=>xScale(d)).attr('y',th-22).attr('text-anchor','middle').attr('font-size',8).attr('fill',KAARO_TOKENS.dim).attr('font-family','Courier New,monospace').text(d=>d3.timeFormat('%m/%d')(d));
-  tlSvg.selectAll('line.tl-base').data([0]).join('line').attr('class','tl-base').attr('x1',40).attr('x2',tw-40).attr('y1',th-20).attr('y2',th-20).attr('stroke','#14142a').attr('stroke-width',1);
+  tlSvg.selectAll('line.tl-base').data([0]).join('line').attr('class','tl-base').attr('x1',40).attr('x2',minTimelineWidth-40).attr('y1',th-20).attr('y2',th-20).attr('stroke','#14142a').attr('stroke-width',1);
   const maxWork=Math.max(...TIMELINE.map(t=>t.tokens_work||1));
   tlSvg.selectAll('circle.tl-dot').data(TIMELINE,d=>d.id).join('circle').attr('class','tl-dot')
     .attr('cx',d=>xScale(new Date(d.ts)))

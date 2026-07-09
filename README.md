@@ -1,16 +1,21 @@
 # kaaro-sessions
 
-A live graph visualizer for your [Claude Code](https://claude.ai/code) session history.
+A live observability surface for your AI coding agent sessions.
 
-Reads `~/.claude/projects/`, builds an interactive force-directed graph of projects,
-sessions, and files, and serves it on a local HTTP server with live hot-reload.
+Reads transcripts from seven harnesses — Claude Code, Pi, Google Antigravity, Grok,
+opencode, GitHub Copilot, and Command Code — normalizes them into a common record
+vocabulary, and serves an interactive force-directed graph of projects, sessions, and
+files plus live Mission Control and DAW views, all from a local HTTP server with
+live hot-reload.
 
 <img width="2510" height="1315" alt="Screenshot 2026-04-28 at 11-19-17 Claude Code Sessions — kaaro-sessions" src="https://github.com/user-attachments/assets/d43cf02f-feb2-4eb1-8fc3-5fd6802a9a75" />
 
 ## Requirements
 
 - [Node.js](https://nodejs.org/) ≥ 18
-- [Claude Code](https://claude.ai/code) installed (sessions live in `~/.claude/projects/`)
+- At least one supported harness installed (e.g. [Claude Code](https://claude.ai/code),
+  sessions live in `~/.claude/projects/`) — see `docs/harnesses.md` for the full list
+  and default roots
 
 No `npm install` needed — zero external dependencies.
 
@@ -22,6 +27,11 @@ node serve.mjs
 
 Opens `http://localhost:3333` automatically. The server watches for session changes
 and pushes live updates to the browser via SSE.
+
+- `/` — landing page: pick Graph, Mission Control, or DAW
+- `/graph` — the history view (force graph, swimlane, arc, matrix, 3D)
+- `/now` — Mission Control: per-harness live rollup, session cards, recent actions
+- `/daw` — Live Pulse DAW Builder: pure event stream + audio rule editor
 
 ## Scripts
 

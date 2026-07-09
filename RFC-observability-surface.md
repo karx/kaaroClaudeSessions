@@ -75,7 +75,7 @@ The Personal Live Mirror / Copilot continues to consume the surface (directly or
 The existing SSE + JSON surfaces remain the primary mechanism for the **Personal Live Mirror / Copilot Interface**. OTLP emission is an additive, configurable path (enabled by providing an OTLP endpoint) that allows a standard OpenTelemetry Collector to ingest high-fidelity data with no custom code on the consumer side.
 
 ### 4.1 Stream (realtime Normalized Events) — High priority
-The clean shapes already produced by `lib/pulse-adapters.mjs` (and the underlying `NormalizedRecord` kinds) map almost directly:
+The clean shapes already produced by `hooks/pulse-transformer.mjs` (and the underlying `NormalizedRecord` kinds) map almost directly:
 
 - `tool_call` → **Span** (or LogRecord + Event)
   - `name`: `tool.{tool}` (e.g. `tool.Read`, `tool.Bash`)
@@ -119,8 +119,8 @@ Sent after a successful full rebuild (the debounced analyze + build path in `ser
 Every individual session object inside the log body also carries its `harness` (and `source`) as per the normalized session contract.
 
 The payload inside the log **must use the canonical normalized shape**:
-- Sessions produced by `reduceSession()` + `enrichSession()` (from `lib/session-reducer.mjs` and `lib/enrich-session.mjs`).
-- Must satisfy `validateSessionsData()` from `lib/sessions-schema.mjs`.
+- Sessions produced by `reduceSession()` + `enrichSession()` (from `hooks/session-reducer.mjs` and `hooks/enrich-session.mjs`).
+- Must satisfy `validateSessionsData()` from `hooks/sessions-schema.mjs`.
 - Includes all OPTIONAL_SESSION_FIELDS that the harness supports (context_resets, ai_title, subagent_count, branches, tools, file_ops, etc.).
 - **Harness-agnostic at the model level**: the structure, field names, and semantics are identical regardless of which harness originally produced the transcript. This is the unification point powered by the Harness Hooks.
 - **Harness as important dimension**: every session object (and every Stream signal) carries `harness` (and `source`) explicitly. Downstream telemetry systems can treat `harness` as a first-class dimension for queries, dashboards, and alerts.
@@ -189,7 +189,7 @@ This pattern is identical to how teams instrument databases, message queues, cus
 ## 7. Relation to Existing Artifacts
 
 - **CONTEXT.md**: Directly implements and extends the definitions of Observability Surface, Snapshot, Stream, Snapshot Endpoint, Snapshot Push, Harness Hook, etc.
-- **harnesses.md** + **HARNESS_REGISTRY** + adapters + `normalized-record.mjs` + `session-reducer.mjs` + `pulse-adapters.mjs`: The internal "harness hop" that makes multi-harness support and clean external emission possible with minimal per-harness work.
+- **docs/harnesses.md** + **`hooks/registry.mjs`** + adapters + `hooks/normalized-record.mjs` + `hooks/session-reducer.mjs` + `hooks/pulse-transformer.mjs`: The internal "harness hop" that makes multi-harness support and clean external emission possible with minimal per-harness work.
 - **WISHLIST.md** (Observe pillar): This RFC delivers the "ready to be picked up" part of W-OBS-04 (multi-harness) and provides the foundation for future signal/policy work to be expressed as derived events that flow through the same surface to the external layer.
 - **CLAUDE.md / serve.mjs**: The runtime (watch, tail, rebuild, SSE) already implements the two parts of the surface. Incremental work is mostly about stable exposure formats and optional push/OTLP paths.
 - **Context Tree + Thread View**: The per-session deep reconstruction remains the gold standard for the Copilot Mirror and is an excellent candidate for rich trace spans in the OTLP path.

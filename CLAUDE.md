@@ -58,9 +58,9 @@ Observability Surface (HTTP endpoints + SSE events) only. Root `analyze.mjs`,
 `build.mjs`, `serve.mjs` are thin CLI/composition entries.
 
 Repository layout:
-- `hooks/` — registry.mjs (THE single source of truth: adapter, scan, locateSession, readSessionRecords, capabilities per harness), normalized-record.mjs (NR contract), action-keys.mjs, session-reducer.mjs, enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, trace-tree.mjs, jsonl-io.mjs, jsonl-tail.mjs, scan-walk.mjs, session-locators.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-pi/-antigravity/-grok/-opencode/-copilot), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
+- `hooks/` — registry.mjs (THE single source of truth: adapter, scan, locateSession, readSessionRecords, capabilities per harness; `HARNESS_IDS` = `claude-code, pi, antigravity, grok, opencode, copilot, command-code`), normalized-record.mjs (NR contract), action-keys.mjs, session-reducer.mjs, enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, trace-tree.mjs, jsonl-io.mjs, jsonl-tail.mjs, scan-walk.mjs, session-locators.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-pi/-antigravity/-grok/-opencode/-copilot/-command-code), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
 - `surface/` — http-routes.mjs, sse-hub.mjs, pulse-emitter.mjs, rebuild-orchestrator.mjs, trace-service.mjs, active-state.mjs, session-resolver.mjs, watch-handlers.mjs, scan-harnesses.mjs, analyze-orchestrator.mjs (all tested; serve.mjs only composes)
-- `experience/` — client-core.mjs (shared browser helpers, Node-tested, injected as `%%CLIENT_CORE%%`), design-tokens.mjs (Register A `--k-*` tokens, injected as `%%TOKENS_CSS%%` + `KAARO_TOKENS`), `client/` (21 numbered browser modules incl. 00-core placeholder), `pages/` (template.html, now.html, daw-template.html, home.html, og-image.svg), `audio/` (event-registry, audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs
+- `experience/` — client-core.mjs (shared browser helpers, Node-tested, injected as `%%CLIENT_CORE%%`), design-tokens.mjs (Register A `--k-*` tokens, injected as `%%TOKENS_CSS%%` + `KAARO_TOKENS`), `client/` (21 numbered browser modules: `00-boot`, `00-core` placeholder, `01`–`19`), `pages/` (template.html, now.html, daw-template.html, home.html, og-image.svg), `audio/` (event-registry, audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs
 
 **Adding a harness**: see the checklist at the top of `hooks/registry.mjs` — one adapter, one analyzer (using `hooks/scan-walk.mjs`), one registry descriptor, tests (golden + `test/adapters/nr-compliance.test.mjs` entry). Nothing else changes.
 
@@ -93,9 +93,15 @@ self-contained file.
 
 **`hooks/analyzers/analyze-pi.mjs`** — Pi harness adapter. Same output shape as `analyze.mjs` for Pi session files. **Does not yet extract** `context_resets`, `ai_title`, `subagent_count`, or `branches` — these are CC-only for now.
 
+**`hooks/analyzers/analyze-grok.mjs`** — Grok Build Harness Hook. Reads `~/.grok/sessions/<url-encoded-cwd>/<session-uuid>/updates.jsonl` plus a sibling `summary.json` (title, head branch). Tokenless (`size_proxy: 'tool_calls'`) but otherwise full-featured: `context_resets`, `ai_title`, `subagent_count`, `branches` all populated. Streaming chunks dedup on `_meta.turnStartMs` when present; falls back to an `emittedAssistantSinceLastUser` guard so one response burst yields exactly one `assistant_turn`.
+
+**`hooks/analyzers/analyze-antigravity.mjs`** — Google Antigravity Harness Hook. Reads `~/.gemini/antigravity/brain/<conversationId>/.system_generated/logs/` — `transcript.jsonl` when present (active sessions), else the compact `overview.txt`. No project_id (always `null`) and tokenless (`size_proxy: 'tool_calls'`); `trace: false` in the registry because its NRs carry no assistant text/thinking blocks, so reconstructed turns would be tool-lists only.
+
 **`hooks/analyzers/analyze-opencode.mjs`** — opencode Harness Hook. Reads `~/.local/share/opencode/storage/{session,message,part}/` JSON trees; assembles info + messages (chronological) with parts embedded as `_parts`; adapter in `hooks/adapters/opencode.mjs`. Watch uses `read_mode: 'json'` (whole-file JSON parse, not JSONL tail). Tool parts emit only on `completed`/`error` status; `step-finish` tokens silenced (message envelope is authoritative).
 
 **`hooks/analyzers/analyze-copilot.mjs`** — GitHub Copilot (VS Code) Harness Hook. Scans per-workspace `chatSessions/*.jsonl` op-logs (kind 0=snapshot, 1=set, 2=append) + old `*.json` dumps; project attribution from `workspace.json`; optional title enrichment from `state.vscdb` SQLite (`readChatSessionIndex`, zero-dep via `node:sqlite`, graceful `{}` fallback). Adapter in `hooks/adapters/copilot.mjs`; pure URI/tool helpers in `hooks/helpers/copilot-helpers.mjs`. Tokens are output-only (`completionTokens`).
+
+**`hooks/analyzers/analyze-command-code.mjs`** — Command Code harness adapter. Reads `~/.commandcode/projects/<project>/<session>.jsonl` (one file per session; records carry `role` user/assistant/tool, content blocks with `text`/`reasoning`/`tool-call`/`tool-result`, and `gitBranch` on every record). Titles come from sibling `.meta.json` files; `.checkpoints.jsonl` files are skipped by the scanner. Tokenless (`size_proxy: 'tool_calls'`); `trace: true`, `branches: true`, but `context_resets`/`subagent_count` not extracted.
 
 **`surface/active-state.mjs`** — Mission Control core. Pure live per-session activity store fed by pulse objects: `createActiveState()`, `applyPulse(state, pulse, now)`, `snapshotActive(state, now)` (active/idle status, burn rate over 60s window, per-harness rollups, eviction). No `Date.now()` inside — caller supplies `now`.
 
@@ -120,7 +126,7 @@ self-contained file.
 
 **`experience/pages/template.html`** — HTML skeleton with `%%PLACEHOLDER%%` markers. `%%CLIENT_JS%%` receives the concatenated + data-injected browser JS. `%%MIN_FILE_SESSIONS%%` sets the range slider default.
 
-**`experience/client/`** — browser JS split into 20 numbered modules, concatenated in order by `build.mjs`. `01-data.js` receives injected data (`%%GRAPH_JSON%%`, `%%TIMELINE_JSON%%`, `%%COLOR_INDEX_JSON%%`, `%%IN_FLIGHT_COLOR%%`) and defines global `GRAPH`, `TIMELINE`, `W`, `H`. Key constants: `TL_H = 154` (total bottom chrome height; graph canvas avoids this), `TIMELINE_H = 60` (height of `#timeline` strip; draw coordinates inside it). These two constants serve different purposes — do not conflate.
+**`experience/client/`** — browser JS split into 21 numbered modules, concatenated in order by `build.mjs`. `01-data.js` receives injected data (`%%GRAPH_JSON%%`, `%%TIMELINE_JSON%%`, `%%COLOR_INDEX_JSON%%`, `%%IN_FLIGHT_COLOR%%`) and defines global `GRAPH`, `TIMELINE`, `W`, `H`. Key constants: `TL_H = 154` (total bottom chrome height; graph canvas avoids this), `TIMELINE_H = 60` (height of `#timeline` strip; draw coordinates inside it). These two constants serve different purposes — do not conflate.
 
 Layout modules and their responsibilities:
 - `06-force-layout.js` — D3 force simulation
@@ -135,6 +141,11 @@ Live and audio modules:
 - `14-pulse-audio.js` — beat ring buffer (`window._beatRing`, cap 1000, mutate in-place), instrument synthesis, BPM scheduler with 80ms batch coalescing
 - `15-audio-settings.js` — audio settings panel DOM; reads/writes `window.AUDIO_SETTINGS` to localStorage
 - `16-beat-overlay.js` — DAW Feed Widget; 80px canvas, LIVE/SCROLL mode, block-per-event rendering, hover → graph highlight
+- `17-trace-panel.js` — Context Window Trace Panel; a session's context windows (segments between `compact_boundary` events) as proportional strips (width = token weight, color = dominant tool category, badges for subagent/branch/thinking)
+- `18-thread-view.js` — Thread View full-screen overlay; full conversation replay per context window (stacked composition bar + every turn with tool inputs). Entry `window.openThread(sessionId)`, exit Escape/✕
+- `19-daw-builder.js` — Cognitive DAW Builder v2; multi-lane canvas, mixer strips, automation curves. Only activates when `#daw-root` is present (the dedicated `/daw` page — this file loads harmlessly on the graph page too)
+
+`00-core.js` is a placeholder module (kept for numbering/ordering); `00-boot.js` defines `window.bootComplete()`, called once at the end of `13-live-updates.js` init to swap the boot overlay for the live stats readout.
 
 **Live SSE pulse events** (emitted by `serve.mjs`, consumed by `13-live-updates.js`):
 - `tool_call` — `{ slug, project, tool, where, why, category, ts }` — every tool_use block seen in new JSONL bytes
@@ -165,6 +176,15 @@ Test files map to modules:
 - `test/analyze-timeline.test.mjs` → `analyze.mjs` (date/timeline fields)
 - `test/analyze-session-metadata.test.mjs` → `analyze.mjs` (context_resets, ai_title, subagent_count, branches)
 - `test/analyze-pi.test.mjs` → `hooks/analyzers/analyze-pi.mjs`
+- `test/analyze-grok.test.mjs` → `hooks/analyzers/analyze-grok.mjs`
+- `test/analyze-antigravity.test.mjs` → `hooks/analyzers/analyze-antigravity.mjs`
+- `test/analyze-orchestrator.test.mjs` → `surface/analyze-orchestrator.mjs` (merges per-harness scan results into `sessions-data.json` shape)
+- `test/session-reducer.test.mjs` → `hooks/session-reducer.mjs` (NormalizedRecord[] → canonical session object)
+- `test/session-resolver.test.mjs` → `surface/session-resolver.mjs`
+- `test/watch-handlers.test.mjs` → `surface/watch-handlers.mjs` (`processWatchFilename` per harness)
+- `test/enrich-session.test.mjs` → `hooks/enrich-session.mjs` (derived fields: totals, cache_hit_rate, duration_min, tool_diversity)
+- `test/harness-registry.test.mjs` → `hooks/registry.mjs`
+- `test/event-registry.test.mjs` → `experience/audio/event-registry.mjs`
 - `test/build.test.mjs` → `build.mjs`
 - `test/build-template.test.mjs` → `build.mjs` (template substitution)
 - `test/build-live.test.mjs` → `build.mjs` (live update path)
@@ -184,13 +204,12 @@ Test files map to modules:
 - `test/analyze-opencode.test.mjs` → `hooks/analyzers/analyze-opencode.mjs` (read/analyze/scan over temp storage tree)
 - `test/copilot-adapter.test.mjs` → `hooks/adapters/copilot.mjs` + `hooks/helpers/copilot-helpers.mjs` (op-log mapping, URI decode, aliases)
 - `test/analyze-copilot.test.mjs` → `hooks/analyzers/analyze-copilot.mjs` (workspace attribution, both formats, real SQLite index fixture)
-- `test/adapters/nr-compliance.test.mjs` → all six adapters vs the NR contract (sample traces + golden sessions) — the harness-format-change guard
+- `test/adapters/nr-compliance.test.mjs` → all seven adapters vs the NR contract (sample traces + golden sessions) — the harness-format-change guard
+- `test/adapters/{claude-code,pi,grok,antigravity}.test.mjs` → per-adapter golden fixtures (opencode/copilot/command-code adapters are covered by their own `test/<name>-adapter.test.mjs` instead)
 - `test/normalized-record.test.mjs` → `hooks/normalized-record.mjs` (KIND_FIELDS, validateNormalizedRecord)
 - `test/harness-parity.test.mjs` → sample traces + capability-enforced field parity (registry flags ARE the matrix)
 - `test/scan-walk.test.mjs` / `test/jsonl-io.test.mjs` → the shared scanner skeleton + JSONL reader
 - `test/sse-hub.test.mjs` / `test/pulse-emitter.test.mjs` / `test/rebuild-orchestrator.test.mjs` / `test/http-routes.test.mjs` → the decomposed serve runtime (ephemeral ports, no child processes)
-- `test/trace-tree.test.mjs` → `hooks/trace-tree.mjs` (parity vs archived oracles + all-harness sanity)
-- `test/trace-service.test.mjs` → `surface/trace-service.mjs` (per-harness /api/trace smokes, mtime cache)
 - `test/client-core.test.mjs` → `experience/client-core.mjs` (formatters, colors, geometry, SSE wiring, filters, force profiles, DAW legend)
 - `test/design-tokens.test.mjs` / `test/design-lint.test.mjs` → Register A tokens + the grammar guard (no blue chrome, no shadows/gradients/large radii)
 

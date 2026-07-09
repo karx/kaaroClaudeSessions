@@ -18,17 +18,17 @@ It is intended to be **self-growing**: when adding or discovering differences fo
 
 ## Optional Session Fields by Harness
 
-See `lib/sessions-schema.mjs` OPTIONAL_SESSION_FIELDS for the full list.
+See `hooks/sessions-schema.mjs` OPTIONAL_SESSION_FIELDS for the full list.
 
 Populated (✓) / absent or partial (—) as of latest:
 
-- `context_resets`, `ai_title`, `subagent_count`, `branches`: ✓ for claude-code + grok; — for pi + antigravity. opencode: `ai_title` ✓ (session info `title`), others —. copilot: `ai_title` ✓ (customTitle op or SQLite index), others —.
+- `context_resets`, `ai_title`, `subagent_count`, `branches`: ✓ for claude-code + grok; — for pi + antigravity. opencode: `ai_title` ✓ (session info `title`), others —. copilot: `ai_title` ✓ (customTitle op or SQLite index), others —. command-code: `ai_title` ✓ (`.meta.json`) and `branches` ✓, `context_resets`/`subagent_count` —.
 - `message_count`: Authoritative from harness metadata when available (CC `turn_duration`); derived as `user_turns + assistant_turns` fallback for others.
 - `content_blocks` / `thinking_count`: Populated via `content_block` normalized records (CC/Grok). Used for UI dots and panels.
 
 ## Normalized Record Kinds (common vocabulary)
 
-All adapters emit from this small set (the "harness hop"):
+All adapters emit from this small set (the "harness hop"), defined in `hooks/normalized-record.mjs`:
 
 - `user_turn`
 - `assistant_turn` (exactly one per conversational assistant response)
@@ -39,32 +39,34 @@ All adapters emit from this small set (the "harness hop"):
 - `session_meta`
 - `branch_change`
 - `skill_invoke`
+- `permission_mode`, `mode_shift`, `attachment`, `scaffold`, `api_error`, `unknown_record`
 
-See `adapters/*.mjs` + `lib/session-reducer.mjs` and the Architecture Note in `analyze-intelligence.md`.
+See `hooks/adapters/*.mjs` + `hooks/session-reducer.mjs` and the Architecture Note in `analyze-intelligence.md`.
 
-**Recent refinements (Phase 3/4):**
+**Recent refinements:**
 - Grok streaming without `_meta.turnStartMs` now safely limited to one `assistant_turn` per response burst (using `emittedAssistantSinceLastUser` guard + reset on user).
 - File-op detection for pulses unified to `FILE_OP_TOOLS` (no more per-harness duplicate Sets).
 - Error isolation in scanners and resolver cache + watch invalidation added for resilience.
+- The two-layer split (2026-06) moved this system into `hooks/` (normalization flow) + `surface/` (HTTP+SSE exposure). See `notes/crystallized/harness-architecture.md` for the full current picture and `CLAUDE.md` for the architecture diagram.
 
 ## Adding a New Harness (ergonomics goal)
 
-1. Registry entry in `lib/harness-registry.mjs` (roots, capabilities, `watch.matchLogFile` / `ctxFromPath` / `rebuildArg`).
-2. `adapters/<new>.mjs` exporting `recordsToNormalized(records)`.
-3. Scanner + single-session analyzer in `analyze-<new>.mjs` (can delegate to normalized + reduce for the stats path).
-4. Optional: context-tree variant only if you want rich `/api/trace`.
-5. Wire in `lib/scan-harnesses.mjs` SCANNERS and `lib/pulse-adapters.mjs` if live pulses desired.
-6. Add parity / correctness tests + update this matrix.
+1. Root constant in `hooks/harness-paths.mjs`.
+2. `hooks/adapters/<new>.mjs` exporting `recordsToNormalized(records)`.
+3. Scanner + single-session analyzer in `hooks/analyzers/analyze-<new>.mjs` (delegates to `recordsToNormalized` + `reduceSession` for the stats path).
+4. `hooks/session-locators.mjs` — `locate<New>Session(sessionId, root?)` for the `/api/trace/:session_id` resolver.
+5. Registry entry in `hooks/registry.mjs` (adapter, scan module, locateSession, roots, capabilities, `watch.matchLogFile` / `ctxFromPath` / `rebuildArg`).
+6. Add a golden fixture to `test/adapters/nr-compliance.test.mjs` + update `test/harness-registry.test.mjs`, `test/analyze-orchestrator.test.mjs`, `test/http-routes.test.mjs`, and this matrix.
 
-The goal is that a 5th harness feels like a localized, obvious addition with minimal cross-file churn.
+The goal is that a new harness feels like a localized, obvious addition with minimal cross-file churn — see `notes/crystallized/harness-architecture.md` for a fully worked example (Command Code).
 
 ## Known Gaps / Future
 
 - Subagent sessions under CC `<project>/subagents/*.jsonl` are not yet walked by the main CC scanner.
-- Full incremental merge for Grok/Antigravity (their `rebuildArg` currently returns `null`).
+- Full incremental merge for Grok/Antigravity/Command Code (their `rebuildArg` currently returns `null`).
 - Deeper caching/index for resolver beyond the simple Map (current clear-on-any-change is pragmatic).
-- Serve has very little unit test coverage (HTTP, watch debounce, trace path).
+- `serve.mjs` is now a thin composition root; remaining coverage gaps are tracked in CLAUDE.md's "Known coverage gaps" section (treat that as canonical — not duplicated here).
 
 Update this file whenever behavior or support changes. It is the single source of truth visible to contributors and users.
 
-Last updated: during Phase 3/4 work on the multi-harness-tdd branch (addressing the 2026-06 code review).
+Last updated: 2026-07-09, garden pass — paths resynced to the `hooks/`+`surface/` two-layer split, Command Code (7th harness) added.

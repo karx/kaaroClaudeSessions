@@ -1,7 +1,7 @@
 # kaaroSessions — Wishlist
 
-**Current implementation status (2026-06, feat/multi-harness-tdd branch):**  
-The core `analyze → build → serve` pipeline now fully supports **4 harnesses** (claude-code, pi, antigravity, grok) via a clean normalized record adapter model (`adapters/*.mjs`, `lib/session-reducer.mjs`, `lib/scan-harnesses.mjs`, `lib/harness-registry.mjs`). Many "Phase 1" extraction and multi-harness readiness items (W-OBS-04, W-OBS-06) have been realized as part of the multi-harness TDD effort. See `docs/harnesses.md` for the live support matrix and `CODE-REVIEW-FINDINGS.md` for issues addressed on this branch. Policy and advanced Report pillars remain future work.
+**Current implementation status (2026-07, two-layer + Command Code):**  
+The core `analyze → build → serve` pipeline now fully supports **7 harnesses** (claude-code, pi, antigravity, grok, opencode, copilot, command-code) via a clean normalized record adapter model (`hooks/adapters/*.mjs`, `hooks/session-reducer.mjs`, `surface/scan-harnesses.mjs`, `hooks/registry.mjs`). Many "Phase 1" extraction and multi-harness readiness items (W-OBS-04, W-OBS-06) were realized as part of the original multi-harness TDD effort and have since been carried through the `hooks/`+`surface/` two-layer split. See `docs/harnesses.md` for the live support matrix. Policy and advanced Report pillars remain future work — nothing below has moved since the last pass.
 
 Items grouped by the three pillars: **Observe → Policy → Report**.
 These extend the existing `analyze → build → serve` pipeline without breaking it.
@@ -145,18 +145,18 @@ Deepen what `analyze.mjs` already extracts.
 ### W-OBS-04 — Multi-harness readiness (Claude Code focus, schema-first)
 **What:** Abstract the JSONL reader behind a clean internal interface so future harnesses can be added without touching the core analysis logic.
 
-**Current state (2026-06):** ✅ **Largely implemented.** 
-- `lib/normalized-record.mjs` and the adapter contract (`recordsToNormalized()`) exist.
-- 4 harnesses supported via `adapters/claude-code.mjs`, `adapters/pi.mjs`, `adapters/antigravity.mjs`, `adapters/grok.mjs`.
-- `lib/session-reducer.mjs` + `enrichSession` consume the common normalized stream.
-- Dynamic discovery/routing via `lib/harness-registry.mjs` + `lib/scan-harnesses.mjs`.
-- Live watch + targeted rebuilds work across harnesses (see `serve.mjs` + `processWatchFilename`).
-- `lib/pulse-adapters.mjs` provides harness-dispatched live pulses.
-- See `docs/harnesses.md` (self-growing matrix) and `lib/harness-registry.mjs` header for "easy hook-in" guidance.
+**Current state (2026-07):** ✅ **Fully implemented, now spans two layers.**
+- `hooks/normalized-record.mjs` and the adapter contract (`recordsToNormalized()`) exist.
+- 7 harnesses supported via `hooks/adapters/{claude-code,pi,antigravity,grok,opencode,copilot,command-code}.mjs`.
+- `hooks/session-reducer.mjs` + `enrichSession` consume the common normalized stream.
+- Dynamic discovery/routing via `hooks/registry.mjs` + `surface/scan-harnesses.mjs`.
+- Live watch + targeted rebuilds work across harnesses (see `surface/watch-handlers.mjs` + `processWatchFilename`).
+- `hooks/pulse-transformer.mjs` provides harness-agnostic live pulses (post-two-layer replacement for the old per-harness `pulse-adapters.mjs`).
+- See `docs/harnesses.md` (self-growing matrix) and `hooks/registry.mjs` header for "easy hook-in" guidance.
 
-The original "Phase 1 (now)" normalized record + "Phase 2 (future)" routing has been delivered in production form on this branch (with review fixes for correctness, isolation, and incremental paths). New harnesses add one adapter + registry entry + scanner.
+The original "Phase 1 (now)" normalized record + "Phase 2 (future)" routing has been delivered in production form, then re-homed into the `hooks/`+`surface/` two-layer split. New harnesses add one adapter + registry entry + scanner — Command Code (the 7th) is the most recent worked example.
 
-**Why:** Avoids tight coupling between analysis logic and raw harness record shapes. The design proved robust enough to support real multi-harness use while addressing the 2026-06 code review findings.
+**Why:** Avoids tight coupling between analysis logic and raw harness record shapes. The design proved robust enough to support real multi-harness use and survived a full architectural re-split without touching the adapter contract.
 
 ---
 
@@ -184,7 +184,7 @@ Simple keyword matching is sufficient — no LLM call needed.
 | `attachment/task_reminder` | `max_active_tasks` | `max(itemCount)` across turns — proxy for task complexity |
 
 **Current state (2026-06):** Partial / good progress.
-- `ai_title`, `context_resets` (from compact_boundary), `subagent_count` (Agent/Task), `branches` are now extracted for claude-code + grok via the normalized pipeline and stored on sessions (see `lib/sessions-schema.mjs`, adapters, reducer, graph-pipeline passthrough).
+- `ai_title`, `context_resets` (from compact_boundary), `subagent_count` (Agent/Task), `branches` are now extracted for claude-code + grok via the normalized pipeline and stored on sessions (see `hooks/sessions-schema.mjs`, adapters, reducer, graph-pipeline passthrough).
 - `agent_name` and richer `compact_events` details are not yet fully surfaced for all harnesses.
 - These fields are now part of the canonical optional session contract and work across the multi-harness adapters.
 
@@ -418,4 +418,6 @@ Optional, skipped silently if `alerts` is absent from config.
 | 5 | W-POL-04, W-POL-05 | Registry bridge + configurable anomaly heuristics |
 | 6 | W-REP-03a, W-REP-03b, W-REP-04, W-REP-05 | Policy data endpoint + report page + audit export + alert hook |
 
-**2026-06 update:** W-OBS-04 (multi-harness readiness + NormalizedRecord abstraction) has been delivered ahead of schedule as part of the `feat/multi-harness-tdd` work (adapters, registry, scan-harnesses, pulse-adapters, etc.). The core pipeline is now multi-harness native. Policy and Report pillars (beyond basic live pulses) remain the main future work. The original Phase 1 focus on `analyze.mjs` only has expanded to a full adapter-based architecture while preserving the observe-first philosophy.
+**2026-06 update:** W-OBS-04 (multi-harness readiness + NormalizedRecord abstraction) has been delivered ahead of schedule as part of the original multi-harness TDD work (adapters, registry, scan-harnesses, pulse pipeline, etc.). The core pipeline is now multi-harness native.
+
+**2026-07 update:** That pipeline was re-homed into the `hooks/`+`surface/` two-layer split (see CLAUDE.md), and a 7th harness (Command Code) was added without touching the adapter contract — confirming the abstraction holds under both an architectural refactor and new-harness growth. Policy and Report pillars (beyond basic live pulses) remain the main future work. The original Phase 1 focus on `analyze.mjs` only has expanded to a full adapter-based architecture while preserving the observe-first philosophy.

@@ -86,8 +86,8 @@ See Normalized Event.
 
 ## Audio / Sonic Layer
 
-**Event Registry** (`lib/event-types.mjs`):
-The single source of truth for all audio event types. Each entry declares: canonical key, family, default sonic parameters (instrument, pan, reverb send, brightness, volume, octave), a human description, and per-harness sample traces for TDD. Replaces the scattered `SPATIAL`, `TOOL_FAMILY`, and `DEFAULT_SETTINGS.instruments` tables that previously lived in `lib/audio-sim.mjs`.
+**Event Registry** (`experience/audio/event-registry.mjs`):
+The single source of truth for all audio event types. Each entry declares: canonical key, family, default sonic parameters (instrument, pan, reverb send, brightness, volume, octave), a human description, and per-harness sample traces for TDD. Replaces the scattered `SPATIAL`, `TOOL_FAMILY`, and `DEFAULT_SETTINGS.instruments` tables that previously lived inline in the audio simulator.
 
 _Avoid_: instrument map, spatial table, sonic defaults object
 
@@ -110,8 +110,8 @@ _Avoid_: fallback event, dropped record, silent record
 **Synthetic Event**:
 A pulse derived by heuristic when a harness's `capabilities` flag indicates a data dimension is unavailable (e.g. `tokens: false` for Antigravity and Grok). Carried as a normal pulse with `data.synthetic: true`. Example: `tokens` pulse approximated from `content_length / 4` as an `output` proxy. Distinct from the Catch-all — a Synthetic Event models a known-missing capability with a deliberate approximation; the Catch-all handles genuinely unknown record types.
 
-**Pulse Transformer** (`lib/pulse-transformer.mjs`):
-Converts `NormalizedRecord[]` (the adapter output) into typed pulses for `resolveSonic`. Replaces `lib/pulse-adapters.mjs`, which previously re-parsed raw JSONL per harness. With the unified pipeline, raw JSONL is parsed exactly once — by the adapter — and all downstream layers (session reducer, pulse transformer) consume NormalizedRecords. The transformer:
+**Pulse Transformer** (`hooks/pulse-transformer.mjs`):
+Converts `NormalizedRecord[]` (the adapter output) into typed pulses for `resolveSonic`. Replaces the archived per-harness `pulse-adapters.mjs`, which previously re-parsed raw JSONL per harness. With the unified pipeline, raw JSONL is parsed exactly once — by the adapter — and all downstream layers (session reducer, pulse transformer) consume NormalizedRecords. The transformer:
 - Maps each NormalizedRecord kind to one or more Audio Event Types
 - Uses `data.key` (canonical action key, set by the adapter) for `tool_call` routing — never raw tool names
 - Emits Synthetic Events for harnesses with `capabilities.tokens: false`

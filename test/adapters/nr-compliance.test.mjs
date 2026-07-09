@@ -24,6 +24,7 @@ import { recordsToNormalized as agToNorm }   from '../../hooks/adapters/antigrav
 import { recordsToNormalized as grokToNorm } from '../../hooks/adapters/grok.mjs';
 import { recordsToNormalized as ocToNorm }   from '../../hooks/adapters/opencode.mjs';
 import { recordsToNormalized as cpToNorm }   from '../../hooks/adapters/copilot.mjs';
+import { recordsToNormalized as cmdToNorm }  from '../../hooks/adapters/command-code.mjs';
 
 const ADAPTERS = {
   'claude-code': ccToNorm,
@@ -32,6 +33,7 @@ const ADAPTERS = {
   'grok':        grokToNorm,
   'opencode':    ocToNorm,
   'copilot':     cpToNorm,
+  'command-code': cmdToNorm,
 };
 
 function assertAllValid(nrs, label) {
@@ -231,6 +233,57 @@ const GOLDEN = {
     ] },
     { kind: 1, k: ['requests', 0, 'completionTokens'], v: 42 },
     { kind: 7, k: 'something', v: {} },
+  ],
+
+  'command-code': [
+    {
+      id: 'u1', timestamp: 't1', sessionId: 's1', parentId: null,
+      role: 'user', gitBranch: 'main',
+      content: [{ type: 'text', text: 'Please refactor the auth module' }],
+      metadata: { timestamp: 't1', source: 'cli', messageId: 'm1', version: 2 },
+    },
+    {
+      id: 'a1', timestamp: 't2', sessionId: 's1', parentId: 'u1',
+      role: 'assistant', gitBranch: 'feat/auth',
+      content: [
+        { type: 'reasoning', text: 'The user wants auth refactored. Let me look at the files.' },
+        { type: 'tool-call', toolCallId: 'call_1', toolName: 'read_file', input: { absolutePath: '/src/auth.mjs' } },
+        { type: 'tool-call', toolCallId: 'call_2', toolName: 'shell_command', input: { command: 'git status' } },
+      ],
+      metadata: { timestamp: 't2', source: 'cli', version: 2 },
+    },
+    {
+      id: 't1', timestamp: 't3', sessionId: 's1', parentId: 'a1',
+      role: 'tool', gitBranch: 'feat/auth',
+      content: [
+        { type: 'tool-result', toolCallId: 'call_1', toolName: 'read_file', output: { type: 'text', value: '// auth code...' } },
+        { type: 'tool-result', toolCallId: 'call_2', toolName: 'shell_command', output: { type: 'text', value: 'On branch feat/auth' } },
+      ],
+      metadata: { timestamp: 't3', source: 'cli', version: 2 },
+    },
+    {
+      id: 'u2', timestamp: 't4', sessionId: 's1', parentId: 't1',
+      role: 'user', gitBranch: 'feat/auth',
+      content: [
+        { type: 'text', text: 'Also add /test coverage' },
+        { type: 'tool-result', toolCallId: 'call_3', toolName: 'edit_file', output: { type: 'error-text', value: 'Permission denied' } },
+      ],
+      metadata: { timestamp: 't4', source: 'cli', messageId: 'm2', version: 2 },
+    },
+    {
+      id: 'a2', timestamp: 't5', sessionId: 's1', parentId: 'u2',
+      role: 'assistant', gitBranch: 'feat/auth',
+      content: [
+        { type: 'text', text: 'I see the permission error. Let me fix that and add the test.' },
+      ],
+      metadata: { timestamp: 't5', source: 'cli', version: 2 },
+    },
+    {
+      id: 'u3', timestamp: 't6', sessionId: 's1', parentId: 'a2',
+      role: 'user', gitBranch: 'main',
+      content: [{ type: 'text', text: 'looks good' }],
+      metadata: { timestamp: 't6', source: 'cli', messageId: 'm3', version: 2 },
+    },
   ],
 };
 

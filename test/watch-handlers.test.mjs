@@ -10,7 +10,7 @@ test('processWatchFilename — claude-code jsonl', () => {
   assert.equal(r.ctx.harness, 'claude-code');
   assert.equal(r.ctx.session_id, 'abc-def-123');
   assert.equal(r.rebuildArg, '--session=D--src-foo/abc-def-123.jsonl');
-  assert.equal(r.absPath, 'C:\\fake\\root\\D--src-foo\\abc-def-123.jsonl');
+  assert.equal(r.absPath.replace(/\\/g, '/'), 'C:/fake/root/D--src-foo/abc-def-123.jsonl');
 });
 
 test('processWatchFilename — rejects non-log files', () => {

@@ -25,3 +25,4 @@ function vscodeUserDir() {
   return path.join(os.homedir(), '.config', 'Code', 'User');
 }
 export const COPILOT_WORKSPACE_STORAGE_ROOT = path.join(vscodeUserDir(), 'workspaceStorage');
+export const COMMANDCODE_PROJECTS_ROOT = path.join(os.homedir(), '.commandcode', 'projects');

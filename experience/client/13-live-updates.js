@@ -140,7 +140,7 @@ bootComplete();
 window.addEventListener('resize',()=>{
   W=window.innerWidth; H=window.innerHeight-TL_H;
   svg.attr('width',W).attr('height',H);
-  d3.select('#tl-svg').attr('width',W);
+  // Don't reset timeline width - it's scrollable and sized by buildTimeline()
   if(currentLayout==='3d'&&layout3D._g) layout3D._g.width(W).height(H);
   if(currentLayout==='swimlane') renderSwimlane();
   if(currentLayout==='arc')      {computeArcPositions();drawArcDecor();applyStaticPositions();}

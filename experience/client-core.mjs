@@ -49,17 +49,18 @@ export function toolColor(tool) {
   return TOOL_COLORS_LC[(tool || '').toLowerCase()] ?? null;
 }
 
-export const EDGE_COLORS  = { membership: '#1e3d7a', write: '#00ff88', edit: '#ffcc00', read: '#1e4a66', branch: '#334455' };
-export const EDGE_OPACITY = { membership: .55, write: .65, edit: .65, read: .28, branch: .4 };
-export const EDGE_WIDTH   = { membership: 1.4, write: 1, edit: 1, read: .7, branch: .8 };
+export const EDGE_COLORS  = { membership: '#1e3d7a', write: '#00ff88', edit: '#ffcc00', read: '#1e4a66', branch: '#334455', bundle: '#4a3a7a' };
+export const EDGE_OPACITY = { membership: .55, write: .65, edit: .65, read: .28, branch: .4, bundle: .45 };
+export const EDGE_WIDTH   = { membership: 1.4, write: 1, edit: 1, read: .7, branch: .8, bundle: 1 };
 
 // ── Geometry ──────────────────────────────────────────────────────────────────
 
-export const NODE_RADII = { PROJ_R: 26, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13 };
+export const NODE_RADII = { PROJ_R: 26, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13, CL_MIN: 12, CL_MAX: 24 };
 
 export function nodeRadius(d, r = NODE_RADII) {
   if (d.type === 'project') return r.PROJ_R;
   if (d.type === 'session') return r.SR_MIN + (r.SR_MAX - r.SR_MIN) * (d.sizeNorm || 0);
+  if (d.type === 'cluster') return r.CL_MIN + (r.CL_MAX - r.CL_MIN) * (d.sizeNorm || 0);
   return r.FR_MIN + (r.FR_MAX - r.FR_MIN) * (d.sizeNorm || 0);
 }
 
@@ -240,6 +241,28 @@ export function sessionMatchesFilters(node, f = {}) {
   if (f.harnesses?.size && !f.harnesses.has(node.harness))   return false;
   if (f.projects?.size  && !f.projects.has(node.project_id)) return false;
   return true;
+}
+
+/**
+ * Node ids hidden by the bundle (cluster) mechanism. Members of collapsed
+ * clusters hide behind their cluster node; a cluster with no filter-passing
+ * members hides itself. Filter-based hiding of individual sessions stays the
+ * caller's job — this helper only adds the cluster dimension.
+ */
+export function computeClusterHidden(nodes, { bundleOn = true, expanded = new Set(), filters = {} } = {}) {
+  const hidden = new Set();
+  const byId = {};
+  for (const n of nodes) byId[n.id] = n;
+  for (const n of nodes) {
+    if (n.type !== 'cluster') continue;
+    if (!bundleOn) { hidden.add(n.id); continue; }
+    const anyPassing = (n.member_ids || []).some(id =>
+      byId[id] && sessionMatchesFilters(byId[id], filters));
+    if (!anyPassing) { hidden.add(n.id); continue; }
+    if (!expanded.has(n.id))
+      for (const id of n.member_ids) hidden.add(id);
+  }
+  return hidden;
 }
 
 // ── Force layout profiles ─────────────────────────────────────────────────────

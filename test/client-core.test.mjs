@@ -237,3 +237,63 @@ test('sessionLegend — newest-first distinct sessions with latest context press
   assert.equal(legend[1].pressure, null, 'no tokens seen → unknown pressure');
   assert.equal(sessionLegend(ring, 1, 200_000).length, 1, 'max cap');
 });
+
+// ── cluster geometry + visibility ─────────────────────────────────────────────
+
+test('nodeRadius — cluster scales between CL_MIN and CL_MAX', async () => {
+  const { NODE_RADII } = await import('../experience/client-core.mjs');
+  assert.equal(NODE_RADII.CL_MIN, 12);
+  assert.equal(NODE_RADII.CL_MAX, 24);
+  assert.equal(nodeRadius({ type: 'cluster', sizeNorm: 0 }), 12);
+  assert.equal(nodeRadius({ type: 'cluster', sizeNorm: 1 }), 24);
+  assert.equal(nodeRadius({ type: 'cluster', sizeNorm: 0.5 }), 18);
+  assert.equal(nodeRadius({ type: 'cluster' }), 12, 'missing sizeNorm defaults to 0');
+});
+
+test('EDGE styles — bundle entries present in the client-core copies', async () => {
+  const { EDGE_OPACITY, EDGE_WIDTH } = await import('../experience/client-core.mjs');
+  assert.equal(EDGE_COLORS.bundle, '#4a3a7a');
+  assert.equal(typeof EDGE_OPACITY.bundle, 'number');
+  assert.equal(typeof EDGE_WIDTH.bundle, 'number');
+});
+
+test('computeClusterHidden', async t => {
+  const { computeClusterHidden } = await import('../experience/client-core.mjs');
+  const nodes = [
+    { id: 'proj-a', type: 'project' },
+    { id: 's1', type: 'session', project_id: 'proj-a', date_str: '2026-05-01', cluster_id: 'cl1' },
+    { id: 's2', type: 'session', project_id: 'proj-a', date_str: '2026-05-02', cluster_id: 'cl1' },
+    { id: 's3', type: 'session', project_id: 'proj-a', date_str: '2026-05-03', cluster_id: null },
+    { id: 'cl1', type: 'cluster', project_id: 'proj-a', member_ids: ['s1', 's2'] },
+  ];
+
+  await t.test('bundleOn false → hides all cluster nodes, nothing else', () => {
+    const hidden = computeClusterHidden(nodes, { bundleOn: false, expanded: new Set(), filters: {} });
+    assert.deepEqual([...hidden], ['cl1']);
+  });
+
+  await t.test('collapsed cluster → members hidden, cluster visible', () => {
+    const hidden = computeClusterHidden(nodes, { bundleOn: true, expanded: new Set(), filters: {} });
+    assert.ok(hidden.has('s1'));
+    assert.ok(hidden.has('s2'));
+    assert.ok(!hidden.has('cl1'));
+    assert.ok(!hidden.has('s3'), 'unclustered session unaffected');
+  });
+
+  await t.test('expanded cluster → nothing hidden by the helper', () => {
+    const hidden = computeClusterHidden(nodes, { bundleOn: true, expanded: new Set(['cl1']), filters: {} });
+    assert.equal(hidden.size, 0);
+  });
+
+  await t.test('cluster with zero filter-passing members is hidden too', () => {
+    const hidden = computeClusterHidden(nodes, {
+      bundleOn: true, expanded: new Set(), filters: { from: '2026-06-01' },
+    });
+    assert.ok(hidden.has('cl1'));
+  });
+
+  await t.test('defaults are safe (no opts)', () => {
+    const hidden = computeClusterHidden(nodes);
+    assert.ok(hidden.has('s1') && hidden.has('s2') && !hidden.has('cl1'));
+  });
+});

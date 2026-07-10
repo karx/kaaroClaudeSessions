@@ -131,3 +131,99 @@ export function clusterSessions(sessions, { threshold = CLUSTER_THRESHOLD, minCl
 
   return clusters.sort((a, b) => a.id < b.id ? -1 : 1);
 }
+
+// ── Editorial overrides (cluster-overrides.json) ─────────────────────────────
+
+const isPlainObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** Validate a parsed cluster-overrides.json. Returns { ok, errors[] }. */
+export function validateClusterOverrides(obj) {
+  const errors = [];
+  if (!isPlainObject(obj)) {
+    return { ok: false, errors: ['overrides must be an object'] };
+  }
+  if (obj.version !== 1) errors.push(`unsupported version: ${obj.version}`);
+  if (!isPlainObject(obj.projects)) {
+    errors.push('projects must be an object');
+  } else {
+    for (const [pid, proj] of Object.entries(obj.projects)) {
+      if (!isPlainObject(proj)) { errors.push(`projects.${pid} must be an object`); continue; }
+      if (proj.labels !== undefined) {
+        if (!isPlainObject(proj.labels) || Object.values(proj.labels).some(v => typeof v !== 'string'))
+          errors.push(`projects.${pid}.labels must map cluster ids to strings`);
+      }
+      if (proj.assign !== undefined) {
+        if (!isPlainObject(proj.assign) || Object.values(proj.assign).some(v => typeof v !== 'string'))
+          errors.push(`projects.${pid}.assign must map session ids to cluster names`);
+      }
+      if (proj.pin !== undefined) {
+        if (!Array.isArray(proj.pin) || proj.pin.some(v => typeof v !== 'string'))
+          errors.push(`projects.${pid}.pin must be an array of session ids`);
+      }
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+const slugify = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/**
+ * Cluster sessions with editorial overrides applied, in order:
+ * 1. pinned sessions are excluded from clustering entirely
+ * 2. assigned sessions form manual clusters by name (even below min size)
+ * 3. remaining sessions auto-cluster per project
+ * 4. label renames apply by cluster id (auto and manual)
+ */
+export function buildClusters(sessions, overrides, opts = {}) {
+  const projects = overrides?.projects || {};
+
+  const pinned = new Set();
+  const assignedTo = new Map();   // session_id → manual cluster name
+  for (const [pid, proj] of Object.entries(projects)) {
+    for (const sid of proj.pin || []) pinned.add(`${pid} ${sid}`);
+    for (const [sid, name] of Object.entries(proj.assign || {})) assignedTo.set(`${pid} ${sid}`, name);
+  }
+
+  const autoPool = [];
+  const manualGroups = new Map();  // pid -> Map(name -> members[])
+  for (const s of sessions) {
+    const key = `${s.project_id} ${s.session_id}`;
+    if (pinned.has(key)) continue;
+    const name = assignedTo.get(key);
+    if (name !== undefined) {
+      if (!manualGroups.has(s.project_id)) manualGroups.set(s.project_id, new Map());
+      const byName = manualGroups.get(s.project_id);
+      if (!byName.has(name)) byName.set(name, []);
+      byName.get(name).push(s);
+    } else {
+      autoPool.push(s);
+    }
+  }
+
+  const clusters = clusterSessions(autoPool, opts)
+    .map(c => ({ ...c, label_overridden: false }));
+
+  for (const [project_id, byName] of manualGroups) {
+    for (const [name, members] of byName) {
+      members.sort(byTimeThenId);
+      clusters.push({
+        id: `cluster:${project_id}:manual:${slugify(name)}`,
+        project_id,
+        label: name,
+        member_ids: members.map(m => m.session_id),
+        manual: true,
+        label_overridden: false,
+      });
+    }
+  }
+
+  for (const c of clusters) {
+    const rename = projects[c.project_id]?.labels?.[c.id];
+    if (typeof rename === 'string') {
+      c.label = rename;
+      c.label_overridden = true;
+    }
+  }
+
+  return clusters.sort((a, b) => a.id < b.id ? -1 : 1);
+}

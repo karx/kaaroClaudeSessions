@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   tokenizeSessionText, jaccard, sessionSimilarity, autoLabel, clusterSessions,
+  validateClusterOverrides, buildClusters,
   CLUSTER_THRESHOLD, MIN_CLUSTER_SIZE,
 } from '../experience/session-clusters.mjs';
 
@@ -243,4 +244,106 @@ test('autoLabel: final fallback bundle xN', () => {
     makeSess({ session_id: 's2', git_branch: null }),
   ];
   assert.equal(autoLabel(members), 'bundle x2');
+});
+
+// ── validateClusterOverrides ─────────────────────────────────────────────────
+
+test('validate: minimal scaffold is valid', () => {
+  assert.deepEqual(validateClusterOverrides({ version: 1, projects: {} }), { ok: true, errors: [] });
+});
+
+test('validate: full shape is valid', () => {
+  const res = validateClusterOverrides({
+    version: 1,
+    projects: {
+      'proj-a': {
+        labels: { 'cluster:proj-a:s1': 'Auth rework' },
+        assign: { s9: 'auth-work' },
+        pin: ['s5'],
+      },
+    },
+  });
+  assert.equal(res.ok, true);
+});
+
+test('validate: rejects non-object, bad version, bad projects', () => {
+  assert.equal(validateClusterOverrides(null).ok, false);
+  assert.equal(validateClusterOverrides([]).ok, false);
+  assert.equal(validateClusterOverrides({ version: 2, projects: {} }).ok, false);
+  assert.equal(validateClusterOverrides({ version: 1 }).ok, false);
+  assert.equal(validateClusterOverrides({ version: 1, projects: [] }).ok, false);
+});
+
+test('validate: rejects bad per-project fields with error messages', () => {
+  const res = validateClusterOverrides({
+    version: 1,
+    projects: {
+      'proj-a': { labels: { c1: 42 }, assign: { s1: [] }, pin: 'nope' },
+    },
+  });
+  assert.equal(res.ok, false);
+  assert.equal(res.errors.length, 3);
+});
+
+// ── buildClusters (overrides merge) ──────────────────────────────────────────
+
+function makeAuthTrio() {
+  return [
+    makeSess({ session_id: 's1', file_ops: fileOps('src/auth.js'), first_timestamp: '2026-07-01T10:00:00Z' }),
+    makeSess({ session_id: 's2', file_ops: fileOps('src/auth.js'), first_timestamp: '2026-07-02T10:00:00Z' }),
+    makeSess({ session_id: 's3', file_ops: fileOps('src/auth.js'), first_timestamp: '2026-07-03T10:00:00Z' }),
+  ];
+}
+
+test('buildClusters: null/undefined overrides → pure auto behavior', () => {
+  const sessions = makeAuthTrio();
+  const auto = clusterSessions(sessions).map(c => ({ ...c, label_overridden: false }));
+  assert.deepEqual(buildClusters(sessions, null), auto);
+  assert.deepEqual(buildClusters(sessions, undefined), auto);
+});
+
+test('buildClusters: pinned session never appears in any member_ids', () => {
+  const overrides = { version: 1, projects: { 'proj-a': { pin: ['s2'] } } };
+  const clusters = buildClusters(makeAuthTrio(), overrides);
+  assert.equal(clusters.length, 1);
+  assert.deepEqual(clusters[0].member_ids, ['s1', 's3']);
+});
+
+test('buildClusters: assigned sessions form a manual cluster, even below min size', () => {
+  const overrides = { version: 1, projects: { 'proj-a': { assign: { s3: 'auth work' } } } };
+  const clusters = buildClusters(makeAuthTrio(), overrides);
+  const manual = clusters.find(c => c.manual);
+  assert.ok(manual);
+  assert.equal(manual.id, 'cluster:proj-a:manual:auth-work');
+  assert.equal(manual.label, 'auth work');
+  assert.deepEqual(manual.member_ids, ['s3']);
+  // and s3 left the auto pool
+  const auto = clusters.find(c => !c.manual);
+  assert.deepEqual(auto.member_ids, ['s1', 's2']);
+});
+
+test('buildClusters: labels rename by cluster id, sets label_overridden', () => {
+  const overrides = {
+    version: 1,
+    projects: { 'proj-a': { labels: { 'cluster:proj-a:s1': 'Auth rework' } } },
+  };
+  const clusters = buildClusters(makeAuthTrio(), overrides);
+  assert.equal(clusters[0].label, 'Auth rework');
+  assert.equal(clusters[0].label_overridden, true);
+});
+
+test('buildClusters: label rename applies to manual cluster ids too', () => {
+  const overrides = {
+    version: 1,
+    projects: {
+      'proj-a': {
+        assign: { s1: 'misc', s2: 'misc' },
+        labels: { 'cluster:proj-a:manual:misc': 'Odds & ends' },
+      },
+    },
+  };
+  const clusters = buildClusters(makeAuthTrio(), overrides);
+  const manual = clusters.find(c => c.manual);
+  assert.equal(manual.label, 'Odds & ends');
+  assert.equal(manual.label_overridden, true);
 });

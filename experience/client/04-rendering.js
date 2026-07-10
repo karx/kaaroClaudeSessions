@@ -59,6 +59,13 @@ function renderNodeContent(el, d) {
     el.append('circle').attr('r',r).attr('fill',d.color).attr('fill-opacity',.83).attr('stroke', d.inFlight ? IN_FLIGHT_COLOR : '#000').attr('stroke-width', d.inFlight ? 1.5 : .4);
     if (d.thinking_count>0) el.append('circle').attr('r',2.5).attr('fill','#fff').attr('fill-opacity',.9);
     if (d.hit_max_tokens) el.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('font-size',r*.8).attr('fill','#ff4444').attr('pointer-events','none').text('✕');
+  } else if (d.type === 'cluster') {
+    if (d.inFlight) el.append('circle').attr('class','pring').attr('r',r+8).attr('stroke',IN_FLIGHT_COLOR).attr('stroke-width',2).attr('stroke-opacity',.9).style('animation-duration','0.8s');
+    if (d.errorLevel===2) el.append('circle').attr('r',r+6).attr('fill','none').attr('stroke','#ff2244').attr('stroke-width',1.5).attr('stroke-opacity',.7);
+    else if (d.errorLevel===1) el.append('circle').attr('r',r+4).attr('fill','none').attr('stroke','#ff6633').attr('stroke-width',1).attr('stroke-opacity',.5);
+    el.append('circle').attr('r',r).attr('fill',KAARO_TOKENS.bg).attr('stroke',d.color).attr('stroke-width',1.5).attr('stroke-dasharray','4 3');
+    el.append('circle').attr('r',Math.max(2,r-4)).attr('fill',d.color).attr('fill-opacity',.15);
+    el.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('font-size',10).attr('fill',d.color).attr('pointer-events','none').text(d.member_count);
   } else {
     el.append('path').attr('d',`M0,${-r} L${r},0 L0,${r} L${-r},0 Z`)
       .attr('fill',d.color).attr('fill-opacity',.82).attr('stroke',d.color).attr('stroke-width',.5).attr('stroke-opacity',.4);

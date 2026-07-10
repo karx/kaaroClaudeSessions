@@ -26,6 +26,14 @@ function attachTooltip(sel) {
         ${d.inFlight?`<div class="meta" style="color:${IN_FLIGHT_COLOR}">⬤ in flight</div>`:''}
         ${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}
         ${d.first_user_message?'<div class="body">'+d.first_user_message.slice(0,130)+'</div>':''}`;
+    } else if (d.type==='cluster') {
+      tip.innerHTML=`<strong style="color:${d.color}">${esc(d.label)}</strong>
+        <div class="meta">bundle · ${d.member_count} sessions${d.label_overridden?' · ✎ renamed':''}${d.manual?' · manual':''}</div>
+        <div class="meta">${d.date_first||'?'} → ${d.date_last||'?'} · AI work: ${fmtTok(d.tokens_work)}</div>
+        ${(d.harnesses||[]).length?'<div class="meta">'+d.harnesses.join(' · ')+'</div>':''}
+        ${d.skills?.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}
+        ${d.inFlight?`<div class="meta" style="color:${IN_FLIGHT_COLOR}">⬤ in flight</div>`:''}
+        <div class="meta" style="opacity:.6">click to ${expandedClusters.has(d.id)?'collapse':'expand'}</div>`;
     } else {
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
         <div class="meta">${d.session_count} sessions · ${d.edit} edits · ${d.write} writes · ${d.read} reads</div>
@@ -80,7 +88,32 @@ function slHighlight(id) {
 }
 
 function attachClick(sel) {
-  sel.on('click',(ev,d)=>{ ev.stopPropagation(); if(selectedId===d.id){selectedId=null;highlight(null);closePanel();}else{selectedId=d.id;highlight(d.id);showPanel(d);} });
+  sel.on('click',(ev,d)=>{
+    ev.stopPropagation();
+    if (d.type==='cluster' && currentLayout==='force') {
+      selectedId=d.id; highlight(d.id); showPanel(d); toggleCluster(d.id); return;
+    }
+    if(selectedId===d.id){selectedId=null;highlight(null);closePanel();}else{selectedId=d.id;highlight(d.id);showPanel(d);}
+  });
+}
+
+// ── Bundle expand/collapse ────────────────────────────────────────────────────
+function toggleCluster(id) {
+  if (expandedClusters.has(id)) expandedClusters.delete(id); else expandedClusters.add(id);
+  _saveExpanded();
+  applyFilters();
+  if (selectedId === id && nodeById[id]) showPanel(nodeById[id]);
+}
+
+// A bundled session can't be focused while its cluster is collapsed — expand first.
+function ensureSessionVisible(id) {
+  const n = nodeById[id];
+  if (!n || n.type !== 'session' || !n.cluster_id) return;
+  if (BUNDLE_ON && !expandedClusters.has(n.cluster_id)) {
+    expandedClusters.add(n.cluster_id);
+    _saveExpanded();
+    applyFilters();
+  }
 }
 attachClick(nodeSel);
 svg.on('click',()=>{
@@ -103,6 +136,7 @@ function _nodeRow(id, inner, extraStyle) {
 function focusNode(id) {
   const node = nodeById[id];
   if (!node) return;
+  ensureSessionVisible(id);
   selectedId = id;
   highlight(id);
   showPanel(node);
@@ -122,6 +156,14 @@ document.getElementById('panel').addEventListener('click', e => {
   if (!row) return;
   e.preventDefault(); e.stopPropagation();
   focusNode(row.dataset.nid);
+});
+
+// Bundle expand/collapse button in the cluster panel
+document.getElementById('panel').addEventListener('click', e => {
+  const btn = e.target.closest('[data-cluster-toggle]');
+  if (!btn) return;
+  e.preventDefault(); e.stopPropagation();
+  toggleCluster(btn.dataset.clusterToggle);
 });
 
 // ── Resume prompt builder ─────────────────────────────────────────────────────
@@ -244,6 +286,23 @@ function showPanel(d) {
       <div class="psep"></div>
       ${d.context_resets ? `<button class="paction paction-thread" data-thread-open="${esc(d.id)}">◆ VIEW THREAD ▸</button>` : ''}
       <button class="paction" data-resume="${esc(d.id)}">◆ COPY RESUME PROMPT</button>
+      `;
+  } else if (d.type==='cluster') {
+    const members=(d.member_ids||[]).map(id=>nodeById[id]).filter(Boolean);
+    const isExp=expandedClusters.has(d.id);
+    html=`<h3 style="color:${d.color}">${esc(d.label)}</h3>
+      <div class="prow"><span class="pk">Bundle</span><span class="pv">${d.member_count} sessions${d.manual?' · manual':''}${d.label_overridden?' · ✎':''}</span></div>
+      <div class="prow"><span class="pk">Dates</span><span class="pv">${d.date_first||'?'} → ${d.date_last||'?'}</span></div>
+      <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtTok(d.tokens_work)}</span></div>
+      <div class="prow"><span class="pk">Tool calls</span><span class="pv">${d.tool_calls} · ${d.tool_errors} errors</span></div>
+      ${(d.harnesses||[]).length?'<div class="prow"><span class="pk">Harnesses</span><span class="pv">'+d.harnesses.map(h=>'<span class="ptag">'+h+'</span>').join('')+'</span></div>':''}
+      ${d.skills?.length?'<div class="prow"><span class="pk">Skills</span><span class="pv">'+d.skills.map(s=>'<span class="ptag">/'+s+'</span>').join('')+'</span></div>':''}
+      <div class="psep"></div>
+      <div class="p-section-hd">Sessions (${members.length})</div>
+      ${members.map(m=>_nodeRow(m.id,`<span class="pk">${m.date_str||'?'}</span><span class="pv" style="color:${d.color}">${m.label}</span>`)).join('')}
+      <div class="psep"></div>
+      <div class="pmsg" style="word-break:break-all;font-size:9px;opacity:.7" title="cluster id — copy into cluster-overrides.json">${esc(d.id)}</div>
+      <button class="paction" data-cluster-toggle="${esc(d.id)}">${isExp?'◆ COLLAPSE BUNDLE':'◆ EXPAND BUNDLE'}</button>
       `;
   } else {
     const ss=[...nb].filter(id=>id!==d.id&&nodeById[id]?.type==='session').map(id=>nodeById[id]);

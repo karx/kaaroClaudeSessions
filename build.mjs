@@ -21,6 +21,7 @@ import {
   IN_FLIGHT_COLOR, parseMinSessions,
 } from './experience/graph-data.mjs';
 import { buildGraph } from './experience/graph-pipeline.mjs';
+import { validateClusterOverrides } from './experience/session-clusters.mjs';
 import { TOKENS, tokensToCss } from './experience/design-tokens.mjs';
 import { HARNESS_REGISTRY } from './hooks/registry.mjs';
 
@@ -134,15 +135,36 @@ function buildDaw() {
   console.log(`Written: ${dawOut}  (${(dawHtml.length / 1024).toFixed(0)} KB) — dedicated live DAW builder`);
 }
 
+/**
+ * Read + validate cluster-overrides.json. Absent → null; malformed or
+ * schema-invalid → console.warn + null. The build never fails on overrides.
+ */
+export function loadClusterOverrides(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const obj = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const { ok, errors } = validateClusterOverrides(obj);
+    if (!ok) {
+      console.warn(`cluster-overrides.json invalid — ignoring: ${errors.join('; ')}`);
+      return null;
+    }
+    return obj;
+  } catch (err) {
+    console.warn(`cluster-overrides.json unreadable — ignoring: ${err.message}`);
+    return null;
+  }
+}
+
 function run() {
   const data        = JSON.parse(fs.readFileSync(path.join(CWD, 'sessions-data.json'), 'utf8'));
   const minSessions = parseMinSessions(process.argv);
+  const clusterOverrides = loadClusterOverrides(path.join(CWD, 'cluster-overrides.json'));
 
   const { nodes, edges, timeline, stats, COLOR_TO_INDEX } =
-    buildGraph(data, { minSessions });
+    buildGraph(data, { minSessions, clusterOverrides });
 
-  console.log(`Graph: ${nodes.length} nodes (${stats.project} project · ${stats.session} session · ${stats.file} file)`);
-  console.log(`Edges: ${edges.length} (${stats.membership} membership · ${stats.branch} · ${stats.write} write · ${stats.edit} edit · ${stats.read} read)`);
+  console.log(`Graph: ${nodes.length} nodes (${stats.project} project · ${stats.session} session · ${stats.cluster} cluster · ${stats.file} file)`);
+  console.log(`Edges: ${edges.length} (${stats.membership} membership · ${stats.bundle} bundle · ${stats.branch} · ${stats.write} write · ${stats.edit} edit · ${stats.read} read)`);
 
   // ── graph-data.json (SSE payload) ─────────────────────────────────────────
   fs.writeFileSync(

@@ -60,7 +60,7 @@ Observability Surface (HTTP endpoints + SSE events) only. Root `analyze.mjs`,
 Repository layout:
 - `hooks/` — registry.mjs (THE single source of truth: adapter, scan, locateSession, readSessionRecords, capabilities per harness; `HARNESS_IDS` = `claude-code, pi, antigravity, grok, opencode, copilot, command-code`), normalized-record.mjs (NR contract), action-keys.mjs, session-reducer.mjs, enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, trace-tree.mjs, jsonl-io.mjs, jsonl-tail.mjs, scan-walk.mjs, session-locators.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-pi/-antigravity/-grok/-opencode/-copilot/-command-code), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
 - `surface/` — http-routes.mjs, sse-hub.mjs, pulse-emitter.mjs, rebuild-orchestrator.mjs, trace-service.mjs, active-state.mjs, session-resolver.mjs, watch-handlers.mjs, scan-harnesses.mjs, analyze-orchestrator.mjs (all tested; serve.mjs only composes)
-- `experience/` — client-core.mjs (shared browser helpers, Node-tested, injected as `%%CLIENT_CORE%%`), design-tokens.mjs (Register A `--k-*` tokens, injected as `%%TOKENS_CSS%%` + `KAARO_TOKENS`), `client/` (21 numbered browser modules: `00-boot`, `00-core` placeholder, `01`–`19`), `pages/` (template.html, now.html, daw-template.html, home.html, og-image.svg), `audio/` (event-registry, audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs
+- `experience/` — client-core.mjs (shared browser helpers, Node-tested, injected as `%%CLIENT_CORE%%`), design-tokens.mjs (Register A `--k-*` tokens, injected as `%%TOKENS_CSS%%` + `KAARO_TOKENS`), `client/` (21 numbered browser modules: `00-boot`, `00-core` placeholder, `01`–`19`), `pages/` (template.html, now.html, daw-template.html, home.html, og-image.svg), `audio/` (event-registry, audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs, session-clusters.mjs
 
 **Adding a harness**: see the checklist at the top of `hooks/registry.mjs` — one adapter, one analyzer (using `hooks/scan-walk.mjs`), one registry descriptor, tests (golden + `test/adapters/nr-compliance.test.mjs` entry). Nothing else changes.
 
@@ -107,7 +107,9 @@ self-contained file.
 
 **`experience/graph-data.mjs`** — pure functions with no I/O: `calcRecencyScore`, `calcRecencyLevel`, `assignProjectColors`, `buildFileNodesAndEdges`, `isSessionInFlight`, `filterSessionsByDateRange`. Re-exported from `build.mjs` for backward-compat test imports.
 
-**`experience/graph-pipeline.mjs`** — exports `buildGraph(data, opts)`. Pure transform: takes a parsed `sessions-data.json` object, returns `{ nodes, edges, timeline, stats, PROJECT_COLORS, COLOR_TO_INDEX }`. Session nodes include `context_resets`, `ai_title`, `subagent_count`, `branches`, and `tools_top` (top-10 tools by call count). No file I/O; fully unit-testable.
+**`experience/graph-pipeline.mjs`** — exports `buildGraph(data, opts)`. Pure transform: takes a parsed `sessions-data.json` object, returns `{ nodes, edges, timeline, stats, PROJECT_COLORS, COLOR_TO_INDEX }`. Session nodes include `context_resets`, `ai_title`, `subagent_count`, `branches`, `tools_top` (top-10 tools by call count), and `cluster_id` (null when unbundled). Also emits `type:'cluster'` bundle nodes (aggregate telemetry, own-scale sizeNorm) with a cluster→project `membership` edge and member→cluster `bundle` edges. No file I/O; fully unit-testable.
+
+**`experience/session-clusters.mjs`** — deterministic per-project session clustering for the graph view. Weighted Jaccard similarity (0.7 shared file sets + 0.3 text tokens from `ai_title`/`first_user_message`/`skills`; pure text when both file sets are empty), single-linkage union-find, threshold 0.35, min cluster size 2. Cluster ids anchor on the earliest member: `cluster:<project_id>:<session_id>` (stable as later members join). `buildClusters(sessions, overrides)` applies **`cluster-overrides.json`** (repo root, checked in, hand-edited — the pipeline's only user-editable config): `pin` excludes sessions from clustering, `assign` groups sessions into manual clusters by name (`cluster:<pid>:manual:<slug>`), `labels` renames clusters by id. `build.mjs loadClusterOverrides()` reads it with graceful fallback (absent/malformed → warn + null, build never fails). In the browser, bundles render collapsed by default (`#cb-bundle` checkbox disables the feature); expansion state lives in localStorage `kaaro-expanded-clusters`; clusters affect the force layout only.
 
 **`hooks/sessions-schema.mjs`** — canonical contract for `sessions-data.json`. `validateSessionsData()` returns `{ ok, errors[] }`. Any new adapter (Pi, opencode, Copilot) must produce data satisfying this schema. Optional fields are enumerated in `OPTIONAL_SESSION_FIELDS` — graph builder consumes them when present, skips when absent.
 
@@ -190,6 +192,7 @@ Test files map to modules:
 - `test/build-live.test.mjs` → `build.mjs` (live update path)
 - `test/build-features.test.mjs` → `build.mjs` / `experience/graph-data.mjs`
 - `test/graph-pipeline.test.mjs` → `experience/graph-pipeline.mjs`
+- `test/session-clusters.test.mjs` → `experience/session-clusters.mjs` (similarity, clustering, overrides merge)
 - `test/schema.test.mjs` → `hooks/sessions-schema.mjs`
 - `test/pulse-transformer.test.mjs` → `hooks/pulse-transformer.mjs`
 - `test/jsonl-tail.test.mjs` → `hooks/jsonl-tail.mjs`

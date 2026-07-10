@@ -131,6 +131,7 @@ export const EDGE_COLORS = {
   edit:       '#ffcc00',
   read:       '#1e4a66',
   branch:     '#334455',
+  bundle:     '#4a3a7a',
 };
 
 // ── Force-layout parameter definitions ───────────────────────────────────────

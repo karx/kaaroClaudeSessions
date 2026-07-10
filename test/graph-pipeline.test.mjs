@@ -330,6 +330,156 @@ test('buildGraph with file nodes — edge stats', async t => {
   });
 });
 
+// ── cluster (bundle) nodes ────────────────────────────────────────────────────
+function makeClusterData() {
+  const mkSess = (id, ts, extra = {}) => ({
+    session_id: id, project_id: 'proj-a', slug: `slug-${id}`,
+    tokens: { input: 10, output: 80, cache_create: 20, cache_read: 10 },
+    first_timestamp: `${ts}T10:00:00.000Z`, last_timestamp: `${ts}T11:00:00.000Z`,
+    git_branch: 'main', date_str: ts, duration_min: 60,
+    tool_calls: 10, tool_errors: 1, tool_diversity: 4, message_count: 8,
+    user_turns: 4, assistant_turns: 4, cache_hit_rate: 20, skills: [],
+    ...extra,
+  });
+  return makeData({
+    projects: [{
+      id: 'proj-a', label: 'Proj A', session_count: 4,
+      tokens: { input: 100, output: 200, cache_create: 50, cache_read: 30 },
+      skills: [],
+    }],
+    sessions: [
+      mkSess('c1', '2026-05-01', {
+        file_ops: { 'src/auth.js': { read: 1, write: 1, edit: 0 } },
+        ai_title: 'auth rework', skills: ['review'],
+      }),
+      mkSess('c2', '2026-05-02', {
+        file_ops: { 'src/auth.js': { read: 1, write: 0, edit: 1 } },
+        ai_title: 'auth cleanup', harness: 'grok',
+        tokens: { input: 10, output: 100, cache_create: 0, cache_read: 0 },
+      }),
+      mkSess('c3', '2026-05-03', {
+        file_ops: { 'src/auth.js': { read: 2, write: 0, edit: 0 } },
+        tokens: { input: 10, output: 50, cache_create: 50, cache_read: 0 },
+      }),
+      mkSess('s4', '2026-05-04', {
+        file_ops: { 'docs/readme.md': { read: 1, write: 0, edit: 0 } },
+        tokens: { input: 10, output: 10, cache_create: 0, cache_read: 0 },
+      }),
+    ],
+  });
+}
+
+test('buildGraph — cluster nodes and bundle edges', async t => {
+  const REF = new Date('2026-05-11T00:00:00.000Z').getTime();
+  const result = buildGraph(makeClusterData(), { referenceMs: REF });
+  const cluster = result.nodes.find(n => n.type === 'cluster');
+
+  await t.test('emits one cluster node for the auth trio', () => {
+    assert.equal(result.nodes.filter(n => n.type === 'cluster').length, 1);
+    assert.equal(cluster.id, 'cluster:proj-a:c1');
+    assert.deepEqual(cluster.member_ids, ['c1', 'c2', 'c3']);
+    assert.equal(cluster.member_count, 3);
+    assert.equal(cluster.project_id, 'proj-a');
+    assert.equal(cluster.manual, false);
+    assert.equal(cluster.label_overridden, false);
+  });
+
+  await t.test('cluster inherits the project color', () => {
+    const proj = result.nodes.find(n => n.type === 'project');
+    assert.equal(cluster.color, proj.color);
+  });
+
+  await t.test('cluster aggregates member telemetry', () => {
+    assert.equal(cluster.tokens_work, 100 + 100 + 100);
+    assert.equal(cluster.tool_calls, 30);
+    assert.equal(cluster.tool_errors, 3);
+    assert.equal(cluster.errorLevel, 1); // 3 errors → level 1
+    assert.deepEqual([...cluster.skills].sort(), ['review']);
+    assert.deepEqual([...cluster.harnesses].sort(), ['claude-code', 'grok']);
+    assert.equal(cluster.date_first, '2026-05-01');
+    assert.equal(cluster.date_last, '2026-05-03');
+    assert.equal(cluster.inFlight, false);
+  });
+
+  await t.test('cluster sizeNorm normalizes on its own scale (single cluster → 1)', () => {
+    assert.equal(cluster.sizeNorm, 1);
+  });
+
+  await t.test('emits membership edge cluster → project', () => {
+    const e = result.edges.find(e => e.type === 'membership' && e.source === cluster.id);
+    assert.ok(e);
+    assert.equal(e.target, 'proj-a');
+  });
+
+  await t.test('emits bundle edges member → cluster', () => {
+    const bundles = result.edges.filter(e => e.type === 'bundle');
+    assert.equal(bundles.length, 3);
+    assert.ok(bundles.every(e => e.target === cluster.id));
+    assert.deepEqual(bundles.map(e => e.source).sort(), ['c1', 'c2', 'c3']);
+  });
+
+  await t.test('session nodes carry cluster_id; unclustered session has null', () => {
+    assert.equal(result.nodes.find(n => n.id === 'c1').cluster_id, cluster.id);
+    assert.equal(result.nodes.find(n => n.id === 'c3').cluster_id, cluster.id);
+    assert.equal(result.nodes.find(n => n.id === 's4').cluster_id, null);
+  });
+
+  await t.test('session → project membership edges are kept, not rerouted', () => {
+    const sessMem = result.edges.filter(e => e.type === 'membership' && e.source !== cluster.id);
+    assert.equal(sessMem.length, 4);
+    assert.ok(sessMem.every(e => e.target === 'proj-a'));
+  });
+
+  await t.test('stats include cluster and bundle counts', () => {
+    assert.equal(result.stats.cluster, 1);
+    assert.equal(result.stats.bundle, 3);
+    assert.equal(result.stats.membership, 5); // 4 sessions + 1 cluster
+  });
+
+  await t.test('timeline has no cluster entries', () => {
+    assert.equal(result.timeline.length, 4);
+    assert.ok(result.timeline.every(e => !String(e.id).startsWith('cluster:')));
+  });
+});
+
+test('buildGraph — clusterOverrides flow through', async t => {
+  const REF = new Date('2026-05-11T00:00:00.000Z').getTime();
+
+  await t.test('pin excludes a session from clustering', () => {
+    const overrides = { version: 1, projects: { 'proj-a': { pin: ['c2'] } } };
+    const result = buildGraph(makeClusterData(), { referenceMs: REF, clusterOverrides: overrides });
+    const cluster = result.nodes.find(n => n.type === 'cluster');
+    assert.deepEqual(cluster.member_ids, ['c1', 'c3']);
+    assert.equal(result.nodes.find(n => n.id === 'c2').cluster_id, null);
+  });
+
+  await t.test('assign creates a manual cluster', () => {
+    const overrides = { version: 1, projects: { 'proj-a': { assign: { s4: 'docs work' } } } };
+    const result = buildGraph(makeClusterData(), { referenceMs: REF, clusterOverrides: overrides });
+    const manual = result.nodes.find(n => n.type === 'cluster' && n.manual);
+    assert.equal(manual.id, 'cluster:proj-a:manual:docs-work');
+    assert.equal(manual.label, 'docs work');
+    assert.deepEqual(manual.member_ids, ['s4']);
+    assert.equal(result.nodes.find(n => n.id === 's4').cluster_id, manual.id);
+  });
+
+  await t.test('labels rename applies and sets label_overridden', () => {
+    const overrides = { version: 1, projects: { 'proj-a': { labels: { 'cluster:proj-a:c1': 'Auth rework' } } } };
+    const result = buildGraph(makeClusterData(), { referenceMs: REF, clusterOverrides: overrides });
+    const cluster = result.nodes.find(n => n.type === 'cluster');
+    assert.equal(cluster.label, 'Auth rework');
+    assert.equal(cluster.label_overridden, true);
+  });
+});
+
+test('buildGraph — no clusters when sessions share nothing', () => {
+  const result = buildGraph(makeData(), { referenceMs: Date.now() });
+  assert.equal(result.nodes.filter(n => n.type === 'cluster').length, 0);
+  assert.equal(result.stats.cluster, 0);
+  assert.equal(result.stats.bundle, 0);
+  assert.ok(result.nodes.filter(n => n.type === 'session').every(n => n.cluster_id === null));
+});
+
 test('buildGraph — tokenless session sizes by tool_calls', async t => {
   const data = makeData({
     sessions: [

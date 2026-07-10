@@ -10,6 +10,7 @@ import {
   calcRecencyScore, calcRecencyLevel,
   assignProjectColors, buildFileNodesAndEdges, isSessionInFlight,
 } from './graph-data.mjs';
+import { buildClusters } from './session-clusters.mjs';
 
 /**
  * Build graph nodes + edges + timeline from a sessions-data.json object.
@@ -28,7 +29,7 @@ function _topTools(toolsObj) {
     .slice(0, 10);
 }
 
-export function buildGraph(data, { minSessions = 1, referenceMs } = {}) {
+export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverrides = null } = {}) {
   const ref = referenceMs ?? new Date(data.meta?.generated_at ?? Date.now()).getTime();
   const recencyScore = ts => calcRecencyScore(ts, ref);
   const recencyLevel = ts => calcRecencyLevel(ts, ref);
@@ -117,8 +118,61 @@ export function buildGraph(data, { minSessions = 1, referenceMs } = {}) {
       recency:          recencyScore(sess.last_timestamp || sess.first_timestamp),
       recencyLevel:     recencyLevel(sess.last_timestamp || sess.first_timestamp),
       inFlight:         isSessionInFlight(sess, Date.now()),
+      cluster_id:       null,
     });
     edges.push({ source: sess.session_id, target: sess.project_id, type: 'membership' });
+  }
+
+  // ── Cluster (bundle) nodes + edges ─────────────────────────────────────────
+  const sessionNodeById = {};
+  for (const n of nodes) if (n.type === 'session') sessionNodeById[n.id] = n;
+
+  const clusters = buildClusters(data.sessions, clusterOverrides);
+  const sumOver = (c, field) => c.member_ids.reduce((sum, id) => sum + (sessionNodeById[id]?.[field] || 0), 0);
+  // Clusters normalize on their own scale — against session MAX_WORK every big
+  // cluster would peg 1.0.
+  const MAX_CLUSTER_WORK  = Math.max(1, ...clusters.map(c => sumOver(c, 'tokens_work')));
+  const MAX_CLUSTER_CALLS = Math.max(1, ...clusters.map(c => sumOver(c, 'tool_calls')));
+
+  for (const c of clusters) {
+    const members     = c.member_ids.map(id => sessionNodeById[id]).filter(Boolean);
+    const tokens_work = sumOver(c, 'tokens_work');
+    const tool_calls  = sumOver(c, 'tool_calls');
+    const tool_errors = sumOver(c, 'tool_errors');
+    const dates       = members.map(m => m.date_str).filter(Boolean).sort();
+    const lastActs    = members.map(m => m.last_activity).filter(Boolean).sort();
+    const last_activity = lastActs[lastActs.length - 1] || null;
+    nodes.push({
+      id:               c.id,
+      type:             'cluster',
+      label:            c.label,
+      color:            PROJECT_COLORS[c.project_id] || '#888888',
+      project_id:       c.project_id,
+      member_ids:       c.member_ids,
+      member_count:     c.member_ids.length,
+      tokens_work,
+      tool_calls,
+      tool_errors,
+      skills:           [...new Set(members.flatMap(m => m.skills || []))],
+      harnesses:        [...new Set(members.map(m => m.harness))],
+      date_first:       dates[0] || null,
+      date_last:        dates[dates.length - 1] || null,
+      sizeNorm:         tokens_work > 0
+                          ? Math.sqrt(tokens_work / MAX_CLUSTER_WORK)
+                          : Math.sqrt(tool_calls / MAX_CLUSTER_CALLS),
+      errorLevel:       tool_errors >= 8 ? 2 : tool_errors >= 3 ? 1 : 0,
+      manual:           c.manual,
+      label_overridden: c.label_overridden,
+      last_activity,
+      recency:          recencyScore(last_activity),
+      recencyLevel:     recencyLevel(last_activity),
+      inFlight:         members.some(m => m.inFlight),
+    });
+    edges.push({ source: c.id, target: c.project_id, type: 'membership' });
+    for (const id of c.member_ids) {
+      edges.push({ source: id, target: c.id, type: 'bundle' });
+      if (sessionNodeById[id]) sessionNodeById[id].cluster_id = c.id;
+    }
   }
 
   // ── Branch lineage edges ────────────────────────────────────────────────────
@@ -162,8 +216,10 @@ export function buildGraph(data, { minSessions = 1, referenceMs } = {}) {
   const stats = {
     project: nodes.filter(n => n.type === 'project').length,
     session: nodes.filter(n => n.type === 'session').length,
+    cluster: nodes.filter(n => n.type === 'cluster').length,
     file:    nodes.filter(n => n.type === 'file').length,
     membership: edges.filter(e => e.type === 'membership').length,
+    bundle:     edges.filter(e => e.type === 'bundle').length,
     branch:     edges.filter(e => e.type === 'branch').length,
     write:      edges.filter(e => e.type === 'write').length,
     edit:       edges.filter(e => e.type === 'edit').length,

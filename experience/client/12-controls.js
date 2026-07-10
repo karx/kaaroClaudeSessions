@@ -20,16 +20,35 @@ function applyFilters() {
   const showBranch  = document.getElementById('cb-branch').checked;
   const showReads   = document.getElementById('cb-reads').checked;
   const minSess     = +document.getElementById('sl-min').value;
+  BUNDLE_ON = document.getElementById('cb-bundle')?.checked ?? true;
+
+  // Sessions and clusters resolve first — file visibility depends on them.
+  const clusterHidden = computeClusterHidden(GRAPH.nodes,
+    { bundleOn: BUNDLE_ON, expanded: expandedClusters, filters: SESSION_FILTERS });
   const hiddenNodes = new Set();
-  nodeSel.attr('display', d => {
-    if (d.type === 'session') {
-      if (!sessionMatchesFilters(d, SESSION_FILTERS)) { hiddenNodes.add(d.id); return 'none'; }
-      return null;
+  for (const n of GRAPH.nodes) {
+    if (n.type === 'session' && (!sessionMatchesFilters(n, SESSION_FILTERS) || clusterHidden.has(n.id))) hiddenNodes.add(n.id);
+    if (n.type === 'cluster' && clusterHidden.has(n.id)) hiddenNodes.add(n.id);
+  }
+  // Orphan-file mitigation: with bundles collapsed, most file edges vanish —
+  // hide files whose every session neighbour is hidden so no orphan cloud floats.
+  let fileSess = null;
+  if (BUNDLE_ON) {
+    fileSess = {};
+    for (const e of GRAPH.edges) {
+      if (e.type !== 'write' && e.type !== 'edit' && e.type !== 'read') continue;
+      const s = e.source?.id ?? e.source, t = e.target?.id ?? e.target;
+      (fileSess[t] = fileSess[t] || []).push(s);
     }
+  }
+  nodeSel.attr('display', d => {
+    if (d.type === 'session' || d.type === 'cluster') return hiddenNodes.has(d.id) ? 'none' : null;
     if (d.type === 'file') {
       if (!showFiles)                                    { hiddenNodes.add(d.id); return 'none'; }
       if (d.session_count < minSess)                     { hiddenNodes.add(d.id); return 'none'; }
       if (!showRoFiles && d.write === 0 && d.edit === 0) { hiddenNodes.add(d.id); return 'none'; }
+      const ss = fileSess && fileSess[d.id];
+      if (ss && ss.length && ss.every(sid => hiddenNodes.has(sid))) { hiddenNodes.add(d.id); return 'none'; }
       return null;
     }
     return null;
@@ -59,6 +78,7 @@ document.getElementById('cb-files').addEventListener('change',    applyFilters);
 document.getElementById('cb-ro-files').addEventListener('change', applyFilters);
 document.getElementById('cb-branch').addEventListener('change',   applyFilters);
 document.getElementById('cb-reads').addEventListener('change',    applyFilters);
+document.getElementById('cb-bundle')?.addEventListener('change',  applyFilters);
 document.getElementById('cb-group').addEventListener('change', () => {
   if (currentLayout==='force') { restoreForceLayout(); simulation.alpha(0.3).restart(); }
 });
@@ -177,8 +197,9 @@ applyFilters();
 // ── Stats ─────────────────────────────────────────────────────────────────────
 function updateStats() {
   const dr=GRAPH.meta.date_range;
+  const bundles=GRAPH.nodes.filter(n=>n.type==='cluster').length;
   document.getElementById('stats').textContent=
-    `${GRAPH.nodes.filter(n=>n.type==='project').length} projects · ${GRAPH.nodes.filter(n=>n.type==='session').length} sessions · ${GRAPH.nodes.filter(n=>n.type==='file').length} files · ${GRAPH.edges.length} edges · ${dr.first.slice(0,10)} → ${dr.last.slice(0,10)}`;
+    `${GRAPH.nodes.filter(n=>n.type==='project').length} projects · ${GRAPH.nodes.filter(n=>n.type==='session').length} sessions${bundles?` · ${bundles} bundles`:''} · ${GRAPH.nodes.filter(n=>n.type==='file').length} files · ${GRAPH.edges.length} edges · ${dr.first.slice(0,10)} → ${dr.last.slice(0,10)}`;
 }
 updateStats();
 
@@ -217,6 +238,7 @@ function buildTimeline() {
           const bp=slBarPos[d.id];
           if(bp){const t=d3.zoomTransform(svg.node());const cx=bp.x+bp.w/2,cy=bp.y+bp.h/2;const nx=cx*t.k+t.x,ny=cy*t.k+t.y;svg.transition().duration(500).call(zoom.translateBy,(W/2-nx)/t.k,(H/2-ny)/t.k);}
         } else {
+          ensureSessionVisible(d.id);
           highlight(d.id); showPanel(node);
           if(currentLayout==='force'||currentLayout==='arc'){const t=d3.zoomTransform(svg.node()),nx=node.x*t.k+t.x,ny=node.y*t.k+t.y;svg.transition().duration(500).call(zoom.translateBy,(W/2-nx)/t.k,(H/2-ny)/t.k);}
         }

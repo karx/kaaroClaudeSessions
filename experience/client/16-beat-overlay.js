@@ -109,6 +109,12 @@
 
     const sessNode = GRAPH.nodes.find(n => n.type === 'session' && ev.slug && n.id.startsWith(ev.slug));
     if (sessNode) {
+      // Collapsed bundle: the session node is display:none — land the pulse on its cluster
+      if (typeof BUNDLE_ON !== 'undefined' && BUNDLE_ON && sessNode.cluster_id &&
+          typeof expandedClusters !== 'undefined' && !expandedClusters.has(sessNode.cluster_id)) {
+        highlight(sessNode.cluster_id);
+        return;
+      }
       highlight(sessNode.id);
       // If this event touched a specific file, accent that node over the others
       if (ev.where && FILE_TOOLS.has(ev.tool) && typeof accentNode === 'function') {

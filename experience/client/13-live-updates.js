@@ -7,6 +7,11 @@ window.updateGraph = function(newData) {
   GRAPH=newData; TIMELINE=newData.timeline||TIMELINE;
   MAX_WEIGHT=Math.max(1,...GRAPH.edges.map(e=>e.weight||0));
   GRAPH.nodes.forEach(n=>nodeById[n.id]=n);
+  // Prune expansion state for clusters that no longer exist after a rebuild
+  const liveClusterIds=new Set(GRAPH.nodes.filter(n=>n.type==='cluster').map(n=>n.id));
+  let prunedExpanded=false;
+  expandedClusters.forEach(id=>{ if(!liveClusterIds.has(id)){expandedClusters.delete(id);prunedExpanded=true;} });
+  if (prunedExpanded) _saveExpanded();
   simulation.nodes(GRAPH.nodes);
   simulation.force('link').links(GRAPH.edges);
   edgeSel=edgeLayer.selectAll('path').data(GRAPH.edges,edgeKey).join(enter=>enter.append('path').call(styleEdge),update=>update,exit=>exit.remove());

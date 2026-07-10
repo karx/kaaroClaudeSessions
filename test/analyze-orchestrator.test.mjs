@@ -73,7 +73,7 @@ test('parseHarnessFlags', () => {
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs', '--harness=pi']), ['pi']);
 });
 
-// â”€â”€ scanHarnesses error isolation (CODE-REVIEW-FINDINGS #8) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── scanHarnesses error isolation (CODE-REVIEW-FINDINGS #8) ────────────────────
 // One harness scanner throwing (e.g. FS error mid-scan on Windows for Grok)
 // must not abort the entire rebuild. Other harnesses' data must still be returned.
 test('scanHarnesses — isolates per-harness scanner errors (continues on failure)', async (t) => {

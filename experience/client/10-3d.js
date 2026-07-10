@@ -1,4 +1,4 @@
-// â”€â”€ 3D layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 3D layout ─────────────────────────────────────────────────────────────────
 const layout3D = {
   _g: null,
   enter() {
@@ -7,7 +7,7 @@ const layout3D = {
     document.getElementById('three-view').style.display='block';
     simulation.stop();
     if (typeof ForceGraph3D === 'undefined') {
-      document.getElementById('three-view').innerHTML='<div style="color:#445;padding:60px;text-align:center;font-family:monospace;font-size:13px">Loading 3D libraryâ€¦<br>Try switching back once loaded.</div>';
+      document.getElementById('three-view').innerHTML='<div style="color:#445;padding:60px;text-align:center;font-family:monospace;font-size:13px">Loading 3D library…<br>Try switching back once loaded.</div>';
       return;
     }
     const showBranch=document.getElementById('cb-branch').checked, showReads=document.getElementById('cb-reads').checked;

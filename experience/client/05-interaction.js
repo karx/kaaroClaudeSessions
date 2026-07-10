@@ -1,10 +1,10 @@
-// â”€â”€ Drag â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Drag ──────────────────────────────────────────────────────────────────────
 const drag = d3.drag()
   .on('start',(ev,d)=>{ if(!ev.active && currentLayout==='force') simulation.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; })
   .on('drag', (ev,d)=>{ d.fx=ev.x; d.fy=ev.y; })
   .on('end',  (ev,d)=>{ if(!ev.active && currentLayout==='force') simulation.alphaTarget(0); if(d.type!=='project'&&currentLayout==='force'){d.fx=null;d.fy=null;} });
 
-// â”€â”€ Tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Tooltip ───────────────────────────────────────────────────────────────────
 const tip = document.getElementById('tip');
 
 function attachTooltip(sel) {
@@ -12,23 +12,23 @@ function attachTooltip(sel) {
     tip.style.display='block';
     if (d.type==='project') {
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
-        <div class="meta">${d.session_count} sessions Â· AI work: ${fmtTok(d.tokens_work)}</div>
+        <div class="meta">${d.session_count} sessions · AI work: ${fmtTok(d.tokens_work)}</div>
         ${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;
     } else if (d.type==='session') {
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
-        <div class="meta">${d.date_str||'?'} Â· ${d.duration_min!=null?d.duration_min+'min':'?'} Â· ${d.model||'?'}</div>
-        ${d.recencyLevel>0?'<div class="meta" style="color:'+(['','#446','#88a','#adf'][d.recencyLevel])+'">â— '+(['','< 2 days','< 15 min','< 5 min'][d.recencyLevel])+'</div>':''}
+        <div class="meta">${d.date_str||'?'} · ${d.duration_min!=null?d.duration_min+'min':'?'} · ${d.model||'?'}</div>
+        ${d.recencyLevel>0?'<div class="meta" style="color:'+(['','#446','#88a','#adf'][d.recencyLevel])+'">● '+(['','< 2 days','< 15 min','< 5 min'][d.recencyLevel])+'</div>':''}
         <div class="meta">branch: ${d.git_branch||'?'}</div>
-        <div class="meta">AI work: ${fmtTok(d.tokens_work)} Â· cache: ${fmtTok(d.tokens_cached)} (${d.cache_hit_rate}%)</div>
-        <div class="meta">${d.tool_calls} calls Â· ${d.tool_errors} errors Â· ${d.tool_diversity} tool types</div>
+        <div class="meta">AI work: ${fmtTok(d.tokens_work)} · cache: ${fmtTok(d.tokens_cached)} (${d.cache_hit_rate}%)</div>
+        <div class="meta">${d.tool_calls} calls · ${d.tool_errors} errors · ${d.tool_diversity} tool types</div>
         ${d.thinking_count?'<div class="meta">thinking: '+d.thinking_count+'</div>':''}
-        ${d.hit_max_tokens?'<div class="meta" style="color:#ff4444">âš  hit max_tokens</div>':''}
-        ${d.inFlight?`<div class="meta" style="color:${IN_FLIGHT_COLOR}">â¬¤ in flight</div>`:''}
+        ${d.hit_max_tokens?'<div class="meta" style="color:#ff4444">⚠ hit max_tokens</div>':''}
+        ${d.inFlight?`<div class="meta" style="color:${IN_FLIGHT_COLOR}">⬤ in flight</div>`:''}
         ${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}
         ${d.first_user_message?'<div class="body">'+d.first_user_message.slice(0,130)+'</div>':''}`;
     } else {
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
-        <div class="meta">${d.session_count} sessions Â· ${d.edit} edits Â· ${d.write} writes Â· ${d.read} reads</div>
+        <div class="meta">${d.session_count} sessions · ${d.edit} edits · ${d.write} writes · ${d.read} reads</div>
         <div class="meta" style="word-break:break-all;font-size:10px">${d.full_path}</div>`;
     }
   }).on('mousemove',ev=>{
@@ -39,7 +39,7 @@ function attachTooltip(sel) {
 }
 attachTooltip(nodeSel);
 
-// â”€â”€ Highlight & click â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Highlight & click ─────────────────────────────────────────────────────────
 let selectedId = null;
 function neighbours(id) {
   const s=new Set([id]);
@@ -53,7 +53,7 @@ function highlight(id) {
   edgeSel.attr('stroke-opacity',e=>{ const a=e.source?.id??e.source,b=e.target?.id??e.target; return (a===id||b===id)?Math.min(1,edgeOpacity(e, MAX_WEIGHT)*2):.025; });
   d3.selectAll('.tl-dot').attr('opacity',d=>d.id===id?1:.2);
 }
-// â”€â”€ DAW file accent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── DAW file accent ──────────────────────────────────────────────────────────
 // Adds a bright ring to a specific node without changing the highlight state.
 // Called by 16-beat-overlay.js when hovering a file-op event.
 function accentNode(id) {
@@ -89,7 +89,7 @@ svg.on('click',()=>{
   closePanel();
 });
 
-// â”€â”€ Detail panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Detail panel ──────────────────────────────────────────────────────────────
 
 // Wrap a row in a clickable link IFF the node exists in the current graph
 function _nodeRow(id, inner, extraStyle) {
@@ -99,7 +99,7 @@ function _nodeRow(id, inner, extraStyle) {
   return `<div class="prow" style="${style}">${inner}</div>`;
 }
 
-// focusNode â€” highlight the node, pan to it, show its panel
+// focusNode — highlight the node, pan to it, show its panel
 function focusNode(id) {
   const node = nodeById[id];
   if (!node) return;
@@ -116,7 +116,7 @@ function focusNode(id) {
 }
 window.focusNode = focusNode;
 
-// Delegation on static #panel â€” handles clicks on .plink-row even after innerHTML swaps
+// Delegation on static #panel — handles clicks on .plink-row even after innerHTML swaps
 document.getElementById('panel').addEventListener('click', e => {
   const row = e.target.closest('[data-nid]');
   if (!row) return;
@@ -124,7 +124,7 @@ document.getElementById('panel').addEventListener('click', e => {
   focusNode(row.dataset.nid);
 });
 
-// â”€â”€ Resume prompt builder â”€â”€â”€â”€â”€â”€â”€â”€â”€ï¿½ï¿½ï¿½â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Resume prompt builder ─────────────────────────────────────────────────────
 
 function _buildResume(d, fileNodes) {
   const proj    = GRAPH.nodes.find(n=>n.id===d.project_id);
@@ -160,7 +160,7 @@ function _buildResume(d, fileNodes) {
   return lines.join('\n');
 }
 
-// â”€â”€ Resume click delegation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Resume click delegation ───────────────────────────────────────────────────
 
 document.getElementById('panel').addEventListener('click', e => {
   const btn = e.target.closest('[data-resume]');
@@ -172,12 +172,12 @@ document.getElementById('panel').addEventListener('click', e => {
   const fileNodes = [...nb].filter(id=>id!==node.id&&nodeById[id]?.type==='file').map(id=>nodeById[id]);
   const text = _buildResume(node, fileNodes);
   navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = 'âœ“ COPIED';
+    btn.textContent = '✓ COPIED';
     btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'â—† COPY RESUME PROMPT'; btn.classList.remove('copied'); }, 2000);
+    setTimeout(() => { btn.textContent = '◆ COPY RESUME PROMPT'; btn.classList.remove('copied'); }, 2000);
   }).catch(() => {
-    btn.textContent = 'âš  CLIPBOARD UNAVAILABLE';
-    setTimeout(() => { btn.textContent = 'â—† COPY RESUME PROMPT'; }, 2000);
+    btn.textContent = '⚠ CLIPBOARD UNAVAILABLE';
+    setTimeout(() => { btn.textContent = '◆ COPY RESUME PROMPT'; }, 2000);
   });
 });
 
@@ -194,7 +194,7 @@ function _toolBars(d) {
       `<span class="ptb-cnt">${t.calls}</span>` +
       `</div>`;
   }).join('');
-  return `<div class="psep"></div><div class="p-section-hd">â—† TOOL CALLS</div>${rows}`;
+  return `<div class="psep"></div><div class="p-section-hd">◆ TOOL CALLS</div>${rows}`;
 }
 
 function showPanel(d) {
@@ -234,7 +234,7 @@ function showPanel(d) {
       <div class="prow"><span class="pk">Tool types</span><span class="pv">${d.tool_diversity}</span></div>
       <div class="prow"><span class="pk">Thinking</span><span class="pv">${d.thinking_count}</span></div>
       <div class="prow"><span class="pk">Git commands</span><span class="pv">${d.bash_git}</span></div>
-      ${d.hit_max_tokens?'<div class="prow"><span class="pk" style="color:#ff4444">Max tokens hit</span><span class="pv">âœ•</span></div>':''}
+      ${d.hit_max_tokens?'<div class="prow"><span class="pk" style="color:#ff4444">Max tokens hit</span><span class="pv">✕</span></div>':''}
       ${d.skills.length?'<div class="prow"><span class="pk">Skills</span><span class="pv">'+d.skills.map(s=>'<span class="ptag">/'+s+'</span>').join('')+'</span></div>':''}
       ${d.first_user_message?'<div class="pmsg">'+d.first_user_message.slice(0,250)+'</div>':''}
       ${peers.length?'<div class="psep"></div><div class="p-section-hd">Branch peers</div>'+peers.map(p=>_nodeRow(p.id,`<span class="pk">${p.date_str||'?'}</span><span class="pv">${p.label}</span>`)).join(''):''}
@@ -242,8 +242,8 @@ function showPanel(d) {
       ${_toolBars(d)}
       ${window._traceSection ? window._traceSection(d) : ''}
       <div class="psep"></div>
-      ${d.context_resets ? `<button class="paction paction-thread" data-thread-open="${esc(d.id)}">â—† VIEW THREAD â–¸</button>` : ''}
-      <button class="paction" data-resume="${esc(d.id)}">â—† COPY RESUME PROMPT</button>
+      ${d.context_resets ? `<button class="paction paction-thread" data-thread-open="${esc(d.id)}">◆ VIEW THREAD ▸</button>` : ''}
+      <button class="paction" data-resume="${esc(d.id)}">◆ COPY RESUME PROMPT</button>
       `;
   } else {
     const ss=[...nb].filter(id=>id!==d.id&&nodeById[id]?.type==='session').map(id=>nodeById[id]);

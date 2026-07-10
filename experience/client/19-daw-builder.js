@@ -1,5 +1,5 @@
-// â”€â”€ Cognitive DAW Builder v2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Multi-lane canvas Â· mixer strips Â· automation curves Â· tab panel
+// ── Cognitive DAW Builder v2 ───────────────────────────────────────────────────
+// Multi-lane canvas · mixer strips · automation curves · tab panel
 // Only activates when #daw-root is present (dedicated /daw page).
 // Reads window._beatRing (14-pulse-audio.js), calls window.playPulse.
 
@@ -7,7 +7,7 @@
   const root = document.getElementById('daw-root');
   if (!root) return; // guard: main graph page loads this file too
 
-  // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── State ─────────────────────────────────────────────────────────────────────
   const S = {
     scrollMs:       0,
     isLive:         true,
@@ -29,14 +29,14 @@
     },
   };
 
-  // â”€â”€ Lane definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Lane definitions ─────────────────────────────────────────────────────────
   const FAMILY_LANES = DAW_FAMILY_LANES; // shared core (00-core.js)
 
   const FAMILY_LABEL_COLORS = {
     file: '#2a7a3a', system: '#3a5aaa', ai: '#aa3388', context: '#2a8aaa',
   };
 
-  // â”€â”€ Canvas refs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Canvas refs ───────────────────────────────────────────────────────────────
   function dawCanvas()  { return document.getElementById('daw-canvas'); }
   function autoCanvas() { return document.getElementById('auto-canvas'); }
 
@@ -53,17 +53,17 @@
     }
   }
 
-  // â”€â”€ Lane layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Lane layout ───────────────────────────────────────────────────────────────
   // computeLaneLayout / laneForEvent come from the shared core (00-core.js)
 
-  // â”€â”€ Time helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Time helpers ──────────────────────────────────────────────────────────────
   function nowMs() { return S.isLive ? Date.now() : (S.frozenNow ?? Date.now()); }
 
   function evX(ev, now, W, PX_PER_SEC) {
     return evTimeX(ev, now, W, PX_PER_SEC, S.scrollMs);
   }
 
-  // â”€â”€ Draw DAW lanes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Draw DAW lanes ────────────────────────────────────────────────────────────
   let _dawCtx = null;
 
   function drawDaw() {
@@ -178,7 +178,7 @@
 
     if (!S.isLive) {
       ctx.fillStyle = '#2a3a6a'; ctx.font = "bold 8px 'IBM Plex Mono',monospace";
-      ctx.fillText('â—€ SCRUB  -' + Math.round(S.scrollMs / 1000) + 's', W / 2 - 40, 13);
+      ctx.fillText('◀ SCRUB  -' + Math.round(S.scrollMs / 1000) + 's', W / 2 - 40, 13);
     }
   }
 
@@ -198,7 +198,7 @@
       ev.project ? 'proj: ' + ev.project : null,
       ev.where   ? 'where: ' + String(ev.where).replace(/\\/g, '/').slice(-36) : null,
       ev.output  ? 'out: ' + ev.output + ' tok' : null,
-      ev.pan != null ? 'pan: ' + ev.pan.toFixed(2) + '  bri: ' + (ev.brightness || 'â€”') : null,
+      ev.pan != null ? 'pan: ' + ev.pan.toFixed(2) + '  bri: ' + (ev.brightness || '—') : null,
     ].filter(Boolean);
 
     const pad = 5, lh = 13, bw = 180, bh = lines.length * lh + pad * 2;
@@ -233,7 +233,7 @@
     return null;
   }
 
-  // â”€â”€ Automation canvas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Automation canvas ─────────────────────────────────────────────────────────
   let _autoCtx = null;
   const _autoSamples = [];
   let _lastAutoSampleMs = 0;
@@ -266,7 +266,7 @@
     const recent = _autoSamples.filter(s => Date.now() - s.ts < 30000);
     if (recent.length < 2) {
       ctx.fillStyle = '#1a1a30'; ctx.font = "7px 'IBM Plex Mono',monospace";
-      ctx.fillText('DENSITY Â· BPM Â· PRESSURE  (waiting for eventsâ€¦)', 6, 12);
+      ctx.fillText('DENSITY · BPM · PRESSURE  (waiting for events…)', 6, 12);
       return;
     }
 
@@ -301,7 +301,7 @@
     ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
   }
 
-  // â”€â”€ Canvas input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Canvas input ──────────────────────────────────────────────────────────────
   function setupCanvasInput() {
     const wrap = document.getElementById('daw-center'); if (!wrap) return;
 
@@ -343,12 +343,12 @@
     else if (S.isLive) { S.isLive = false; S.frozenNow = Date.now(); }
     const b = document.getElementById('daw-live-btn');
     if (b) {
-      b.textContent = S.isLive ? 'â— LIVE' : 'â—€ SCRUB';
+      b.textContent = S.isLive ? '● LIVE' : '◀ SCRUB';
       b.className = 'hdr-btn' + (S.isLive ? ' live' : '');
     }
   }
 
-  // â”€â”€ Mixer strips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Mixer strips ─────────────────────────────────────────────────────────────
   function buildMixerStrips() {
     const mixer = document.getElementById('mixer'); if (!mixer) return;
     for (const lane of FAMILY_LANES) {
@@ -428,7 +428,7 @@
     }
   }
 
-  // â”€â”€ Tab panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Tab panel ─────────────────────────────────────────────────────────────────
   function wireTabs() {
     document.querySelectorAll('.tab[data-tab]').forEach(t => {
       t.onclick = () => renderTab(t.dataset.tab);
@@ -448,7 +448,7 @@
     if (name === 'prof')  buildProfTab(body);
   }
 
-  // â”€â”€ MAP tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── MAP tab ───────────────────────────────────────────────────────────────────
   const MATCH_FAMILIES = ['file', 'system', 'ai', 'context'];
   const MATCH_KEYS = [
     'read', 'write', 'edit', 'grep_glob',
@@ -483,7 +483,7 @@
     listDiv.innerHTML = '';
     const mappings = (window.AUDIO_PROFILE || {}).mappings || [];
     if (!mappings.length) {
-      listDiv.innerHTML = '<div style="color:#334;font-size:9px;padding:6px 0;">No rules yet â€” add one below.</div>';
+      listDiv.innerHTML = '<div style="color:#334;font-size:9px;padding:6px 0;">No rules yet — add one below.</div>';
       return;
     }
     mappings.forEach((rule, idx) => {
@@ -497,7 +497,7 @@
       ].filter(Boolean).join(' ');
       const effSummary = [
         eff.instrument,
-        eff.volMult   != null && 'Ã—' + eff.volMult,
+        eff.volMult   != null && '×' + eff.volMult,
         eff.octave    != null && 'oct' + (eff.octave >= 0 ? '+' : '') + eff.octave,
         eff.pan       != null && 'p' + eff.pan.toFixed(1),
         eff.brightness != null && eff.brightness + 'Hz',
@@ -506,11 +506,11 @@
 
       row.innerHTML = `
         <div class="map-match">${matchSummary || '(any)'}</div>
-        <div class="map-effect">${effSummary || 'â€”'}</div>
+        <div class="map-effect">${effSummary || '—'}</div>
         <div class="map-acts">
-          <button data-act="edit" data-idx="${idx}">âœŽ</button>
-          <button data-act="del"  data-idx="${idx}">âœ•</button>
-          <button data-act="up"   data-idx="${idx}">â†‘</button>
+          <button data-act="edit" data-idx="${idx}">✎</button>
+          <button data-act="del"  data-idx="${idx}">✕</button>
+          <button data-act="up"   data-idx="${idx}">↑</button>
         </div>`;
       listDiv.appendChild(row);
     });
@@ -569,15 +569,15 @@
     const whereRow = document.createElement('div'); whereRow.className = 'row';
     whereRow.innerHTML = '<label>where ~</label>';
     const whereInp = document.createElement('input'); whereInp.className = 'inp';
-    whereInp.placeholder = 'path containsâ€¦'; whereInp.value = r.match.whereContains || '';
+    whereInp.placeholder = 'path contains…'; whereInp.value = r.match.whereContains || '';
     whereRow.appendChild(whereInp); formDiv.appendChild(whereRow);
 
     const threshRow = document.createElement('div'); threshRow.className = 'row';
     threshRow.innerHTML = '<label>min words/out</label>';
     const wminInp = document.createElement('input'); wminInp.className = 'inp inp-sm inp-wmin';
-    wminInp.type = 'number'; wminInp.placeholder = 'wordsâ‰¥'; wminInp.value = r.match.wordMin || '';
+    wminInp.type = 'number'; wminInp.placeholder = 'words≥'; wminInp.value = r.match.wordMin || '';
     const ominInp = document.createElement('input'); ominInp.className = 'inp inp-sm inp-omin';
-    ominInp.type = 'number'; ominInp.placeholder = 'outâ‰¥'; ominInp.value = r.match.outMin || '';
+    ominInp.type = 'number'; ominInp.placeholder = 'out≥'; ominInp.value = r.match.outMin || '';
     threshRow.appendChild(wminInp); threshRow.appendChild(ominInp); formDiv.appendChild(threshRow);
 
     // Set section
@@ -592,7 +592,7 @@
     };
 
     const instSel = document.createElement('select'); instSel.className = 'inp inst-sel';
-    instSel.innerHTML = '<option value="">â€” keep â€”</option>' + INST_NAMES.map(n => `<option value="${n}"${(r.set.instrument===n)?' selected':''}>${n}</option>`).join('');
+    instSel.innerHTML = '<option value="">— keep —</option>' + INST_NAMES.map(n => `<option value="${n}"${(r.set.instrument===n)?' selected':''}>${n}</option>`).join('');
     formDiv.appendChild(mkRow('instrument', instSel));
 
     const makeNumInp = (cls, ph, val) => {
@@ -600,14 +600,14 @@
       i.type = 'number'; i.placeholder = ph; if (val != null) i.value = val; return i;
     };
 
-    const volInp = makeNumInp('inp-vol', 'vol Ã—', r.set.volMult);
-    const octInp = makeNumInp('inp-oct', 'oct Â±', r.set.octave);
+    const volInp = makeNumInp('inp-vol', 'vol ×', r.set.volMult);
+    const octInp = makeNumInp('inp-oct', 'oct ±', r.set.octave);
     const dvRow  = document.createElement('div'); dvRow.className = 'row';
     dvRow.innerHTML = '<label>vol / oct</label>';
     dvRow.appendChild(volInp); dvRow.appendChild(octInp); formDiv.appendChild(dvRow);
 
     const degSel = document.createElement('select'); degSel.className = 'inp';
-    degSel.innerHTML = '<option value="">â€” degree mode â€”</option>' + DEGREE_MODES.map(d => `<option value="${d}"${r.set.degreeMode===d?' selected':''}>${d}</option>`).join('');
+    degSel.innerHTML = '<option value="">— degree mode —</option>' + DEGREE_MODES.map(d => `<option value="${d}"${r.set.degreeMode===d?' selected':''}>${d}</option>`).join('');
     formDiv.appendChild(mkRow('degree mode', degSel));
 
     // New spatial axes
@@ -679,7 +679,7 @@
     if (form) form.scrollIntoView({ behavior: 'smooth' });
   }
 
-  // â”€â”€ SYNTH tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── SYNTH tab ──────────────────────────────────────────────────────────────────
   const SYNTH_KEYS = [
     ['read','Read'], ['write','Write'], ['edit','Edit'],
     ['bash_git','Bash (git)'], ['bash_run','Bash (run)'], ['bash_other','Bash (other)'],
@@ -702,14 +702,14 @@
         const patch = { instruments: {} }; patch.instruments[key] = sel.value;
         if (window.updateAudioSettings) window.updateAudioSettings(patch);
       };
-      const prev = document.createElement('button'); prev.className = 'btn inst-prev'; prev.textContent = 'â–¶';
+      const prev = document.createElement('button'); prev.className = 'btn inst-prev'; prev.textContent = '▶';
       prev.onclick = () => { if (window.previewInstrument) window.previewInstrument(sel.value); };
       row.appendChild(lbl); row.appendChild(sel); row.appendChild(prev);
       instTable.appendChild(row);
     });
     body.appendChild(instTable);
 
-    body.innerHTML += '<div class="sec-head" style="margin-top:10px">Scale Â· Note</div>';
+    body.innerHTML += '<div class="sec-head" style="margin-top:10px">Scale · Note</div>';
 
     const scaleRow = document.createElement('div'); scaleRow.className = 'row';
     scaleRow.innerHTML = '<label>scale</label>';
@@ -750,7 +750,7 @@
     clickRow.appendChild(clickBtn); body.appendChild(clickRow);
   }
 
-  // â”€â”€ SIM tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── SIM tab ────────────────────────────────────────────────────────────────────
   function buildSimTab(body) {
     body.innerHTML = `
       <div class="sec-head">Event Simulator</div>
@@ -768,7 +768,7 @@
       <div class="row"><label>tool</label><input id="sim-tool" class="inp" value="Write"></div>
       <div class="row"><label>where</label><input id="sim-where" class="inp" value="src/app.js"></div>
       <div class="row"><label>category</label>
-        <select id="sim-cat" class="inp"><option value="">â€”</option><option>git</option><option>npm</option><option>fs</option><option>other</option></select>
+        <select id="sim-cat" class="inp"><option value="">—</option><option>git</option><option>npm</option><option>fs</option><option>other</option></select>
       </div>
       <div class="row">
         <label>out / words</label>
@@ -779,7 +779,7 @@
         <label>cache_read</label>
         <input id="sim-cache" class="inp inp-sm" type="number" value="0" title="Simulates cache_read tokens (high=dull brightness)">
       </div>
-      <button class="btn primary" id="btn-emit" style="width:100%;margin:8px 0">EMIT â–¶ hear + visualize</button>
+      <button class="btn primary" id="btn-emit" style="width:100%;margin:8px 0">EMIT ▶ hear + visualize</button>
       <div id="sim-resolved" style="font-size:8px;color:#334;margin-top:4px;"></div>
       <div id="sim-log" style="font-size:8px;color:#445;margin-top:8px;max-height:120px;overflow:auto;"></div>`;
 
@@ -805,7 +805,7 @@
       if (window.resolveSonicForEvent) {
         const r = window.resolveSonicForEvent(type, data);
         $('sim-resolved').textContent =
-          `â†’ inst:${r.instrument}  pan:${(r.pan||0).toFixed(2)}  bri:${r.brightness}Hz  send:${(r.sendAmt||0).toFixed(2)}  key:${r.key}`;
+          `→ inst:${r.instrument}  pan:${(r.pan||0).toFixed(2)}  bri:${r.brightness}Hz  send:${(r.sendAmt||0).toFixed(2)}  key:${r.key}`;
       }
 
       // Log
@@ -819,19 +819,19 @@
     };
   }
 
-  // â”€â”€ Built-in presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Built-in presets ──────────────────────────────────────────────────────────
   // Three opinionated presets. Every event key is mapped; all 5 sonic axes covered.
   //
   // Design principles encoded:
-  //   Cognitive Flow  â€” timbre=category, velocity=importance, path-hash=file identity
-  //   Thrash Detector â€” sequential notes build phrase density; dorian tension; threshold rules
-  //   Session Arc     â€” multi-scale: tools=micro, token-bursts=mid chord, words=macro melody
+  //   Cognitive Flow  — timbre=category, velocity=importance, path-hash=file identity
+  //   Thrash Detector — sequential notes build phrase density; dorian tension; threshold rules
+  //   Session Arc     — multi-scale: tools=micro, token-bursts=mid chord, words=macro melody
 
   const DAW_PRESETS = [
     {
       name: 'Cognitive Flow',
-      tag:  'Pre-attentive Â· Identity Â· Sustainable',
-      desc: 'Timbre maps category. Velocity maps importance. Path-hash pitch gives every file a consistent identity note within a project. Major pentatonic â€” consonant and sustainable for long monitoring sessions.',
+      tag:  'Pre-attentive · Identity · Sustainable',
+      desc: 'Timbre maps category. Velocity maps importance. Path-hash pitch gives every file a consistent identity note within a project. Major pentatonic — consonant and sustainable for long monitoring sessions.',
       settings: {
         scale: 'major_pentatonic', noteMode: 'path_hash', bpm: 100,
         instruments: {
@@ -842,19 +842,19 @@
         },
       },
       mappings: [
-        // FILE â€” left channel, clear identity distinction by volume
+        // FILE — left channel, clear identity distinction by volume
         { match: { key:'write'      }, set: { volMult:1.30, pan:-0.20, send:0.04, brightness:10000 } },
         { match: { key:'edit'       }, set: { volMult:1.00, pan:-0.12, send:0.04, brightness: 8500 } },
         { match: { key:'read'       }, set: { volMult:0.65, pan: 0.05, send:0.05, brightness: 6500 } },
         { match: { key:'grep_glob'  }, set: { volMult:0.55, pan: 0.10, send:0.03, brightness: 5000 } },
-        // SYSTEM â€” far left, percussive time anchor
+        // SYSTEM — far left, percussive time anchor
         { match: { key:'bash_git'   }, set: { volMult:1.10, pan:-0.38, send:0.03, brightness: 3500 } },
         { match: { key:'bash_run'   }, set: { volMult:1.00, pan:-0.32, send:0.03, brightness: 2800 } },
         { match: { key:'bash_other' }, set: { volMult:0.55, pan:-0.30, send:0.02, brightness: 4000 } },
-        // AI â€” right + reverb = spatial weight/distance
+        // AI — right + reverb = spatial weight/distance
         { match: { key:'agent'      }, set: { volMult:1.20, octave: 1, pan: 0.40, send:0.45, brightness: 5000 } },
         { match: { key:'other'      }, set: { volMult:0.60, pan: 0.00, send:0.06, brightness: 6500 } },
-        // CONTEXT â€” ambient background
+        // CONTEXT — ambient background
         { match: { key:'tokens'     }, set: { volMult:0.50, pan: 0.00, send:0.02, octave:-1 } },
         { match: { key:'words'      }, set: { volMult:0.90, pan: 0.22, send:0.14, brightness: 9000, octave: 1 } },
       ],
@@ -862,8 +862,8 @@
 
     {
       name: 'Thrash Detector',
-      tag:  'Flow Â· Tension Â· Anomaly',
-      desc: 'Sequential notes build phrase density â€” steady rhythm = "in flow", dense rapid notes = "thrashing". Dorian scale has inherent tension. Large token bursts (>600) and long words (>40) get boosted dynamics for anomaly salience.',
+      tag:  'Flow · Tension · Anomaly',
+      desc: 'Sequential notes build phrase density — steady rhythm = "in flow", dense rapid notes = "thrashing". Dorian scale has inherent tension. Large token bursts (>600) and long words (>40) get boosted dynamics for anomaly salience.',
       settings: {
         scale: 'dorian', noteMode: 'sequential', bpm: 120,
         instruments: {
@@ -874,19 +874,19 @@
         },
       },
       mappings: [
-        // FILE â€” writes grounded an octave down (heavy labour feel)
+        // FILE — writes grounded an octave down (heavy labour feel)
         { match: { key:'write'      }, set: { volMult:1.40, pan:-0.25, send:0.05, brightness: 9000, octave:-1 } },
         { match: { key:'edit'       }, set: { volMult:1.10, pan:-0.15, send:0.05, brightness: 8000          } },
         { match: { key:'read'       }, set: { volMult:0.55, pan: 0.00, send:0.04, brightness: 6000          } },
         { match: { key:'grep_glob'  }, set: { volMult:0.65, pan: 0.12, send:0.03, brightness: 4500          } },
-        // SYSTEM â€” rhythmic pulse; bash_run drops an octave for weight
+        // SYSTEM — rhythmic pulse; bash_run drops an octave for weight
         { match: { key:'bash_git'   }, set: { volMult:1.20, pan:-0.40, send:0.02, brightness: 3000          } },
         { match: { key:'bash_run'   }, set: { volMult:1.15, pan:-0.35, send:0.02, brightness: 2500, octave:-1 } },
         { match: { key:'bash_other' }, set: { volMult:0.60, pan:-0.28, send:0.02, brightness: 3500          } },
-        // AI â€” high structural tension: upper octave + heavy reverb
+        // AI — high structural tension: upper octave + heavy reverb
         { match: { key:'agent'      }, set: { volMult:1.35, pan: 0.45, send:0.55, brightness: 4000, octave: 1 } },
         { match: { key:'other'      }, set: { volMult:0.70, pan: 0.05, send:0.08, brightness: 5500          } },
-        // CONTEXT â€” threshold rules: big burst = anomaly spike; small = whisper
+        // CONTEXT — threshold rules: big burst = anomaly spike; small = whisper
         { match: { key:'tokens', outMin:600 }, set: { volMult:0.90, pan: 0.05, send:0.05, octave:-1, brightness: 6000 } },
         { match: { key:'tokens'     }, set: { volMult:0.40, pan: 0.00, send:0.02, octave:-1, brightness: 4500 } },
         // Long assistant turns = release/cadence
@@ -897,8 +897,8 @@
 
     {
       name: 'Session Arc',
-      tag:  'Multi-scale Â· Arc Â· Layers',
-      desc: 'Three independent time-scale layers: individual tool calls = rhythmic micro-texture (oct 0), token bursts = harmonic foundation (bass, oct âˆ’2, root-only), assistant words = structural melody (bell, oct +1/+2). Blues scale. Path-hash keeps file identity across layers.',
+      tag:  'Multi-scale · Arc · Layers',
+      desc: 'Three independent time-scale layers: individual tool calls = rhythmic micro-texture (oct 0), token bursts = harmonic foundation (bass, oct −2, root-only), assistant words = structural melody (bell, oct +1/+2). Blues scale. Path-hash keeps file identity across layers.',
       settings: {
         scale: 'blues', noteMode: 'path_hash', bpm: 90,
         instruments: {
@@ -909,7 +909,7 @@
         },
       },
       mappings: [
-        // MICRO LAYER â€” file tools, restrained volume, textural
+        // MICRO LAYER — file tools, restrained volume, textural
         { match: { key:'write'      }, set: { volMult:1.00, pan:-0.18, send:0.04, brightness: 9500 } },
         { match: { key:'edit'       }, set: { volMult:0.85, pan:-0.10, send:0.04, brightness: 8000 } },
         { match: { key:'read'       }, set: { volMult:0.55, pan: 0.05, send:0.04, brightness: 6000 } },
@@ -917,12 +917,12 @@
         { match: { key:'bash_git'   }, set: { volMult:0.95, pan:-0.38, send:0.03, brightness: 3500 } },
         { match: { key:'bash_run'   }, set: { volMult:0.90, pan:-0.32, send:0.03, brightness: 2800 } },
         { match: { key:'bash_other' }, set: { volMult:0.45, pan:-0.28, send:0.02, brightness: 3800 } },
-        // AI â€” harmonic colour accent (right, reverb, root-fixed for consistency)
+        // AI — harmonic colour accent (right, reverb, root-fixed for consistency)
         { match: { key:'agent'      }, set: { volMult:1.10, pan: 0.42, send:0.50, brightness: 4500, octave: 1, degreeMode:'root' } },
         { match: { key:'other'      }, set: { volMult:0.55, pan: 0.08, send:0.06, brightness: 5500 } },
-        // MID LAYER â€” tokens = bass chord, 2 octaves down, root-locked â†’ harmonic foundation
+        // MID LAYER — tokens = bass chord, 2 octaves down, root-locked → harmonic foundation
         { match: { key:'tokens'     }, set: { instrument:'bass', volMult:0.70, pan: 0.00, send:0.05, octave:-2, degreeMode:'root', brightness: 4000 } },
-        // MACRO LAYER â€” words = structural melody; long replies rise to +2 oct for climax
+        // MACRO LAYER — words = structural melody; long replies rise to +2 oct for climax
         { match: { key:'words', wordMin:50 }, set: { volMult:1.20, pan: 0.30, send:0.22, brightness:11000, octave: 2 } },
         { match: { key:'words'      }, set: { volMult:0.90, pan: 0.25, send:0.16, brightness: 9500, octave: 1 } },
       ],
@@ -941,14 +941,14 @@
     if (scaleSel  && preset.settings.scale) scaleSel.value = preset.settings.scale;
   }
 
-  // â”€â”€ PROF tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── PROF tab ───────────────────────────────────────────────────────────────────
   const PROF_KEY = 'kaaro-daw-profiles';
 
   function _loadProfiles() { try { return JSON.parse(localStorage.getItem(PROF_KEY) || '{}'); } catch { return {}; } }
   function _saveProfiles(p) { try { localStorage.setItem(PROF_KEY, JSON.stringify(p)); } catch {} }
 
   function buildProfTab(body) {
-    // â”€â”€ Built-in presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Built-in presets ──────────────────────────────────────────────────────
     const presHead = document.createElement('div');
     presHead.className = 'sec-head'; presHead.textContent = 'Built-in Presets';
     body.appendChild(presHead);
@@ -964,13 +964,13 @@
       const ruleCount = preset.mappings.length;
       const ruleSummary = document.createElement('span');
       ruleSummary.className = 'preset-rules';
-      ruleSummary.textContent = ruleCount + ' mapping rules Â· ' + preset.settings.scale.replace('_', ' ') + ' Â· ' + preset.settings.noteMode.replace('_', ' ');
+      ruleSummary.textContent = ruleCount + ' mapping rules · ' + preset.settings.scale.replace('_', ' ') + ' · ' + preset.settings.noteMode.replace('_', ' ');
 
       const applyBtn = document.createElement('button');
       applyBtn.className = 'btn primary preset-apply'; applyBtn.textContent = 'Apply';
       applyBtn.onclick = () => {
         applyPreset(preset);
-        applyBtn.textContent = 'Applied âœ“';
+        applyBtn.textContent = 'Applied ✓';
         applyBtn.classList.add('applied');
         setTimeout(() => {
           applyBtn.textContent = 'Apply';
@@ -983,7 +983,7 @@
       body.appendChild(card);
     });
 
-    // â”€â”€ Saved profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Saved profiles ────────────────────────────────────────────────────────
     const profHead = document.createElement('div');
     profHead.className = 'sec-head'; profHead.style.marginTop = '12px'; profHead.textContent = 'Saved Profiles';
     body.appendChild(profHead);
@@ -1055,13 +1055,13 @@
         if (p.profile  && window.updateAudioProfile)  window.updateAudioProfile(p.profile);
         renderTab('synth');
       };
-      const delBtn = document.createElement('button'); delBtn.className = 'btn danger'; delBtn.textContent = 'âœ•';
+      const delBtn = document.createElement('button'); delBtn.className = 'btn danger'; delBtn.textContent = '✕';
       delBtn.onclick = () => { delete profs[nm]; _saveProfiles(profs); _renderProfList(listDiv); };
       row.appendChild(loadBtn); row.appendChild(delBtn); listDiv.appendChild(row);
     });
   }
 
-  // â”€â”€ Header controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Header controls ───────────────────────────────────────────────────────────
   let _tapTimes = [];
 
   function wireHeaderControls() {
@@ -1116,7 +1116,7 @@
     if (muteBtn) {
       const syncMuteBtn = () => {
         const isMuted = window._getAudioMuted ? window._getAudioMuted() : true;
-        muteBtn.textContent = isMuted ? 'â™ª OFF' : 'â™ª ON';
+        muteBtn.textContent = isMuted ? '♪ OFF' : '♪ ON';
         muteBtn.className = 'hdr-btn' + (isMuted ? '' : ' on');
       };
       syncMuteBtn();
@@ -1130,11 +1130,11 @@
     }
   }
 
-  // â”€â”€ Live SSE connection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Live SSE connection ───────────────────────────────────────────────────────
   function connectLive() {
     const statusEl = document.getElementById('daw-status');
     if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') {
-      if (statusEl) statusEl.textContent = 'OFFLINE â€” use SIM tab';
+      if (statusEl) statusEl.textContent = 'OFFLINE — use SIM tab';
       return;
     }
     try {
@@ -1143,11 +1143,11 @@
       es.addEventListener('tokens',    e => { try { if (window.playPulse) window.playPulse('tokens',    JSON.parse(e.data)); } catch {} });
       es.addEventListener('words',     e => { try { if (window.playPulse) window.playPulse('words',     JSON.parse(e.data)); } catch {} });
       es.onopen  = () => { if (statusEl) statusEl.textContent = 'LIVE /events'; };
-      es.onerror = () => { if (statusEl) statusEl.textContent = 'reconnectingâ€¦'; };
-    } catch { if (statusEl) statusEl.textContent = 'SSE failed â€” use SIM'; }
+      es.onerror = () => { if (statusEl) statusEl.textContent = 'reconnecting…'; };
+    } catch { if (statusEl) statusEl.textContent = 'SSE failed — use SIM'; }
   }
 
-  // â”€â”€ Keyboard shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────────
   function wireKeys() {
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape')          { S.scrollMs = 0; setLive(true); }
@@ -1161,7 +1161,7 @@
     });
   }
 
-  // â”€â”€ Seed default mappings if empty â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Seed default mappings if empty ───────────────────────────────────────────
   function seedDefaultMappings() {
     const prof = window.AUDIO_PROFILE || {};
     if (prof.mappings && prof.mappings.length > 0) return;
@@ -1173,7 +1173,7 @@
     if (window.updateAudioProfile) window.updateAudioProfile({ mappings: prof.mappings });
   }
 
-  // â”€â”€ Boot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Boot ──────────────────────────────────────────────────────────────────────
   // Session legend + context pressure (footer): who is playing, and how full
   // each session's context window is (latest tokens pulse, via shared core).
   function renderSessionLegend() {
@@ -1221,7 +1221,7 @@
     requestAnimationFrame(drawDaw);
     requestAnimationFrame(drawAuto);
 
-    console.log('%c[kaaro-daw] Cognitive DAW v2 ready â€” 4 family lanes Â· reverb Â· stereo Â· pressure automation', 'color:'+KAARO_TOKENS.accent);
+    console.log('%c[kaaro-daw] Cognitive DAW v2 ready — 4 family lanes · reverb · stereo · pressure automation', 'color:'+KAARO_TOKENS.accent);
   }
 
   boot();

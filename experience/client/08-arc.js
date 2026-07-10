@@ -1,11 +1,11 @@
-// â”€â”€ Arc layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Arc layout ────────────────────────────────────────────────────────────────
 let arcXScale = null;
 let focusedArcFileId = null;
 
 const ARC_AXIS_Y = () => H * 0.5;
 const ARC_ROW_SPACING = 34;
 
-// â”€â”€ Position sessions on the time spine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Position sessions on the time spine ──────────────────────────────────────
 function computeArcPositions() {
   const sessions  = GRAPH.nodes.filter(n => n.type === 'session');
   const projects  = GRAPH.nodes.filter(n => n.type === 'project');
@@ -39,7 +39,7 @@ function computeArcPositions() {
   });
 }
 
-// â”€â”€ Time axis decoration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Time axis decoration ──────────────────────────────────────────────────────
 function drawArcDecor() {
   decorLayer.selectAll('*').remove();
   if (!arcXScale) return;
@@ -101,7 +101,7 @@ function drawArcDecor() {
     .text(modeLabels[modeEl?.value] || '');
 }
 
-// â”€â”€ Arc data computation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Arc data computation ──────────────────────────────────────────────────────
 function getArcOpts() {
   const maxSpanRaw = +(document.getElementById('arc-max-span')?.value || 365);
   return {
@@ -115,7 +115,7 @@ function getArcOpts() {
 function computeFileSharedArcs(opts) {
   const { minShared, maxSpan, colorBy } = opts;
 
-  // file â†’ sessions that wrote/edited it
+  // file → sessions that wrote/edited it
   const fileSess = {};
   GRAPH.edges.forEach(e => {
     if (e.type !== 'write' && e.type !== 'edit') return;
@@ -123,7 +123,7 @@ function computeFileSharedArcs(opts) {
     (fileSess[fid] = fileSess[fid] || []).push(sid);
   });
 
-  // pair â†’ { files, colors }
+  // pair → { files, colors }
   const pairs = {};
   Object.entries(fileSess).forEach(([fid, sids]) => {
     const fNode = nodeById[fid];
@@ -202,7 +202,7 @@ function computeSequenceArcs(opts) {
   return arcs;
 }
 
-// â”€â”€ Arc rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Arc rendering ─────────────────────────────────────────────────────────────
 function drawArcArcs() {
   arcArcLayer.selectAll('*').remove();
   if (!arcXScale) return;
@@ -261,10 +261,10 @@ function drawArcArcs() {
         tip.style.display = 'block';
         tip.innerHTML =
           `<strong style="color:${arc.color}">${nA?.label || '?'}</strong>
-           <div class="meta">â†” <span style="color:${nB?.color || '#aaa'}">${nB?.label || '?'}</span></div>
+           <div class="meta">↔ <span style="color:${nB?.color || '#aaa'}">${nB?.label || '?'}</span></div>
            ${fileLabel ? `<div class="meta">shared: ${fileLabel}</div>` : ''}
            ${arc.branch ? `<div class="meta">branch: ${arc.branch}</div>` : ''}
-           <div class="meta">${Math.round(arc.spanDays)}d apart${arc.count > 1 ? ` Â· ${arc.count} files` : ''}</div>`;
+           <div class="meta">${Math.round(arc.spanDays)}d apart${arc.count > 1 ? ` · ${arc.count} files` : ''}</div>`;
       })
       .on('mousemove', ev => {
         tip.style.left = Math.min(ev.clientX + 16, W - 340) + 'px';
@@ -292,7 +292,7 @@ function updateArcFileHub(arcs, mode) {
     const f      = nodeById[fid];
     const active = focusedArcFileId === fid;
     return `<div class="arc-hub-row${active ? ' arc-hub-active' : ''}" data-fid="${fid}" style="color:${f?.color || '#aaa'}">
-      <span class="arc-hub-cnt">${cnt}Ã—</span>${f?.label || fid}
+      <span class="arc-hub-cnt">${cnt}×</span>${f?.label || fid}
     </div>`;
   }).join('');
 
@@ -304,7 +304,7 @@ function updateArcFileHub(arcs, mode) {
   });
 }
 
-// â”€â”€ Apply static positions (arc layout) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Apply static positions (arc layout) ──────────────────────────────────────
 function applyStaticPositions() {
   GRAPH.nodes.forEach(n => { if (n.fx != null) n.x = n.fx; if (n.fy != null) n.y = n.fy; });
   nodeSel.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`);

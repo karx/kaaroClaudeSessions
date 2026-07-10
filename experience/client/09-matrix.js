@@ -1,4 +1,4 @@
-// â”€â”€ Matrix layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Matrix layout ─────────────────────────────────────────────────────────────
 // SESSION_FILTERS declared in 01-data; predicate from shared core.
 
 function renderMatrix() {
@@ -11,7 +11,7 @@ function renderMatrix() {
   let sessions = GRAPH.nodes.filter(n => n.type === 'session')
     .filter(n => sessionMatchesFilters(n, SESSION_FILTERS))
     .sort((a,b) => (a.first_timestamp||'') < (b.first_timestamp||'') ? -1 : 1);
-  if (!files.length || !sessions.length) { mv.innerHTML='<div class="mx-empty">No data â€” adjust filters</div>'; return; }
+  if (!files.length || !sessions.length) { mv.innerHTML='<div class="mx-empty">No data — adjust filters</div>'; return; }
   files.sort((a,b)=>(b.write+b.edit)-(a.write+a.edit));
   const opMap = {};
   GRAPH.edges.forEach(e => {
@@ -28,7 +28,7 @@ function renderMatrix() {
   bar.innerHTML=`<span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#ffcc00" fill-opacity=".75"/></svg>edit</span>
     <span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#00ff88" fill-opacity=".75"/></svg>write</span>
     <span class="mx-leg-item"><svg class="mx-leg-swatch"><rect width="14" height="14" fill="#1e4a66" fill-opacity=".8"/></svg>read only</span>
-    <span style="margin-left:auto;color:${KAARO_TOKENS.dim};font-size:10px">${files.length} files Ã— ${sessions.length} sessions</span>`;
+    <span style="margin-left:auto;color:${KAARO_TOKENS.dim};font-size:10px">${files.length} files × ${sessions.length} sessions</span>`;
   mv.appendChild(bar);
   const msvg=d3.select(mv).append('svg').attr('width',svgW).attr('height',svgH).style('display','block');
   const hg=msvg.append('g').attr('transform',`translate(${LABEL_W},0)`);

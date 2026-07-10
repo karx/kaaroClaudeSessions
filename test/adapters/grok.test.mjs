@@ -81,7 +81,7 @@ const SIGNALS = {
   primaryModelId: 'grok-composer-2.5-fast',
 };
 
-test('recordsToNormalized Ã¢â‚¬â€ emits expected kinds', () => {
+test('recordsToNormalized — emits expected kinds', () => {
   const norm = recordsToNormalized(GOLDEN_RECORDS);
   const kinds = norm.map(r => r.kind);
   assert.ok(kinds.includes('user_turn'));
@@ -90,7 +90,7 @@ test('recordsToNormalized Ã¢â‚¬â€ emits expected kinds', () => {
   assert.equal(kinds.filter(k => k === 'tool_use').length, 2);
 });
 
-test('recordsToNormalized Ã¢â‚¬â€ Grok no turnStartMs chunks do not cause turn count explosion (dedup robustness)', () => {
+test('recordsToNormalized — Grok no turnStartMs chunks do not cause turn count explosion (dedup robustness)', () => {
   // Simulate a streaming assistant response with many chunks but no _meta.turnStartMs
   // (the bypass case in review finding #4).
   const noKeyChunks = [
@@ -145,7 +145,7 @@ test('tool_use NR has category for bash tools; key is NOT set by adapter', () =>
   const nrs = recordsToNormalized(records).filter(r => r.kind === 'tool_use');
   assert.equal(nrs.length, 2);
   assert.equal(nrs[0].category, 'node'); // Shell + node --test
-  assert.equal(nrs[1].category, null);        // Read Ã¢â‚¬â€ not bash
+  assert.equal(nrs[1].category, null);        // Read — not bash
   // Sonic key is NOT derived by adapters
   assert.equal(nrs[0].key, undefined);
   assert.equal(nrs[1].key, undefined);
@@ -196,7 +196,7 @@ test('adapter + reducer golden regression matches parseGrokRecords', () => {
   assert.equal(viaParse.project_id, 'D--src-kaaroSessions');
   assert.ok(viaParse.file_ops['d:/src/kaarosessions/todo.md']?.read, 1);
 });
-// Ã¢â€â‚¬Ã¢â€â‚¬ Trace-fidelity fields (N5) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ── Trace-fidelity fields (N5) ────────────────────────────────────────────────
 
 function su(update, meta = {}, method = 'session/update') {
   return { timestamp: 1, method, params: { sessionId: 's', update }, _meta: meta };
@@ -213,7 +213,7 @@ test('assistant_turn NR emitted per turnStartMs change (temporal turn grouping)'
     'one assistant_turn per turnStartMs, not per user-span');
 });
 
-test('agent_thought_chunk Ã¢â€ â€™ content_block thinking', () => {
+test('agent_thought_chunk → content_block thinking', () => {
   const nrs = recordsToNormalized([
     su({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'hmm' } }, { turnStartMs: 100 }),
     su({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'more' } }, { turnStartMs: 100 }),

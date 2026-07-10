@@ -1,5 +1,5 @@
 /**
- * test/opencode-adapter.test.mjs â†’ adapters/opencode.mjs
+ * test/opencode-adapter.test.mjs → adapters/opencode.mjs
  *
  * Fixtures mirror real shapes probed from ~/.local/share/opencode/storage
  * (2026-06-11, opencode 1.0.201). See memory: harness-storage-formats.
@@ -11,7 +11,7 @@ import { recordsToNormalized } from '../hooks/adapters/opencode.mjs';
 import { reduceSession } from '../hooks/session-reducer.mjs';
 import { toolNameToKey } from '../hooks/action-keys.mjs';
 
-// â”€â”€ fixtures (shapes from real storage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── fixtures (shapes from real storage) ──────────────────────────────────────
 
 function makeInfo(over = {}) {
   return {
@@ -80,9 +80,9 @@ function makeToolPart(over = {}, stateOver = {}) {
   };
 }
 
-// â”€â”€ session info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── session info ──────────────────────────────────────────────────────────────
 
-test('opencode session info â†’ session_meta with ai_title + cwd', () => {
+test('opencode session info → session_meta with ai_title + cwd', () => {
   const nrs = recordsToNormalized([makeInfo()]);
   assert.equal(nrs.length, 1);
   const m = nrs[0];
@@ -93,9 +93,9 @@ test('opencode session info â†’ session_meta with ai_title + cwd', () => {
   assert.equal(m.ts, new Date(1766698155332).toISOString());
 });
 
-// â”€â”€ messages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── messages ──────────────────────────────────────────────────────────────────
 
-test('user message â†’ user_turn with text from embedded text part', () => {
+test('user message → user_turn with text from embedded text part', () => {
   const nrs = recordsToNormalized([makeUserMsg()]);
   const turn = nrs.find(r => r.kind === 'user_turn');
   assert.ok(turn);
@@ -105,7 +105,7 @@ test('user message â†’ user_turn with text from embedded text part', () => 
   assert.equal(nrs.filter(r => r.kind === 'content_block').length, 0);
 });
 
-test('assistant message â†’ assistant_turn + tokens (cache.write â†’ cache_create)', () => {
+test('assistant message → assistant_turn + tokens (cache.write → cache_create)', () => {
   const nrs = recordsToNormalized([makeAssistantMsg()]);
   const turn = nrs.find(r => r.kind === 'assistant_turn');
   assert.ok(turn);
@@ -117,14 +117,14 @@ test('assistant message â†’ assistant_turn + tokens (cache.write â†’ c
   assert.deepEqual(tok.tokens, { input: 25801, output: 166, cache_create: 12, cache_read: 70 });
 });
 
-test('assistant message without tokens â†’ no tokens record', () => {
+test('assistant message without tokens → no tokens record', () => {
   const nrs = recordsToNormalized([makeAssistantMsg({ tokens: undefined })]);
   assert.equal(nrs.filter(r => r.kind === 'tokens').length, 0);
 });
 
-// â”€â”€ tool parts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── tool parts ────────────────────────────────────────────────────────────────
 
-test('completed tool part â†’ tool_use with input + start ts', () => {
+test('completed tool part → tool_use with input + start ts', () => {
   const nrs = recordsToNormalized([makeToolPart()]);
   assert.equal(nrs.length, 1);
   const t = nrs[0];
@@ -133,7 +133,7 @@ test('completed tool part â†’ tool_use with input + start ts', () => {
   assert.equal(t.ts, new Date(1766696961364).toISOString());
 });
 
-test('tool part filePath â†’ input.file_path (reducer file_ops compatible)', () => {
+test('tool part filePath → input.file_path (reducer file_ops compatible)', () => {
   const nrs = recordsToNormalized([makeToolPart(
     { tool: 'read' },
     { input: { filePath: 'D:\\src\\demo\\a.mjs' } },
@@ -141,7 +141,7 @@ test('tool part filePath â†’ input.file_path (reducer file_ops compatible)'
   assert.equal(nrs[0].input.file_path, 'D:\\src\\demo\\a.mjs');
 });
 
-test('bash tool part â†’ category from command', () => {
+test('bash tool part → category from command', () => {
   const nrs = recordsToNormalized([makeToolPart(
     { tool: 'bash' },
     { input: { command: 'git status' } },
@@ -151,7 +151,7 @@ test('bash tool part â†’ category from command', () => {
   assert.equal(nrs[0].input.command, 'git status');
 });
 
-test('error tool part â†’ tool_use + tool_result error', () => {
+test('error tool part → tool_use + tool_result error', () => {
   const nrs = recordsToNormalized([makeToolPart({}, { status: 'error' })]);
   assert.equal(nrs.length, 2);
   assert.equal(nrs[0].kind, 'tool_use');
@@ -160,17 +160,17 @@ test('error tool part â†’ tool_use + tool_result error', () => {
   assert.equal(nrs[1].tool, 'glob');
 });
 
-test('pending/running tool parts â†’ no records (single emission on completion)', () => {
+test('pending/running tool parts → no records (single emission on completion)', () => {
   assert.equal(recordsToNormalized([makeToolPart({}, { status: 'pending' })]).length, 0);
   assert.equal(recordsToNormalized([makeToolPart({}, { status: 'running' })]).length, 0);
 });
 
-// â”€â”€ other parts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── other parts ───────────────────────────────────────────────────────────────
 
-test('assistant text + reasoning parts â†’ content_block text/thinking', () => {
+test('assistant text + reasoning parts → content_block text/thinking', () => {
   const msg = makeAssistantMsg({
     _parts: [
-      { id: 'prt_t', type: 'text', text: 'Done â€” the README is written and committed now.' },
+      { id: 'prt_t', type: 'text', text: 'Done — the README is written and committed now.' },
       { id: 'prt_r', type: 'reasoning', text: 'Let me check the files.', time: { start: 1766696906083, end: 1766696906793 } },
     ],
   });
@@ -178,11 +178,11 @@ test('assistant text + reasoning parts â†’ content_block text/thinking', ()
   const text = nrs.find(r => r.kind === 'content_block' && r.block_type === 'text');
   const think = nrs.find(r => r.kind === 'content_block' && r.block_type === 'thinking');
   assert.ok(text);
-  assert.equal(text.text, 'Done â€” the README is written and committed now.');
+  assert.equal(text.text, 'Done — the README is written and committed now.');
   assert.ok(think);
 });
 
-test('step-start / step-finish / patch parts â†’ silenced (no double token count)', () => {
+test('step-start / step-finish / patch parts → silenced (no double token count)', () => {
   const msg = makeAssistantMsg({
     _parts: [
       { id: 'p1', type: 'step-start' },
@@ -191,21 +191,21 @@ test('step-start / step-finish / patch parts â†’ silenced (no double token 
     ],
   });
   const nrs = recordsToNormalized([msg]);
-  // exactly one tokens record â€” from the message envelope, not step-finish
+  // exactly one tokens record — from the message envelope, not step-finish
   assert.equal(nrs.filter(r => r.kind === 'tokens').length, 1);
   assert.equal(nrs.filter(r => r.kind === 'unknown_record').length, 0);
 });
 
-test('unknown part type â†’ unknown_record catch-all', () => {
+test('unknown part type → unknown_record catch-all', () => {
   const nrs = recordsToNormalized([{ type: 'snapshot-v9', id: 'prt_x' }]);
   assert.equal(nrs.length, 1);
   assert.equal(nrs[0].kind, 'unknown_record');
   assert.equal(nrs[0].raw_type, 'part:snapshot-v9');
 });
 
-// â”€â”€ tool key aliases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── tool key aliases ──────────────────────────────────────────────────────────
 
-test('toolNameToKey â€” opencode names map to canonical keys', () => {
+test('toolNameToKey — opencode names map to canonical keys', () => {
   assert.equal(toolNameToKey('glob'), 'grep_glob');
   assert.equal(toolNameToKey('read'), 'read');
   assert.equal(toolNameToKey('bash', 'git'), 'bash_git');
@@ -213,7 +213,7 @@ test('toolNameToKey â€” opencode names map to canonical keys', () => {
   assert.equal(toolNameToKey('task'), 'agent'); // opencode subagent tool
 });
 
-// â”€â”€ reducer integration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── reducer integration ───────────────────────────────────────────────────────
 
 test('full session reduces: tokens, tools, file_ops, errors', () => {
   const records = [

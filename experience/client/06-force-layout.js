@@ -1,4 +1,4 @@
-// â”€â”€ Force layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Force layout ──────────────────────────────────────────────────────────────
 function restoreForceLayout() {
   const p = getForceParams();
   const prof = forceProfile(document.getElementById('fp-free')?.checked || false);

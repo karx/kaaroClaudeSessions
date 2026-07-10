@@ -1,4 +1,4 @@
-// â”€â”€ Edge rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Edge rendering ────────────────────────────────────────────────────────────
 let currentLayout = 'force';
 
 function edgePathD(d) {
@@ -35,7 +35,7 @@ let edgeSel = edgeLayer.selectAll('path').data(GRAPH.edges, edgeKey)
 const nodeById = {};
 GRAPH.nodes.forEach(n => nodeById[n.id] = n);
 
-// â”€â”€ Node rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Node rendering ────────────────────────────────────────────────────────────
 function renderNodeContent(el, d) {
   const r = nodeRadius(d);
   if (d.recencyLevel > 0) {
@@ -58,7 +58,7 @@ function renderNodeContent(el, d) {
     if (d.skills?.length) el.append('circle').attr('r',r+4).attr('fill','none').attr('stroke','#ffcc00').attr('stroke-width',1).attr('stroke-opacity',.6).attr('stroke-dasharray','3 2');
     el.append('circle').attr('r',r).attr('fill',d.color).attr('fill-opacity',.83).attr('stroke', d.inFlight ? IN_FLIGHT_COLOR : '#000').attr('stroke-width', d.inFlight ? 1.5 : .4);
     if (d.thinking_count>0) el.append('circle').attr('r',2.5).attr('fill','#fff').attr('fill-opacity',.9);
-    if (d.hit_max_tokens) el.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('font-size',r*.8).attr('fill','#ff4444').attr('pointer-events','none').text('âœ•');
+    if (d.hit_max_tokens) el.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('font-size',r*.8).attr('fill','#ff4444').attr('pointer-events','none').text('✕');
   } else {
     el.append('path').attr('d',`M0,${-r} L${r},0 L0,${r} L${-r},0 Z`)
       .attr('fill',d.color).attr('fill-opacity',.82).attr('stroke',d.color).attr('stroke-width',.5).attr('stroke-opacity',.4);

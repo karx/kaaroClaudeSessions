@@ -67,7 +67,7 @@ function finalizeAntigravity(session, records) {
   return session;
 }
 
-// Ã¢â€â‚¬Ã¢â€â‚¬ Sample Trace validation Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ── Sample Trace validation ───────────────────────────────────────────────────
 // For each EVENT_TYPES entry with samples, run the adapter and assert output
 // contains at least one NR matching all fields in the expect entry.
 
@@ -91,7 +91,7 @@ for (const [eventKey, entry] of Object.entries(EVENT_TYPES)) {
   for (const [harness, sample] of Object.entries(entry.samples)) {
     const adapterFn = ADAPTERS[harness];
     if (!adapterFn) continue;
-    test(`sample trace Ã¢â‚¬â€ ${eventKey}/${harness} v${sample.version}`, () => {
+    test(`sample trace — ${eventKey}/${harness} v${sample.version}`, () => {
       const nrs = adapterFn([sample.record]);
       for (const expectedNR of sample.expect) {
         const match = nrs.find(nr => partialMatch(nr, expectedNR));
@@ -104,7 +104,7 @@ for (const [eventKey, entry] of Object.entries(EVENT_TYPES)) {
   }
 }
 
-test('pipeline internal consistency Ã¢â‚¬â€ claude-code', () => {
+test('pipeline internal consistency — claude-code', () => {
   const records = [
     {
       type: 'user', timestamp: '2026-05-01T10:00:00.000Z', gitBranch: 'feat/x',
@@ -139,7 +139,7 @@ test('pipeline internal consistency Ã¢â‚¬â€ claude-code', () => {
   }
 });
 
-test('harness parity Ã¢â‚¬â€ pi', () => {
+test('harness parity — pi', () => {
   const records = [
     {
       type: 'session', timestamp: '2026-04-26T14:22:51.638Z', cwd: 'D:\\src\\ebrain',
@@ -175,7 +175,7 @@ test('harness parity Ã¢â‚¬â€ pi', () => {
   assertParity(legacy, pipeline, 'pi');
 });
 
-test('harness parity Ã¢â‚¬â€ antigravity', () => {
+test('harness parity — antigravity', () => {
   const records = [
     {
       source: 'USER_EXPLICIT', type: 'USER_INPUT', created_at: '2026-06-07T00:15:33Z',
@@ -204,10 +204,10 @@ test('harness parity Ã¢â‚¬â€ antigravity', () => {
   );
   assertParity(legacy, pipeline, 'antigravity');
 });
-// â”€â”€ Capability-enforced field parity (N3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Capability-enforced field parity (N3) ─────────────────────────────────────
 // The registry capability flags ARE the parity matrix: a harness session must
 // populate context_resets / ai_title / subagent_count / branches iff its
-// descriptor claims the capability. Fixtures below are deliberately rich â€”
+// descriptor claims the capability. Fixtures below are deliberately rich —
 // they exercise every populate path the harness format offers.
 
 import { getHarness } from '../hooks/registry.mjs';
@@ -324,7 +324,7 @@ const CAP_SESSION_BUILDERS = {
 };
 
 for (const [harness, build] of Object.entries(CAP_SESSION_BUILDERS)) {
-  test(`capability parity â€” ${harness} fields match registry flags`, () => {
+  test(`capability parity — ${harness} fields match registry flags`, () => {
     const caps = getHarness(harness).capabilities;
     const session = build();
     for (const field of CAPABILITY_FIELDS) {
@@ -334,7 +334,7 @@ for (const [harness, build] of Object.entries(CAP_SESSION_BUILDERS)) {
           `${harness}: capabilities.${field}=true but rich fixture left it default (${JSON.stringify(v)})`);
       } else {
         assert.ok(IS_DEFAULT[field](v),
-          `${harness}: capabilities.${field}=false but session populated it (${JSON.stringify(v)}) â€” flip the flag`);
+          `${harness}: capabilities.${field}=false but session populated it (${JSON.stringify(v)}) — flip the flag`);
       }
     }
   });

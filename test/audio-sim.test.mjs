@@ -1,12 +1,12 @@
 /**
- * test/audio-sim.test.mjs â€” TDD tests for lib/audio-sim.mjs + lib/audio-presets.mjs
+ * test/audio-sim.test.mjs — TDD tests for lib/audio-sim.mjs + lib/audio-presets.mjs
  *
  * Covers:
- *   resolveSonic  â€” all 11 keys, spatial defaults, harness bias, rule overrides,
+ *   resolveSonic  — all 11 keys, spatial defaults, harness bias, rule overrides,
  *                   threshold rules, tokens brightness, instrument override
- *   resolveHz     â€” path_hash, sequential, root, deterministic "random"
- *   simulateSession â€” event extraction, silencing, summary counts
- *   audio-presets  â€” preset lookup, slug normalisation, all presets cover all keys
+ *   resolveHz     — path_hash, sequential, root, deterministic "random"
+ *   simulateSession — event extraction, silencing, summary counts
+ *   audio-presets  — preset lookup, slug normalisation, all presets cover all keys
  */
 
 import { test } from 'node:test';
@@ -20,7 +20,7 @@ import { getPreset, AUDIO_PRESETS, PRESET_SLUGS } from '../experience/audio/audi
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 
-// â”€â”€ Fixtures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const TS  = '2026-06-09T10:00:00.000Z';
 const CTX = { session_id: 'aabb1122-0000-0000-0000-000000000000', slug: 'aabb1122', harness: 'claude-code', project_id: 'D--test', project_label: 'test' };
@@ -39,9 +39,9 @@ function cfSim(event, data) { return resolveSonic(event, data, CF.settings, { ma
 function tdSim(event, data) { return resolveSonic(event, data, TD.settings, { mappings: TD.mappings }); }
 function saSim(event, data) { return resolveSonic(event, data, SA.settings, { mappings: SA.mappings }); }
 
-// â”€â”€ resolveSonic: Cognitive Flow â€” all 11 keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── resolveSonic: Cognitive Flow — all 11 keys ────────────────────────────────
 
-test('resolveSonic CF â€” Read â†’ harp, pan=+0.05, brightness=6500', () => {
+test('resolveSonic CF — Read → harp, pan=+0.05, brightness=6500', () => {
   const s = cfSim('tool_call', { tool: 'Read', where: 'src/foo.js' });
   assert.equal(s.instrument, 'harp');
   assert.equal(s.key, 'read');
@@ -52,7 +52,7 @@ test('resolveSonic CF â€” Read â†’ harp, pan=+0.05, brightness=6500', 
   assert.equal(s.volMult, 0.65);
 });
 
-test('resolveSonic CF â€” Write â†’ bass, pan=-0.20, brightness=10000, vol=1.30', () => {
+test('resolveSonic CF — Write → bass, pan=-0.20, brightness=10000, vol=1.30', () => {
   const s = cfSim('tool_call', { tool: 'Write', where: 'src/app.js' });
   assert.equal(s.instrument, 'bass');
   assert.equal(s.key, 'write');
@@ -62,14 +62,14 @@ test('resolveSonic CF â€” Write â†’ bass, pan=-0.20, brightness=10000,
   assert.equal(s.sendAmt, 0.04);
 });
 
-test('resolveSonic CF â€” Edit â†’ pling, pan=-0.12, brightness=8500', () => {
+test('resolveSonic CF — Edit → pling, pan=-0.12, brightness=8500', () => {
   const s = cfSim('tool_call', { tool: 'Edit', where: 'lib/x.mjs' });
   assert.equal(s.instrument, 'pling');
   assert.equal(s.pan, -0.12);
   assert.equal(s.brightness, 8500);
 });
 
-test('resolveSonic CF â€” Grep â†’ bit, pan=+0.10, brightness=5000, vol=0.55', () => {
+test('resolveSonic CF — Grep → bit, pan=+0.10, brightness=5000, vol=0.55', () => {
   const s = cfSim('tool_call', { tool: 'Grep', where: 'foo' });
   assert.equal(s.instrument, 'bit');
   assert.equal(s.key, 'grep_glob');
@@ -78,13 +78,13 @@ test('resolveSonic CF â€” Grep â†’ bit, pan=+0.10, brightness=5000, vo
   assert.equal(s.volMult, 0.55);
 });
 
-test('resolveSonic CF â€” Glob â†’ bit (same as grep_glob)', () => {
+test('resolveSonic CF — Glob → bit (same as grep_glob)', () => {
   const s = cfSim('tool_call', { tool: 'Glob' });
   assert.equal(s.instrument, 'bit');
   assert.equal(s.key, 'grep_glob');
 });
 
-test('resolveSonic CF â€” Bash git â†’ snare, pan=-0.38, brightness=3500, vol=1.10', () => {
+test('resolveSonic CF — Bash git → snare, pan=-0.38, brightness=3500, vol=1.10', () => {
   const s = cfSim('tool_call', { tool: 'Bash', category: 'git' });
   assert.equal(s.instrument, 'snare');
   assert.equal(s.key, 'bash_git');
@@ -94,7 +94,7 @@ test('resolveSonic CF â€” Bash git â†’ snare, pan=-0.38, brightness=35
   assert.equal(s.volMult, 1.10);
 });
 
-test('resolveSonic CF â€” Bash node â†’ kick, pan=-0.32, brightness=2800', () => {
+test('resolveSonic CF — Bash node → kick, pan=-0.32, brightness=2800', () => {
   const s = cfSim('tool_call', { tool: 'Bash', category: 'node' });
   assert.equal(s.instrument, 'kick');
   assert.equal(s.key, 'bash_run');
@@ -102,7 +102,7 @@ test('resolveSonic CF â€” Bash node â†’ kick, pan=-0.32, brightness=28
   assert.equal(s.brightness, 2800);
 });
 
-test('resolveSonic CF â€” Bash other â†’ hat, pan=-0.30, brightness=4000, vol=0.55', () => {
+test('resolveSonic CF — Bash other → hat, pan=-0.30, brightness=4000, vol=0.55', () => {
   const s = cfSim('tool_call', { tool: 'Bash', category: 'other' });
   assert.equal(s.instrument, 'hat');
   assert.equal(s.key, 'bash_other');
@@ -111,13 +111,13 @@ test('resolveSonic CF â€” Bash other â†’ hat, pan=-0.30, brightness=40
   assert.equal(s.volMult, 0.55);
 });
 
-test('resolveSonic CF â€” PowerShell â†’ hat (bash_other path)', () => {
+test('resolveSonic CF — PowerShell → hat (bash_other path)', () => {
   const s = cfSim('tool_call', { tool: 'PowerShell', category: 'other' });
   assert.equal(s.instrument, 'hat');
   assert.equal(s.key, 'bash_other');
 });
 
-test('resolveSonic CF â€” Agent â†’ bell, pan=+0.40, send=0.45, octave=1', () => {
+test('resolveSonic CF — Agent → bell, pan=+0.40, send=0.45, octave=1', () => {
   const s = cfSim('tool_call', { tool: 'Agent' });
   assert.equal(s.instrument, 'bell');
   assert.equal(s.key, 'agent');
@@ -129,7 +129,7 @@ test('resolveSonic CF â€” Agent â†’ bell, pan=+0.40, send=0.45, octave
   assert.equal(s.volMult, 1.20);
 });
 
-test('resolveSonic CF â€” unknown tool â†’ other â†’ harp center, vol=0.60', () => {
+test('resolveSonic CF — unknown tool → other → harp center, vol=0.60', () => {
   const s = cfSim('tool_call', { tool: 'ToolSearch' });
   assert.equal(s.key, 'other');
   assert.equal(s.instrument, 'harp');
@@ -138,8 +138,8 @@ test('resolveSonic CF â€” unknown tool â†’ other â†’ harp center,
   assert.equal(s.volMult, 0.60);
 });
 
-test('resolveSonic CF â€” tokens, cache=100% â†’ brightness=800 (floor)', () => {
-  // output=0 cache_read=1000 â†’ cR=1.0 â†’ brightness=round(800+4200*0)=800
+test('resolveSonic CF — tokens, cache=100% → brightness=800 (floor)', () => {
+  // output=0 cache_read=1000 → cR=1.0 → brightness=round(800+4200*0)=800
   const s = cfSim('tokens', { output: 0, cache_read: 1000 });
   assert.equal(s.instrument, 'flute');
   assert.equal(s.key, 'tokens');
@@ -149,22 +149,22 @@ test('resolveSonic CF â€” tokens, cache=100% â†’ brightness=800 (floor
   assert.equal(s.sendAmt, 0.02);
 });
 
-test('resolveSonic CF â€” tokens, cache=0% â†’ brightness=5000 (ceiling)', () => {
+test('resolveSonic CF — tokens, cache=0% → brightness=5000 (ceiling)', () => {
   const s = cfSim('tokens', { output: 200, cache_read: 0 });
   assert.equal(s.brightness, 5000);
 });
 
-test('resolveSonic CF â€” tokens, cache=50% â†’ brightness=2900', () => {
+test('resolveSonic CF — tokens, cache=50% → brightness=2900', () => {
   const s = cfSim('tokens', { output: 100, cache_read: 100 });
   assert.equal(s.brightness, Math.round(800 + 4200 * 0.5));
 });
 
-test('resolveSonic CF â€” tokens, no cache_read field â†’ brightness=5000', () => {
+test('resolveSonic CF — tokens, no cache_read field → brightness=5000', () => {
   const s = cfSim('tokens', { output: 100 });
   assert.equal(s.brightness, 5000);
 });
 
-test('resolveSonic CF â€” words â†’ bell, pan=+0.22, brightness=9000, octave=1, vol=0.90', () => {
+test('resolveSonic CF — words → bell, pan=+0.22, brightness=9000, octave=1, vol=0.90', () => {
   const s = cfSim('words', { word_count: 20, preview: 'hello world' });
   assert.equal(s.instrument, 'bell');
   assert.equal(s.key, 'words');
@@ -176,37 +176,37 @@ test('resolveSonic CF â€” words â†’ bell, pan=+0.22, brightness=9000, 
   assert.equal(s.volMult, 0.90);
 });
 
-// â”€â”€ Harness pan bias â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Harness pan bias ──────────────────────────────────────────────────────────
 // Harness bias is applied to SPATIAL.pan and then mapping rules can override.
 // These tests use an empty profile so only SPATIAL defaults + harness bias apply.
 
-test('resolveSonic â€” harness=pi subtracts 0.15 from SPATIAL pan (write: -0.15 â†’ -0.30)', () => {
-  // SPATIAL.write.pan = -0.15; pi bias = -0.15 â†’ -0.30
+test('resolveSonic — harness=pi subtracts 0.15 from SPATIAL pan (write: -0.15 → -0.30)', () => {
+  // SPATIAL.write.pan = -0.15; pi bias = -0.15 → -0.30
   const s = resolveSonic('tool_call', { tool: 'Write', harness: 'pi' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.pan, parseFloat((-0.15 - 0.15).toFixed(10)));
 });
 
-test('resolveSonic â€” harness=grok adds 0.25 to SPATIAL pan (read: +0.05 â†’ +0.30)', () => {
-  // SPATIAL.read.pan = +0.05; grok bias = +0.25 â†’ +0.30
+test('resolveSonic — harness=grok adds 0.25 to SPATIAL pan (read: +0.05 → +0.30)', () => {
+  // SPATIAL.read.pan = +0.05; grok bias = +0.25 → +0.30
   const s = resolveSonic('tool_call', { tool: 'Read', harness: 'grok' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.pan, parseFloat((0.05 + 0.25).toFixed(10)));
 });
 
-test('resolveSonic â€” harness=antigravity adds 0.15 to SPATIAL pan (agent: +0.35 â†’ +0.50)', () => {
-  // SPATIAL.agent.pan = +0.35; antigravity bias = +0.15 â†’ +0.50
+test('resolveSonic — harness=antigravity adds 0.15 to SPATIAL pan (agent: +0.35 → +0.50)', () => {
+  // SPATIAL.agent.pan = +0.35; antigravity bias = +0.15 → +0.50
   const s = resolveSonic('tool_call', { tool: 'Agent', harness: 'antigravity' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.pan, parseFloat((0.35 + 0.15).toFixed(10)));
 });
 
-test('resolveSonic â€” pan clamped to [-1, +1] even with extreme bias', () => {
+test('resolveSonic — pan clamped to [-1, +1] even with extreme bias', () => {
   // words SPATIAL.pan=+0.20, add grok+0.25=0.45; within range
   const s = resolveSonic('words', { word_count: 10, harness: 'grok' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s.pan >= -1 && s.pan <= 1);
 });
 
-// â”€â”€ Mapping rule overrides â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mapping rule overrides ────────────────────────────────────────────────────
 
-test('resolveSonic â€” mapping rule: instrument override wins over default', () => {
+test('resolveSonic — mapping rule: instrument override wins over default', () => {
   const customProfile = {
     mappings: [{ match: { key: 'read' }, set: { instrument: 'bell' } }],
   };
@@ -214,7 +214,7 @@ test('resolveSonic â€” mapping rule: instrument override wins over default'
   assert.equal(s.instrument, 'bell');
 });
 
-test('resolveSonic â€” mapping rule: first match wins, later rules ignored', () => {
+test('resolveSonic — mapping rule: first match wins, later rules ignored', () => {
   const customProfile = {
     mappings: [
       { match: { key: 'read' }, set: { instrument: 'bell' } },
@@ -225,7 +225,7 @@ test('resolveSonic â€” mapping rule: first match wins, later rules ignored'
   assert.equal(s.instrument, 'bell');
 });
 
-test('resolveSonic â€” mapping rule: pan + send + brightness all overridden', () => {
+test('resolveSonic — mapping rule: pan + send + brightness all overridden', () => {
   const customProfile = {
     mappings: [{ match: { key: 'write' }, set: { pan: 0.99, send: 0.88, brightness: 1234 } }],
   };
@@ -235,51 +235,51 @@ test('resolveSonic â€” mapping rule: pan + send + brightness all overridden
   assert.equal(s.brightness, 1234);
 });
 
-test('resolveSonic â€” threshold rule outMin: low output â†’ fallthrough to next rule', () => {
+test('resolveSonic — threshold rule outMin: low output → fallthrough to next rule', () => {
   // Thrash Detector has two token rules: outMin:600 (first), then catch-all
   const s = tdSim('tokens', { output: 100, cache_read: 0 });
   assert.equal(s.volMult, 0.40); // catch-all rule
 });
 
-test('resolveSonic â€” threshold rule outMin: high output â†’ first rule matches', () => {
+test('resolveSonic — threshold rule outMin: high output → first rule matches', () => {
   const s = tdSim('tokens', { output: 700, cache_read: 0 });
   assert.equal(s.volMult, 0.90); // outMin:600 rule
 });
 
-test('resolveSonic â€” threshold rule wordMin: low wordCount â†’ catch-all', () => {
+test('resolveSonic — threshold rule wordMin: low wordCount → catch-all', () => {
   const s = tdSim('words', { word_count: 10, preview: '' });
   assert.equal(s.volMult, 0.75);
   assert.equal(s.pan, 0.20);
 });
 
-test('resolveSonic â€” threshold rule wordMin: high wordCount â†’ boosted rule', () => {
+test('resolveSonic — threshold rule wordMin: high wordCount → boosted rule', () => {
   const s = tdSim('words', { word_count: 50, preview: '' });
   assert.equal(s.volMult, 1.10);
   assert.equal(s.pan, 0.28);
 });
 
-// â”€â”€ Thrash Detector specifics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Thrash Detector specifics ─────────────────────────────────────────────────
 
-test('resolveSonic TD â€” write: octave=-1 for grounding', () => {
+test('resolveSonic TD — write: octave=-1 for grounding', () => {
   const s = tdSim('tool_call', { tool: 'Write' });
   assert.equal(s.octave, -1);
   assert.equal(s.pan, -0.25);
 });
 
-test('resolveSonic TD â€” bash_run: octave=-1', () => {
+test('resolveSonic TD — bash_run: octave=-1', () => {
   const s = tdSim('tool_call', { tool: 'Bash', category: 'node' });
   assert.equal(s.octave, -1);
 });
 
-test('resolveSonic TD â€” scale=dorian, noteMode=sequential', () => {
+test('resolveSonic TD — scale=dorian, noteMode=sequential', () => {
   const s = tdSim('tool_call', { tool: 'Read' });
   assert.equal(s.scale, 'dorian');
   assert.equal(s.degreeMode, 'sequential');
 });
 
-// â”€â”€ Session Arc specifics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Session Arc specifics ─────────────────────────────────────────────────────
 
-test('resolveSonic SA â€” tokens: instrument overridden to bass, octave=-2, degreeMode=root', () => {
+test('resolveSonic SA — tokens: instrument overridden to bass, octave=-2, degreeMode=root', () => {
   const s = saSim('tokens', { output: 200, cache_read: 0 });
   assert.equal(s.instrument, 'bass');
   assert.equal(s.octave, -2);
@@ -287,26 +287,26 @@ test('resolveSonic SA â€” tokens: instrument overridden to bass, octave=-2,
   assert.equal(s.brightness, 4000);
 });
 
-test('resolveSonic SA â€” words wordMin=50: octave=2', () => {
+test('resolveSonic SA — words wordMin=50: octave=2', () => {
   const s = saSim('words', { word_count: 60, preview: '' });
   assert.equal(s.octave, 2);
   assert.equal(s.volMult, 1.20);
 });
 
-test('resolveSonic SA â€” words < 50: octave=1', () => {
+test('resolveSonic SA — words < 50: octave=1', () => {
   const s = saSim('words', { word_count: 20, preview: '' });
   assert.equal(s.octave, 1);
   assert.equal(s.volMult, 0.90);
 });
 
-test('resolveSonic SA â€” agent: degreeMode=root', () => {
+test('resolveSonic SA — agent: degreeMode=root', () => {
   const s = saSim('tool_call', { tool: 'Agent' });
   assert.equal(s.degreeMode, 'root');
 });
 
-// â”€â”€ resolveHz â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── resolveHz ─────────────────────────────────────────────────────────────────
 
-test('resolveHz â€” path_hash: same where â†’ same hz always', () => {
+test('resolveHz — path_hash: same where → same hz always', () => {
   const sonic = { scale: 'major_pentatonic', degreeMode: 'path_hash', octave: 0 };
   const d = { where: 'src/app.js' };
   const hz1 = resolveHz(d, sonic, 60, { idx: 0 });
@@ -314,7 +314,7 @@ test('resolveHz â€” path_hash: same where â†’ same hz always', () => {
   assert.equal(hz1, hz2);
 });
 
-test('resolveHz â€” path_hash: different where â†’ different hz (usually)', () => {
+test('resolveHz — path_hash: different where → different hz (usually)', () => {
   const sonic = { scale: 'major_pentatonic', degreeMode: 'path_hash', octave: 0 };
   const hz1 = resolveHz({ where: 'src/a.js' }, sonic, 60, { idx: 0 });
   const hz2 = resolveHz({ where: 'src/b.js' }, sonic, 60, { idx: 0 });
@@ -323,7 +323,7 @@ test('resolveHz â€” path_hash: different where â†’ different hz (usual
   assert.ok(hz1 > 0 && hz2 > 0);
 });
 
-test('resolveHz â€” root mode: always returns projectRoot degree=0', () => {
+test('resolveHz — root mode: always returns projectRoot degree=0', () => {
   const sonic = { scale: 'major_pentatonic', degreeMode: 'root', octave: 0 };
   const d1 = { where: 'src/a.js' };
   const d2 = { where: 'src/b.js', ts: 9999 };
@@ -332,7 +332,7 @@ test('resolveHz â€” root mode: always returns projectRoot degree=0', () => 
   assert.equal(hz1, hz2); // same root regardless of input
 });
 
-test('resolveHz â€” sequential: advances degree each call', () => {
+test('resolveHz — sequential: advances degree each call', () => {
   const sonic = { scale: 'major_pentatonic', degreeMode: 'sequential', octave: 0 };
   const state = { idx: 0 };
   const hz1 = resolveHz({ where: 'x' }, sonic, 60, state);
@@ -342,7 +342,7 @@ test('resolveHz â€” sequential: advances degree each call', () => {
   assert.ok(hz1 > 0 && hz2 > 0);
 });
 
-test('resolveHz â€” octave shift changes hz by factor of 2', () => {
+test('resolveHz — octave shift changes hz by factor of 2', () => {
   const d = { where: 'src/app.js' };
   const s0 = { scale: 'major_pentatonic', degreeMode: 'root', octave: 0 };
   const s1 = { scale: 'major_pentatonic', degreeMode: 'root', octave: 1 };
@@ -351,22 +351,22 @@ test('resolveHz â€” octave shift changes hz by factor of 2', () => {
   assert.equal(Math.round(hz1 / hz0), 2);
 });
 
-test('resolveHz â€” project root shifts base pitch', () => {
+test('resolveHz — project root shifts base pitch', () => {
   const sonic = { scale: 'major_pentatonic', degreeMode: 'root', octave: 0 };
   const hz60 = resolveHz({}, sonic, 60, { idx: 0 }); // C4
   const hz72 = resolveHz({}, sonic, 72, { idx: 0 }); // C5
   assert.equal(Math.round(hz72 / hz60), 2);
 });
 
-// â”€â”€ simulateSession â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── simulateSession ───────────────────────────────────────────────────────────
 
-test('simulateSession â€” empty records â†’ zero events', () => {
+test('simulateSession — empty records → zero events', () => {
   const { events, summary } = simulateSession([], CTX, CF.settings, { mappings: CF.mappings });
   assert.equal(events.length, 0);
   assert.equal(summary.total, 0);
 });
 
-test('simulateSession â€” single tool_use â†’ one tool_call event', () => {
+test('simulateSession — single tool_use → one tool_call event', () => {
   const records = [ccAssistant([ccTool('Write', { file_path: 'out.js' })])];
   const { events } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   const tc = events.find(e => e.event === 'tool_call');
@@ -375,7 +375,7 @@ test('simulateSession â€” single tool_use â†’ one tool_call event', ()
   assert.equal(tc.sonic.key, 'write');
 });
 
-test('simulateSession â€” tokens usage â†’ one tokens event', () => {
+test('simulateSession — tokens usage → one tokens event', () => {
   const records = [ccAssistant([], { input_tokens: 10, output_tokens: 200, cache_read_input_tokens: 0 })];
   const { events } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   const tok = events.find(e => e.event === 'tokens');
@@ -384,7 +384,7 @@ test('simulateSession â€” tokens usage â†’ one tokens event', () => {
   assert.equal(tok.sonic.instrument, 'flute');
 });
 
-test('simulateSession â€” text â‰¥3 words â†’ words event', () => {
+test('simulateSession — text ≥3 words → words event', () => {
   const records = [ccAssistant([ccText('Hello world this is a test')])];
   const { events } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   const w = events.find(e => e.event === 'words');
@@ -392,13 +392,13 @@ test('simulateSession â€” text â‰¥3 words â†’ words event', () => 
   assert.equal(w.sonic.instrument, 'bell');
 });
 
-test('simulateSession â€” text <3 words â†’ no words event', () => {
+test('simulateSession — text <3 words → no words event', () => {
   const records = [ccAssistant([ccText('OK')])];
   const { events } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   assert.equal(events.filter(e => e.event === 'words').length, 0);
 });
 
-test('simulateSession â€” permission-mode record produces permission event', () => {
+test('simulateSession — permission-mode record produces permission event', () => {
   const records = [
     { type: 'permission-mode', permissionMode: 'plan' },
     ccAssistant([ccTool('Read', { file_path: 'x.js' })]),
@@ -406,10 +406,10 @@ test('simulateSession â€” permission-mode record produces permission event'
   const { events, summary } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   assert.ok(events.some(e => e.event === 'permission'), 'permission-mode record must produce permission event');
   assert.equal(summary.tool_call, 1);
-  assert.equal(summary.silent, 0); // all records now produce â‰¥1 pulse in the NR pipeline
+  assert.equal(summary.silent, 0); // all records now produce ≥1 pulse in the NR pipeline
 });
 
-test('simulateSession â€” compact_boundary record produces compact event', () => {
+test('simulateSession — compact_boundary record produces compact event', () => {
   const records = [
     { type: 'system', subtype: 'compact_boundary' },
     ccAssistant([ccTool('Write', { file_path: 'x.js' })]),
@@ -419,7 +419,7 @@ test('simulateSession â€” compact_boundary record produces compact event', 
   assert.equal(summary.silent, 0);
 });
 
-test('simulateSession â€” user record produces human_turn event', () => {
+test('simulateSession — user record produces human_turn event', () => {
   const records = [
     { type: 'user', message: { content: 'Do the thing' } },
     ccAssistant([ccTool('Read', { file_path: 'x.js' })]),
@@ -430,7 +430,7 @@ test('simulateSession â€” user record produces human_turn event', () => {
   assert.equal(summary.silent, 0);
 });
 
-test('simulateSession â€” instrument=off excluded from events', () => {
+test('simulateSession — instrument=off excluded from events', () => {
   const offProfile = {
     mappings: [{ match: { key: 'read' }, set: { instrument: 'off' } }],
   };
@@ -439,7 +439,7 @@ test('simulateSession â€” instrument=off excluded from events', () => {
   assert.equal(events.filter(e => e.event === 'tool_call' && e.sonic.key === 'read').length, 0);
 });
 
-test('simulateSession â€” summary counts match event array', () => {
+test('simulateSession — summary counts match event array', () => {
   const records = [
     ccAssistant([ccTool('Write', { file_path: 'a.js' }), ccTool('Read', { file_path: 'b.js' }), ccText('Hello world test')], { input_tokens: 5, output_tokens: 50 }),
   ];
@@ -450,7 +450,7 @@ test('simulateSession â€” summary counts match event array', () => {
   assert.equal(summary.words,     events.filter(e => e.event === 'words').length);
 });
 
-test('simulateSession â€” relMs is 0 for first event, positive for later (different ts)', () => {
+test('simulateSession — relMs is 0 for first event, positive for later (different ts)', () => {
   const ts1 = '2026-06-09T10:00:00.000Z';
   const ts2 = '2026-06-09T10:00:05.000Z'; // +5s
   const records = [
@@ -463,9 +463,9 @@ test('simulateSession â€” relMs is 0 for first event, positive for later (d
   assert.equal(tc[1].relMs, 5000);
 });
 
-// â”€â”€ formatTranscript â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── formatTranscript ──────────────────────────────────────────────────────────
 
-test('formatTranscript â€” each event produces exactly one line', () => {
+test('formatTranscript — each event produces exactly one line', () => {
   const records = [
     ccAssistant([ccTool('Write', { file_path: 'x.js' }), ccText('Hello world test')],
                 { input_tokens: 5, output_tokens: 30 }),
@@ -475,7 +475,7 @@ test('formatTranscript â€” each event produces exactly one line', () => {
   assert.equal(lines.length, events.length);
 });
 
-test('formatTranscript â€” lines contain instrument, hz, pan, bri, rv fields', () => {
+test('formatTranscript — lines contain instrument, hz, pan, bri, rv fields', () => {
   const records = [ccAssistant([ccTool('Agent')])];
   const { events } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   const lines = formatTranscript(events);
@@ -489,7 +489,7 @@ test('formatTranscript â€” lines contain instrument, hz, pan, bri, rv field
   assert.ok(tcLine.includes('[AI'),   'family tag');
 });
 
-test('formatTranscript â€” tokens line contains output and cache% fields', () => {
+test('formatTranscript — tokens line contains output and cache% fields', () => {
   const records = [ccAssistant([], { input_tokens: 10, output_tokens: 500, cache_read_input_tokens: 1500 })];
   const { events } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   const lines = formatTranscript(events);
@@ -499,103 +499,103 @@ test('formatTranscript â€” tokens line contains output and cache% fields', 
   assert.ok(tLine.includes('cr='),  'cache ratio field');
 });
 
-// â”€â”€ audio-presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── audio-presets ─────────────────────────────────────────────────────────────
 
-test('getPreset â€” returns cognitive-flow by default (null input)', () => {
+test('getPreset — returns cognitive-flow by default (null input)', () => {
   const p = getPreset(null);
   assert.equal(p.name, 'Cognitive Flow');
 });
 
-test('getPreset â€” resolves by slug key', () => {
+test('getPreset — resolves by slug key', () => {
   assert.equal(getPreset('cognitive-flow').name, 'Cognitive Flow');
   assert.equal(getPreset('thrash-detector').name, 'Thrash Detector');
   assert.equal(getPreset('session-arc').name, 'Session Arc');
 });
 
-test('getPreset â€” resolves by display name (case-insensitive)', () => {
+test('getPreset — resolves by display name (case-insensitive)', () => {
   assert.equal(getPreset('Cognitive Flow').name, 'Cognitive Flow');
   assert.equal(getPreset('session arc').name, 'Session Arc');
 });
 
-test('getPreset â€” unknown falls back to cognitive-flow', () => {
+test('getPreset — unknown falls back to cognitive-flow', () => {
   const p = getPreset('does-not-exist');
   assert.equal(p.name, 'Cognitive Flow');
 });
 
-test('PRESET_SLUGS â€” has exactly 3 entries', () => {
+test('PRESET_SLUGS — has exactly 3 entries', () => {
   assert.equal(PRESET_SLUGS.length, 3);
 });
 
-// â”€â”€ Grok tool name aliases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Grok tool name aliases ────────────────────────────────────────────────────
 
-test('resolveSonic â€” Grok read_file aliases to key=read', () => {
+test('resolveSonic — Grok read_file aliases to key=read', () => {
   const s = resolveSonic('tool_call', { tool: 'read_file' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.key, 'read');
   assert.equal(s.fam, 'file');
   assert.equal(s.instrument, 'harp');
 });
 
-test('resolveSonic â€” Grok search_replace aliases to key=edit', () => {
+test('resolveSonic — Grok search_replace aliases to key=edit', () => {
   const s = resolveSonic('tool_call', { tool: 'search_replace' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.key, 'edit');
   assert.equal(s.fam, 'file');
   assert.equal(s.instrument, 'pling');
 });
 
-test('resolveSonic â€” Grok list_dir aliases to key=grep_glob', () => {
+test('resolveSonic — Grok list_dir aliases to key=grep_glob', () => {
   const s = resolveSonic('tool_call', { tool: 'list_dir' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.key, 'grep_glob');
   assert.equal(s.fam, 'file');
   assert.equal(s.instrument, 'bit');
 });
 
-test('resolveSonic â€” Grok web_fetch â†’ key=web, family=ai', () => {
+test('resolveSonic — Grok web_fetch → key=web, family=ai', () => {
   const s = resolveSonic('tool_call', { tool: 'web_fetch' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.key, 'web');
   assert.equal(s.fam, 'ai');
 });
 
-test('resolveSonic â€” Grok "Web search:" (title with space+colon) â†’ key=web', () => {
+test('resolveSonic — Grok "Web search:" (title with space+colon) → key=web', () => {
   const s = resolveSonic('tool_call', { tool: 'Web search:' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.key, 'web');
   assert.equal(s.fam, 'ai');
 });
 
-test('resolveSonic â€” web_search normalised form â†’ key=web', () => {
+test('resolveSonic — web_search normalised form → key=web', () => {
   const s = resolveSonic('tool_call', { tool: 'web_search' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.key, 'web');
 });
 
-test('resolveSonic â€” web key has valid SPATIAL defaults (positive pan, some send)', () => {
+test('resolveSonic — web key has valid SPATIAL defaults (positive pan, some send)', () => {
   const s = resolveSonic('tool_call', { tool: 'web_fetch' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s.pan > 0, 'web pan should be positive (right channel)');
   assert.ok(s.sendAmt > 0, 'web should have some reverb send');
   assert.ok(s.brightness > 0, 'web brightness must be positive');
 });
 
-test('resolveSonic â€” Grok path_hash pitch varies by where for read_file alias', () => {
+test('resolveSonic — Grok path_hash pitch varies by where for read_file alias', () => {
   // Two different files should (usually) produce different pitches via path_hash
   const s1 = resolveSonic('tool_call', { tool: 'read_file', where: 'src/app.js' }, DEFAULT_SETTINGS, { mappings: [] });
   const s2 = resolveSonic('tool_call', { tool: 'read_file', where: 'lib/util.mjs' }, DEFAULT_SETTINGS, { mappings: [] });
-  // Just verify both are valid â€” can't guarantee different (hash collision possible on short fixture)
+  // Just verify both are valid — can't guarantee different (hash collision possible on short fixture)
   assert.ok(s1.key === 'read' && s2.key === 'read');
 });
 
-// â”€â”€ `web` key in presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── `web` key in presets ──────────────────────────────────────────────────────
 
-test('CF preset â€” web key instrument defined', () => {
+test('CF preset — web key instrument defined', () => {
   assert.ok(CF.settings.instruments.web, 'CF instruments.web must be set');
 });
 
-test('TD preset â€” web key instrument defined', () => {
+test('TD preset — web key instrument defined', () => {
   assert.ok(TD.settings.instruments.web, 'TD instruments.web must be set');
 });
 
-test('SA preset â€” web key instrument defined', () => {
+test('SA preset — web key instrument defined', () => {
   assert.ok(SA.settings.instruments.web, 'SA instruments.web must be set');
 });
 
-test('resolveSonic CF â€” web_fetch uses CF preset mapping', () => {
+test('resolveSonic CF — web_fetch uses CF preset mapping', () => {
   const s = cfSim('tool_call', { tool: 'web_fetch' });
   assert.equal(s.key, 'web');
   assert.ok(typeof s.pan === 'number');
@@ -603,42 +603,42 @@ test('resolveSonic CF â€” web_fetch uses CF preset mapping', () => {
   assert.ok(s.volMult > 0);
 });
 
-// â”€â”€ New event types (Phase 4 â€” resolveSonic must handle all, never null) â”€â”€â”€â”€â”€
+// ── New event types (Phase 4 — resolveSonic must handle all, never null) ─────
 
-test('resolveSonic â€” human_turn â†’ pad instrument, family=human', () => {
+test('resolveSonic — human_turn → pad instrument, family=human', () => {
   const s = resolveSonic('human_turn', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'human_turn must return non-null sonic');
   assert.equal(s.instrument, 'pad');
   assert.equal(s.fam, 'human');
 });
 
-test('resolveSonic â€” compact â†’ sweep instrument, family=system', () => {
+test('resolveSonic — compact → sweep instrument, family=system', () => {
   const s = resolveSonic('compact', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'compact must return non-null');
   assert.equal(s.instrument, 'sweep');
   assert.equal(s.fam, 'system');
 });
 
-test('resolveSonic â€” chirp â†’ woodblock instrument, family=context', () => {
+test('resolveSonic — chirp → woodblock instrument, family=context', () => {
   const s = resolveSonic('chirp', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'chirp must return non-null');
   assert.equal(s.instrument, 'woodblock');
   assert.equal(s.fam, 'context');
 });
 
-test('resolveSonic â€” permission â†’ tick instrument, family=system', () => {
+test('resolveSonic — permission → tick instrument, family=system', () => {
   const s = resolveSonic('permission', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'permission must return non-null');
   assert.equal(s.instrument, 'tick');
 });
 
-test('resolveSonic â€” scaffold â†’ woodblock instrument', () => {
+test('resolveSonic — scaffold → woodblock instrument', () => {
   const s = resolveSonic('scaffold', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'scaffold must return non-null');
   assert.equal(s.instrument, 'woodblock');
 });
 
-test('resolveSonic â€” unknown event type â†’ catch-all (never null)', () => {
+test('resolveSonic — unknown event type → catch-all (never null)', () => {
   const s = resolveSonic('completely_unknown_event', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'unknown event must return non-null catch-all');
   assert.ok(s.instrument, 'catch-all must have an instrument');
@@ -646,19 +646,19 @@ test('resolveSonic â€” unknown event type â†’ catch-all (never null)',
   assert.ok(s.fam, 'catch-all must have a family');
 });
 
-test('resolveSonic â€” tool_call with data.key uses key directly (no tool name lookup)', () => {
+test('resolveSonic — tool_call with data.key uses key directly (no tool name lookup)', () => {
   const s = resolveSonic('tool_call', { key: 'read' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.key, 'read');
   assert.equal(s.instrument, 'harp');
 });
 
-test('resolveSonic â€” tool_call with data.key=bash_git ignores data.tool', () => {
+test('resolveSonic — tool_call with data.key=bash_git ignores data.tool', () => {
   const s = resolveSonic('tool_call', { key: 'bash_git', tool: 'SomeRandomTool' }, DEFAULT_SETTINGS, { mappings: [] });
   assert.equal(s.key, 'bash_git');
   assert.equal(s.instrument, 'snare');
 });
 
-// â”€â”€ ruleMatches nr_kind support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ruleMatches nr_kind support ──────────────────────────────────────────────
 
 test('ruleMatches nr_kind: rule with nr_kind silences matching unknown event', () => {
   const profile = {
@@ -692,21 +692,21 @@ test('ruleMatches nr_kind: rule without nr_kind matches all unknowns regardless 
   assert.equal(s2.volMult, 0.05);
 });
 
-// â”€â”€ ALL_KEYS now includes 'web' â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ALL_KEYS now includes 'web' ───────────────────────────────────────────────
 
 import { EVENT_TYPE_KEYS } from '../experience/audio/event-registry.mjs';
 
 const ALL_KEYS = [...EVENT_TYPE_KEYS];
 
 for (const [slug, preset] of Object.entries(AUDIO_PRESETS)) {
-  test(`preset ${slug} â€” instruments covers all event type keys`, () => {
+  test(`preset ${slug} — instruments covers all event type keys`, () => {
     const inst = preset.settings.instruments;
     for (const key of ALL_KEYS) {
       assert.ok(inst[key], `instrument missing for key "${key}" in preset "${slug}"`);
     }
   });
 
-  test(`preset ${slug} â€” mappings cover all event type keys (at least once)`, () => {
+  test(`preset ${slug} — mappings cover all event type keys (at least once)`, () => {
     const coveredKeys = new Set(
       preset.mappings
         .map(r => r.match.key)
@@ -718,7 +718,7 @@ for (const [slug, preset] of Object.entries(AUDIO_PRESETS)) {
     }
   });
 
-  test(`preset ${slug} â€” every mapping set has at least one field`, () => {
+  test(`preset ${slug} — every mapping set has at least one field`, () => {
     for (const rule of preset.mappings) {
       const fields = Object.keys(rule.set || {});
       assert.ok(fields.length > 0, `empty set in mapping ${JSON.stringify(rule.match)} in "${slug}"`);
@@ -726,13 +726,13 @@ for (const [slug, preset] of Object.entries(AUDIO_PRESETS)) {
   });
 }
 
-// â”€â”€ Integration test â€” real session file (structural invariants only) â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Integration test — real session file (structural invariants only) ────────
 // Snapshot diff is intentionally NOT here: a live/growing session will always
 // diverge between --snap and the next test run. Use the CLI for diffs:
 //   node scripts/sim-audio.mjs <sid> --snap   (baseline)
 //   node scripts/sim-audio.mjs <sid> --diff   (regression check)
 
-test('integration â€” real CC session produces valid transcript with CF preset', () => {
+test('integration — real CC session produces valid transcript with CF preset', () => {
   const sessionPath = 'C:\\Users\\karx0\\.claude\\projects\\D--src-kaaroSessions\\277e6422-4abb-4f90-85fd-fbdcaf9f47ee.jsonl';
   if (!fs.existsSync(sessionPath)) return; // skip on other machines
 

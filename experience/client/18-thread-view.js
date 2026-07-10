@@ -1,8 +1,8 @@
-// â”€â”€ Thread View â€” Session Context Arc â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Thread View — Session Context Arc ─────────────────────────────────────
 // Full-screen overlay. Each context window is a segment block with:
-//   â€¢ a stacked composition bar (tool proportions at a glance)
-//   â€¢ every turn: user messages, assistant reasoning, tool calls with inputs
-// Entry: window.openThread(sessionId)   Exit: Escape or âœ•
+//   • a stacked composition bar (tool proportions at a glance)
+//   • every turn: user messages, assistant reasoning, tool calls with inputs
+// Entry: window.openThread(sessionId)   Exit: Escape or ✕
 
 (function () {
 
@@ -30,7 +30,7 @@
     catch { return ''; }
   }
 
-  // â”€â”€ Stacked composition bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Stacked composition bar ───────────────────────────────────────────────
   function _compBar(toolSummary) {
     if (!toolSummary) return '';
     const entries = Object.entries(toolSummary).sort((a, b) => b[1] - a[1]);
@@ -39,13 +39,13 @@
     const segs  = entries.map(([name, n]) => {
       const pct   = (n / total * 100).toFixed(2);
       const color = _C[name] || KAARO_TOKENS.dim;
-      return `<div class="thr-bar-seg" style="width:${pct}%;background:${color}" title="${esc(name)} Ã— ${n}">` +
+      return `<div class="thr-bar-seg" style="width:${pct}%;background:${color}" title="${esc(name)} × ${n}">` +
              `<span class="thr-bar-lbl">${esc(name)}</span></div>`;
     }).join('');
     return `<div class="thr-compbar">${segs}</div>`;
   }
 
-  // â”€â”€ Tool call row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Tool call row ─────────────────────────────────────────────────────────
   function _renderToolCall(tc) {
     const color = _C[tc.name] || '#3a5070';
     const err   = tc.is_error === true;
@@ -76,7 +76,7 @@
       arg = first || '';
     }
 
-    // Multiline commands â€” indent continuation lines
+    // Multiline commands — indent continuation lines
     const lines = arg.split('\n');
     const firstLine = esc(lines[0] || '');
     const restLines = lines.slice(1).filter(l => l.trim());
@@ -106,7 +106,7 @@
     diffHtml;
   }
 
-  // â”€â”€ Single turn â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Single turn ───────────────────────────────────────────────────────────
   function _renderTurn(turn) {
     const isUser = turn.role === 'user';
     const time   = _timeLabel(turn.ts);
@@ -115,13 +115,13 @@
     const header = `<div class="thr-turn-hd">` +
       `<span class="thr-actor thr-actor-${isUser ? 'user' : 'asst'}">${isUser ? 'USER' : 'ASST'}</span>` +
       (time ? `<span class="thr-turn-ts">${time}</span>` : '') +
-      (!isUser && turn.has_thinking ? `<span class="thr-thinking" title="extended thinking">â—‰</span>` : '') +
+      (!isUser && turn.has_thinking ? `<span class="thr-thinking" title="extended thinking">◉</span>` : '') +
       (!isUser && dur  ? `<span class="thr-dur">${dur}</span>` : '') +
-      (!isUser && turn.stop_reason === 'max_tokens' ? `<span class="thr-maxtok" title="hit context limit">âš  max_tokens</span>` : '') +
+      (!isUser && turn.stop_reason === 'max_tokens' ? `<span class="thr-maxtok" title="hit context limit">⚠ max_tokens</span>` : '') +
     `</div>`;
 
     const textHtml = turn.text
-      ? `<div class="thr-turn-text">${esc(turn.text)}${turn.text.length >= 500 ? '<span class="thr-truncated">â€¦</span>' : ''}</div>`
+      ? `<div class="thr-turn-text">${esc(turn.text)}${turn.text.length >= 500 ? '<span class="thr-truncated">…</span>' : ''}</div>`
       : '';
 
     const toolsHtml = (turn.tool_calls || []).length
@@ -131,21 +131,21 @@
     return `<div class="thr-turn thr-turn-${isUser ? 'user' : 'asst'}">${header}${textHtml}${toolsHtml}</div>`;
   }
 
-  // â”€â”€ Segment block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Segment block ─────────────────────────────────────────────────────────
   function _segBlock(seg, sessionColor) {
     const primaryMode = seg.permission_modes?.[0] || 'default';
     const modeLabel   = seg.permission_modes?.length > 1
-      ? seg.permission_modes.join(' â†’ ')
+      ? seg.permission_modes.join(' → ')
       : primaryMode;
-    const branches  = seg.branches?.join(' â†’ ') || '';
+    const branches  = seg.branches?.join(' → ') || '';
     const turns     = seg.user_turns + seg.assistant_turns;
     const tok       = seg.tokens.output + seg.tokens.cache_read;
     const border    = sessionColor || '#2a5c8a';
     const bg        = _MODE_BG[primaryMode] || _MODE_BG.default;
 
     const badges = [];
-    if (seg.subagent_count) badges.push(`â†³ ${seg.subagent_count} subagent${seg.subagent_count > 1 ? 's' : ''}`);
-    if (seg.thinking_count) badges.push(`â—‰ ${seg.thinking_count}`);
+    if (seg.subagent_count) badges.push(`↳ ${seg.subagent_count} subagent${seg.subagent_count > 1 ? 's' : ''}`);
+    if (seg.thinking_count) badges.push(`◉ ${seg.thinking_count}`);
 
     const turnsHtml = (seg.turns || []).length
       ? `<div class="thr-turns">${seg.turns.map(_renderTurn).join('')}</div>`
@@ -155,8 +155,8 @@
       `<div class="thr-seg-hd">` +
         `<span class="thr-wn" style="color:${border}">W${seg.index + 1}</span>` +
         `<span class="thr-mode">${esc(modeLabel)}</span>` +
-        (branches ? `<span class="thr-branch">âŽ‡ ${esc(branches)}</span>` : '') +
-        `<span class="thr-meta">${turns} turns Â· ${fmtTok(tok)}</span>` +
+        (branches ? `<span class="thr-branch">⎇ ${esc(branches)}</span>` : '') +
+        `<span class="thr-meta">${turns} turns · ${fmtTok(tok)}</span>` +
         (badges.length ? `<span class="thr-badges">${esc(badges.join('  '))}</span>` : '') +
       `</div>` +
       _compBar(seg.tool_summary || {}) +
@@ -164,16 +164,16 @@
     `</div>`;
   }
 
-  // â”€â”€ Compact divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Compact divider ───────────────────────────────────────────────────────
   function _compact() {
     return `<div class="thr-compact">` +
       `<span class="thr-cline"></span>` +
-      `<span class="thr-clbl">âŸ² context reset</span>` +
+      `<span class="thr-clbl">⟲ context reset</span>` +
       `<span class="thr-cline"></span>` +
     `</div>`;
   }
 
-  // â”€â”€ Full render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Full render ───────────────────────────────────────────────────────────
   function _render(data, node) {
     const segs  = data.segments || [];
     const color = node?.color || '#4488cc';
@@ -202,7 +202,7 @@
       (legend ? `<div class="thr-legend">${legend}</div>` : '');
   }
 
-  // â”€â”€ DOM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── DOM ───────────────────────────────────────────────────────────────────
   const ov  = document.createElement('div');
   ov.id     = 'thread-view';
   ov.innerHTML = `
@@ -211,19 +211,19 @@
         <span id="thr-chrome-label"></span>
         <span id="thr-chrome-ait"></span>
       </div>
-      <button id="thr-close-btn" onclick="window.closeThread()">âœ•</button>
+      <button id="thr-close-btn" onclick="window.closeThread()">✕</button>
     </div>
     <div id="thr-scroll"><div id="thr-body"></div></div>`;
   document.body.appendChild(ov);
 
-  // Panel delegation â€” VIEW THREAD buttons
+  // Panel delegation — VIEW THREAD buttons
   document.getElementById('panel').addEventListener('click', e => {
     const btn = e.target.closest('[data-thread-open]');
     if (!btn) return;
     window.openThread(btn.dataset.threadOpen);
   });
 
-  // â”€â”€ Public â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Public ────────────────────────────────────────────────────────────────
   window.openThread = async function (sessionId) {
     ov.classList.add('open');
     const node = typeof nodeById !== 'undefined' ? nodeById[sessionId] : null;
@@ -235,7 +235,7 @@
     const cached = window._traceCache?.get(sessionId);
     if (cached) { _render(cached, node); return; }
 
-    document.getElementById('thr-body').innerHTML = '<div class="thr-loading">loadingâ€¦</div>';
+    document.getElementById('thr-body').innerHTML = '<div class="thr-loading">loading…</div>';
 
     try {
       const res  = await fetch(`/api/trace/${encodeURIComponent(sessionId)}`);

@@ -1,15 +1,15 @@
-// â”€â”€ Pulse audio engine v2 â€” master bus Â· reverb Â· stereo pan Â· brightness filter â”€â”€
+// ── Pulse audio engine v2 — master bus · reverb · stereo pan · brightness filter ──
 //
 // Signal chain per voice:
-//   instrument(out) â†’ brightness-filter â†’ stereo-panner â†’ masterGain â†’ masterFilter â†’ destination
-//                                       â†˜ reverbSend (sendAmt) â†’ convolver â†’ reverbReturn â†’ masterGain
+//   instrument(out) → brightness-filter → stereo-panner → masterGain → masterFilter → destination
+//                                       ↘ reverbSend (sendAmt) → convolver → reverbReturn → masterGain
 //
 // Spatial semantics: file-writes=left, bash=far-left, reads=center, words=right, agent=far-right+reverb
-// Cognitive pressure: rolling cache_ratio + density â†’ drives masterFilter cutoff (dull under load)
+// Cognitive pressure: rolling cache_ratio + density → drives masterFilter cutoff (dull under load)
 
 (function () {
 
-  // â”€â”€ Scales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Scales ─────────────────────────────────────────────────────────────────────
   const SCALES = {
     major_pentatonic: [0, 2, 4, 7, 9],
     minor_pentatonic: [0, 3, 5, 7, 10],
@@ -18,7 +18,7 @@
     dorian:           [0, 2, 3, 5, 7, 9, 10],
   };
 
-  // â”€â”€ Families â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Families ──────────────────────────────────────────────────────────────────
   window.AUDIO_FAMILIES = [
     { id: 'file',    label: 'File Ops', color: '#2a6a2a', tools: ['read', 'write', 'edit', 'grep_glob'] },
     { id: 'system',  label: 'System',   color: '#2a3a7a', tools: ['bash_git', 'bash_run', 'bash_other'] },
@@ -31,7 +31,7 @@
     for (const t of f.tools) TOOL_FAMILY[t] = f.id;
   window.TOOL_FAMILY = TOOL_FAMILY;
 
-  // â”€â”€ Default settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Default settings ──────────────────────────────────────────────────────────
   const DEFAULT_SETTINGS = {
     instruments: {
       read: 'harp', write: 'bass', edit: 'pling',
@@ -69,7 +69,7 @@
   window.AUDIO_SCALES   = SCALES;
   window.AUDIO_DEFAULTS = DEFAULT_SETTINGS;
 
-  // â”€â”€ Audio profile (mapping rules + timbre overrides) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Audio profile (mapping rules + timbre overrides) ──────────────────────────
   const DEFAULT_PROFILE = { mappings: [], timbre: {}, scale: null, noteMode: null, bpm: null };
   window.AUDIO_PROFILE  = JSON.parse(JSON.stringify(DEFAULT_PROFILE));
 
@@ -110,7 +110,7 @@
     try { localStorage.setItem('kaaro-audio-settings', JSON.stringify(window.AUDIO_SETTINGS)); } catch {}
   };
 
-  // â”€â”€ Rule matching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Rule matching ─────────────────────────────────────────────────────────────
   function ruleMatches(rule, evType, data, key) {
     const m = rule.match || {};
     const fam = key ? (TOOL_FAMILY[key] || null) : null;
@@ -128,7 +128,7 @@
     return true;
   }
 
-  // â”€â”€ Spatial defaults per action key â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Spatial defaults per action key ──────────────────────────────────────────
   const SPATIAL = {
     write:      { pan: -0.15, sendAmt: 0.05, brightness: 10000 },
     edit:       { pan: -0.10, sendAmt: 0.05, brightness: 9000  },
@@ -160,7 +160,7 @@
     return 'bash_other';
   }
 
-  // â”€â”€ Sonic resolution (all axes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Sonic resolution (all axes) ───────────────────────────────────────────────
   // Cognition events: instrument/octave/volume profile (spatial axes in SPATIAL)
   const COG_SOUND = {
     tool_error: { instrument: 'buzz',  octave: -1, volMult: 1.10 },
@@ -252,7 +252,7 @@
 
   window.resolveSonicForEvent = resolveSonic;
 
-  // â”€â”€ AudioContext + master bus â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── AudioContext + master bus ─────────────────────────────────────────────────
   let _ac = null, muted = true;
   let _masterGain, _masterFilter, _reverbConvolver, _reverbReturn, _masterBusReady = false;
 
@@ -286,7 +286,7 @@
     return _ac;
   }
 
-  // â”€â”€ Cognitive pressure â†’ master filter automation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Cognitive pressure → master filter automation ─────────────────────────────
   window.COGNITIVE_PRESSURE = 0;
 
   // Rolling cache ratio from token events (20-sample window)
@@ -317,7 +317,7 @@
     }
   };
 
-  // â”€â”€ Musical system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Musical system ────────────────────────────────────────────────────────────
   const ROOTS = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79];
   function midiToHz(m)  { return 440 * Math.pow(2, (m - 69) / 12); }
   function activeIv()   { return SCALES[window.AUDIO_SETTINGS.scale] || SCALES.major_pentatonic; }
@@ -352,7 +352,7 @@
     return where ? strHash(where) % iv.length : 0;
   }
 
-  // â”€â”€ Beat scheduler (80 ms batch coalescing) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Beat scheduler (80 ms batch coalescing) ───────────────────────────────────
   let _beatAt = 0, _barBeat = 0, _batchBuf = [], _batchTimer = null;
   const BATCH_MS = 80;
 
@@ -377,7 +377,7 @@
     if (!_batchTimer) _batchTimer = setTimeout(_flushBatch, BATCH_MS);
   }
 
-  // â”€â”€ Per-voice signal chain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Per-voice signal chain ────────────────────────────────────────────────────
   // Mixer gains (set by module 19, defaulting to 1)
   window.MIXER_GAINS = { file: 1, system: 1, ai: 1, context: 1 };
 
@@ -406,7 +406,7 @@
     });
   }
 
-  // â”€â”€ Click track â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Click track ───────────────────────────────────────────────────────────────
   let _clickAt = 0, _clickBeat = 0, _clickTimer = null;
 
   function _tick(c, at, isDown) {
@@ -444,7 +444,7 @@
     if (!muted && on) _startClick(); else if (!on) _stopClick();
   };
 
-  // â”€â”€ Filter (family / project mute) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Filter (family / project mute) ───────────────────────────────────────────
   function passesFilter(toolKey, project) {
     const f = window.AUDIO_SETTINGS.filter || {};
     if (f.mutedFamilies?.length && f.mutedFamilies.includes(TOOL_FAMILY[toolKey])) return false;
@@ -452,7 +452,7 @@
     return true;
   }
 
-  // â”€â”€ Instrument synthesizers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Instrument synthesizers ───────────────────────────────────────────────────
   // All instruments now connect to `out` (a GainNode) instead of c.destination.
 
   function harp(c, at, hz, vol, out) {
@@ -567,7 +567,7 @@
     PERC.has(name) ? fn(c, at, undefined, tmpOut) : fn(c, at, midiToHz(64), undefined, tmpOut);
   };
 
-  // â”€â”€ Beat ring buffer (shared reference â€” mutate in place) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Beat ring buffer (shared reference — mutate in place) ─────────────────────
   const _beatRing    = [];
   const BEAT_RING_MAX = 1000;
   window._beatRing   = _beatRing;
@@ -579,7 +579,7 @@
     if (_pressureTickCount % 10 === 0) _updatePressure();
   }
 
-  // â”€â”€ Main pulse dispatcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Main pulse dispatcher ─────────────────────────────────────────────────────
   // Cognition events ride the same ring + audio path: structural/human signals
   // with registry-defined sonic profiles (W-COG surfacing).
   const COGNITION_EVENTS = new Set([
@@ -671,23 +671,23 @@
     } catch { /* audio must never break UI */ }
   };
 
-  // â”€â”€ Mute toggle button (hidden on DAW page via CSS, used on main graph page) â”€â”€
+  // ── Mute toggle button (hidden on DAW page via CSS, used on main graph page) ──
   if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
     const btn = document.createElement('div');
     btn.id    = 'sound-btn';
     btn.title = 'Toggle pulse sounds';
     btn.style.cssText = 'position:fixed;top:8px;right:110px;background:'+KAARO_TOKENS.card+';color:'+KAARO_TOKENS.dim+';font:bold 10px \'IBM Plex Mono\',monospace;padding:3px 9px;z-index:9998;cursor:pointer;user-select:none;border:1px solid '+KAARO_TOKENS.border+';transition:color .15s,background .15s,border-color .15s;letter-spacing:1px';
-    btn.textContent = 'â™ª OFF';
+    btn.textContent = '♪ OFF';
     document.body.appendChild(btn);
     btn.addEventListener('click', () => {
       muted = !muted;
       if (!muted) {
         ac();
         if (window.AUDIO_SETTINGS.clickTrack) _startClick();
-        btn.textContent = 'â™ª ON';  btn.style.color = '#00ff88'; btn.style.background = '#061a0e'; btn.style.borderColor = '#1a4a2a';
+        btn.textContent = '♪ ON';  btn.style.color = '#00ff88'; btn.style.background = '#061a0e'; btn.style.borderColor = '#1a4a2a';
       } else {
         _stopClick();
-        btn.textContent = 'â™ª OFF'; btn.style.color = KAARO_TOKENS.dim; btn.style.background = KAARO_TOKENS.card; btn.style.borderColor = KAARO_TOKENS.border;
+        btn.textContent = '♪ OFF'; btn.style.color = KAARO_TOKENS.dim; btn.style.background = KAARO_TOKENS.card; btn.style.borderColor = KAARO_TOKENS.border;
       }
     });
     // Expose muted state + toggle for DAW builder's own mute button

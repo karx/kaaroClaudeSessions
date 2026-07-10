@@ -1,17 +1,17 @@
 import { toolNameToKey } from './action-keys.mjs';
 
 /**
- * lib/pulse-transformer.mjs â€” NormalizedRecord[] â†’ SSE pulse objects
+ * lib/pulse-transformer.mjs — NormalizedRecord[] → SSE pulse objects
  *
- * Replaces lib/pulse-adapters.mjs. Every NR emits â‰¥1 pulse.
+ * Replaces lib/pulse-adapters.mjs. Every NR emits ≥1 pulse.
  * Unknown or unmapped kinds fall through to the 'unknown' catch-all.
  *
- * Key derivation (read/write/bash_git/â€¦) is done HERE via toolNameToKey â€”
+ * Key derivation (read/write/bash_git/…) is done HERE via toolNameToKey —
  * never in adapters. Adapters are sonic-unaware; they provide nr.tool + nr.category.
  *
- * @param {object[]} nrRecords     â€” NormalizedRecord[]
- * @param {object}   ctx           â€” { session_id, slug, project_label, harness }
- * @param {object}   capabilities  â€” harness capabilities (e.g. { tokens: false })
+ * @param {object[]} nrRecords     — NormalizedRecord[]
+ * @param {object}   ctx           — { session_id, slug, project_label, harness }
+ * @param {object}   capabilities  — harness capabilities (e.g. { tokens: false })
  * @returns {object[]} pulse objects { event, data }
  */
 export function normRecordsToPulses(nrRecords, ctx, capabilities = {}) {

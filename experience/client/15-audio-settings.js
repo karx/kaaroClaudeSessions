@@ -1,26 +1,26 @@
-// â”€â”€ Audio settings panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Sections: METRONOME Â· INSTRUMENT FAMILIES Â· FILTER Â· SCALE Â· NOTE
+// ── Audio settings panel ───────────────────────────────────────────────────────
+// Sections: METRONOME · INSTRUMENT FAMILIES · FILTER · SCALE · NOTE
 // All changes are live (no reload) and persist via window.updateAudioSettings.
 
 (function() {
 
-  // â”€â”€ Option definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Option definitions ────────────────────────────────────────────────────────
   const INST_OPTS = [
     ['harp','Harp'],['bass','Bass'],['bell','Bell'],['flute','Flute'],
     ['bit','Bit'],['pling','Pling'],['snare','Snare'],['kick','Kick'],['hat','Hi-Hat'],
-    ['off','â€” Off â€”'],
+    ['off','— Off —'],
   ];
 
   const SCALE_OPTS = [
-    ['major_pentatonic','Major Pentatonic  Â· C D E G A'],
-    ['minor_pentatonic','Minor Pentatonic  Â· C Eb F G Bb'],
-    ['blues',           'Blues  Â· C Eb F F# G Bb'],
-    ['major',           'Major  Â· C D E F G A B'],
-    ['dorian',          'Dorian  Â· C D Eb F G A Bb'],
+    ['major_pentatonic','Major Pentatonic  · C D E G A'],
+    ['minor_pentatonic','Minor Pentatonic  · C Eb F G Bb'],
+    ['blues',           'Blues  · C Eb F F# G Bb'],
+    ['major',           'Major  · C D E F G A B'],
+    ['dorian',          'Dorian  · C D Eb F G A Bb'],
   ];
 
   const NOTE_OPTS = [
-    ['path_hash', 'Consistent  (path â†’ note)'],
+    ['path_hash', 'Consistent  (path → note)'],
     ['sequential','Ascending  (step up scale)'],
     ['random',    'Random'],
     ['root',      'Root only'],
@@ -28,10 +28,10 @@
 
   const BPB_OPTS = [2, 3, 4, 8];
 
-  // Tool rows per family â€” parallel to window.AUDIO_FAMILIES
+  // Tool rows per family — parallel to window.AUDIO_FAMILIES
   const FAM_ROWS = {
     file:    [['read','Read'],['write','Write'],['edit','Edit']],
-    system:  [['bash_git','Bash / git'],['bash_run','Bash / run'],['bash_other','Bash / other'],['grep_glob','Grep Â· Glob']],
+    system:  [['bash_git','Bash / git'],['bash_run','Bash / run'],['bash_other','Bash / other'],['grep_glob','Grep · Glob']],
     ai:      [['agent','Agent'],['other','Other tools']],
     context: [['tokens','Tokens'],['words','Words']],
   };
@@ -39,12 +39,12 @@
   // Track which families are expanded
   const expanded = new Set();
 
-  // â”€â”€ Panel DOM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Panel DOM ─────────────────────────────────────────────────────────────────
   const panel = document.createElement('div');
   panel.id = 'audio-panel';
   document.body.appendChild(panel);
 
-  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Helpers ───────────────────────────────────────────────────────────────────
   function selOpts(opts, cur) {
     return opts.map(([v,t]) => `<option value="${v}"${cur===v?' selected':''}>${t}</option>`).join('');
   }
@@ -63,24 +63,24 @@
 
   function famInstSel(famId) {
     const cur  = famInstVal(famId);
-    const mixOpt = cur === 'mixed' ? '<option value="mixed" selected>â€” Mixed â€”</option>' : '<option value="mixed">â€” Mixed â€”</option>';
+    const mixOpt = cur === 'mixed' ? '<option value="mixed" selected>— Mixed —</option>' : '<option value="mixed">— Mixed —</option>';
     return `<select class="ap-sel" data-fam-id="${famId}" onchange="window._apFamChange(this)">${mixOpt}${selOpts(INST_OPTS, cur)}</select>`;
   }
 
-  // â”€â”€ Full render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Full render ───────────────────────────────────────────────────────────────
   function render() {
     const S  = window.AUDIO_SETTINGS || {};
     const fi = S.instruments || {};
     const ff = S.filter || {};
 
-    // â”€â”€ Metronome â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Metronome ──────────────────────────────────────────────────────────────
     const bpm  = S.bpm || 120;
     const bpb  = S.beatsPerBar || 4;
     const cvol = Math.round((S.clickVol || 0.15) * 100);
     const cOn  = !!S.clickTrack;
 
     const metronome = `
-      <div class="ap-sec">â—† METRONOME</div>
+      <div class="ap-sec">◆ METRONOME</div>
       <div class="ap-row ap-bpm-row">
         <input id="ap-bpm-slider" class="ap-range" type="range" min="40" max="240" step="1"
                value="${bpm}" oninput="window._apBpmInput(this.value)"
@@ -99,18 +99,18 @@
                value="${cvol}" oninput="window._apClickVol(this.value)" title="Click volume">
       </div>`;
 
-    // â”€â”€ Instrument families â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Instrument families ────────────────────────────────────────────────────
     const families = (window.AUDIO_FAMILIES || []).map(fam => {
       const isExp = expanded.has(fam.id);
       const muted = (ff.mutedFamilies||[]).includes(fam.id);
-      const toolsList = (FAM_ROWS[fam.id] || []).map(([,l]) => l).join(' Â· ');
+      const toolsList = (FAM_ROWS[fam.id] || []).map(([,l]) => l).join(' · ');
 
       const rows = isExp ? (FAM_ROWS[fam.id] || []).map(([key, lbl]) => `
         <div class="ap-row ap-fam-row">
           <span class="ap-lbl ap-fam-lbl">${lbl}</span>
           <div class="ap-sel-wrap">
             ${instSel(key, fi[key]||'harp', `data-inst-key="${key}"`)}
-            <button class="ap-prev" onclick="window._apPreview('${key}')" title="Preview">â–¶</button>
+            <button class="ap-prev" onclick="window._apPreview('${key}')" title="Preview">▶</button>
           </div>
         </div>`).join('') : '';
 
@@ -118,23 +118,23 @@
         <div class="ap-fam${muted?' ap-fam-muted':''}" style="--fc:${fam.color}">
           <div class="ap-fam-hd">
             <button class="ap-fam-expand" onclick="window._apFamToggle('${fam.id}')"
-                    title="Expand / collapse tools">${isExp?'â–¾':'â–¸'}</button>
+                    title="Expand / collapse tools">${isExp?'▾':'▸'}</button>
             <span class="ap-fam-name">${fam.label}</span>
             <span class="ap-fam-tools">${toolsList}</span>
             ${famInstSel(fam.id)}
-            <button class="ap-prev" onclick="window._apFamPreview('${fam.id}')" title="Preview">â–¶</button>
+            <button class="ap-prev" onclick="window._apFamPreview('${fam.id}')" title="Preview">▶</button>
           </div>
           ${rows ? `<div class="ap-fam-rows">${rows}</div>` : ''}
         </div>`;
     }).join('');
 
-    // â”€â”€ Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Filter ─────────────────────────────────────────────────────────────────
     const mFams = ff.mutedFamilies || [];
     const mProjs = ff.mutedProjects || [];
     const famChips = (window.AUDIO_FAMILIES||[]).map(f => {
       const off = mFams.includes(f.id);
       return `<button class="ap-mute-chip${off?' off':''}" style="--fc:${f.color}"
-                      data-mute-fam="${f.id}" title="${off?'Muted â€” click to unmute':'Click to mute'}">${f.label}</button>`;
+                      data-mute-fam="${f.id}" title="${off?'Muted — click to unmute':'Click to mute'}">${f.label}</button>`;
     }).join('');
 
     const projNodes = (typeof GRAPH !== 'undefined')
@@ -149,21 +149,21 @@
     }).join('');
 
     const filterSection = `
-      <div class="ap-sec">â—† FILTER</div>
+      <div class="ap-sec">◆ FILTER</div>
       <div class="ap-filter-label">Mute families</div>
       <div class="ap-chips-wrap">${famChips}</div>
       ${projNodes.length ? `<div class="ap-filter-label" style="margin-top:5px">Mute projects</div>
       <div class="ap-chips-wrap">${projChips}</div>` : ''}`;
 
-    // â”€â”€ Scale + Note â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Scale + Note ───────────────────────────────────────────────────────────
     const scaleNote = `
-      <div class="ap-sec">â—† SCALE</div>
+      <div class="ap-sec">◆ SCALE</div>
       <div class="ap-row ap-row-wide">
         <select class="ap-sel ap-sel-wide" onchange="window._apScaleChange(this)">
           ${selOpts(SCALE_OPTS, S.scale||'major_pentatonic')}
         </select>
       </div>
-      <div class="ap-sec">â—† NOTE</div>
+      <div class="ap-sec">◆ NOTE</div>
       <div class="ap-row ap-row-wide">
         <select class="ap-sel ap-sel-wide" onchange="window._apNoteChange(this)">
           ${selOpts(NOTE_OPTS, S.noteMode||'path_hash')}
@@ -172,23 +172,23 @@
 
     panel.innerHTML = `
       <div class="ap-hd">
-        <span class="ap-title">â—† AUDIO</span>
-        <button class="ap-x" onclick="window._apClose()" title="Close">âœ•</button>
+        <span class="ap-title">◆ AUDIO</span>
+        <button class="ap-x" onclick="window._apClose()" title="Close">✕</button>
       </div>
       ${metronome}
-      <div class="ap-sec">â—† INSTRUMENT FAMILIES</div>
+      <div class="ap-sec">◆ INSTRUMENT FAMILIES</div>
       <div class="ap-families">${families}</div>
       ${filterSection}
       ${scaleNote}
       <div class="ap-foot">
-        <button class="ap-reset" onclick="window._apReset()">â†º Reset to defaults</button>
+        <button class="ap-reset" onclick="window._apReset()">↺ Reset to defaults</button>
       </div>`;
 
     // Event delegation for mute chips (avoids quote-escaping in onclick)
     panel.addEventListener('click', _chipDelegate, { once: true });
   }
 
-  // â”€â”€ Mute chip delegation (registered fresh on each render) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Mute chip delegation (registered fresh on each render) ───────────────────
   function _chipDelegate(e) {
     const chip = e.target.closest('[data-mute-fam],[data-mute-proj]');
     if (!chip) return;
@@ -199,7 +199,7 @@
     }
   }
 
-  // â”€â”€ Global callbacks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Global callbacks ──────────────────────────────────────────────────────────
 
   window._apInstChange = function(sel) {
     window.updateAudioSettings({ instruments: { [sel.dataset.instKey]: sel.value } });
@@ -240,7 +240,7 @@
     if (window.previewInstrument) window.previewInstrument(name);
   };
 
-  // â”€â”€ Metronome callbacks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Metronome callbacks ───────────────────────────────────────────────────────
   window._apBpmInput = function(val) {
     const v = parseInt(val);
     const el = document.getElementById('ap-bpm-val');
@@ -272,7 +272,7 @@
       if (vl) vl.textContent = bpm;
       if (btn) { btn.textContent = bpm; setTimeout(() => { if(btn) btn.textContent='TAP'; },800); }
     } else {
-      if (btn) { btn.textContent = 'â€¦'; setTimeout(() => { if(btn) btn.textContent='TAP'; },1200); }
+      if (btn) { btn.textContent = '…'; setTimeout(() => { if(btn) btn.textContent='TAP'; },1200); }
     }
   };
 
@@ -293,7 +293,7 @@
     window.updateAudioSettings({ clickVol: parseInt(val) / 100 });
   };
 
-  // â”€â”€ Filter callbacks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Filter callbacks ──────────────────────────────────────────────────────────
   window._apMuteFam = function(famId) {
     const cur = [...(window.AUDIO_SETTINGS.filter?.mutedFamilies||[])];
     const idx = cur.indexOf(famId);
@@ -312,11 +312,11 @@
     render();
   };
 
-  // â”€â”€ Scale / note â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Scale / note ──────────────────────────────────────────────────────────────
   window._apScaleChange = function(sel) { window.updateAudioSettings({ scale: sel.value }); };
   window._apNoteChange  = function(sel) { window.updateAudioSettings({ noteMode: sel.value }); };
 
-  // â”€â”€ Reset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Reset ─────────────────────────────────────────────────────────────────────
   window._apReset = function() {
     const d = window.AUDIO_DEFAULTS;
     window.AUDIO_SETTINGS = JSON.parse(JSON.stringify(d));
@@ -333,7 +333,7 @@
     if (b) { b.style.color=KAARO_TOKENS.dim; b.style.background=KAARO_TOKENS.card; b.style.borderColor=KAARO_TOKENS.border; }
   };
 
-  // â”€â”€ Helper: refresh only the family selector after an individual change â”€â”€â”€â”€â”€â”€â”€
+  // ── Helper: refresh only the family selector after an individual change ───────
   function _refreshFamSel(toolKey) {
     const fam = (window.AUDIO_FAMILIES||[]).find(f=>f.tools.includes(toolKey));
     if (!fam) return;
@@ -341,7 +341,7 @@
     if (sel) { const v=famInstVal(fam.id); if(v==='mixed') sel.value='mixed'; else sel.value=v; }
   }
 
-  // â”€â”€ âš™ button highlight when filters are active â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── ⚙ button highlight when filters are active ───────────────────────────────
   function _updateSettingsBtn() {
     const b = document.getElementById('audio-settings-btn');
     if (!b) return;
@@ -350,13 +350,13 @@
     b.style.color = active ? '#ff9944' : (panel.classList.contains('open') ? KAARO_TOKENS.label : KAARO_TOKENS.dim);
   }
 
-  // â”€â”€ âš™ Settings button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── ⚙ Settings button ─────────────────────────────────────────────────────────
   if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
     const btn = document.createElement('div');
     btn.id    = 'audio-settings-btn';
-    btn.title = 'Audio settings â€” metronome, instruments, filter';
+    btn.title = 'Audio settings — metronome, instruments, filter';
     btn.style.cssText = 'position:fixed;top:8px;right:160px;background:'+KAARO_TOKENS.card+';color:'+KAARO_TOKENS.dim+';font:bold 12px \'IBM Plex Mono\',monospace;padding:2px 8px;z-index:9998;cursor:pointer;user-select:none;border:1px solid '+KAARO_TOKENS.border+';transition:color .15s,background .15s,border-color .15s;letter-spacing:0';
-    btn.textContent = 'âš™';
+    btn.textContent = '⚙';
     document.body.appendChild(btn);
 
     btn.addEventListener('click', () => {

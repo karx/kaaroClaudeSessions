@@ -5,13 +5,13 @@
  * every adapter must satisfy validateNormalizedRecord (hooks/normalized-record.mjs).
  *
  * Two sweeps:
- *  1. Event Registry sample traces (hooks/event-types.mjs samples) â€” the
+ *  1. Event Registry sample traces (hooks/event-types.mjs samples) — the
  *     canonical per-event fixtures.
- *  2. A golden multi-record session per harness â€” covers envelope kinds
+ *  2. A golden multi-record session per harness — covers envelope kinds
  *     (session_meta, branch_change, unknown_record) the samples may miss.
  *
  * When a harness's storage format changes, fix its adapter until this file
- * is green again â€” no other layer should need edits.
+ * is green again — no other layer should need edits.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -40,24 +40,24 @@ function assertAllValid(nrs, label) {
   assert.ok(nrs.length > 0, `${label}: adapter emitted no records`);
   for (const nr of nrs) {
     const { ok, errors } = validateNormalizedRecord(nr);
-    assert.ok(ok, `${label}: invalid NR ${JSON.stringify(nr)} â€” ${errors.join('; ')}`);
+    assert.ok(ok, `${label}: invalid NR ${JSON.stringify(nr)} — ${errors.join('; ')}`);
   }
 }
 
-// â”€â”€ Sweep 1: Event Registry sample traces â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sweep 1: Event Registry sample traces ─────────────────────────────────────
 
 for (const [eventKey, entry] of Object.entries(EVENT_TYPES)) {
   if (!entry.samples) continue;
   for (const [harness, sample] of Object.entries(entry.samples)) {
     const adapterFn = ADAPTERS[harness];
     if (!adapterFn) continue;
-    test(`nr-compliance â€” sample ${eventKey}/${harness}`, () => {
+    test(`nr-compliance — sample ${eventKey}/${harness}`, () => {
       assertAllValid(adapterFn([sample.record]), `${eventKey}/${harness}`);
     });
   }
 }
 
-// â”€â”€ Sweep 2: golden sessions per harness â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sweep 2: golden sessions per harness ──────────────────────────────────────
 
 const GOLDEN = {
   'claude-code': [
@@ -155,7 +155,7 @@ const GOLDEN = {
       timestamp: 1780830791, method: 'session/update',
       params: { sessionId: 's1', update: {
         sessionUpdate: 'agent_message_chunk',
-        content: { type: 'text', text: 'On it â€” creating the branch now.' },
+        content: { type: 'text', text: 'On it — creating the branch now.' },
       } },
     },
     {
@@ -218,7 +218,7 @@ const GOLDEN = {
               invocationMessage: { value: 'Reading [](file:///d%3A/src/x/README.md)' },
               isComplete: true, toolCallId: 'c1', toolId: 'copilot_readFile',
             },
-            { kind: 'markdownContent', content: { value: 'The ontology isâ€¦' } },
+            { kind: 'markdownContent', content: { value: 'The ontology is…' } },
           ],
           completionTokens: 1092,
         }],
@@ -288,7 +288,7 @@ const GOLDEN = {
 };
 
 for (const [harness, records] of Object.entries(GOLDEN)) {
-  test(`nr-compliance â€” golden session (${harness})`, () => {
+  test(`nr-compliance — golden session (${harness})`, () => {
     assertAllValid(ADAPTERS[harness](records), `golden/${harness}`);
   });
 }

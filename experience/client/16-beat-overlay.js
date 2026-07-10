@@ -1,4 +1,4 @@
-// â”€â”€ DAW Feed Widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── DAW Feed Widget ────────────────────────────────────────────────────────────
 // Interactive live event feed above the timeline bar (bottom:74px, height:80px).
 // Scroll back with wheel or drag to inspect history. Hover for details and
 // to highlight the corresponding session node in the force graph.
@@ -27,7 +27,7 @@
     return _COG_STRIPE[ev.type] ?? toolColor(ev.tool);
   }
 
-  // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── State ──────────────────────────────────────────────────────────────────
   let _scrollPx      = 0;
   let _isLive        = true;
   let _frozenNow     = null;
@@ -35,7 +35,7 @@
   let _mouseX        = 0, _mouseY = 0;
   let _dragging      = false, _dragOriX = 0, _dragOriScroll = 0;
 
-  // â”€â”€ DOM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── DOM ────────────────────────────────────────────────────────────────────
   const widget  = document.createElement('div');
   widget.id     = 'daw-widget';
   document.body.appendChild(widget);
@@ -53,7 +53,7 @@
   resize();
   window.addEventListener('resize', resize);
 
-  // â”€â”€ Input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Input ──────────────────────────────────────────────────────────────────
   widget.addEventListener('wheel', e => {
     e.preventDefault();
     _scrollPx = Math.max(0, _scrollPx + (e.deltaX || e.deltaY) * 0.8);
@@ -93,7 +93,7 @@
 
   function _nowMs() { return _isLive ? Date.now() : (_frozenNow ?? Date.now()); }
 
-  // â”€â”€ Graph highlight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Graph highlight ────────────────────────────────────────────────────────
   const FILE_TOOLS = new Set(['Read', 'Write', 'Edit', 'read', 'write', 'edit']);
 
   function _restoreHighlight() {
@@ -123,12 +123,12 @@
     if (projNode) highlight(projNode.id);
   }
 
-  // â”€â”€ Coordinate helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Coordinate helpers ─────────────────────────────────────────────────────
   function evScreenX(ev, nowMs) {
     return canvas.width - (nowMs - ev.ts) / 1000 * PX_PER_SEC + _scrollPx;
   }
 
-  // â”€â”€ Hover detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Hover detection ────────────────────────────────────────────────────────
   function findHovered(nowMs) {
     const ring = window._beatRing || [];
     for (let i = ring.length - 1; i >= 0; i--) {
@@ -143,7 +143,7 @@
     return null;
   }
 
-  // â”€â”€ Tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Tooltip ────────────────────────────────────────────────────────────────
   function renderTooltip(ev) {
     if (!ev) { tooltip.style.display = 'none'; return; }
     const rect = widget.getBoundingClientRect();
@@ -161,7 +161,7 @@
     tooltip.style.cssText = `display:block;left:${left}px;top:${top}px`;
     tooltip.innerHTML = [
       `<div class="dtt-proj" style="color:${ev.color||KAARO_TOKENS.body}">${ev.project || '?'}</div>`,
-      `<div class="dtt-tool">${label}${ev.category ? ' Â· '+ev.category : ''}</div>`,
+      `<div class="dtt-tool">${label}${ev.category ? ' · '+ev.category : ''}</div>`,
       where ? `<div class="dtt-where">${where}</div>` : '',
       ev.slug    ? `<div class="dtt-slug">${ev.slug}</div>` : '',
       ev.preview ? `<div class="dtt-preview">${ev.preview.slice(0, 90)}</div>` : '',
@@ -169,7 +169,7 @@
     ].join('');
   }
 
-  // â”€â”€ Draw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Draw ───────────────────────────────────────────────────────────────────
   function draw() {
     requestAnimationFrame(draw);
     const W    = canvas.width;
@@ -201,7 +201,7 @@
     ctx.strokeStyle = '#07071a';
     ctx.beginPath(); ctx.moveTo(0, H_TOTAL - 0.5); ctx.lineTo(W, H_TOTAL - 0.5); ctx.stroke();
 
-    // time grid â€” 10s intervals
+    // time grid — 10s intervals
     const gridPx = 10 * PX_PER_SEC;
     const phase  = (_isLive ? 0 : (_frozenNow - Date.now()) / 1000 * PX_PER_SEC) - _scrollPx;
     const firstX = ((W + phase) % gridPx + gridPx) % gridPx;
@@ -254,10 +254,10 @@
       ctx.beginPath(); ctx.moveTo(W - 1, H_HEADER); ctx.lineTo(W - 1, H_TOTAL); ctx.stroke();
     }
 
-    // â—† FEED label
+    // ◆ FEED label
     ctx.fillStyle = '#1a2a48';
     ctx.font = "bold 8px 'IBM Plex Mono',monospace";
-    ctx.fillText('â—† FEED', 8, 12);
+    ctx.fillText('◆ FEED', 8, 12);
 
     // scroll position readout
     if (!_isLive) {
@@ -285,7 +285,7 @@
 
     ctx.fillStyle = _isLive ? '#00cc60' : '#3a4466';
     ctx.font      = "bold 8px 'IBM Plex Mono',monospace";
-    ctx.fillText(_isLive ? 'LIVE' : 'â—€ LIVE', btnX + 16, 13);
+    ctx.fillText(_isLive ? 'LIVE' : '◀ LIVE', btnX + 16, 13);
   }
 
   requestAnimationFrame(draw);

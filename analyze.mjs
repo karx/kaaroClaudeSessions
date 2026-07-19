@@ -17,6 +17,8 @@ import { buildSessionsOutput } from './surface/analyze-orchestrator.mjs';
 import { recordsToNormalized } from './hooks/adapters/claude-code.mjs';
 import { reduceSession } from './hooks/session-reducer.mjs';
 import { enrichSession } from './hooks/enrich-session.mjs';
+import { loadPolicy } from './hooks/policy.mjs';
+import { buildSignalsData } from './hooks/signal-evaluator.mjs';
 import {
   deriveLabel, normPath, categorizeBash,
   extractTextFromContent, extractSkills,
@@ -26,6 +28,7 @@ import {
 
 export const PROJECTS_ROOT = path.join(os.homedir(), '.claude', 'projects');
 const OUT_FILE             = path.join(process.cwd(), 'sessions-data.json');
+const SIGNALS_FILE         = path.join(process.cwd(), 'signals-data.json');
 
 // ── JSONL I/O ─────────────────────────────────────────────────────────────────
 
@@ -234,6 +237,17 @@ function writeOutput(output) {
   const total = t.input + t.cache_create + t.cache_read + t.output;
   console.log(`\nSessions: ${output.sessions.length}  Projects: ${output.projects.length}  Tokens: ${total.toLocaleString()}`);
   console.log(`Output: ${OUT_FILE}`);
+  writeSignals(output);
+}
+
+// Policy evaluation (W-POL-01..03): signals are derived, rebuilt on every run,
+// and never block anything. signals-data.json is written even when empty so
+// /api/signals always has a current payload.
+function writeSignals(output) {
+  const signals = buildSignalsData(output.sessions, loadPolicy());
+  fs.writeFileSync(SIGNALS_FILE, JSON.stringify(signals, null, 2), 'utf8');
+  if (signals.total_signals > 0)
+    console.log(`Signals: ${signals.total_signals} (${Object.entries(signals.by_level).map(([k, v]) => `${v} ${k}`).join(' · ')})`);
 }
 
 async function main() {

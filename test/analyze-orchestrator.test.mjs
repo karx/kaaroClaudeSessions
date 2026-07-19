@@ -82,6 +82,20 @@ test('buildSessionsOutput — sorts sessions by first_timestamp', () => {
   assert.equal(output.sessions[1].session_id, 'late');
 });
 
+test('signals pipeline — buildSignalsData consumes buildSessionsOutput sessions as-is', async () => {
+  const { buildSignalsData } = await import('../hooks/signal-evaluator.mjs');
+  const output = buildSessionsOutput([{
+    harness: 'claude-code',
+    source_dir: '/claude',
+    sessions: [makeSession('s1', 'claude-code', 'p1', { tool_errors: 9 })],
+  }]);
+  const policy = { rules: [{ id: 'errors', match: { 'tool_errors.gt': 5 }, signal: 'ALERT', reason: 'too many errors' }] };
+  const data = buildSignalsData(output.sessions, policy, { now: new Date('2026-07-19T12:00:00.000Z') });
+  assert.equal(data.total_signals, 1);
+  assert.equal(data.signals[0].session_id, 's1');
+  assert.equal(data.signals[0].signal, 'ALERT');
+});
+
 test('parseHarnessFlags', () => {
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs']), ['claude-code']);
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs', '--all-harnesses']),

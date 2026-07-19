@@ -126,6 +126,7 @@ const server = http.createServer(createRequestHandler({
     data: DATA_PATH,
     daw:  path.join(__dirname, 'daw-builder.html'),
     now:  path.join(__dirname, 'now.html'), // built artifact (token-substituted)
+    signals: path.join(__dirname, 'signals-data.json'), // policy signals (analyze run)
   },
   resolveSessionFile,
   buildTrace,

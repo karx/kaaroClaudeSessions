@@ -55,6 +55,18 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
       return;
     }
 
+    // Policy signals (W-REP-02): derived per analysis run by analyze.mjs.
+    // Absent file → empty payload, not an error — no policy configured yet.
+    if (req.url === '/api/signals') {
+      res.writeHead(200, JSON_HEADERS);
+      if (paths.signals && fs.existsSync(paths.signals)) {
+        res.end(fs.readFileSync(paths.signals));
+      } else {
+        res.end(JSON.stringify({ generated_at: null, total_signals: 0, by_level: {}, by_rule: {}, signals: [] }));
+      }
+      return;
+    }
+
     // Registry as the experience layer's source of truth: id, label,
     // capabilities only (watch config / adapters are backend-internal).
     if (req.url === '/api/harnesses') {

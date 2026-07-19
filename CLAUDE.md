@@ -30,6 +30,7 @@ No `npm install` needed — zero external dependencies. D3 v7 and 3d-force-graph
 - `GET /events` — SSE stream; lifecycle events (`status`, `updated`, `error`), live pulse events (`tool_call`, `tokens`, `words`, `human_turn`, `compact`, `permission`, `mode_shift`, `tool_error`, `api_error`, `chirp`, …), plus throttled `now` snapshots (≤1/s)
 - `GET /api/active` — Mission Control snapshot from `surface/active-state.mjs` (`{ generated_at, sessions[] (incl. recent_actions ring), by_harness, totals }`)
 - `GET /api/harnesses` — registry descriptors `{ id, label, capabilities }` — the experience layer's capability source
+- `GET /api/signals` — policy signals payload from `signals-data.json` (`{ generated_at, total_signals, by_level, by_rule, signals[] }`); empty payload when no policy configured. Policy: `hooks/policy.mjs` loads/merges `.agents/policy.json` (project, prepends) + `~/.agents/policy.json` (global); `hooks/signal-evaluator.mjs` evaluates session-scoped predicates (`skill`, `tool`, `tool_errors.gt`, `cache_hit_rate.lt`, `duration_min.gt`, `project`, `compact_count.gt`), first match wins, unsupported predicates → visible INFO diagnostic. Signals only — auditor, never gatekeeper. `analyze.mjs` writes `signals-data.json` (gitignored) on every run.
 - `GET /graph-data.json` — current graph payload for incremental updates
 - `GET /status` — JSON `{ rebuilding, lastBuilt, clients, port }` (debug)
 - `GET /api/trace/:session_id` — context tree via `surface/trace-service.mjs` (mtime-cached; all harnesses except antigravity)

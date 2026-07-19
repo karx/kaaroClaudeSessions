@@ -63,29 +63,27 @@ registry `false` capability flags are honest. Do not reopen without new Pi forma
 - [x] 📦 Unit 3c: schema doc for `tokens_work` + CLAUDE.md "Known coverage gaps" update (rode with 3b commit)
 - [x] Verify: `node analyze.mjs && node build.mjs` — 30 real sessions, nodes carry enriched tokens_work (spot-checked graph-data.json)
 
-## Item 4 — Policy pillar phase 1 (W-POL-01/02/03 + /api/signals) ⬜ PENDING
+## Item 4 — Policy pillar phase 1 (W-POL-01/02/03 + /api/signals) ✅ DONE
 
 Signals only — auditor, never gatekeeper. Predicates needing W-OBS-02 attribution
-(`tools.contains`) are OUT of scope; evaluator must skip unknown predicates with an
+(`tools.contains`) are OUT of scope; evaluator skips unknown predicates with an
 INFO diagnostic (visible, not silent).
 
-- [ ] 🔴→🟢→📦 Unit 4a: `test/policy.test.mjs` — `hooks/policy.mjs` loader/merger:
-      project `.agents/policy.json` prepends global `~/.agents/policy.json`;
-      absent/malformed → warn + null (mirror `loadClusterOverrides()` in build.mjs)
-- [ ] 🔴→🟢→📦 Unit 4b: `test/signal-evaluator.test.mjs` — `hooks/signal-evaluator.mjs`
-      pure `(session, rules) → signals[]` per W-POL-03 shape; predicates:
-      `skill`, `tool`, `tool_errors.gt`, `cache_hit_rate.lt`, `duration_min.gt`,
-      `project`, `compact_count.gt`; first matching rule wins; INFO diagnostic for
-      unsupported predicate keys
-- [ ] 🔴→🟢→📦 Unit 4c: wire into `surface/analyze-orchestrator.mjs` →
-      `signals-data.json` emitted beside `sessions-data.json` (gitignore it);
-      test in `test/analyze-orchestrator.test.mjs`
-- [ ] 🔴→🟢→📦 Unit 4d: `GET /api/signals` in `surface/http-routes.mjs`
-      (W-REP-02 response shape: `generated_at`, `total_signals`, `by_level`, `by_rule`,
-      `signals[]`); test in `test/http-routes.test.mjs` (ephemeral port pattern)
-- [ ] Verify end-to-end: sample `.agents/policy.json` with one rule →
-      `node analyze.mjs` produces `signals-data.json` → `node serve.mjs` → `/api/signals`
-- [ ] W-REP-01 graph overlay: explicitly OUT of scope (next batch)
+- [x] 🔴→🟢→📦 Unit 4a: `hooks/policy.mjs` loader/merger (`aa4c078`) + BOM-tolerance
+      follow-up unit (PowerShell writes UTF-8 BOM; loader strips it)
+- [x] 🔴→🟢→📦 Unit 4b: `hooks/signal-evaluator.mjs` — 7 predicates, first match wins,
+      diagnostic signals, `buildSignalsData` W-REP-02 payload (`0491e85`)
+- [x] 🔴→🟢→📦 Unit 4c: `analyze.mjs` writeOutput → `signals-data.json` every run
+      (empty payload included), gitignored (`fb03dc5`)
+- [x] 🔴→🟢→📦 Unit 4d: `GET /api/signals` route + serve.mjs paths.signals; tests on
+      ephemeral ports (present-file + absent-file cases)
+- [x] Verify end-to-end: sample `.agents/policy.json` → analyze emitted 31 signals
+      (1 rule match + 30 visible diagnostics for the deliberately-unsupported
+      `tools.contains`); live `serve --port=3399` → `/api/signals` returned the payload
+- [x] W-REP-01 graph overlay: explicitly OUT of scope (next batch)
+
+Refinement noted for next batch: diagnostics are per-session (30× for one bad rule) —
+consider deduping diagnostics per rule in `buildSignalsData`.
 
 ## Item 5 — DX batch (one commit) ⬜ PENDING
 

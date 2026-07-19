@@ -68,6 +68,43 @@ test('GET /api/active — snapshot of the live active-state', async () => {
   });
 });
 
+test('GET /api/signals — serves signals-data.json when present', async () => {
+  const dir = join(tmpdir(), `kaaro-signals-${Date.now()}`);
+  mkdirSync(dir, { recursive: true });
+  const payload = {
+    generated_at: '2026-07-19T12:00:00.000Z', total_signals: 1,
+    by_level: { WARN: 1 }, by_rule: { r1: 1 },
+    signals: [{ rule_id: 'r1', signal: 'WARN', session_id: 's1' }],
+  };
+  writeFileSync(join(dir, 'signals-data.json'), JSON.stringify(payload), 'utf8');
+  const deps = makeDeps();
+  deps.paths.signals = join(dir, 'signals-data.json');
+  try {
+    await withServer(deps, async (base) => {
+      const r = await fetch(`${base}/api/signals`);
+      assert.equal(r.status, 200);
+      const body = await r.json();
+      assert.equal(body.total_signals, 1);
+      assert.deepEqual(body.by_level, { WARN: 1 });
+      assert.equal(body.signals[0].rule_id, 'r1');
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('GET /api/signals — empty payload (200) when file absent', async () => {
+  const deps = makeDeps();
+  deps.paths.signals = 'Z:/nope/signals-data.json';
+  await withServer(deps, async (base) => {
+    const r = await fetch(`${base}/api/signals`);
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.equal(body.total_signals, 0);
+    assert.deepEqual(body.signals, []);
+  });
+});
+
 test('GET /api/harnesses — registry descriptors as the UI source of truth', async () => {
   await withServer(makeDeps(), async (base) => {
     const r = await fetch(`${base}/api/harnesses`);

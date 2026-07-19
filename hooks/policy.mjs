@@ -15,7 +15,8 @@ import path from 'path';
 export function loadPolicyFile(filePath) {
   if (!fs.existsSync(filePath)) return null;
   try {
-    const obj = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    // strip UTF-8 BOM — PowerShell/Windows editors prepend one routinely
+    const obj = JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^﻿/, ''));
     if (obj.rules !== undefined && !Array.isArray(obj.rules)) {
       console.warn(`policy ${filePath} invalid — rules must be an array; ignoring`);
       return null;

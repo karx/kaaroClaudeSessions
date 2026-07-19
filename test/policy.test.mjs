@@ -46,6 +46,15 @@ test('loadPolicyFile — absent file → null, no throw', () => {
   assert.equal(loadPolicyFile(path.join(root, 'nope', 'policy.json')), null);
 });
 
+test('loadPolicyFile — tolerates a UTF-8 BOM (Windows editors/PowerShell)', () => {
+  const p = path.join(root, 'bom', 'policy.json');
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, '﻿' + JSON.stringify({ version: '1', rules: [RULE_A] }), 'utf8');
+  const policy = loadPolicyFile(p);
+  assert.ok(policy, 'BOM-prefixed policy must load');
+  assert.equal(policy.rules[0].id, 'no-bash-in-viz');
+});
+
 test('loadPolicyFile — malformed JSON → null, no throw', () => {
   const p = writeJson('bad/policy.json', '{ not json !!');
   assert.equal(loadPolicyFile(p), null);

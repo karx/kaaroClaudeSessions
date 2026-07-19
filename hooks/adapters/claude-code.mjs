@@ -50,10 +50,19 @@ export function recordsToNormalized(records) {
 
     if (rec.type === 'attachment') {
       handled = true;
+      const subtype = rec.attachment?.type || null;
       out.push({
         kind: 'attachment', harness: HARNESS, ts,
-        subtype: rec.attachment?.type || null,
+        subtype,
       });
+      // W-OBS-01: invoked_skills is the reliable skill source (exact ts + names).
+      // command-name scanning on user turns remains as fallback for older sessions.
+      if (subtype === 'invoked_skills') {
+        for (const s of rec.attachment?.skills || []) {
+          const name = typeof s === 'string' ? s : s?.name;
+          if (name) out.push({ kind: 'skill_invoke', harness: HARNESS, ts, skill: name });
+        }
+      }
     }
 
     if (rec.type === 'last-prompt') {

@@ -120,6 +120,65 @@ test('attachment record emits attachment NR with subtype', () => {
   assert.equal(nrs[0].ts, '2026-06-09T10:00:00.000Z');
 });
 
+// W-OBS-01 / Unit 6a: attachment.invoked_skills is the reliable skill source.
+// Keep the attachment NR (sonic) and emit one skill_invoke per named skill.
+test('attachment/invoked_skills → skill_invoke NR per skill (ts kept)', () => {
+  const ts = '2026-05-05T10:03:12.000Z';
+  const nrs = recordsToNormalized([{
+    type: 'attachment', timestamp: ts,
+    attachment: {
+      type: 'invoked_skills',
+      skills: [
+        { name: 'visualize-seed', path: '/skills/visualize-seed/SKILL.md', content: '...' },
+        { name: 'web-seo', path: '/skills/web-seo/SKILL.md', content: '...' },
+        { name: '', path: '/skills/empty/SKILL.md' }, // skip empty names
+      ],
+    },
+  }]);
+
+  const skills = nrs.filter(r => r.kind === 'skill_invoke');
+  assert.equal(skills.length, 2);
+  assert.deepEqual(skills.map(r => r.skill), ['visualize-seed', 'web-seo']);
+  for (const s of skills) {
+    assert.equal(s.ts, ts);
+    assert.equal(s.harness, 'claude-code');
+  }
+
+  // Generic attachment NR still emitted (sonic / unknown-subtype surface).
+  const att = nrs.find(r => r.kind === 'attachment');
+  assert.ok(att, 'attachment NR preserved');
+  assert.equal(att.subtype, 'invoked_skills');
+  assert.equal(att.ts, ts);
+});
+
+test('attachment/invoked_skills with no skills array emits only attachment NR', () => {
+  const nrs = recordsToNormalized([{
+    type: 'attachment', timestamp: 't1',
+    attachment: { type: 'invoked_skills' },
+  }]);
+  assert.equal(nrs.filter(r => r.kind === 'skill_invoke').length, 0);
+  assert.equal(nrs.filter(r => r.kind === 'attachment').length, 1);
+});
+
+test('command-name skill_invoke remains as fallback beside invoked_skills', () => {
+  const nrs = recordsToNormalized([
+    {
+      type: 'user', timestamp: 't0',
+      message: { content: '<command-name>review</command-name> please' },
+    },
+    {
+      type: 'attachment', timestamp: 't1',
+      attachment: {
+        type: 'invoked_skills',
+        skills: [{ name: 'visualize-seed' }],
+      },
+    },
+  ]);
+  const skills = nrs.filter(r => r.kind === 'skill_invoke').map(r => r.skill);
+  assert.ok(skills.includes('review'), 'command-name fallback still emits');
+  assert.ok(skills.includes('visualize-seed'), 'invoked_skills emits');
+});
+
 test('last-prompt record emits session_meta NR', () => {
   const records = [{ type: 'last-prompt', lastPrompt: 'Run tests', sessionId: 'abc' }];
   const nrs = recordsToNormalized(records);

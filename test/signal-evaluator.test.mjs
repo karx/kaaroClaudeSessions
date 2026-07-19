@@ -90,15 +90,89 @@ test('evaluateSession — first matching rule wins, later rules not evaluated', 
 
 test('evaluateSession — unsupported predicate skips rule with INFO diagnostic', () => {
   const rules = [
-    rule({ id: 'attr-rule', match: { 'tools.contains': 'Bash' } }), // W-OBS-02 not implemented
+    rule({ id: 'intent-rule', match: { intent: 'refactor' } }), // not yet implemented
     rule({ id: 'fallback',  match: { tool: 'Bash' } }),
   ];
   const sigs = evaluateSession(makeSess(), { rules }, { now: NOW });
   assert.equal(sigs.length, 2);
+  assert.equal(sigs[0].rule_id, 'diagnostic:intent-rule');
+  assert.equal(sigs[0].signal, 'INFO');
+  assert.match(sigs[0].reason, /intent/);
+  assert.equal(sigs[1].rule_id, 'fallback'); // skipped rule doesn't block later rules
+});
+
+// ── tools.contains (W-OBS-02 / Unit 6c) ────────────────────────────────────────
+
+test('evaluateSession — tools.contains matches attribution[skill].tools[tool]', () => {
+  const sess = makeSess({
+    skills: ['visualize-seed'],
+    skill_attribution: {
+      'visualize-seed': { tool_calls: 3, tools: { Read: 2, Bash: 1 }, errors: 0 },
+    },
+  });
+  const r = rule({
+    id: 'no-bash-in-viz',
+    match: { skill: 'visualize-seed', 'tools.contains': 'Bash' },
+    signal: 'WARN',
+    reason: 'visualize-seed should not use Bash',
+  });
+  const sigs = evaluateSession(sess, { rules: [r] }, { now: NOW });
+  assert.equal(sigs.length, 1);
+  assert.equal(sigs[0].rule_id, 'no-bash-in-viz');
+  assert.equal(sigs[0].signal, 'WARN');
+  assert.equal(sigs[0].context['tools.contains'], 'Bash');
+  assert.equal(sigs[0].context.skill, 'visualize-seed');
+});
+
+test('evaluateSession — tools.contains is false when skill did not use the tool', () => {
+  const sess = makeSess({
+    skills: ['visualize-seed'],
+    skill_attribution: {
+      'visualize-seed': { tool_calls: 2, tools: { Read: 2 }, errors: 0 },
+    },
+  });
+  const r = rule({ match: { skill: 'visualize-seed', 'tools.contains': 'Bash' } });
+  assert.equal(evaluateSession(sess, { rules: [r] }, { now: NOW }).length, 0);
+});
+
+test('evaluateSession — tools.contains INFO diagnostic when skill_attribution absent', () => {
+  // Field missing entirely (pre-W-OBS-02 sessions / hand fixtures) — not {}.
+  const sess = makeSess({ skills: ['visualize-seed'] });
+  delete sess.skill_attribution;
+  const r = rule({
+    id: 'attr-rule',
+    match: { skill: 'visualize-seed', 'tools.contains': 'Bash' },
+  });
+  const sigs = evaluateSession(sess, { rules: [r] }, { now: NOW });
+  assert.equal(sigs.length, 1);
   assert.equal(sigs[0].rule_id, 'diagnostic:attr-rule');
   assert.equal(sigs[0].signal, 'INFO');
-  assert.match(sigs[0].reason, /tools\.contains/);
-  assert.equal(sigs[1].rule_id, 'fallback'); // skipped rule doesn't block later rules
+  assert.match(sigs[0].reason, /attribution|tools\.contains/i);
+});
+
+test('evaluateSession — tools.contains with empty attribution {} is a non-match, not a diagnostic', () => {
+  const sess = makeSess({
+    skills: ['visualize-seed'],
+    skill_attribution: {},
+  });
+  const r = rule({
+    id: 'attr-rule',
+    match: { skill: 'visualize-seed', 'tools.contains': 'Bash' },
+  });
+  const sigs = evaluateSession(sess, { rules: [r] }, { now: NOW });
+  assert.equal(sigs.length, 0);
+});
+
+test('evaluateSession — tools.contains without skill companion → INFO diagnostic', () => {
+  const sess = makeSess({
+    skill_attribution: { 'visualize-seed': { tool_calls: 1, tools: { Bash: 1 }, errors: 0 } },
+  });
+  const r = rule({ id: 'bare', match: { 'tools.contains': 'Bash' } });
+  const sigs = evaluateSession(sess, { rules: [r] }, { now: NOW });
+  assert.equal(sigs.length, 1);
+  assert.equal(sigs[0].rule_id, 'diagnostic:bare');
+  assert.equal(sigs[0].signal, 'INFO');
+  assert.match(sigs[0].reason, /skill/i);
 });
 
 // ── signal shape (W-POL-03) ───────────────────────────────────────────────────
@@ -140,4 +214,52 @@ test('buildSignalsData — null/empty policy → empty payload, never throws', (
   const empty = buildSignalsData([makeSess()], null, { now: NOW });
   assert.equal(empty.total_signals, 0);
   assert.deepEqual(empty.signals, []);
+});
+
+test('buildSignalsData — diagnostics deduped per rule (not per session)', () => {
+  // Attribution-missing diagnostic would fire once per session without dedupe.
+  const sessions = [
+    makeSess({ session_id: 's1' }),
+    makeSess({ session_id: 's2' }),
+    makeSess({ session_id: 's3' }),
+  ];
+  for (const s of sessions) delete s.skill_attribution;
+
+  const policy = { rules: [
+    rule({ id: 'attr-rule', match: { skill: 'visualize-seed', 'tools.contains': 'Bash' } }),
+    rule({ id: 'intent-rule', match: { intent: 'x' } }),
+  ] };
+  const data = buildSignalsData(sessions, policy, { now: NOW });
+
+  const diags = data.signals.filter(s => s.rule_id.startsWith('diagnostic:'));
+  assert.equal(diags.length, 2, 'one diagnostic per rule, not per session×rule');
+  assert.deepEqual(
+    diags.map(d => d.rule_id).sort(),
+    ['diagnostic:attr-rule', 'diagnostic:intent-rule'],
+  );
+  assert.equal(data.by_rule['diagnostic:attr-rule'], 1);
+  assert.equal(data.by_rule['diagnostic:intent-rule'], 1);
+});
+
+test('buildSignalsData — real tools.contains matches are NOT deduped across sessions', () => {
+  const sessions = [
+    makeSess({
+      session_id: 's1',
+      skill_attribution: { 'visualize-seed': { tool_calls: 1, tools: { Bash: 1 }, errors: 0 } },
+    }),
+    makeSess({
+      session_id: 's2',
+      skill_attribution: { 'visualize-seed': { tool_calls: 1, tools: { Bash: 1 }, errors: 0 } },
+    }),
+  ];
+  const policy = { rules: [
+    rule({
+      id: 'no-bash',
+      match: { skill: 'visualize-seed', 'tools.contains': 'Bash' },
+      signal: 'WARN',
+    }),
+  ] };
+  const data = buildSignalsData(sessions, policy, { now: NOW });
+  assert.equal(data.total_signals, 2);
+  assert.equal(data.by_rule['no-bash'], 2);
 });

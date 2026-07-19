@@ -130,7 +130,7 @@ Grounding (verified 2026-07-20):
       each `skill_invoke`, closes at next `skill_invoke` — and does NOT survive a
       `context_reset` (test this); BUILTIN_COMMANDS excluded; `{}`/`[]` defaults;
       add both to `OPTIONAL_SESSION_FIELDS` + schema doc block
-- [ ] 🔴→🟢→📦 Unit 6c: evaluator — `tools.contains` predicate (rule form
+- [x] 🔴→🟢→📦 Unit 6c: evaluator — `tools.contains` predicate (rule form
       `{ skill: X, 'tools.contains': Y }` → attribution[X].tools[Y]); keep INFO
       diagnostic when attribution data absent; **rider**: dedupe diagnostics per
       rule (not per session) in `buildSignalsData`
@@ -207,3 +207,4 @@ shape preferred"; gzip noted as future work).
 | 2026-07-20 | Batch 2 planned (items 6–10): user chose half policy (attribution W-OBS-01/02 + severity-ring overlay W-REP-01) / half OTLP (encoder, stream emitter, snapshot emission per RFC). Not started. |
 | 2026-07-20 | Unit 6a done: CC adapter extracts `invoked_skills` → `skill_invoke` NRs (attachment NR kept; command-name fallback retained); suite 1552 |
 | 2026-07-20 | Unit 6b done: reducer skill_timeline + skill_attribution (window dies at context_reset; BUILTIN excluded); suite 1558 |
+| 2026-07-20 | Unit 6c done: tools.contains predicate + diagnostic dedupe per rule in buildSignalsData; suite 1565 |

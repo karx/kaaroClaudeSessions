@@ -9,14 +9,16 @@ duplicated here. This file tracks genuinely open design/DX work instead.
 
 ---
 
-## 🔴 Open — silent-degradation risk
+## ✅ Resolved — Pi parity re-scoped (2026-07-19)
 
-### 1. `analyze-pi.mjs` parity is still incomplete
-Pi sessions still produce nodes missing `context_resets`, `ai_title`,
-`subagent_count`, `branches` (capabilities declare them `false` in the registry).
-Thread view and trace panel degrade silently for Pi. CC and Grok fully extract these;
-opencode/copilot/command-code partially do. Pi has not been revisited since the
-original multi-harness pass.
+### 1. `analyze-pi.mjs` parity — closed as data-absent
+Surveyed all local Pi transcripts: the raw format contains only four record
+types (`session`, `model_change`, `thinking_level_change`, `message`). There
+are **no** compaction, git-branch, AI-title, or subagent records in Pi's format,
+so `context_resets`, `ai_title`, `subagent_count`, `branches` cannot be
+extracted — the registry capabilities `false` flags are honest, not a gap.
+The one extractable signal, `thinking_level_change`, now maps to a
+`mode_shift` NR (`mode: "thinking:<level>"`) instead of `unknown_record`.
 
 ---
 

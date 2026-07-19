@@ -41,6 +41,12 @@ export function recordsToNormalized(records) {
       if (model) out.push({ kind: 'session_meta', harness: HARNESS, ts, model, overwrite: true });
     }
 
+    if (rec.type === 'thinking_level_change') {
+      handled = true;
+      const mode = rec.thinkingLevel ? `thinking:${rec.thinkingLevel}` : null;
+      out.push({ kind: 'mode_shift', harness: HARNESS, ts, mode });
+    }
+
     if (rec.type === 'message' && rec.message) {
       handled = true;
       const msg = rec.message;

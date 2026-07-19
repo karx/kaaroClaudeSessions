@@ -71,6 +71,19 @@ test('tool_use NR has category for bash tools; key is NOT set by adapter', () =>
   assert.equal(nrs[1].key, undefined);
 });
 
+test('thinking_level_change → mode_shift NR, not unknown_record', () => {
+  const records = [
+    { type: 'thinking_level_change', id: '4dfee7f7', parentId: null,
+      timestamp: '2026-07-09T17:33:20.083Z', thinkingLevel: 'medium' },
+  ];
+  const nrs = recordsToNormalized(records);
+  assert.equal(nrs.length, 1);
+  assert.equal(nrs[0].kind, 'mode_shift');
+  assert.equal(nrs[0].harness, 'pi');
+  assert.equal(nrs[0].ts, '2026-07-09T17:33:20.083Z');
+  assert.equal(nrs[0].mode, 'thinking:medium');
+});
+
 test('unknown_record emitted for unrecognised record types', () => {
   const records = [
     { type: 'some_future_type', timestamp: '2026-06-09T10:00:00.000Z' },

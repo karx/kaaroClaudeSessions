@@ -1,11 +1,13 @@
 # TODO — kaaroSessions
 
-**Current state (2026-07, two-layer + Command Code):** **1436 tests pass, 0 fail.**
+**Current state (2026-07-19, post next-5 batch):** **1544 tests pass, 0 fail.**
 Seven harnesses supported (claude-code, pi, antigravity, grok, opencode, copilot,
 command-code) through the `hooks/` (normalization) + `surface/` (HTTP+SSE) split.
-See `docs/harnesses.md` for the live support matrix and CLAUDE.md's "Known coverage
-gaps" section for the canonical, up-to-date list of test-coverage holes — not
-duplicated here. This file tracks genuinely open design/DX work instead.
+CI runs `node --test` on push/PR (Node 18/20/22). Policy pillar phase 1 landed
+(`hooks/policy.mjs`, `hooks/signal-evaluator.mjs`, `/api/signals`). See
+`docs/harnesses.md` for the live support matrix, CLAUDE.md's "Known coverage gaps"
+for test-coverage holes, and EXECUTION.md for the active execution tracker.
+This file tracks genuinely open design/DX work instead.
 
 ---
 
@@ -24,13 +26,10 @@ The one extractable signal, `thinking_level_change`, now maps to a
 
 ## 🟡 Architecture — data-flow awkwardness
 
-### 2. Token arithmetic computed in multiple places
-`session-reducer` → `enrich-session` → `graph-pipeline` each touch token fields.
-`tokens_work` exists on session nodes but not project summary nodes.
-`hooks/sessions-schema.mjs` doesn't enforce derivation order, so drift goes undetected.
-
-**Fix:** Make `hooks/enrich-session.mjs` the single place all derived fields are
-computed; `experience/graph-pipeline.mjs` passthrough only.
+### 2. ~~Token arithmetic computed in multiple places~~ ✅ Resolved 2026-07-19
+`tokensWork()` in `hooks/enrich-session.mjs` is now the single home of the formula;
+`enrichSession`/`enrichProject` set `tokens_work` upstream and
+`experience/graph-pipeline.mjs` is strict passthrough (proof-tested).
 
 ### 3. `tailAndPulse` fires before rebuild debounce
 SSE pulses emit immediately on `.jsonl` change; graph rebuild is debounced 1500ms.
@@ -46,12 +45,9 @@ reasoning first.
 
 ## 🟢 DX / naming
 
-### 4. `BUILTIN_COMMANDS` vs `skills` split is undocumented
-Two arrays on every session node; no comment in the schema explaining why
-`/agent` goes into `skills[]` and `/config` into `builtin_commands[]`.
-Invisible to new contributors.
-
-**Fix:** Add a schema comment in `hooks/sessions-schema.mjs` and `analyze.mjs`.
+### 4. ~~`BUILTIN_COMMANDS` vs `skills` split is undocumented~~ ✅ Resolved 2026-07-19
+Documented at the definition site (`hooks/helpers/analyze-helpers.mjs`) and in the
+schema field contract (`hooks/sessions-schema.mjs`).
 
 ### 5. Browser module load-order coupling
 `TOOL_COLORS`, `_fmtTok`, `_esc` are globals sourced from `experience/client-core.mjs`
@@ -61,10 +57,9 @@ dependency is implicit.
 **Consider:** `window.UI = { fmtTok, esc, TOOL_COLORS }` makes the dependency
 explicit and grep-able. Not urgent but will bite as more client modules are added.
 
-### 6. Client module numbering vs concat order
-Numeric prefix implies "this loads first" but `build.mjs` concatenates by
-`Array.sort()`. They align today; a file named `09b-` would silently break load
-order. Add a build-time assertion or a comment in `build.mjs`.
+### 6. ~~Client module numbering vs concat order~~ ✅ Resolved 2026-07-19
+`orderClientModules()` in `build.mjs` fails the build on any client filename that
+isn't `NN-name.js` (tested in `test/build.test.mjs`).
 
 ---
 

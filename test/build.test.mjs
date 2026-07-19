@@ -4,9 +4,36 @@ import {
   calcRecencyScore,
   calcRecencyLevel,
   assignProjectColors,
+  orderClientModules,
   MAX_AGE_MS,
   PALETTE,
 } from '../build.mjs';
+
+// ── orderClientModules — concat-order guard (TODO #6) ─────────────────────────
+
+test('orderClientModules', async t => {
+  await t.test('sorts NN-name.js files lexically (numeric order for 2-digit prefixes)', () => {
+    assert.deepEqual(
+      orderClientModules(['13-live-updates.js', '00-boot.js', '01-data.js', '00-core.js']),
+      ['00-boot.js', '00-core.js', '01-data.js', '13-live-updates.js'],
+    );
+  });
+
+  await t.test('throws on a name that breaks numeric ordering (e.g. 09b-)', () => {
+    assert.throws(() => orderClientModules(['09-matrix.js', '09b-sneaky.js']), /09b-sneaky\.js/);
+  });
+
+  await t.test('throws on a missing two-digit prefix', () => {
+    assert.throws(() => orderClientModules(['helpers.js']), /helpers\.js/);
+  });
+
+  await t.test('accepts every real client module', async () => {
+    const fs = await import('node:fs');
+    const real = fs.readdirSync(new URL('../experience/client', import.meta.url))
+      .filter(f => f.endsWith('.js'));
+    assert.deepEqual(orderClientModules(real), [...real].sort());
+  });
+});
 
 // ── calcRecencyScore ──────────────────────────────────────────────────────────
 

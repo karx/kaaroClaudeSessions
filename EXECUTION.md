@@ -85,15 +85,18 @@ INFO diagnostic (visible, not silent).
 Refinement noted for next batch: diagnostics are per-session (30× for one bad rule) —
 consider deduping diagnostics per rule in `buildSignalsData`.
 
-## Item 5 — DX batch (one commit) ⬜ PENDING
+## Item 5 — DX batch (one commit) ✅ DONE
 
-- [ ] 🔴→🟢 Concat-order assertion in `build.mjs`: client module filenames must sort
-      identically numerically and lexically (guards a future `09b-` file); test in
-      `test/build.test.mjs`
-- [ ] Schema comment in `hooks/sessions-schema.mjs` + `analyze.mjs`: why `/agent` → `skills[]`
-      vs `/config` → `builtin_commands[]` (TODO #4)
-- [ ] TODO.md refresh: stale test count (says 1436 → update to current), strike resolved items
-- [ ] 📦 Single commit for the batch
+- [x] 🔴→🟢 `orderClientModules()` in `build.mjs`: filenames must be `NN-name.js`
+      (two-digit prefix) or the build throws; tested in `test/build.test.mjs`
+      including a sweep over the real `experience/client/` dir
+- [x] Split comment at the definition site (`hooks/helpers/analyze-helpers.mjs`)
+      + schema field contract (`hooks/sessions-schema.mjs`) for `skills[]` vs
+      `builtin_commands[]`
+- [x] TODO.md refresh: header count 1436 → 1544+, CI + policy noted, items #2/#4/#6
+      struck as resolved with pointers
+- [x] Verify: full suite green + real `node build.mjs` exits 0 with the assertion live
+- [x] 📦 Single commit for the batch
 
 ---
 
@@ -103,3 +106,5 @@ consider deduping diagnostics per rule in `buildSignalsData`.
 |---|---|
 | 2026-07-19 | Plan approved; Item 1 done (CI green run 29698488417); Item 2 done `afe9867`, suite 1501 |
 | 2026-07-19 | Item 3 design locked (strict passthrough + enrichProject in orchestrator); units 3a–3c pending |
+| 2026-07-19 | Item 3 done (`96cfc1a`, `6f397e6`); Item 4 done (`aa4c078`, `0491e85`, `fb03dc5`, `e381eba`) incl. BOM fix + live /api/signals verification |
+| 2026-07-20 | Item 5 done; suite 1549 green; **all 5 items complete** — next batch candidates: W-REP-01 graph signal overlay, diagnostic dedupe, OTLP emission (deferred by choice), W-COG-07 content-aware pitching |

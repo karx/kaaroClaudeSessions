@@ -95,7 +95,15 @@ export function validateSession(s) {
  * user_turns       : number
  * assistant_turns  : number
  * cache_hit_rate   : number      — percent
- * skills           : string[]    — slash-commands used
+ * skills           : string[]    — user-invoked skills (slash-commands). Split from
+ *                                  builtin_commands by BUILTIN_COMMANDS in
+ *                                  hooks/helpers/analyze-helpers.mjs: harness chrome
+ *                                  (/config, /compact, /model, …) goes to
+ *                                  builtin_commands[]; everything else (/agent,
+ *                                  /review-pr, custom skills) lands here. The split
+ *                                  keeps skill analytics (graph tooltips, policy
+ *                                  rules, timelines) free of harness-UI noise.
+ * builtin_commands : string[]    — built-in harness commands (see `skills` above)
  * bash_categories  : object      — { git, npm, ... }
  * content_blocks   : object      — { thinking, ... }
  * stop_reasons     : object      — { max_tokens, ... }

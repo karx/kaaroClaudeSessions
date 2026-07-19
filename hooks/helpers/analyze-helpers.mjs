@@ -2,6 +2,9 @@
  * lib/analyze-helpers.mjs — pure helpers shared by analyze, adapters, and reducer.
  */
 
+// Harness-chrome slash-commands. The session reducer routes these to
+// session.builtin_commands[]; anything NOT in this set is treated as a real
+// skill and lands in session.skills[] (see hooks/sessions-schema.mjs).
 export const BUILTIN_COMMANDS = new Set([
   'exit', 'clear', 'compact', 'context', 'model', 'help', 'voice',
   'plan', 'fast', 'config', 'review', 'memory', 'doctor', 'status',

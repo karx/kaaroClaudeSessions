@@ -139,6 +139,19 @@ function buildDaw() {
  * Read + validate cluster-overrides.json. Absent → null; malformed or
  * schema-invalid → console.warn + null. The build never fails on overrides.
  */
+/**
+ * Order client modules for concatenation. Lexical sort IS the load order, so
+ * every filename must be NN-name.js (two-digit prefix): a stray `09b-*.js` or
+ * unprefixed file would silently load out of order — fail the build instead.
+ */
+export function orderClientModules(filenames) {
+  const bad = filenames.filter(f => !/^\d\d-[\w.-]+\.js$/.test(f));
+  if (bad.length) {
+    throw new Error(`client modules must be named NN-name.js (two-digit prefix); invalid: ${bad.join(', ')}`);
+  }
+  return [...filenames].sort();
+}
+
 export function loadClusterOverrides(filePath) {
   if (!fs.existsSync(filePath)) return null;
   try {
@@ -175,9 +188,9 @@ function run() {
 
   // ── Concatenate client JS files in numeric order ───────────────────────────
   const clientDir = path.join(CWD, 'experience', 'client');
-  const clientJS  = fs.readdirSync(clientDir)
-    .filter(f => f.endsWith('.js'))
-    .sort()
+  const clientJS  = orderClientModules(
+      fs.readdirSync(clientDir).filter(f => f.endsWith('.js'))
+    )
     .map(f => fs.readFileSync(path.join(clientDir, f), 'utf8'))
     .join('\n');
 

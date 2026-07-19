@@ -107,6 +107,11 @@ export function validateSession(s) {
  * ai_title         : string      — AI-generated session title from ai-title JSONL record
  * subagent_count   : number      — number of Agent tool calls (subagents spawned)
  * branches         : string[]    — all unique git branches encountered in the session
+ * tokens_work      : number      — output + cache_create; DERIVED by enrichSession
+ *                                  (hooks/enrich-session.mjs — the single home of token
+ *                                  arithmetic). Consumers (graph-pipeline, timeline)
+ *                                  pass it through and must never recompute it.
+ *                                  Project summaries carry the same field via enrichProject.
  */
 export const OPTIONAL_SESSION_FIELDS = [
   'first_timestamp', 'last_timestamp', 'duration_min', 'git_branch',
@@ -115,4 +120,5 @@ export const OPTIONAL_SESSION_FIELDS = [
   'skills', 'bash_categories', 'content_blocks', 'stop_reasons',
   'first_user_message', 'file_ops', 'harness', 'source',
   'context_resets', 'ai_title', 'subagent_count', 'branches',
+  'tokens_work',
 ];

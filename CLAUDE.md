@@ -221,4 +221,3 @@ Test files map to modules:
 - **`serve.mjs`** — only the thin composition root + registry watch loop remain untested; HTTP routes, SSE hub, pulse emission, and rebuild orchestration are tested in `surface/` (`http-routes`, `sse-hub`, `pulse-emitter`, `rebuild-orchestrator` test files)
 - **`experience/client/*.js`** — browser JS; pure logic (e.g. `blockGeom`, `_toolBars`) testable but not yet extracted
 - **Pi optional fields** — `context_resets`, `ai_title`, `subagent_count`, `branches` are data-absent in Pi's raw format (verified 2026-07-19: only `session`/`model_change`/`thinking_level_change`/`message` record types exist); not extractable, registry capabilities `false` are correct
-- **`experience/graph-pipeline.mjs`** — `tools_top`, `context_resets`, `ai_title`, `subagent_count`, `branches` passthrough not yet covered by `test/graph-pipeline.test.mjs`

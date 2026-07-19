@@ -9,12 +9,14 @@ function makeData(overrides = {}) {
     projects: [{
       id: 'proj-a', label: 'Proj A', session_count: 2,
       tokens: { input: 100, output: 200, cache_create: 50, cache_read: 30 },
+      tokens_work: 250, tokens_total: 380, // set upstream by enrichProject
       skills: ['review'],
     }],
     sessions: [
       {
         session_id: 's1', project_id: 'proj-a', slug: 'alpha',
         tokens: { input: 50, output: 80, cache_create: 20, cache_read: 10 },
+        tokens_work: 100, // set upstream by enrichSession
         first_timestamp: '2026-05-01T10:00:00.000Z',
         last_timestamp:  '2026-05-01T10:30:00.000Z',
         git_branch: 'main', date_str: '2026-05-01', duration_min: 30,
@@ -24,6 +26,7 @@ function makeData(overrides = {}) {
       {
         session_id: 's2', project_id: 'proj-a', slug: 'beta',
         tokens: { input: 50, output: 120, cache_create: 30, cache_read: 20 },
+        tokens_work: 150, // set upstream by enrichSession
         first_timestamp: '2026-05-05T14:00:00.000Z',
         last_timestamp:  '2026-05-05T14:45:00.000Z',
         git_branch: 'main', date_str: '2026-05-05', duration_min: 45,
@@ -105,6 +108,70 @@ test('buildGraph', async t => {
   await t.test('session source defaults to claude-code', () => {
     const s = result.nodes.find(n => n.id === 's1');
     assert.equal(s.source, 'claude-code');
+  });
+});
+
+// ── tokens_work passthrough (derived upstream by enrich-session) ──────────────
+test('buildGraph — tokens_work is passthrough, never recomputed', async t => {
+  await t.test('session node carries sess.tokens_work even when it disagrees with raw tokens', () => {
+    const d = makeData();
+    d.sessions[0].tokens_work = 999; // enrich-session is authoritative
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').tokens_work, 999);
+  });
+
+  await t.test('project node carries proj.tokens_work/tokens_total from the enriched summary', () => {
+    const d = makeData();
+    d.projects[0].tokens_work  = 777;
+    d.projects[0].tokens_total = 888;
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    const proj = result.nodes.find(n => n.type === 'project');
+    assert.equal(proj.tokens_work, 777);
+    assert.equal(proj.tokens_total, 888);
+  });
+
+  await t.test('timeline entry carries sess.tokens_work', () => {
+    const d = makeData();
+    d.sessions[0].tokens_work = 555;
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    assert.equal(result.timeline.find(e => e.id === 's1').tokens_work, 555);
+  });
+});
+
+// ── optional session field passthrough (CLAUDE.md coverage gap) ───────────────
+test('buildGraph — optional session fields pass through to nodes', async t => {
+  const d = makeData();
+  Object.assign(d.sessions[0], {
+    context_resets: 3,
+    ai_title: 'Fix the auth flow',
+    subagent_count: 2,
+    branches: ['main', 'feat/x'],
+    tools: { Read: { calls: 7, errors: 0 }, Bash: { calls: 3, errors: 1 } },
+  });
+  const result = buildGraph(d, { referenceMs: Date.now() });
+  const s1 = result.nodes.find(n => n.id === 's1');
+  const s2 = result.nodes.find(n => n.id === 's2');
+
+  await t.test('context_resets / ai_title / subagent_count / branches pass through', () => {
+    assert.equal(s1.context_resets, 3);
+    assert.equal(s1.ai_title, 'Fix the auth flow');
+    assert.equal(s1.subagent_count, 2);
+    assert.deepEqual(s1.branches, ['main', 'feat/x']);
+  });
+
+  await t.test('absent optional fields default to 0/null/empty', () => {
+    assert.equal(s2.context_resets, 0);
+    assert.equal(s2.ai_title, null);
+    assert.equal(s2.subagent_count, 0);
+    assert.deepEqual(s2.branches, []);
+  });
+
+  await t.test('tools_top is sorted by call count, name+calls shape', () => {
+    assert.deepEqual(s1.tools_top, [
+      { name: 'Read', calls: 7 },
+      { name: 'Bash', calls: 3 },
+    ]);
+    assert.deepEqual(s2.tools_top, []);
   });
 });
 
@@ -332,19 +399,25 @@ test('buildGraph with file nodes — edge stats', async t => {
 
 // ── cluster (bundle) nodes ────────────────────────────────────────────────────
 function makeClusterData() {
-  const mkSess = (id, ts, extra = {}) => ({
-    session_id: id, project_id: 'proj-a', slug: `slug-${id}`,
-    tokens: { input: 10, output: 80, cache_create: 20, cache_read: 10 },
-    first_timestamp: `${ts}T10:00:00.000Z`, last_timestamp: `${ts}T11:00:00.000Z`,
-    git_branch: 'main', date_str: ts, duration_min: 60,
-    tool_calls: 10, tool_errors: 1, tool_diversity: 4, message_count: 8,
-    user_turns: 4, assistant_turns: 4, cache_hit_rate: 20, skills: [],
-    ...extra,
-  });
+  const mkSess = (id, ts, extra = {}) => {
+    const s = {
+      session_id: id, project_id: 'proj-a', slug: `slug-${id}`,
+      tokens: { input: 10, output: 80, cache_create: 20, cache_read: 10 },
+      first_timestamp: `${ts}T10:00:00.000Z`, last_timestamp: `${ts}T11:00:00.000Z`,
+      git_branch: 'main', date_str: ts, duration_min: 60,
+      tool_calls: 10, tool_errors: 1, tool_diversity: 4, message_count: 8,
+      user_turns: 4, assistant_turns: 4, cache_hit_rate: 20, skills: [],
+      ...extra,
+    };
+    // fixtures model post-enrich data
+    s.tokens_work = (s.tokens.output || 0) + (s.tokens.cache_create || 0);
+    return s;
+  };
   return makeData({
     projects: [{
       id: 'proj-a', label: 'Proj A', session_count: 4,
       tokens: { input: 100, output: 200, cache_create: 50, cache_read: 30 },
+      tokens_work: 250, tokens_total: 380,
       skills: [],
     }],
     sessions: [
@@ -487,6 +560,7 @@ test('buildGraph — tokenless session sizes by tool_calls', async t => {
         session_id: 'ag1', project_id: 'proj-a', slug: 'ag-sess',
         harness: 'antigravity',
         tokens: { input: 0, output: 0, cache_create: 0, cache_read: 0 },
+        tokens_work: 0,
         first_timestamp: '2026-05-01T10:00:00.000Z',
         last_timestamp:  '2026-05-01T10:30:00.000Z',
         date_str: '2026-05-01', tool_calls: 40, tool_errors: 0,
@@ -497,6 +571,7 @@ test('buildGraph — tokenless session sizes by tool_calls', async t => {
         session_id: 'ag2', project_id: 'proj-a', slug: 'ag-sess2',
         harness: 'antigravity',
         tokens: { input: 0, output: 0, cache_create: 0, cache_read: 0 },
+        tokens_work: 0,
         first_timestamp: '2026-05-02T10:00:00.000Z',
         last_timestamp:  '2026-05-02T10:30:00.000Z',
         date_str: '2026-05-02', tool_calls: 10, tool_errors: 0,

@@ -49,7 +49,6 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
 
   // ── Project nodes ──────────────────────────────────────────────────────────
   for (const proj of data.projects) {
-    const t       = proj.tokens;
     const pLastTs = projLastTs[proj.id] || null;
     nodes.push({
       id:            proj.id,
@@ -57,8 +56,9 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       label:         proj.label,
       color:         PROJECT_COLORS[proj.id] || '#888888',
       session_count: proj.session_count,
-      tokens_total:  t.input + t.cache_create + t.cache_read + t.output,
-      tokens_work:   t.output + t.cache_create,
+      // derived upstream by enrichProject (hooks/enrich-session.mjs) — passthrough only
+      tokens_total:  proj.tokens_total || 0,
+      tokens_work:   proj.tokens_work  || 0,
       skills:        proj.skills || [],
       last_activity: pLastTs,
       recency:       recencyScore(pLastTs),
@@ -67,14 +67,13 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
   }
 
   // ── Session nodes ──────────────────────────────────────────────────────────
-  const MAX_WORK = Math.max(1, ...data.sessions.map(s =>
-    (s.tokens?.output || 0) + (s.tokens?.cache_create || 0)
-  ));
+  const MAX_WORK = Math.max(1, ...data.sessions.map(s => s.tokens_work || 0));
   const MAX_TOOL_CALLS = Math.max(1, ...data.sessions.map(s => s.tool_calls || 0));
 
   for (const sess of data.sessions) {
     const t           = sess.tokens || {};
-    const tokens_work = (t.output || 0) + (t.cache_create || 0);
+    // derived upstream by enrichSession — passthrough only
+    const tokens_work = sess.tokens_work || 0;
     const sizeNorm    = tokens_work > 0
       ? Math.sqrt(tokens_work / MAX_WORK)
       : Math.sqrt((sess.tool_calls || 0) / MAX_TOOL_CALLS);
@@ -208,7 +207,7 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       color:       PROJECT_COLORS[s.project_id] || '#888',
       project:     s.project_label || s.project_id,
       slug:        s.slug || s.session_id.slice(0, 8),
-      tokens_work: ((s.tokens?.output || 0) + (s.tokens?.cache_create || 0)) || s.tool_calls || 0,
+      tokens_work: s.tokens_work || s.tool_calls || 0,
       tool_errors: s.tool_errors,
       skills:      s.skills || [],
     }));

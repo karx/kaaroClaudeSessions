@@ -38,7 +38,7 @@ Grounding (2026-07-19 survey of all local Pi transcripts): raw format has ONLY
 `context_resets`, `ai_title`, `subagent_count`, `branches` do not exist in Pi data —
 registry `false` capability flags are honest. Do not reopen without new Pi format evidence.
 
-## Item 3 — Token arithmetic → single source in enrich-session ⏳ IN PROGRESS
+## Item 3 — Token arithmetic → single source in enrich-session ✅ DONE
 
 **Design (locked during exploration):**
 - `hooks/enrich-session.mjs` is the ONLY place token arithmetic lives:
@@ -59,9 +59,9 @@ registry `false` capability flags are honest. Do not reopen without new Pi forma
 
 **Units:**
 - [x] 🔴→🟢→📦 Unit 3a: `test/enrich-session.test.mjs` — `tokensWork` helper + `enrichSession` sets `tokens_work` + `enrichProject` sets project fields; implement in `hooks/enrich-session.mjs`; wire `enrichProject` into `surface/analyze-orchestrator.mjs` (+ orchestrator test asserts projects carry `tokens_work`) — suite 1505
-- [ ] 🔴→🟢→📦 Unit 3b: `test/graph-pipeline.test.mjs` — passthrough proof (fixture `tokens_work: 999` ≠ formula → node carries 999) + missing passthrough coverage for `tools_top`, `context_resets`, `ai_title`, `subagent_count`, `branches` (closes CLAUDE.md gap); make pipeline strict-passthrough; update fixtures to enriched shape
-- [ ] 📦 Unit 3c: schema doc for `tokens_work` + CLAUDE.md "Known coverage gaps" update (docs-only, rides with 3b commit if trivial)
-- [ ] Verify: `node analyze.mjs && node build.mjs` — graph renders, node sizes unchanged vs pre-change build
+- [x] 🔴→🟢→📦 Unit 3b: `test/graph-pipeline.test.mjs` — passthrough proof (fixture `tokens_work: 999` ≠ formula → node carries 999) + missing passthrough coverage for `tools_top`, `context_resets`, `ai_title`, `subagent_count`, `branches` (closes CLAUDE.md gap); make pipeline strict-passthrough; update fixtures to enriched shape — suite 1513
+- [x] 📦 Unit 3c: schema doc for `tokens_work` + CLAUDE.md "Known coverage gaps" update (rode with 3b commit)
+- [x] Verify: `node analyze.mjs && node build.mjs` — 30 real sessions, nodes carry enriched tokens_work (spot-checked graph-data.json)
 
 ## Item 4 — Policy pillar phase 1 (W-POL-01/02/03 + /api/signals) ⬜ PENDING
 

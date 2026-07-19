@@ -67,12 +67,22 @@ function emptySession(meta) {
     stop_reasons:    {},
     skills:          [],
     builtin_commands: [],
+    // W-OBS-01/02: skill timeline + tool-to-skill attribution (empty until skill_invoke)
+    skill_timeline:    [],
+    skill_attribution: {},
     first_user_message: null,
     context_resets:  0,
     ai_title:        null,
     subagent_count:  0,
     branches:        [],
   };
+}
+
+function ensureSkillAttribution(session, skill) {
+  if (!session.skill_attribution[skill]) {
+    session.skill_attribution[skill] = { tool_calls: 0, tools: {}, errors: 0 };
+  }
+  return session.skill_attribution[skill];
 }
 
 function trackTs(session, ts) {
@@ -94,6 +104,9 @@ function addBranch(session, branch) {
 export function reduceSession(records, meta) {
   const session = emptySession(meta);
   let firstUserSeen = false;
+  // Active attribution window: skill name after skill_invoke; cleared on next
+  // skill_invoke (replaced) or context_reset (dies — does not survive compact).
+  let activeSkill = null;
 
   for (const rec of records) {
     trackTs(session, rec.ts);
@@ -105,6 +118,7 @@ export function reduceSession(records, meta) {
 
       case 'context_reset':
         session.context_resets++;
+        activeSkill = null;
         break;
 
       case 'session_meta':
@@ -138,6 +152,12 @@ export function reduceSession(records, meta) {
       case 'skill_invoke': {
         const bucket = BUILTIN_COMMANDS.has(rec.skill) ? 'builtin_commands' : 'skills';
         if (!session[bucket].includes(rec.skill)) session[bucket].push(rec.skill);
+        // Timeline + attribution windows exclude harness chrome (BUILTIN_COMMANDS).
+        if (!BUILTIN_COMMANDS.has(rec.skill) && rec.skill) {
+          session.skill_timeline.push({ skill: rec.skill, ts: rec.ts ?? null });
+          ensureSkillAttribution(session, rec.skill);
+          activeSkill = rec.skill;
+        }
         break;
       }
 
@@ -146,6 +166,7 @@ export function reduceSession(records, meta) {
           session.tool_errors++;
           const tool = rec.tool || 'unknown';
           if (session.tools[tool]) session.tools[tool].errors++;
+          if (activeSkill) ensureSkillAttribution(session, activeSkill).errors++;
         }
         break;
 
@@ -192,6 +213,12 @@ export function reduceSession(records, meta) {
         if (BASH_TOOLS.has(name) && rec.input?.command) {
           const cat = categorizeBash(rec.input.command);
           session.bash_categories[cat] = (session.bash_categories[cat] || 0) + 1;
+        }
+
+        if (activeSkill) {
+          const attr = ensureSkillAttribution(session, activeSkill);
+          attr.tool_calls++;
+          attr.tools[name] = (attr.tools[name] || 0) + 1;
         }
         break;
       }

@@ -104,6 +104,95 @@ test('reduceSession — skills and builtin_commands', () => {
   assert.deepEqual(s.builtin_commands, ['compact']);
 });
 
+// ── W-OBS-01/02 / Unit 6b: skill_timeline + skill_attribution ─────────────────
+
+test('reduceSession — skill_timeline and skill_attribution default empty', () => {
+  const s = reduceSession([
+    { kind: 'tool_use', harness: 'claude-code', ts: TS1, tool: 'Read', input: {} },
+  ], META);
+  assert.deepEqual(s.skill_timeline, []);
+  assert.deepEqual(s.skill_attribution, {});
+});
+
+test('reduceSession — skill_timeline chronological; BUILTIN_COMMANDS excluded', () => {
+  const s = reduceSession([
+    { kind: 'skill_invoke', harness: 'claude-code', ts: TS1, skill: 'visualize-seed' },
+    { kind: 'skill_invoke', harness: 'claude-code', ts: '2026-05-01T10:02:00.000Z', skill: 'compact' },
+    { kind: 'skill_invoke', harness: 'claude-code', ts: TS2, skill: 'web-seo' },
+    { kind: 'skill_invoke', harness: 'claude-code', ts: '2026-05-01T10:06:00.000Z', skill: 'visualize-seed' },
+  ], META);
+  assert.deepEqual(s.skill_timeline, [
+    { skill: 'visualize-seed', ts: TS1 },
+    { skill: 'web-seo', ts: TS2 },
+    { skill: 'visualize-seed', ts: '2026-05-01T10:06:00.000Z' },
+  ]);
+  assert.ok(!s.skill_timeline.some(e => e.skill === 'compact'));
+  assert.deepEqual(s.builtin_commands, ['compact']);
+});
+
+test('reduceSession — skill_attribution window: tools between skill_invokes', () => {
+  const s = reduceSession([
+    { kind: 'skill_invoke', harness: 'claude-code', ts: TS1, skill: 'visualize-seed' },
+    { kind: 'tool_use', harness: 'claude-code', ts: 't1', tool: 'Read', input: {} },
+    { kind: 'tool_use', harness: 'claude-code', ts: 't2', tool: 'Write', input: {} },
+    { kind: 'tool_use', harness: 'claude-code', ts: 't3', tool: 'Read', input: {} },
+    { kind: 'skill_invoke', harness: 'claude-code', ts: TS2, skill: 'web-seo' },
+    { kind: 'tool_use', harness: 'claude-code', ts: 't4', tool: 'Bash', input: { command: 'ls' } },
+    { kind: 'tool_result', harness: 'claude-code', ts: 't5', tool: 'Bash', error: true },
+  ], META);
+  assert.deepEqual(s.skill_attribution['visualize-seed'], {
+    tool_calls: 3,
+    tools: { Read: 2, Write: 1 },
+    errors: 0,
+  });
+  assert.deepEqual(s.skill_attribution['web-seo'], {
+    tool_calls: 1,
+    tools: { Bash: 1 },
+    errors: 1,
+  });
+});
+
+test('reduceSession — skill_attribution window dies at context_reset', () => {
+  const s = reduceSession([
+    { kind: 'skill_invoke', harness: 'claude-code', ts: TS1, skill: 'visualize-seed' },
+    { kind: 'tool_use', harness: 'claude-code', ts: 't1', tool: 'Read', input: {} },
+    { kind: 'context_reset', harness: 'claude-code', ts: 't2' },
+    { kind: 'tool_use', harness: 'claude-code', ts: 't3', tool: 'Write', input: {} },
+    { kind: 'tool_result', harness: 'claude-code', ts: 't4', tool: 'Write', error: true },
+  ], META);
+  assert.equal(s.context_resets, 1);
+  assert.deepEqual(s.skill_attribution['visualize-seed'], {
+    tool_calls: 1,
+    tools: { Read: 1 },
+    errors: 0,
+  });
+  // Write + error after reset must not attach to the skill
+  assert.equal(s.tool_calls, 2);
+  assert.equal(s.tool_errors, 1);
+});
+
+test('reduceSession — skill_invoke with no tools still seeds attribution entry', () => {
+  const s = reduceSession([
+    { kind: 'skill_invoke', harness: 'claude-code', ts: TS1, skill: 'web-seo' },
+  ], META);
+  assert.deepEqual(s.skill_timeline, [{ skill: 'web-seo', ts: TS1 }]);
+  assert.deepEqual(s.skill_attribution['web-seo'], {
+    tool_calls: 0, tools: {}, errors: 0,
+  });
+});
+
+test('reduceSession — tools before any skill_invoke are unattributed', () => {
+  const s = reduceSession([
+    { kind: 'tool_use', harness: 'claude-code', ts: TS1, tool: 'Read', input: {} },
+    { kind: 'skill_invoke', harness: 'claude-code', ts: TS2, skill: 'web-seo' },
+    { kind: 'tool_use', harness: 'claude-code', ts: 't3', tool: 'Write', input: {} },
+  ], META);
+  assert.deepEqual(s.skill_attribution['web-seo'], {
+    tool_calls: 1, tools: { Write: 1 }, errors: 0,
+  });
+  assert.equal(s.tool_calls, 2);
+});
+
 test('reduceSession — tool_result errors', () => {
   const s = reduceSession([
     { kind: 'tool_result', harness: 'claude-code', ts: TS1, error: true, tool: 'Bash' },

@@ -125,7 +125,7 @@ Grounding (verified 2026-07-20):
 - [x] 🔴→🟢→📦 Unit 6a: CC adapter — `attachment.type === 'invoked_skills'` →
       one `skill_invoke` NR per skill (ts kept); `<command-name>` scan remains as
       fallback source; test in `test/adapters/claude-code.test.mjs`
-- [ ] 🔴→🟢→📦 Unit 6b: reducer — `skill_timeline: [{skill, ts}]` (chronological) +
+- [x] 🔴→🟢→📦 Unit 6b: reducer — `skill_timeline: [{skill, ts}]` (chronological) +
       `skill_attribution: {<skill>: {tool_calls, tools{}, errors}}`; window opens at
       each `skill_invoke`, closes at next `skill_invoke` — and does NOT survive a
       `context_reset` (test this); BUILTIN_COMMANDS excluded; `{}`/`[]` defaults;
@@ -206,3 +206,4 @@ shape preferred"; gzip noted as future work).
 | 2026-07-20 | Item 5 done; suite 1549 green; **all 5 items complete** — next batch candidates: W-REP-01 graph signal overlay, diagnostic dedupe, OTLP emission (deferred by choice), W-COG-07 content-aware pitching |
 | 2026-07-20 | Batch 2 planned (items 6–10): user chose half policy (attribution W-OBS-01/02 + severity-ring overlay W-REP-01) / half OTLP (encoder, stream emitter, snapshot emission per RFC). Not started. |
 | 2026-07-20 | Unit 6a done: CC adapter extracts `invoked_skills` → `skill_invoke` NRs (attachment NR kept; command-name fallback retained); suite 1552 |
+| 2026-07-20 | Unit 6b done: reducer skill_timeline + skill_attribution (window dies at context_reset; BUILTIN excluded); suite 1558 |

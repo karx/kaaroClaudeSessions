@@ -504,6 +504,28 @@ button.btn:hover { background:#403d1e; }
   max-height:200px; overflow:hidden;
 }
 .thr-turn-asst .thr-turn-text { color:#5a462a; }
+/* click-to-copy: thr-turn-text-copy / data-thr-copy (user + asst) */
+.thr-turn-text-copy {
+  cursor:pointer;
+  border-radius:2px;
+  transition: background 0.12s, color 0.12s;
+}
+.thr-turn-text-copy:hover {
+  background: #181707;
+  color: #a08050;
+}
+.thr-turn-asst .thr-turn-text-copy:hover {
+  background: #0a120c;
+  color: #6a8a70;
+}
+.thr-turn-text-copy:focus-visible {
+  outline:1px solid #403d1a;
+  outline-offset:2px;
+}
+.thr-turn-text-copy.copied {
+  background: #0a1e10;
+  color: #3a6a48;
+}
 .thr-truncated { color:#403d1a; font-style:italic; }
 
 /* ── Tool call rows ──────────────────────────────────────────────────────── */

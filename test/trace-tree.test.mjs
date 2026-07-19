@@ -263,6 +263,50 @@ test('grok — git_branch opt lands in segment branches', () => {
   assert.deepEqual(tree.segments[0].branches, ['feat/cap']);
 });
 
+// ── thr-turn-text contract (user cap, hybrid, pi prose) ───────────────────────
+
+test('user turn.text is capped at 500 even when NR text is longer', () => {
+  const long = 'U'.repeat(800);
+  const tree = reconstructTraceFromNRs([
+    { kind: 'user_turn', harness: 'opencode', ts: 't', text: long },
+  ]);
+  assert.equal(tree.segments[0].turns[0].text.length, 500);
+  assert.equal(tree.segments[0].turns[0].text, long.slice(0, 500));
+});
+
+test('hybrid display_text + tool_result becomes a user thr-turn-text row', () => {
+  // Adapter-level hybrid: display_text present while tool_result NRs follow.
+  const tree = reconstructTraceFromNRs([
+    { kind: 'assistant_turn', harness: 'claude-code', ts: 't0' },
+    { kind: 'tool_use', harness: 'claude-code', ts: 't0', tool: 'Bash', tool_id: 'tu1', input: { command: 'ls' } },
+    { kind: 'user_turn', harness: 'claude-code', ts: 't1',
+      display_text: 'also fix the flaky suite please', text: null },
+    { kind: 'tool_result', harness: 'claude-code', ts: 't1', tool_id: 'tu1', error: false },
+  ]);
+  const turns = tree.segments[0].turns;
+  assert.ok(turns.some(t => t.role === 'user' && t.text.includes('flaky suite')));
+  assert.equal(turns.find(t => t.role === 'assistant').tool_calls[0].is_error, false);
+});
+
+test('pi assistant text content_blocks become thr-turn-text', () => {
+  const tree = reconstructTraceFromNRs(piToNorm([
+    { type: 'message', id: 'u1', timestamp: 't1',
+      message: { role: 'user', content: [{ type: 'text', text: 'hello pi agent please' }] } },
+    { type: 'message', id: 'a1', timestamp: 't2',
+      message: { role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'plan' },
+          { type: 'text', text: 'I will update the provider config.' },
+          { type: 'toolCall', id: 'tc1', name: 'read', arguments: { path: 'a.mjs' } },
+        ],
+        model: 'm', usage: { input: 10, output: 5 }, stopReason: 'end' } },
+  ]));
+  const asst = tree.segments[0].turns.find(t => t.role === 'assistant');
+  assert.equal(asst.text, 'I will update the provider config.');
+  assert.equal(asst.has_thinking, true);
+  assert.equal(tree.segments[0].thinking_count, 1);
+});
+
 // ── every other harness produces a sane tree (single segment) ─────────────────
 
 test('pi/opencode/copilot NR streams reconstruct sane trees', () => {

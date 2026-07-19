@@ -66,6 +66,15 @@ function _sanitizeInput(name, input) {
   return safe;
 }
 
+/** Shared turn-text cap for thr-turn-text (user + assistant). */
+const TURN_TEXT_CAP = 500;
+
+function _capTurnText(s) {
+  if (s == null) return null;
+  const t = String(s).slice(0, TURN_TEXT_CAP);
+  return t || null;
+}
+
 function _newSegment(index) {
   return {
     index,
@@ -112,7 +121,7 @@ export function reconstructTraceFromNRs(nrs, opts = {}) {
       if (!p.text) continue;
       buf += (p.chunk || buf === '') ? p.text : '\n' + p.text;
     }
-    return buf.trim().slice(0, 500) || null;
+    return _capTurnText(buf.trim());
   }
 
   function _flushPending() {
@@ -179,7 +188,7 @@ export function reconstructTraceFromNRs(nrs, opts = {}) {
         seg.user_turns++;
         hasContent = true;
         _addBranch(nr.branch);
-        const text = nr.display_text ?? nr.text ?? null;
+        const text = _capTurnText(nr.display_text ?? nr.text ?? null);
         if (text) {
           seg.turns.push({
             role:        'user',

@@ -120,8 +120,13 @@
       (!isUser && turn.stop_reason === 'max_tokens' ? `<span class="thr-maxtok" title="hit context limit">⚠ max_tokens</span>` : '') +
     `</div>`;
 
+    // All thr-turn-text blocks are click-to-copy (user + asst).
+    // Grep: thr-turn-text-copy | data-thr-copy
+    // turn.text is already capped at 500 by reconstructTraceFromNRs.
+    const trunc = turn.text && turn.text.length >= 500
+      ? '<span class="thr-truncated">…</span>' : '';
     const textHtml = turn.text
-      ? `<div class="thr-turn-text">${esc(turn.text)}${turn.text.length >= 500 ? '<span class="thr-truncated">…</span>' : ''}</div>`
+      ? `<div class="thr-turn-text thr-turn-text-copy" data-thr-copy title="Click to copy" role="button" tabindex="0">${esc(turn.text)}${trunc}</div>`
       : '';
 
     const toolsHtml = (turn.tool_calls || []).length
@@ -221,6 +226,41 @@
     const btn = e.target.closest('[data-thread-open]');
     if (!btn) return;
     window.openThread(btn.dataset.threadOpen);
+  });
+
+  // thr-turn-text click-to-copy (user + asst). Search: data-thr-copy
+  function _copyTurnText(el) {
+    if (!el || !navigator.clipboard?.writeText) return;
+    const clone = el.cloneNode(true);
+    const badge = clone.querySelector('.thr-truncated');
+    if (badge) badge.remove();
+    const text = clone.textContent || '';
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      el.classList.add('copied');
+      el.title = 'Copied';
+      setTimeout(() => {
+        el.classList.remove('copied');
+        el.title = 'Click to copy';
+      }, 1400);
+    }).catch(() => {
+      el.title = 'Clipboard unavailable';
+      setTimeout(() => { el.title = 'Click to copy'; }, 1400);
+    });
+  }
+
+  document.getElementById('thr-body').addEventListener('click', e => {
+    const el = e.target.closest('[data-thr-copy]');
+    if (!el) return;
+    e.preventDefault();
+    _copyTurnText(el);
+  });
+  document.getElementById('thr-body').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target.closest('[data-thr-copy]');
+    if (!el) return;
+    e.preventDefault();
+    _copyTurnText(el);
   });
 
   // ── Public ────────────────────────────────────────────────────────────────

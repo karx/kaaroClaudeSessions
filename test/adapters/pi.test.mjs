@@ -71,6 +71,30 @@ test('tool_use NR has category for bash tools; key is NOT set by adapter', () =>
   assert.equal(nrs[1].key, undefined);
 });
 
+test('assistant text + thinking blocks → content_block NRs for thr-turn-text', () => {
+  const records = [{
+    type: 'message', id: 'a02', timestamp: '2026-06-09T10:00:00.000Z',
+    message: {
+      role: 'assistant',
+      content: [
+        { type: 'thinking', thinking: 'plan the approach' },
+        { type: 'text', text: 'I will update the provider config next.' },
+        { type: 'toolCall', id: 'tc01', name: 'read', arguments: { path: 'models.json' } },
+      ],
+      stopReason: 'toolUse',
+    },
+  }];
+  const nrs = recordsToNormalized(records);
+  const blocks = nrs.filter(r => r.kind === 'content_block');
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0].block_type, 'thinking');
+  assert.equal(blocks[1].block_type, 'text');
+  assert.equal(blocks[1].text, 'I will update the provider config next.');
+  const tool = nrs.find(r => r.kind === 'tool_use');
+  assert.equal(tool.tool, 'read');
+  assert.equal(tool.tool_id, 'tc01');
+});
+
 test('thinking_level_change → mode_shift NR, not unknown_record', () => {
   const records = [
     { type: 'thinking_level_change', id: '4dfee7f7', parentId: null,

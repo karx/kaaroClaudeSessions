@@ -60,9 +60,9 @@ export function recordsToNormalized(records) {
         }
       }
 
-      const hasToolResults = Array.isArray(rec.content)
-        && rec.content.some(b => b.type === 'tool-result');
-      const displayText = !hasToolResults && text ? text.trim().slice(0, 500) || null : null;
+      // display_text from text blocks only (extractUserText); tool-result-only → null.
+      // Hybrid user rows (human text + tool-result) still surface the human text.
+      const displayText = text ? text.trim().slice(0, 500) || null : null;
 
       out.push({
         kind: 'user_turn', harness: HARNESS, ts, text: userText,
@@ -95,9 +95,11 @@ export function recordsToNormalized(records) {
 
       for (const block of rec.content) {
         const bt = block.type || 'unknown';
-        const cbNR = { kind: 'content_block', harness: HARNESS, ts, block_type: bt };
+        // reasoning → thinking so trace-tree counts has_thinking / thinking_count
+        const blockType = bt === 'reasoning' ? 'thinking' : bt;
+        const cbNR = { kind: 'content_block', harness: HARNESS, ts, block_type: blockType };
         if (bt === 'text') cbNR.text = block.text;
-        if (bt === 'reasoning') cbNR.text = block.text;
+        if (bt === 'reasoning' && block.text) cbNR.text = block.text;
         out.push(cbNR);
 
         if (bt === 'tool-call') {

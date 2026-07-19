@@ -80,6 +80,21 @@ export function recordsToNormalized(records) {
         }
 
         for (const block of (msg.content || [])) {
+          if (block.type === 'text' && block.text) {
+            out.push({
+              kind: 'content_block', harness: HARNESS, ts,
+              block_type: 'text', text: block.text,
+            });
+            continue;
+          }
+          if (block.type === 'thinking') {
+            out.push({
+              kind: 'content_block', harness: HARNESS, ts,
+              block_type: 'thinking',
+              text: typeof block.thinking === 'string' ? block.thinking : undefined,
+            });
+            continue;
+          }
           if (block.type !== 'toolCall') continue;
           const name     = block.name || 'unknown';
           const args     = block.arguments || {};
@@ -88,6 +103,7 @@ export function recordsToNormalized(records) {
           out.push({
             kind: 'tool_use', harness: HARNESS, ts,
             tool: name, category,
+            tool_id: block.id || undefined,
             input: {
               file_path: args.path,
               path:      args.path,

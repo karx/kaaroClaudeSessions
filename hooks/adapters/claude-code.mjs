@@ -108,9 +108,9 @@ export function recordsToNormalized(records) {
 
       // display_text: per-turn human text for trace/thread views (text keeps
       // first-user-message-only semantics for the session bundle).
-      const hasToolResults = Array.isArray(rec.message.content)
-        && rec.message.content.some(b => b.type === 'tool_result');
-      const displayText = !hasToolResults && text ? text.trim().slice(0, 500) || null : null;
+      // extractTextFromContent only pulls type:text blocks, so tool-result-only
+      // rows stay null; hybrid rows (human text + tool_result) keep the prose.
+      const displayText = text ? text.trim().slice(0, 500) || null : null;
 
       out.push({
         kind: 'user_turn', harness: HARNESS, ts, text: userText,

@@ -263,3 +263,17 @@ test('user_turn NR carries display_text on every human turn, not just the first'
   assert.equal(turns[1].text, null, 'text keeps first-user-message-only semantics');
   assert.equal(turns[2].display_text, null, 'tool-result-only records carry no display text');
 });
+
+test('user_turn hybrid text + tool_result still carries display_text', () => {
+  const nrs = recordsToNormalized([{
+    type: 'user', timestamp: 't1',
+    message: { content: [
+      { type: 'text', text: 'also fix the flaky suite please' },
+      { type: 'tool_result', tool_use_id: 'tu1', content: [{ type: 'text', text: 'ok' }] },
+    ] },
+  }]);
+  const ut = nrs.find(r => r.kind === 'user_turn');
+  assert.ok(ut, 'user_turn emitted');
+  assert.ok(ut.display_text.includes('also fix the flaky suite'), 'human text preserved on hybrid row');
+  assert.ok(nrs.some(r => r.kind === 'tool_result' && r.tool_id === 'tu1'));
+});

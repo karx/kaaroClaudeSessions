@@ -58,7 +58,7 @@ registry `false` capability flags are honest. Do not reopen without new Pi forma
   (derived by enrich, consumed as passthrough).
 
 **Units:**
-- [ ] 🔴→🟢→📦 Unit 3a: `test/enrich-session.test.mjs` — `tokensWork` helper + `enrichSession` sets `tokens_work` + `enrichProject` sets project fields; implement in `hooks/enrich-session.mjs`; wire `enrichProject` into `surface/analyze-orchestrator.mjs` (+ orchestrator test asserts projects carry `tokens_work`)
+- [x] 🔴→🟢→📦 Unit 3a: `test/enrich-session.test.mjs` — `tokensWork` helper + `enrichSession` sets `tokens_work` + `enrichProject` sets project fields; implement in `hooks/enrich-session.mjs`; wire `enrichProject` into `surface/analyze-orchestrator.mjs` (+ orchestrator test asserts projects carry `tokens_work`) — suite 1505
 - [ ] 🔴→🟢→📦 Unit 3b: `test/graph-pipeline.test.mjs` — passthrough proof (fixture `tokens_work: 999` ≠ formula → node carries 999) + missing passthrough coverage for `tools_top`, `context_resets`, `ai_title`, `subagent_count`, `branches` (closes CLAUDE.md gap); make pipeline strict-passthrough; update fixtures to enriched shape
 - [ ] 📦 Unit 3c: schema doc for `tokens_work` + CLAUDE.md "Known coverage gaps" update (docs-only, rides with 3b commit if trivial)
 - [ ] Verify: `node analyze.mjs && node build.mjs` — graph renders, node sizes unchanged vs pre-change build

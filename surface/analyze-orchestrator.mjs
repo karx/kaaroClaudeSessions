@@ -5,6 +5,7 @@
  */
 
 import { buildProjectSummary, buildGlobalRollup } from '../analyze.mjs';
+import { enrichProject } from '../hooks/enrich-session.mjs';
 
 /**
  * Merge harness scan results into sessions-data.json shape.
@@ -32,6 +33,7 @@ export function buildSessionsOutput(scanResults) {
   for (const proj of projects) {
     const sample = projectMap[proj.id]?.[0];
     if (sample?.project_label) proj.label = sample.project_label;
+    enrichProject(proj);
   }
 
   const rollup = buildGlobalRollup(allSessions);

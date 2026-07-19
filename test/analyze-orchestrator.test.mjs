@@ -53,6 +53,22 @@ test('buildSessionsOutput — merges sessions from multiple harnesses', () => {
   assert.equal(v.ok, true, v.errors?.join('; '));
 });
 
+test('buildSessionsOutput — project summaries carry enriched tokens_work/tokens_total', () => {
+  const output = buildSessionsOutput([{
+    harness: 'claude-code',
+    source_dir: '/claude',
+    sessions: [
+      makeSession('s1', 'claude-code', 'p1'), // output 20 + cache_create 5
+      makeSession('s2', 'claude-code', 'p1', {
+        tokens: { input: 10, output: 100, cache_create: 15, cache_read: 40 },
+      }),
+    ],
+  }]);
+  const p = output.projects[0];
+  assert.equal(p.tokens_work, 140);   // (20+5) + (100+15)
+  assert.equal(p.tokens_total, 200);  // 35 + 165
+});
+
 test('buildSessionsOutput — sorts sessions by first_timestamp', () => {
   const output = buildSessionsOutput([{
     harness: 'claude-code',

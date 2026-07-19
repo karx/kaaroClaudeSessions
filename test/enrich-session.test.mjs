@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { enrichSession } from '../hooks/enrich-session.mjs';
+import { enrichSession, enrichProject, tokensWork } from '../hooks/enrich-session.mjs';
 
 function baseSession(overrides = {}) {
   return {
@@ -34,4 +34,26 @@ test('enrichSession — duration_min null when duration_ms absent', () => {
   const s = baseSession({ duration_ms: null });
   enrichSession(s);
   assert.equal(s.duration_min, null);
+});
+
+// ── tokens_work: single source of truth ───────────────────────────────────────
+
+test('tokensWork — output + cache_create, missing fields default to 0', () => {
+  assert.equal(tokensWork({ output: 80, cache_create: 20 }), 100);
+  assert.equal(tokensWork({ output: 5 }), 5);
+  assert.equal(tokensWork({}), 0);
+  assert.equal(tokensWork(undefined), 0);
+});
+
+test('enrichSession — sets tokens_work from tokens', () => {
+  const s = baseSession(); // output 50 + cache_create 20
+  enrichSession(s);
+  assert.equal(s.tokens_work, 70);
+});
+
+test('enrichProject — sets tokens_work and tokens_total on a project summary', () => {
+  const p = { id: 'proj-a', tokens: { input: 100, output: 200, cache_create: 50, cache_read: 30 } };
+  enrichProject(p);
+  assert.equal(p.tokens_work, 250);
+  assert.equal(p.tokens_total, 380);
 });

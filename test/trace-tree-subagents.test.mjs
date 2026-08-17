@@ -76,6 +76,27 @@ test('childTrees map attaches nested tree on matching spawn', () => {
   assert.equal(asst.spawned_subagents[0].tree, childTree);
 });
 
+test('childTrees attaches by agent:<id> when tool_use_id is missing', () => {
+  const childTree = {
+    ai_title: null,
+    segments: [{ index: 0, tool_summary: { Read: 1 }, tool_calls: 1, subagent_count: 0, turns: [] }],
+  };
+  const spawns = [{
+    agent_id: 'orphanAgent',
+    tool_use_id: null,
+    description: 'no meta toolUseId',
+    agent_type: 'Explore',
+    spawn_depth: 1,
+    jsonl_path: '/tmp/agent-orphanAgent.jsonl',
+    linked: false,
+  }];
+  const tree = reconstructTraceFromNRs(nrsWithAgent('other_id'), {
+    spawns,
+    childTrees: { 'agent:orphanAgent': childTree },
+  });
+  assert.equal(tree.subagents[0].tree, childTree);
+});
+
 test('Task tool name also attaches spawns', () => {
   const nrs = [
     { kind: 'assistant_turn', harness: 'grok', ts: 't1', model: 'm', stop_reason: null },

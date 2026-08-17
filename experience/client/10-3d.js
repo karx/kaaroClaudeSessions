@@ -12,9 +12,15 @@ const layout3D = {
     }
     const showBranch=document.getElementById('cb-branch').checked, showReads=document.getElementById('cb-reads').checked;
     const showFiles=document.getElementById('cb-files').checked, minSess=+document.getElementById('sl-min').value;
+    const showSubs=document.getElementById('cb-subagents')?.checked ?? false;
     const hiddenIds=new Set(GRAPH.nodes.filter(n=>n.type==='cluster'||(n.type==='file'&&(!showFiles||n.session_count<minSess))||(n.type==='session'&&!sessionMatchesFilters(n,SESSION_FILTERS))).map(n=>n.id));
+    // Match force layout: subagents default-off; also hide if parent session is hidden
+    for (const n of GRAPH.nodes) {
+      if (n.type!=='subagent') continue;
+      if (!showSubs || hiddenIds.has(n.parent_session_id)) hiddenIds.add(n.id);
+    }
     const nodes3d=GRAPH.nodes.filter(n=>!hiddenIds.has(n.id)).map(n=>({...n}));
-    const links3d=GRAPH.edges.filter(e=>{const s=e.source?.id??e.source,t=e.target?.id??e.target;if(hiddenIds.has(s)||hiddenIds.has(t))return false;if(e.type==='branch'&&!showBranch)return false;if(e.type==='read'&&!showReads)return false;return true;}).map(e=>({source:e.source?.id??e.source,target:e.target?.id??e.target,type:e.type,weight:e.weight}));
+    const links3d=GRAPH.edges.filter(e=>{const s=e.source?.id??e.source,t=e.target?.id??e.target;if(hiddenIds.has(s)||hiddenIds.has(t))return false;if(e.type==='branch'&&!showBranch)return false;if(e.type==='read'&&!showReads)return false;if(e.type==='spawn'&&!showSubs)return false;return true;}).map(e=>({source:e.source?.id??e.source,target:e.target?.id??e.target,type:e.type,weight:e.weight}));
     this._g=ForceGraph3D({controlType:'orbit'})(document.getElementById('three-view'))
       .width(W).height(H).backgroundColor(KAARO_TOKENS.bg)
       .graphData({nodes:nodes3d,links:links3d})

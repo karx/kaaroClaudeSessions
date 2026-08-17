@@ -232,6 +232,47 @@ test('buildTrace — subagent fingerprint invalidates when child meta changes', 
   }
 });
 
+test('buildTrace — empty toolUseId still attaches child tree via agent id', () => {
+  const dir = tempDir();
+  const parentId = 'parent-uuid-empty-tu';
+  const fp = join(dir, `${parentId}.jsonl`);
+  writeFileSync(fp, [
+    JSON.stringify({ type: 'user', timestamp: 't0', message: { content: 'spawn unlinked agent please' } }),
+    JSON.stringify({ type: 'assistant', timestamp: 't1', message: {
+      model: 'm', stop_reason: 'tool_use',
+      usage: { input_tokens: 1, output_tokens: 2 },
+      content: [
+        { type: 'tool_use', id: 'toolu_maybe', name: 'Agent',
+          input: { description: 'orphan explore', subagent_type: 'Explore' } },
+      ],
+    } }),
+  ].join('\n'), 'utf8');
+  const sub = join(dir, parentId, 'subagents');
+  mkdirSync(sub, { recursive: true });
+  // Meta with empty toolUseId — real CC data sometimes lacks the link
+  writeFileSync(join(sub, 'agent-zzzempty.meta.json'), JSON.stringify({
+    agentType: 'Explore', description: 'orphan explore', toolUseId: '', spawnDepth: 1,
+  }), 'utf8');
+  writeFileSync(join(sub, 'agent-zzzempty.jsonl'), [
+    JSON.stringify({ type: 'user', timestamp: 'c0', message: { content: 'child user turn text here' } }),
+    JSON.stringify({ type: 'assistant', timestamp: 'c1', message: {
+      model: 'm', stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 2 },
+      content: [{ type: 'tool_use', id: 'c0', name: 'Read', input: { file_path: 'a.mjs' } }],
+    } }),
+  ].join('\n'), 'utf8');
+
+  try {
+    const tree = createTraceService().buildTrace(fp, 'P', parentId, 'claude-code');
+    const orphan = (tree.subagents || []).find(s => s.agent_id === 'zzzempty');
+    assert.ok(orphan, 'orphan agent stub present');
+    assert.ok(orphan.tree, 'child tree attached despite empty toolUseId');
+    assert.equal(orphan.tree.segments[0].tool_summary.Read, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('buildTrace — maxSubagentDepth 0 yields stubs without nested trees', () => {
   const dir = tempDir();
   const parentId = 'parent-uuid-3';

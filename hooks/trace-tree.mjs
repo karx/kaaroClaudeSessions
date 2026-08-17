@@ -322,11 +322,32 @@ function _indexSpawns(spawns) {
   return map;
 }
 
+/**
+ * Lookup key for nested child trees. Prefer tool_use_id; fall back to
+ * agent:<id> when meta.toolUseId is missing (real CC metas sometimes empty).
+ */
+export function childTreeKey(spawn) {
+  if (!spawn) return null;
+  if (spawn.tool_use_id) return spawn.tool_use_id;
+  if (spawn.agent_id) return `agent:${spawn.agent_id}`;
+  return null;
+}
+
+function _lookupChildTree(spawn, childTrees) {
+  if (!childTrees || !spawn) return undefined;
+  if (spawn.tool_use_id && childTrees[spawn.tool_use_id] != null)
+    return childTrees[spawn.tool_use_id];
+  if (spawn.agent_id) {
+    const k = `agent:${spawn.agent_id}`;
+    if (childTrees[k] != null) return childTrees[k];
+  }
+  return undefined;
+}
+
 function _cloneSpawn(spawn, childTrees) {
   const ref = { ...spawn };
-  if (childTrees && spawn.tool_use_id && childTrees[spawn.tool_use_id] != null) {
-    ref.tree = childTrees[spawn.tool_use_id];
-  }
+  const nested = _lookupChildTree(spawn, childTrees);
+  if (nested !== undefined) ref.tree = nested;
   return ref;
 }
 

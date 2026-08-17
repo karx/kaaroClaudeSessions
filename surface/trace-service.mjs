@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { getHarness } from '../hooks/registry.mjs';
-import { reconstructTraceFromNRs } from '../hooks/trace-tree.mjs';
+import { reconstructTraceFromNRs, childTreeKey } from '../hooks/trace-tree.mjs';
 import {
   parentSessionDirFromLog,
   listSubagentArtifacts,
@@ -96,8 +96,9 @@ export function createTraceService() {
                 _visited: visited,
               },
             );
-            if (child && s.tool_use_id) {
-              childTrees[s.tool_use_id] = {
+            const key = childTreeKey(s);
+            if (child && key) {
+              childTrees[key] = {
                 ai_title: child.ai_title,
                 segments: child.segments,
                 ...(child.subagents ? { subagents: child.subagents } : {}),

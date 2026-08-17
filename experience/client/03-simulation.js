@@ -48,12 +48,22 @@ function getForceParams() {
 function makeForceLink(edges, membershipStrength = 0.65) {
   const p = getForceParams();
   return d3.forceLink(edges != null ? edges : GRAPH.edges).id(d=>d.id)
-    .distance(d=>d.type==='membership'? p.membershipDist :d.type==='bundle'?45:d.type==='branch'?95:d.type==='read'?80: p.fileDist)
-    .strength(d=>d.type==='membership'? membershipStrength :d.type==='bundle'?.5:d.type==='branch'?.15:d.type==='read'?.08:.3);
+    .distance(d=>d.type==='membership'? p.membershipDist
+      :d.type==='bundle'?45
+      :d.type==='spawn'?36
+      :d.type==='branch'?95
+      :d.type==='read'?80
+      : p.fileDist)
+    .strength(d=>d.type==='membership'? membershipStrength
+      :d.type==='bundle'?.5
+      :d.type==='spawn'?.35
+      :d.type==='branch'?.15
+      :d.type==='read'?.08
+      :.3);
 }
 
 const simulation = d3.forceSimulation(GRAPH.nodes)
   .force('link',      makeForceLink())
-  .force('charge',    d3.forceManyBody().strength(d=>d.type==='project'?-700:d.type==='cluster'?-300:d.type==='session'?-130:-55))
+  .force('charge',    d3.forceManyBody().strength(d=>d.type==='project'?-700:d.type==='cluster'?-300:d.type==='session'?-130:d.type==='subagent'?-40:-55))
   .force('collision', d3.forceCollide(d=>nodeRadius(d)+4).strength(0.85))
   .alphaDecay(SIM_ALPHA_DECAY).velocityDecay(0.38);

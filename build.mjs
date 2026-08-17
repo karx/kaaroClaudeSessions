@@ -193,7 +193,8 @@ function run() {
   const clusterOverrides = loadClusterOverrides(path.join(CWD, 'cluster-overrides.json'));
 
   const { nodes, edges, timeline, stats, COLOR_TO_INDEX } =
-    buildGraph(data, { minSessions, clusterOverrides });
+    // includeSubagentNodes: data present for UI toggle; display defaults off in client
+    buildGraph(data, { minSessions, clusterOverrides, includeSubagentNodes: true });
 
   console.log(`Graph: ${nodes.length} nodes (${stats.project} project · ${stats.session} session · ${stats.cluster} cluster · ${stats.file} file)`);
   console.log(`Edges: ${edges.length} (${stats.membership} membership · ${stats.bundle} bundle · ${stats.branch} · ${stats.write} write · ${stats.edit} edit · ${stats.read} read)`);

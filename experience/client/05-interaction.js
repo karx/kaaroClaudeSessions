@@ -34,6 +34,10 @@ function attachTooltip(sel) {
         <div class="meta">${d.session_count} sessions · consumption: ${fmtTok(d.tokens_total)} · AI work: ${fmtTok(d.tokens_work)}</div>
         ${hs.length?`<div class="meta">${hs.length} harness${hs.length===1?'':'es'} · ${hs.join(' · ')}</div>`:''}
         ${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;
+    } else if (d.type==='subagent') {
+      tip.innerHTML=`<strong style="color:#cc2244">↳ ${esc(d.agent_type||'subagent')}</strong>
+        <div class="meta">${esc((d.description||d.agent_id||'').slice(0,80))}</div>
+        <div class="meta">parent ${(d.parent_session_id||'').slice(0,8)}</div>`;
     } else if (d.type==='session') {
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
         <div class="meta">${d.date_str||'?'} · ${d.duration_min!=null?d.duration_min+'min':'?'} · ${d.model||'?'}</div>
@@ -277,6 +281,16 @@ function showPanel(d) {
       <button class="paction" data-share-project="${esc(d.id)}">◆ SHARE CARD</button>
       <div class="psep"></div>
       ${ss.map(s=>_nodeRow(s.id,`<span class="pk">${s.date_str||'?'}</span><span class="pv" style="color:${d.color}">${s.label}</span>`)).join('')}`;
+  } else if (d.type==='subagent') {
+    const parent = nodeById[d.parent_session_id];
+    html=`<h3 style="color:#cc2244">↳ ${esc(d.agent_type||'subagent')}</h3>
+      <div class="pai-title">${esc(d.description||d.agent_id||'')}</div>
+      <div class="prow"><span class="pk">Agent id</span><span class="pv">${esc(d.agent_id||'')}</span></div>
+      <div class="prow"><span class="pk">Parent</span><span class="pv">${esc(parent?.label||(d.parent_session_id||'').slice(0,8))}</span></div>
+      <div class="prow"><span class="pk">Linked</span><span class="pv">${d.linked===false?'no':'yes'}</span></div>
+      <div class="psep"></div>
+      ${d.parent_session_id?`<button class="paction paction-thread" data-thread-open="${esc(d.parent_session_id)}">◆ VIEW PARENT THREAD ▸</button>`:''}
+      ${parent?_nodeRow(parent.id,`<span class="pk">session</span><span class="pv" style="color:${parent.color}">${parent.label}</span>`):''}`;
   } else if (d.type==='session') {
     const files=[...nb].filter(id=>id!==d.id&&nodeById[id]?.type==='file').map(id=>nodeById[id]);
     const peers=[...nb].filter(id=>id!==d.id&&nodeById[id]?.type==='session').map(id=>nodeById[id]);

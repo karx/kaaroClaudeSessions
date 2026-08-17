@@ -50,13 +50,20 @@ export function toolColor(tool) {
   return TOOL_COLORS_LC[(tool || '').toLowerCase()] ?? null;
 }
 
-export const EDGE_COLORS  = { membership: '#1e3d7a', write: '#00ff88', edit: '#ffcc00', read: '#1e4a66', branch: '#334455', bundle: '#4a3a7a' };
-export const EDGE_OPACITY = { membership: .55, write: .65, edit: .65, read: .28, branch: .4, bundle: .45 };
-export const EDGE_WIDTH   = { membership: 1.4, write: 1, edit: 1, read: .7, branch: .8, bundle: 1 };
+export const EDGE_COLORS  = {
+  membership: '#1e3d7a', write: '#00ff88', edit: '#ffcc00', read: '#1e4a66',
+  branch: '#334455', bundle: '#4a3a7a', spawn: '#cc2244',
+};
+export const EDGE_OPACITY = {
+  membership: .55, write: .65, edit: .65, read: .28, branch: .4, bundle: .45, spawn: .5,
+};
+export const EDGE_WIDTH   = {
+  membership: 1.4, write: 1, edit: 1, read: .7, branch: .8, bundle: 1, spawn: 1.1,
+};
 
 // ── Geometry ──────────────────────────────────────────────────────────────────
 
-export const NODE_RADII = { PR_MIN: 18, PR_MAX: 34, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13, CL_MIN: 12, CL_MAX: 24 };
+export const NODE_RADII = { PR_MIN: 18, PR_MAX: 34, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13, CL_MIN: 12, CL_MAX: 24, SUB_R: 4 };
 
 // d3 default is 0.0228 (~5s settle). 0.006 ran ~19s of manyBody on 700+ nodes.
 export const SIM_ALPHA_DECAY = 0.02;
@@ -574,6 +581,7 @@ export function nodeRadius(d, r = NODE_RADII) {
   if (d.type === 'project') return r.PR_MIN + (r.PR_MAX - r.PR_MIN) * (d.sizeNorm || 0);
   if (d.type === 'session') return r.SR_MIN + (r.SR_MAX - r.SR_MIN) * (d.sizeNorm || 0);
   if (d.type === 'cluster') return r.CL_MIN + (r.CL_MAX - r.CL_MIN) * (d.sizeNorm || 0);
+  if (d.type === 'subagent') return r.SUB_R;
   return r.FR_MIN + (r.FR_MAX - r.FR_MIN) * (d.sizeNorm || 0);
 }
 

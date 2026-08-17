@@ -19,6 +19,7 @@ function applyFilters() {
   const showRoFiles = document.getElementById('cb-ro-files').checked;
   const showBranch  = document.getElementById('cb-branch').checked;
   const showReads   = document.getElementById('cb-reads').checked;
+  const showSubs    = document.getElementById('cb-subagents')?.checked ?? false;
   const minSess     = +document.getElementById('sl-min').value;
   BUNDLE_ON = document.getElementById('cb-bundle')?.checked ?? true;
 
@@ -29,6 +30,10 @@ function applyFilters() {
   for (const n of GRAPH.nodes) {
     if (n.type === 'session' && (!sessionMatchesFilters(n, SESSION_FILTERS) || clusterHidden.has(n.id))) hiddenNodes.add(n.id);
     if (n.type === 'cluster' && clusterHidden.has(n.id)) hiddenNodes.add(n.id);
+    // Subagent satellites: default OFF; also hide if parent session is hidden
+    if (n.type === 'subagent') {
+      if (!showSubs || hiddenNodes.has(n.parent_session_id)) hiddenNodes.add(n.id);
+    }
   }
   // Orphan-file mitigation: with bundles collapsed, most file edges vanish —
   // hide files whose every session neighbour is hidden so no orphan cloud floats.
@@ -42,7 +47,8 @@ function applyFilters() {
     }
   }
   nodeSel.attr('display', d => {
-    if (d.type === 'session' || d.type === 'cluster') return hiddenNodes.has(d.id) ? 'none' : null;
+    if (d.type === 'session' || d.type === 'cluster' || d.type === 'subagent')
+      return hiddenNodes.has(d.id) ? 'none' : null;
     if (d.type === 'file') {
       if (!showFiles)                                    { hiddenNodes.add(d.id); return 'none'; }
       if (d.session_count < minSess)                     { hiddenNodes.add(d.id); return 'none'; }
@@ -58,6 +64,7 @@ function applyFilters() {
     if (hiddenNodes.has(src)||hiddenNodes.has(tgt)) return 'none';
     if (e.type==='read'   && !showReads)  return 'none';
     if (e.type==='branch' && !showBranch) return 'none';
+    if (e.type==='spawn'  && !showSubs)   return 'none';
     return null;
   });
   projLabelSel.attr('display', null);
@@ -79,6 +86,7 @@ document.getElementById('cb-ro-files').addEventListener('change', applyFilters);
 document.getElementById('cb-branch').addEventListener('change',   applyFilters);
 document.getElementById('cb-reads').addEventListener('change',    applyFilters);
 document.getElementById('cb-bundle')?.addEventListener('change',  applyFilters);
+document.getElementById('cb-subagents')?.addEventListener('change', applyFilters);
 document.getElementById('cb-group').addEventListener('change', () => {
   if (isSimLayout()) { restoreForceLayout(); simulation.alpha(0.3).restart(); }
 });

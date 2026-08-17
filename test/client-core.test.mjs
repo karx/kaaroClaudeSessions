@@ -909,11 +909,19 @@ test('nodeRadius — cluster scales between CL_MIN and CL_MAX', async () => {
   assert.equal(nodeRadius({ type: 'cluster' }), 12, 'missing sizeNorm defaults to 0');
 });
 
-test('EDGE styles — bundle entries present in the client-core copies', async () => {
+test('EDGE styles — bundle + spawn entries present in the client-core copies', async () => {
   const { EDGE_OPACITY, EDGE_WIDTH } = await import('../experience/client-core.mjs');
   assert.equal(EDGE_COLORS.bundle, '#4a3a7a');
+  assert.equal(EDGE_COLORS.spawn, '#cc2244');
   assert.equal(typeof EDGE_OPACITY.bundle, 'number');
   assert.equal(typeof EDGE_WIDTH.bundle, 'number');
+  assert.equal(typeof EDGE_OPACITY.spawn, 'number');
+  assert.equal(typeof EDGE_WIDTH.spawn, 'number');
+});
+
+test('nodeRadius — subagent fixed small radius', () => {
+  assert.equal(nodeRadius({ type: 'subagent' }), 4);
+  assert.equal(nodeRadius({ type: 'subagent', sizeNorm: 1 }), 4);
 });
 
 test('computeClusterHidden', async t => {

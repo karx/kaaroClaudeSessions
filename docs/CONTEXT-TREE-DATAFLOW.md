@@ -406,7 +406,7 @@ Nothing in this path mutates graph state. Live SSE pulses (`tool_call`, `words`,
 | Write file content in tool rows | Stripped by `_sanitizeInput` |
 | Thinking prose in thr-turn-text | Thinking sets `has_thinking` badge only, not body text |
 | Graph-time precompute of segments | Still on-demand (`/api/trace`); graph has `context_resets` count + subagent **stubs** (not full trees) |
-| Graph spawn edges / type:`subagent` nodes | Phase 5 backlog — default-off topology, not shipped |
+| Graph spawn edges / type:`subagent` nodes | **Shipped opt-in:** `buildGraph({ includeSubagentNodes })` + UI checkbox **Subagent spawn edges** (default unchecked). Ids `subagent:<parent>:<agentId>`; never type:`session`. |
 
 ---
 

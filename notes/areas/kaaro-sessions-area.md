@@ -65,7 +65,7 @@ localized additions entirely inside `hooks/` (see `[[harness-architecture]]`).
 - Live pulse: sub-second SSE tool_call/tokens/words events
 - Register A design tokens flow into every page artifact
 - Pi harness: partial (missing context_resets, ai_title, subagent_count, branches)
-- Test suite: **1436 tests**, zero external deps, runs in <4s
+- Test suite: **1565 tests**, zero external deps, runs in <4s
 
 ---
 

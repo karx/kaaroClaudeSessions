@@ -2,16 +2,23 @@
   "name": "kaaro-sessions",
   "version": "1.0.0",
   "type": "module",
-  "description": "Live Claude Code session graph — a kaaroViewer companion tool",
-  "keywords": ["claude-code", "sessions", "graph", "visualization", "d3"],
+  "description": "Live multi-harness AI coding session observability surface — a kaaroViewer companion tool",
+  "keywords": ["claude-code", "sessions", "graph", "visualization", "d3", "observability", "multi-harness"],
   "engines": { "node": ">=18.0.0" },
   "bin": {
     "kaaro-sessions": "./serve.mjs"
   },
   "scripts": {
-    "start": "node serve.mjs",
-    "analyze": "node analyze.mjs",
-    "build": "node build.mjs",
-"test": "node --test test/*.test.mjs"
+    "start":              "node serve.mjs",
+    "analyze":            "node analyze.mjs",
+    "build":              "node build.mjs",
+    "test":               "node --test",
+
+    "transcript":         "node scripts/sim-audio.mjs",
+    "transcript:cc":      "node scripts/sim-audio.mjs --harness=cc",
+    "transcript:grok":    "node scripts/sim-audio.mjs --harness=grok",
+    "transcript:snap":    "node scripts/sim-audio.mjs --snap",
+    "transcript:diff":    "node scripts/sim-audio.mjs --diff",
+    "transcript:summary": "node scripts/sim-audio.mjs --summary --silent"
   }
 }

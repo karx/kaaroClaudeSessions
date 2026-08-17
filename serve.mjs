@@ -15,14 +15,22 @@
 import http         from 'http';
 import fs           from 'fs';
 import path         from 'path';
-import os           from 'os';
 import { execFile, exec } from 'child_process';
 import { fileURLToPath }  from 'url';
+
+import { getEnabledHarnesses } from './hooks/registry.mjs';
+import { processWatchFilename } from './surface/watch-handlers.mjs';
+import { resolveSessionFile, invalidateSessionResolveCache } from './surface/session-resolver.mjs';
+import { createActiveState } from './surface/active-state.mjs';
+import { createHub } from './surface/sse-hub.mjs';
+import { createPulseEmitter } from './surface/pulse-emitter.mjs';
+import { createRebuilder } from './surface/rebuild-orchestrator.mjs';
+import { createRequestHandler } from './surface/http-routes.mjs';
+import { createTraceService } from './surface/trace-service.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
 const NO_OPEN        = process.argv.includes('--no-open');
-const PROJECTS_DIR   = path.join(os.homedir(), '.claude', 'projects');
 const HTML_PATH      = path.join(__dirname, 'graph.html');
 const DATA_PATH      = path.join(__dirname, 'graph-data.json');
 const ANALYZE_SCRIPT = path.join(__dirname, 'analyze.mjs');
@@ -30,25 +38,20 @@ const BUILD_SCRIPT   = path.join(__dirname, 'build.mjs');
 
 // ── SSE clients ───────────────────────────────────────────────────────────────
 
-const clients = new Set();
+const hub = createHub();
 
-function notify(event, data = '') {
-  const payload = `event: ${event}\ndata: ${data}\n\n`;
-  for (const res of clients) {
-    try { res.write(payload); } catch { clients.delete(res); }
-  }
-}
+// ── Pulse path (Stream) ───────────────────────────────────────────────────────
+// Mission Control active-session state (/api/active + SSE `now`) + pulses.
+
+const activeState = createActiveState();
+const { tailAndPulse } = createPulseEmitter({ hub, activeState });
 
 // ── Rebuild pipeline ──────────────────────────────────────────────────────────
 
-let rebuilding     = false;
-let pendingRebuild = false;
-let debounceTimer  = null;
-let lastBuilt      = null;
-
 function run(script, extraArgs = []) {
   return new Promise((resolve, reject) => {
-    execFile(process.execPath, [script, ...extraArgs], { cwd: __dirname }, (err, stdout, stderr) => {
+    // --disable-warning: node:sqlite (copilot index) emits an ExperimentalWarning per process
+    execFile(process.execPath, ['--disable-warning=ExperimentalWarning', script, ...extraArgs], { cwd: __dirname }, (err, stdout, stderr) => {
       if (stdout) process.stdout.write(stdout);
       if (stderr) process.stderr.write(stderr);
       if (err) reject(err); else resolve();
@@ -56,141 +59,78 @@ function run(script, extraArgs = []) {
   });
 }
 
-let pendingSessionArg = null;
-
-async function rebuild(sessionArg = null) {
-  if (rebuilding) {
-    pendingRebuild = true;
-    // If any queued change needs a full scan (null) or two different sessions changed → full scan
-    pendingSessionArg = (sessionArg === null || pendingSessionArg === null || pendingSessionArg !== sessionArg)
-      ? null : sessionArg;
-    return;
-  }
-  rebuilding = true;
-  const t0 = Date.now();
-  console.log(`\n[${new Date().toLocaleTimeString()}] Rebuilding…`);
-  notify('status', 'rebuilding');
-
-  try {
-    const analyzeArgs = sessionArg ? [sessionArg] : [];
-    await run(ANALYZE_SCRIPT, analyzeArgs);
-    await run(BUILD_SCRIPT);
-    lastBuilt = new Date();
-    console.log(`Done in ${((Date.now() - t0) / 1000).toFixed(1)}s — ${clients.size} client(s) connected`);
-    notify('updated', lastBuilt.toISOString());
-  } catch (e) {
-    console.error('Rebuild failed:', e.message);
-    notify('error', e.message.slice(0, 200));
-  } finally {
-    rebuilding = false;
-    if (pendingRebuild) {
-      const arg = pendingSessionArg;
-      pendingRebuild = false; pendingSessionArg = null;
-      rebuild(arg);
-    }
-  }
-}
-
-function scheduleRebuild(sessionArg = null) {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => rebuild(sessionArg), 1500);
-}
-
-// ── File watcher ──────────────────────────────────────────────────────────────
-
-if (!fs.existsSync(PROJECTS_DIR)) {
-  console.error(`Claude projects directory not found: ${PROJECTS_DIR}`);
-  console.error('Is Claude Code installed?');
-  process.exit(1);
-}
-
-try {
-  fs.watch(PROJECTS_DIR, { recursive: true }, (_, filename) => {
-    if (filename?.endsWith('.jsonl')) {
-      console.log(`  changed: ${filename}`);
-      const parts = filename.replace(/\\/g, '/').split('/');
-      const sessionArg = parts.length === 2
-        ? `--session=${parts[0]}/${parts[1]}`
-        : null;
-      scheduleRebuild(sessionArg);
-    }
-  });
-  console.log(`Watching: ${PROJECTS_DIR}`);
-} catch (e) {
-  console.warn(`Watch unavailable: ${e.message}`);
-}
-
-// ── HTTP server ───────────────────────────────────────────────────────────────
-
-const server = http.createServer((req, res) => {
-  if (req.url === '/events') {
-    res.writeHead(200, {
-      'Content-Type':  'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection':    'keep-alive',
-    });
-    res.write(':\n\n');
-    res.write('event: connected\ndata: ok\n\n');
-    clients.add(res);
-    const hb = setInterval(() => {
-      try { res.write(':\n\n'); } catch { clearInterval(hb); clients.delete(res); }
-    }, 25_000);
-    req.on('close', () => { clearInterval(hb); clients.delete(res); });
-    return;
-  }
-
-  if (req.url.startsWith('/graph-data.json')) {
-    if (!fs.existsSync(DATA_PATH)) { res.writeHead(503); res.end('{}'); return; }
-    try {
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-      res.end(fs.readFileSync(DATA_PATH));
-    } catch (e) { res.writeHead(500); res.end(e.message); }
-    return;
-  }
-
-  if (req.url === '/status') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ rebuilding, lastBuilt, clients: clients.size, port: PORT }));
-    return;
-  }
-
-  if (req.url === '/' || req.url === '/graph.html') {
-    if (!fs.existsSync(HTML_PATH)) {
-      res.writeHead(503, { 'Content-Type': 'text/html' });
-      res.end('<html><body style="font:14px monospace;padding:40px;background:#111;color:#ccc"><h2>Building…</h2><p>Refresh in a few seconds.</p><script>setTimeout(()=>location.reload(),3000)</script></body></html>');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    res.end(fs.readFileSync(HTML_PATH));
-    return;
-  }
-
-  // ── Static assets (favicon, manifest, og-image, robots, generate helper) ────
-  const STATIC_MIME = {
-    svg: 'image/svg+xml', png: 'image/png', webmanifest: 'application/manifest+json',
-    txt: 'text/plain', html: 'text/html; charset=utf-8',
-  };
-  const STATIC_MAP = {
-    '/favicon.svg':          'favicon.svg',
-    '/og-image.png':         'og-image.png',
-    '/site.webmanifest':     'site.webmanifest',
-    '/robots.txt':           'robots.txt',
-    '/generate-og-png.html': 'generate-og-png.html',
-    '/src/og-image.svg':     'src/og-image.svg',
-  };
-  const staticRel = STATIC_MAP[req.url.split('?')[0]];
-  if (staticRel) {
-    const fp = path.join(__dirname, staticRel);
-    if (fs.existsSync(fp)) {
-      const ext = path.extname(fp).slice(1).toLowerCase();
-      res.writeHead(200, { 'Content-Type': STATIC_MIME[ext] || 'application/octet-stream' });
-      res.end(fs.readFileSync(fp));
-      return;
-    }
-  }
-
-  res.writeHead(404); res.end('Not found');
+const rebuilder = createRebuilder({
+  hub, runScript: run, analyzeScript: ANALYZE_SCRIPT, buildScript: BUILD_SCRIPT,
 });
+const { rebuild, scheduleRebuild } = rebuilder;
+
+// ── File watcher (registry-driven) ────────────────────────────────────────────
+
+function handleWatchEvent(harnessId, rootDir, filename) {
+  const event = processWatchFilename(harnessId, filename, rootDir);
+  if (!event) return;
+  console.log(`  changed: [${harnessId}] ${event.relPath}`);
+  tailAndPulse(event.absPath, event.ctx);
+
+  // Surgical cache invalidation: only evict the session whose file just changed.
+  // Other cached resolutions remain valid and fast.
+  invalidateSessionResolveCache(event.ctx.session_id);
+
+  // Prefer targeted rebuild when the harness provides a rebuildArg (e.g. --session=...).
+  // This enables the fast incremental path in analyze for supported harnesses (CC today)
+  // instead of always doing a full --all-harnesses scan on every keystroke.
+  if (event.rebuildArg) {
+    scheduleRebuild({ rebuildArg: event.rebuildArg, harnessId: event.harnessId });
+  } else {
+    scheduleRebuild();
+  }
+}
+
+let watchCount = 0;
+for (const harness of getEnabledHarnesses()) {
+  const root = harness.roots[0];
+  if (!root) continue;
+  try {
+    if (!fs.existsSync(root)) {
+      console.warn(`[${harness.id}] root not found — skipped: ${root}`);
+      continue;
+    }
+    fs.watch(root, { recursive: true }, (_, filename) => {
+      handleWatchEvent(harness.id, root, filename);
+    });
+    console.log(`Watching [${harness.id}]: ${root}`);
+    watchCount++;
+  } catch (e) {
+    console.warn(`[${harness.id}] watch unavailable: ${e.message}`);
+  }
+}
+
+if (!watchCount) {
+  console.warn('No harness directories found — live watch disabled');
+}
+
+// ── /api/trace (registry-driven; see surface/trace-service.mjs) ──────────────
+
+const { buildTrace } = createTraceService();
+
+// ── HTTP server (routes live in surface/http-routes.mjs) ─────────────────────
+
+const server = http.createServer(createRequestHandler({
+  hub,
+  activeState,
+  getStatus: () => ({ ...rebuilder.state, clients: hub.size, port: PORT }),
+  paths: {
+    root: __dirname,
+    home: path.join(__dirname, 'home.html'), // built artifact (landing page)
+    html: HTML_PATH,
+    data: DATA_PATH,
+    daw:  path.join(__dirname, 'daw-builder.html'),
+    now:  path.join(__dirname, 'now.html'), // built artifact (token-substituted)
+    signals: path.join(__dirname, 'signals-data.json'), // policy signals (analyze run)
+  },
+  resolveSessionFile,
+  buildTrace,
+}));
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 

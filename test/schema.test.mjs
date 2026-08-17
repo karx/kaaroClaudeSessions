@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateSessionsData, validateProject, validateSession } from '../lib/sessions-schema.mjs';
+import { validateSessionsData, validateProject, validateSession } from '../hooks/sessions-schema.mjs';
 
 // ── validateProject ───────────────────────────────────────────────────────────
 test('validateProject', async t => {

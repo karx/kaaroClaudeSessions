@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { derivePiLabel, parsePiRecords } from '../analyze-pi.mjs';
+import { derivePiLabel, parsePiRecords } from '../hooks/analyzers/analyze-pi.mjs';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -331,7 +331,7 @@ test('parsePiRecords — file ops', async t => {
     const content = [rec.toolCall('read', { path: 'C:/foo/bar.js' })];
     const records = [rec.session(), rec.userMsg('read it'), rec.assistantMsg(content)];
     const session = parsePiRecords(records, SESSION_ID, PROJECT_ID);
-    const fp = 'C:/foo/bar.js';
+    const fp = 'c:/foo/bar.js';
     assert.equal(session.file_ops[fp]?.read, 1);
   });
 
@@ -347,7 +347,7 @@ test('parsePiRecords — file ops', async t => {
     const content = [rec.toolCall('read', { path: 'C:\\Users\\foo\\bar.js' })];
     const records = [rec.session(), rec.userMsg('read it'), rec.assistantMsg(content)];
     const session = parsePiRecords(records, SESSION_ID, PROJECT_ID);
-    assert.ok('C:/Users/foo/bar.js' in session.file_ops, 'key should use forward slashes');
+    assert.ok('c:/users/foo/bar.js' in session.file_ops, 'key should use forward slashes');
   });
 
   await t.test('skips file op when path is absent', () => {

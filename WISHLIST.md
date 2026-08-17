@@ -1,5 +1,8 @@
 # kaaroSessions — Wishlist
 
+**Current implementation status (2026-07, two-layer + Command Code):**  
+The core `analyze → build → serve` pipeline now fully supports **7 harnesses** (claude-code, pi, antigravity, grok, opencode, copilot, command-code) via a clean normalized record adapter model (`hooks/adapters/*.mjs`, `hooks/session-reducer.mjs`, `surface/scan-harnesses.mjs`, `hooks/registry.mjs`). Many "Phase 1" extraction and multi-harness readiness items (W-OBS-04, W-OBS-06) were realized as part of the original multi-harness TDD effort and have since been carried through the `hooks/`+`surface/` two-layer split. See `docs/harnesses.md` for the live support matrix. Policy and advanced Report pillars remain future work — nothing below has moved since the last pass.
+
 Items grouped by the three pillars: **Observe → Policy → Report**.
 These extend the existing `analyze → build → serve` pipeline without breaking it.
 The layer is **signal-only** — kaaroSessions reads JSONL files after the fact and cannot intercept or block agent execution.
@@ -140,27 +143,20 @@ Deepen what `analyze.mjs` already extracts.
 ---
 
 ### W-OBS-04 — Multi-harness readiness (Claude Code focus, schema-first)
-**What:** Abstract the JSONL reader behind a clean internal interface so future harnesses can be added without touching the core analysis logic. **Do not build multi-harness routing now.** Focus is on Claude Code.
+**What:** Abstract the JSONL reader behind a clean internal interface so future harnesses can be added without touching the core analysis logic.
 
-**Phase 1 (now):** Define a `NormalizedRecord` internal type that `parseSessionRecords()` produces from Claude Code JSONL. All downstream analysis (`analyzeSession`, policy evaluation) consumes `NormalizedRecord[]`, not raw JSONL objects.
+**Current state (2026-07):** ✅ **Fully implemented, now spans two layers.**
+- `hooks/normalized-record.mjs` and the adapter contract (`recordsToNormalized()`) exist.
+- 7 harnesses supported via `hooks/adapters/{claude-code,pi,antigravity,grok,opencode,copilot,command-code}.mjs`.
+- `hooks/session-reducer.mjs` + `enrichSession` consume the common normalized stream.
+- Dynamic discovery/routing via `hooks/registry.mjs` + `surface/scan-harnesses.mjs`.
+- Live watch + targeted rebuilds work across harnesses (see `surface/watch-handlers.mjs` + `processWatchFilename`).
+- `hooks/pulse-transformer.mjs` provides harness-agnostic live pulses (post-two-layer replacement for the old per-harness `pulse-adapters.mjs`).
+- See `docs/harnesses.md` (self-growing matrix) and `hooks/registry.mjs` header for "easy hook-in" guidance.
 
-```jsonc
-// NormalizedRecord — internal type, not persisted
-{
-  "ts":       "ISO8601",
-  "type":     "skill_invoke" | "tool_use" | "tool_result" | "user_turn" | "assistant_turn" | "session_meta",
-  "harness":  "claude-code",
-  "skill":    "visualize-seed",   // for skill_invoke
-  "tool":     "Read",             // for tool_use
-  "input":    { "file_path": "..." }, // normalized subset
-  "tokens":   { "input": 0, "cache_create": 0, "cache_read": 0, "output": 0 }, // for assistant_turn
-  "raw":      { /* original record, for fields not yet normalized */ }
-}
-```
+The original "Phase 1 (now)" normalized record + "Phase 2 (future)" routing has been delivered in production form, then re-homed into the `hooks/`+`surface/` two-layer split. New harnesses add one adapter + registry entry + scanner — Command Code (the 7th) is the most recent worked example.
 
-**Phase 2 (future):** A second harness writes its own session files to `~/.agents/sessions/<harness>/<project>/` and provides a `parseSessionRecords()` adapter. kaaroSessions discovers harness adapters by directory convention.
-
-**Why:** Avoids tight coupling between analysis logic and raw Claude Code record shapes. The `raw` passthrough ensures no data loss during the transition period.
+**Why:** Avoids tight coupling between analysis logic and raw harness record shapes. The design proved robust enough to support real multi-harness use and survived a full architectural re-split without touching the adapter contract.
 
 ---
 
@@ -187,7 +183,12 @@ Simple keyword matching is sufficient — no LLM call needed.
 | `attachment/hook_non_blocking_error` | `hook_errors` | `count` |
 | `attachment/task_reminder` | `max_active_tasks` | `max(itemCount)` across turns — proxy for task complexity |
 
-**Why:** `ai_title` is a better session label. `agent_name` distinguishes sub-agent sessions from root sessions. `compact_events` enables policy rules about sessions that hit context limits. `api_errors` and `hook_errors` are observable failure signals not currently tracked.
+**Current state (2026-06):** Partial / good progress.
+- `ai_title`, `context_resets` (from compact_boundary), `subagent_count` (Agent/Task), `branches` are now extracted for claude-code + grok via the normalized pipeline and stored on sessions (see `hooks/sessions-schema.mjs`, adapters, reducer, graph-pipeline passthrough).
+- `agent_name` and richer `compact_events` details are not yet fully surfaced for all harnesses.
+- These fields are now part of the canonical optional session contract and work across the multi-harness adapters.
+
+**Why:** `ai_title` is a better session label. `agent_name` distinguishes sub-agent sessions from root sessions. `compact_events` enables policy rules about sessions that hit context limits. `api_errors` and `hook_errors` are observable failure signals not currently tracked. Much of the extraction infrastructure landed as part of the multi-harness refactor.
 
 ---
 
@@ -413,8 +414,10 @@ Optional, skipped silently if `alerts` is absent from config.
 | 1 | W-OBS-01, W-OBS-02, W-OBS-06 | Skill timeline (via `invoked_skills`), block-level tool attribution, new session fields (`ai_title`, `agent_name`, `compact_events`, etc.) |
 | 2 | W-POL-01, W-POL-02, W-POL-03 | Policy loader + signal evaluator + `signals-data.json` |
 | 3 | W-REP-01, W-REP-02 | Signal overlay in graph + `/api/signals` endpoint |
-| 4 | W-OBS-03, W-OBS-04, W-OBS-05 | Tool argument sampling + reader abstraction + intent classifier |
+| 4 | W-OBS-03, W-OBS-05 | Tool argument sampling + intent classifier |
 | 5 | W-POL-04, W-POL-05 | Registry bridge + configurable anomaly heuristics |
 | 6 | W-REP-03a, W-REP-03b, W-REP-04, W-REP-05 | Policy data endpoint + report page + audit export + alert hook |
 
-Phase 1 has zero new dependencies and extends only `analyze.mjs`. The `invoked_skills` attachment type (discovered in real JSONL) makes W-OBS-01/02 more reliable than originally designed. Phase 4 moves W-OBS-04 later since the abstraction layer is non-blocking — existing code works correctly until it's added.
+**2026-06 update:** W-OBS-04 (multi-harness readiness + NormalizedRecord abstraction) has been delivered ahead of schedule as part of the original multi-harness TDD work (adapters, registry, scan-harnesses, pulse pipeline, etc.). The core pipeline is now multi-harness native.
+
+**2026-07 update:** That pipeline was re-homed into the `hooks/`+`surface/` two-layer split (see CLAUDE.md), and a 7th harness (Command Code) was added without touching the adapter contract — confirming the abstraction holds under both an architectural refactor and new-harness growth. Policy and Report pillars (beyond basic live pulses) remain the main future work. The original Phase 1 focus on `analyze.mjs` only has expanded to a full adapter-based architecture while preserving the observe-first philosophy.

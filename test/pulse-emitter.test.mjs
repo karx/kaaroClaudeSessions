@@ -1,0 +1,128 @@
+/**
+ * test/pulse-emitter.test.mjs → surface/pulse-emitter.mjs
+ *
+ * The Stream production path: watched-file change → tail/parse → adapter →
+ * pulses → hub broadcast + active-state, with offset tracking and the
+ * throttled `now` snapshot broadcast.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync, appendFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { createPulseEmitter } from '../surface/pulse-emitter.mjs';
+import { createActiveState, snapshotActive } from '../surface/active-state.mjs';
+
+function fakeHub() {
+  const events = [];
+  return { events, notify: (event, data) => events.push({ event, data: data ? JSON.parse(data) : null }) };
+}
+
+function withTempDir(fn) {
+  const dir = join(tmpdir(), 'kaaro-pulse-emit-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+  mkdirSync(dir, { recursive: true });
+  try { return fn(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+const CC_CTX = {
+  harness: 'claude-code', session_id: 'aaaabbbb-1111-2222-3333-444455556666',
+  slug: 'aaaabbbb', project_id: 'P', project_label: 'proj',
+};
+
+const CC_LINE = JSON.stringify({
+  type: 'assistant', timestamp: '2026-06-12T10:00:00.000Z',
+  message: { model: 'm', usage: { input_tokens: 5, output_tokens: 3 },
+    content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'a.mjs' } }] },
+});
+
+test('tailAndPulse — emits pulses for new JSONL bytes and advances the offset', () => {
+  withTempDir((dir) => {
+    const fp = join(dir, 's.jsonl');
+    writeFileSync(fp, CC_LINE + '\n', 'utf8');
+    const hub = fakeHub();
+    const activeState = createActiveState();
+    const emitter = createPulseEmitter({ hub, activeState });
+
+    emitter.tailAndPulse(fp, CC_CTX);
+    const toolCalls = hub.events.filter(e => e.event === 'tool_call');
+    assert.equal(toolCalls.length, 1);
+    assert.equal(toolCalls[0].data.slug, 'aaaabbbb');
+    assert.equal(toolCalls[0].data.key, 'read');
+
+    // No new bytes → no new pulses.
+    const before = hub.events.length;
+    emitter.tailAndPulse(fp, CC_CTX);
+    assert.equal(hub.events.length, before);
+
+    // Appended bytes → only the new record pulses.
+    appendFileSync(fp, CC_LINE + '\n', 'utf8');
+    emitter.tailAndPulse(fp, CC_CTX);
+    assert.equal(hub.events.filter(e => e.event === 'tool_call').length, 2);
+  });
+});
+
+test('tailAndPulse — feeds active-state so /api/active sees the session', () => {
+  withTempDir((dir) => {
+    const fp = join(dir, 's.jsonl');
+    writeFileSync(fp, CC_LINE + '\n', 'utf8');
+    const activeState = createActiveState();
+    const emitter = createPulseEmitter({ hub: fakeHub(), activeState });
+    emitter.tailAndPulse(fp, CC_CTX);
+    const snap = snapshotActive(activeState, Date.now());
+    assert.equal(snap.sessions.length, 1);
+    assert.equal(snap.sessions[0].slug, 'aaaabbbb');
+  });
+});
+
+test('tailAndPulse — schedules at most one trailing `now` broadcast per window', async () => {
+  await new Promise((resolve, reject) => {
+    withTempDir((dir) => {
+      const fp = join(dir, 's.jsonl');
+      writeFileSync(fp, CC_LINE + '\n' + CC_LINE + '\n', 'utf8');
+      const hub = fakeHub();
+      const emitter = createPulseEmitter({ hub, activeState: createActiveState(), nowThrottleMs: 10 });
+      emitter.tailAndPulse(fp, CC_CTX);
+      appendFileSync(fp, CC_LINE + '\n', 'utf8');
+      emitter.tailAndPulse(fp, CC_CTX); // second burst inside the window
+      setTimeout(() => {
+        try {
+          const nows = hub.events.filter(e => e.event === 'now');
+          assert.equal(nows.length, 1, 'bursty tails collapse into one now snapshot');
+          assert.ok(nows.at(-1).data.sessions.length >= 1);
+          resolve();
+        } catch (e) { reject(e); }
+      }, 40);
+    });
+  });
+});
+
+test('json read_mode — whole-file parse, dedupe by size+mtime signature', () => {
+  withTempDir((dir) => {
+    const fp = join(dir, 'msg_x.json');
+    const doc = {
+      id: 'msg_x', sessionID: 'ses_abcdef1234', role: 'assistant',
+      time: { created: 1766698107679 }, modelID: 'm', providerID: 'opencode',
+      tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 1, write: 2 } },
+      finish: 'stop', _parts: [],
+    };
+    writeFileSync(fp, JSON.stringify(doc, null, 2), 'utf8');
+    const hub = fakeHub();
+    const emitter = createPulseEmitter({ hub, activeState: createActiveState() });
+    const ctx = { harness: 'opencode', session_id: null, slug: null,
+      project_id: null, project_label: null, read_mode: 'json' };
+
+    emitter.tailAndPulse(fp, ctx);
+    const first = hub.events.length;
+    assert.ok(first > 0, 'whole-file json produced pulses');
+    assert.ok(hub.events.every(e => e.event === 'now' || e.data.slug === 'abcdef12'),
+      'slug derived from in-body sessionID');
+
+    emitter.tailAndPulse(fp, ctx); // unchanged file → signature dedupe
+    assert.equal(hub.events.length, first);
+  });
+});
+
+test('tailAndPulse — errors never escape (missing file is a no-op)', () => {
+  const emitter = createPulseEmitter({ hub: fakeHub(), activeState: createActiveState() });
+  assert.doesNotThrow(() => emitter.tailAndPulse('Z:/nope/missing.jsonl', CC_CTX));
+});

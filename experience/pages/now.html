@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kaaro-sessions — mission control</title>
+<style>
+%%TOKENS_CSS%%
+  /* Register A — Financial Terminal */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--k-bg);
+    color: var(--k-body);
+    font: 12px var(--k-font);
+    line-height: 1.35;
+    display: grid;
+    grid-template-rows: 28px 1fr 18px;
+    overflow: hidden;
+  }
+
+  /* ── Topbar ─────────────────────────────────────────────────────────── */
+  #topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 12px;
+    background: var(--k-panel);
+    border-bottom: 1px solid var(--k-border);
+    user-select: none;
+  }
+  #topbar .title { color: var(--k-accent); letter-spacing: 0.1em; font-weight: 700; }
+  #topbar .nav a { color: var(--k-dim); text-decoration: none; margin-left: 12px; letter-spacing: 0.08em; }
+  #topbar .nav a:hover { color: var(--k-label); }
+  #topbar .spacer { flex: 1; }
+  #live-badge { color: var(--k-geo); letter-spacing: 0.08em; }
+  #live-badge.err { color: var(--k-err); }
+  #live-badge.dim { color: var(--k-dim); }
+
+  /* ── Main ───────────────────────────────────────────────────────────── */
+  #main { overflow-y: auto; padding: 12px; }
+
+  /* Per-harness rollup strip */
+  #harness-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .harness-cell {
+    background: var(--k-panel); border: 1px solid var(--k-border);
+    padding: 6px 10px; min-width: 150px;
+  }
+  .harness-cell .hname { color: var(--k-label); text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; }
+  .harness-cell .hstats { color: var(--k-dim); font-size: 11px; margin-top: 2px; }
+  .harness-cell .hstats b { color: var(--k-data); font-weight: 400; }
+  .harness-cell .hstats .on { color: var(--k-geo); }
+  .harness-cell .hcaps { color: var(--k-dim); font-size: 9px; margin-top: 2px; letter-spacing: 0.06em; }
+  .harness-cell .hcaps .cap { color: var(--k-select); }
+
+  /* Session cards */
+  #cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 8px; }
+  .card {
+    background: var(--k-card); border: 1px solid var(--k-border);
+    padding: 8px 10px; cursor: pointer;
+  }
+  .card.active { border-left: 2px solid var(--k-geo); }
+  .card.idle   { border-left: 2px solid var(--k-dim); }
+  .card .row1 { display: flex; align-items: baseline; gap: 8px; }
+  .card .status { font-size: 10px; letter-spacing: 0.08em; }
+  .card.active .status { color: var(--k-geo); }
+  .card.idle   .status { color: var(--k-dim); }
+  .card .slug { color: var(--k-select); font-weight: 700; }
+  .card .project { color: var(--k-label); }
+  .card .harness { color: var(--k-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; margin-left: auto; }
+  .card .titleline { color: var(--k-body); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .toolline { margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .toolline .sym { color: var(--k-accent); }
+  .card .toolline .tool { color: var(--k-accent); }
+  .card .toolline .where { color: var(--k-dim); }
+  .card .modes { margin-top: 3px; font-size: 9px; letter-spacing: 0.06em; color: var(--k-dim); }
+  .card .modes .mode { color: var(--k-select); }
+  .card .apierr { margin-top: 3px; font-size: 10px; color: var(--k-err); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .preview { color: var(--k-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
+  .card .metrics { display: flex; gap: 12px; margin-top: 5px; font-size: 10px; color: var(--k-dim); }
+  .card .metrics b { color: var(--k-data); font-weight: 400; }
+  .card .metrics .errs b { color: var(--k-err); }
+  .card .metrics .ago { margin-left: auto; }
+  .card.active .metrics .ago { color: var(--k-geo); }
+  .card .burn { color: var(--k-data); }
+
+  /* Expanded detail: action history + context windows */
+  .card .detail { margin-top: 6px; border-top: 1px solid var(--k-border); padding-top: 6px; cursor: default; }
+  .card .d-hd { color: var(--k-label); font-size: 9px; letter-spacing: 0.1em; margin-bottom: 3px; }
+  .actions { max-height: 150px; overflow-y: auto; font-size: 10px; }
+  .actions .act { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--k-dim); }
+  .actions .act .g { display: inline-block; width: 14px; color: var(--k-accent); }
+  .actions .act.err, .actions .act.err .g { color: var(--k-err); }
+  .actions .act .t { color: var(--k-body); }
+  .ctxrow { display: flex; gap: 3px; align-items: stretch; margin-top: 4px; }
+  .ctxseg {
+    background: var(--k-panel); border: 1px solid var(--k-border);
+    border-left: 2px solid var(--k-select);
+    padding: 2px 6px; font-size: 9px; color: var(--k-dim); min-width: 54px;
+  }
+  .ctxseg b { color: var(--k-data); font-weight: 400; }
+  .ctxsep { color: var(--k-dim); align-self: center; }
+  .ctx-note { color: var(--k-dim); font-size: 9px; margin-top: 4px; }
+
+  #empty {
+    color: var(--k-dim); padding: 40px 12px; letter-spacing: 0.08em;
+  }
+  #empty .hint { margin-top: 8px; font-size: 11px; }
+
+  /* ── Status bar ─────────────────────────────────────────────────────── */
+  #statusbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 12px;
+    background: var(--k-panel); border-top: 1px solid var(--k-border);
+    color: var(--k-dim); font-size: 10px; letter-spacing: 0.05em;
+    user-select: none; white-space: nowrap; overflow: hidden;
+  }
+  #statusbar .err { color: var(--k-err); }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <span class="title"><a href="/" title="kaaro-sessions home" style="color:var(--k-accent);text-decoration:none">◈</a> MISSION CONTROL</span>
+  <span class="nav">
+    <a href="/graph">graph</a>
+    <a href="/daw">daw</a>
+  </span>
+  <span class="spacer"></span>
+  <span id="live-badge" class="dim">◌ connecting…</span>
+</div>
+
+<div id="main">
+  <div id="harness-strip"></div>
+  <div id="cards"></div>
+  <div id="empty" hidden>
+    ━━━ no live sessions observed yet ━━━
+    <div class="hint">cards appear the moment any watched harness writes a transcript record · history lives in the <a href="/graph" style="color:var(--k-label)">graph</a></div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <span id="sys">boot</span>
+</div>
+
+<script>
+%%CLIENT_CORE%%
+
+(function () {
+  'use strict';
+
+  const $badge = document.getElementById('live-badge');
+  const $strip = document.getElementById('harness-strip');
+  const $cards = document.getElementById('cards');
+  const $empty = document.getElementById('empty');
+  const $sys   = document.getElementById('sys');
+
+  let snap = null;           // latest /api/active payload
+  let meta = {};             // session_id → { ai_title, branch } from graph-data
+  let harnessInfo = {};      // id → { label, capabilities } from /api/harnesses
+  let lastPulseAt = null;
+  const expanded = new Set();      // session_ids with the detail section open
+  const traceCache = new Map();    // session_id → tree or 'pending' or 'error'
+
+  function setBadge(text, cls) { $badge.textContent = text; $badge.className = cls || ''; }
+  function sys(text, isErr) { $sys.textContent = text; $sys.className = isErr ? 'err' : ''; }
+
+  function lastTool(s) {
+    if (!s.last_tool) return '';
+    const t = s.last_tool;
+    const whereBits = t.where ? String(t.where).replace(/\\/g, '/').split('/').pop() : (t.why || '');
+    return '<div class="toolline"><span class="sym">▸</span> <span class="tool">' + esc(t.tool || '?') +
+      '</span> <span class="where">· ' + esc(String(whereBits).slice(0, 48)) + '</span></div>';
+  }
+
+  // ── Action history (recent_actions ring from /api/active) ─────────────
+  const ACT_GLYPH = {
+    tool_call: '▸', tool_error: '✖', compact: '⟲', human_turn: '⌨',
+    permission: '⚙', mode_shift: '⚙', api_error: '⊘',
+  };
+
+  function actLine(a) {
+    const g = ACT_GLYPH[a.type] || '·';
+    let body = '';
+    if (a.type === 'tool_call') {
+      const where = a.where ? String(a.where).replace(/\\/g, '/').split('/').pop() : (a.why || '');
+      body = '<span class="t">' + esc(a.tool || '?') + '</span> ' + esc(String(where).slice(0, 44));
+    } else if (a.type === 'tool_error') {
+      body = '<span class="t">' + esc(a.tool || '?') + '</span> failed';
+    } else if (a.type === 'api_error') {
+      body = esc((a.message || 'api error') + (a.code ? ' [' + a.code + ']' : ''));
+    } else if (a.type === 'human_turn') {
+      body = esc(String(a.text || 'prompt').slice(0, 48));
+    } else if (a.type === 'permission' || a.type === 'mode_shift') {
+      body = a.type.replace('_', ' ') + ' → <span class="t">' + esc(a.mode || '?') + '</span>';
+    } else if (a.type === 'compact') {
+      body = 'context compacted';
+    }
+    return '<div class="act' + (a.error ? ' err' : '') + '"><span class="g">' + g + '</span>' + body + '</div>';
+  }
+
+  // ── Compact context-window strip (on-demand /api/trace) ───────────────
+  function ctxStrip(sessionId, harness) {
+    if (!harnessInfo[harness]?.capabilities?.trace) {
+      return '<div class="ctx-note">' + esc(harness) + ' provides no context trace</div>';
+    }
+    const cached = traceCache.get(sessionId);
+    if (cached === undefined) {
+      traceCache.set(sessionId, 'pending');
+      fetch('/api/trace/' + encodeURIComponent(sessionId))
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(tree => { traceCache.set(sessionId, tree); render(); })
+        .catch(() => { traceCache.set(sessionId, 'error'); render(); });
+      return '<div class="ctx-note">loading context windows…</div>';
+    }
+    if (cached === 'pending') return '<div class="ctx-note">loading context windows…</div>';
+    if (cached === 'error')   return '<div class="ctx-note">trace unavailable</div>';
+
+    const segs = cached.segments || [];
+    if (!segs.length) return '<div class="ctx-note">no segments</div>';
+    return '<div class="ctxrow">' + segs.map((g, i) => {
+      const turns = g.user_turns + g.assistant_turns;
+      const tok = g.tokens.output + g.tokens.cache_read;
+      return '<div class="ctxseg">w' + (i + 1) + ' · <b>' + turns + 't</b>' +
+        (tok ? ' · ' + fmtTok(tok) : '') +
+        (g.subagent_count ? ' · ↳' + g.subagent_count : '') + '</div>';
+    }).join('<span class="ctxsep">⟲</span>') + '</div>';
+  }
+
+  function render() {
+    if (!snap) return;
+    const nowMs = Date.now();
+
+    // harness rollup strip + capability badges (registry via /api/harnesses)
+    $strip.innerHTML = Object.entries(snap.by_harness).map(([h, v]) => {
+      const caps = harnessInfo[h]?.capabilities || {};
+      const badge = c => '<span class="cap">' + c + '</span>';
+      const capBits = [
+        caps.tokens ? badge('tok') : 'tok',
+        caps.trace ? badge('trace') : 'trace',
+        caps.branches ? badge('⎇') : '⎇',
+        caps.subagent_count ? badge('↳') : '↳',
+      ].join(' · ');
+      return '<div class="harness-cell"><div class="hname">' + esc(h) + '</div>' +
+        '<div class="hstats"><span class="on">' + v.active + '▲</span> / ' + v.sessions + ' ses · ' +
+        '<b>' + v.tool_calls + '</b> tools · <b>' + fmtTok(v.tokens_work) + '</b> tok</div>' +
+        '<div class="hcaps">' + capBits + '</div></div>';
+    }).join('');
+
+    // session cards — active first, then by recency; seconds tick stays local
+    $empty.hidden = snap.sessions.length > 0;
+    const ordered = [...snap.sessions].sort((a, b) =>
+      (a.status === b.status ? b.last_seen - a.last_seen : (a.status === 'active' ? -1 : 1)));
+
+    $cards.innerHTML = ordered.map(s => {
+      const sec = Math.max(0, Math.round((nowMs - s.last_seen) / 1000));
+      const m = meta[s.session_id] || {};
+      const title = m.ai_title || s.last_preview || '';
+      const isOpen = expanded.has(s.session_id);
+      const modeBits = [];
+      if (s.last_mode)            modeBits.push('mode <span class="mode">' + esc(s.last_mode) + '</span>');
+      if (s.last_permission_mode) modeBits.push('perm <span class="mode">' + esc(s.last_permission_mode) + '</span>');
+
+      return '<div class="card ' + s.status + '" data-sid="' + esc(s.session_id) + '">' +
+        '<div class="row1">' +
+          '<span class="status">' + (s.status === 'active' ? '● ACTIVE' : '○ IDLE') + '</span>' +
+          '<span class="slug">' + esc(s.slug) + '</span>' +
+          '<span class="project">' + esc(s.project || '—') + (m.branch ? ' · ' + esc(m.branch) : '') + '</span>' +
+          '<span class="harness">' + esc(s.harness) + '</span>' +
+        '</div>' +
+        (title ? '<div class="titleline">' + esc(String(title).slice(0, 80)) + '</div>' : '') +
+        lastTool(s) +
+        (modeBits.length ? '<div class="modes">' + modeBits.join(' · ') + '</div>' : '') +
+        (s.last_api_error ? '<div class="apierr">⊘ ' + esc(s.last_api_error.message || 'api error') +
+          (s.last_api_error.code ? ' [' + esc(s.last_api_error.code) + ']' : '') + '</div>' : '') +
+        '<div class="metrics">' +
+          '<span><b>' + s.tool_calls + '</b> tools</span>' +
+          (s.tool_errors ? '<span class="errs"><b>' + s.tool_errors + '</b> err</span>' : '') +
+          (s.api_errors ? '<span class="errs"><b>' + s.api_errors + '</b> api</span>' : '') +
+          '<span><b>' + fmtTok(s.tokens_work) + '</b> tok</span>' +
+          (s.burn_rate_per_min ? '<span class="burn">' + fmtTok(s.burn_rate_per_min) + '/min</span>' : '') +
+          '<span><b>' + s.human_turns + '</b> ⌨</span>' +
+          (s.compacts ? '<span><b>' + s.compacts + '</b> ⟲</span>' : '') +
+          '<span class="ago">' + fmtAgo(sec) + ' ago</span>' +
+        '</div>' +
+        (isOpen ?
+          '<div class="detail">' +
+            '<div class="d-hd">◆ RECENT ACTIONS</div>' +
+            '<div class="actions">' + (s.recent_actions || []).map(actLine).join('') + '</div>' +
+            '<div class="d-hd" style="margin-top:5px">◆ CONTEXT WINDOWS</div>' +
+            ctxStrip(s.session_id, s.harness) +
+          '</div>' : '') +
+      '</div>';
+    }).join('');
+
+    // keep open action feeds pinned to the newest entry
+    for (const el of $cards.querySelectorAll('.actions')) el.scrollTop = el.scrollHeight;
+
+    const a = snap.totals.active, t = snap.totals.sessions;
+    sys('observing ' + t + ' session' + (t === 1 ? '' : 's') + ' · ' + a + ' active' +
+        (lastPulseAt ? ' · last pulse ' + fmtAgo(Math.round((nowMs - lastPulseAt) / 1000)) + ' ago' : ''));
+  }
+
+  // expand/collapse detail on card click (links/scroll areas excluded)
+  $cards.addEventListener('click', e => {
+    if (e.target.closest('.detail')) return;
+    const card = e.target.closest('.card');
+    if (!card) return;
+    const sid = card.dataset.sid;
+    if (expanded.has(sid)) expanded.delete(sid); else expanded.add(sid);
+    render();
+  });
+
+  async function fetchActive() {
+    try {
+      const r = await fetch('/api/active');
+      snap = await r.json();
+      render();
+    } catch { sys('cannot reach /api/active — is serve.mjs running?', true); }
+  }
+
+  // graph-data enrichment: session ai_title + branch, refreshed on every `updated`
+  async function fetchMeta() {
+    try {
+      const r = await fetch('/graph-data.json?t=' + Date.now());
+      const d = await r.json();
+      meta = {};
+      for (const n of d.nodes || []) {
+        if (n.type !== 'session') continue;
+        meta[n.id] = { ai_title: n.ai_title || null, branch: (n.branches && n.branches[0]) || n.git_branch || null };
+      }
+      render();
+    } catch { /* enrichment is optional */ }
+  }
+
+  async function fetchHarnesses() {
+    try {
+      const r = await fetch('/api/harnesses');
+      const d = await r.json();
+      harnessInfo = Object.fromEntries(d.harnesses.map(h => [h.id, h]));
+      render();
+    } catch { /* capability badges are optional */ }
+  }
+
+  // ── Boot ritual ──────────────────────────────────────────────────────
+  sys('connecting to /events…');
+  connectEvents({
+    handlers: {
+      now:     d => { if (d) { snap = d; lastPulseAt = Date.now(); render(); } },
+      status:  (d, e) => { if (e.data === 'rebuilding') setBadge('◌ building…', 'dim'); },
+      updated: () => { setBadge('⬤ LIVE', ''); fetchMeta(); },
+      error:   (d, e) => {
+        if (!e.data) return; // transport errors have no payload
+        setBadge('⚠ build failed', 'err');
+        sys('rebuild failed: ' + String(e.data).slice(0, 120), true);
+      },
+    },
+    onStatus: s => setBadge(s === 'open' ? '⬤ LIVE' : '◌ reconnecting', s === 'open' ? '' : 'dim'),
+  });
+
+  fetchActive();
+  fetchMeta();
+  fetchHarnesses();
+  setInterval(render, 1000);          // local seconds tick
+  setInterval(fetchActive, 30_000);   // safety re-sync (status flips happen server-side)
+}());
+</script>
+</body>
+</html>

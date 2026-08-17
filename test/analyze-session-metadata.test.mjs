@@ -59,6 +59,10 @@ function turnDurationRec(opts = {}) {
   };
 }
 
+function toolUseBlock(name, input = {}) {
+  return { type: 'tool_use', id: 't1', name, input };
+}
+
 // ── Session identity ──────────────────────────────────────────────────────────
 
 test('session identity', async t => {
@@ -175,6 +179,27 @@ test('duration_ms and message_count', async t => {
     try {
       const session = analyzeSession('proj', filePath);
       assert.equal(session.message_count, 7);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  await t.test('message_count prefers turn_duration over derived user+assistant turns (regression for overwrite bug)', async () => {
+    // One user + one assistant record (with blocks) would derive to 2.
+    // The explicit messageCount: 42 from turn_duration must win.
+    const { dir, filePath } = writeTempJsonl([
+      userRec('hello'),
+      assistantRec({ input_tokens: 5, output_tokens: 3 }, [
+        { type: 'text', text: 'hi' },
+        toolUseBlock('Read', { file_path: 'x.js' }),
+      ]),
+      turnDurationRec({ durationMs: 1234, messageCount: 42 }),
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.user_turns, 1);
+      assert.equal(session.assistant_turns, 1);
+      assert.equal(session.message_count, 42, 'metadata from turn_duration must be authoritative');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -549,6 +574,173 @@ test('enrichSession — date_str, day_of_week, hour_of_day', async t => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// ── context_resets ────────────────────────────────────────────────────────────
+
+test('context_resets', async t => {
+  await t.test('counts compact_boundary system records', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      userRec(),
+      { type: 'system', subtype: 'compact_boundary' },
+      userRec(),
+      { type: 'system', subtype: 'compact_boundary' },
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.context_resets, 2);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('is 0 when no compact_boundary records', async () => {
+    const { dir, filePath } = writeTempJsonl([userRec()]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.context_resets, 0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('other system subtypes do not increment context_resets', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      { type: 'system', subtype: 'turn_duration', durationMs: 1000, messageCount: 1 },
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.context_resets, 0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// ── ai_title ──────────────────────────────────────────────────────────────────
+
+test('ai_title', async t => {
+  await t.test('extracted from ai-title record with aiTitle field', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      { type: 'ai-title', aiTitle: 'kaaroViewer code review' },
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.ai_title, 'kaaroViewer code review');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('extracted from ai-title record with title field', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      { type: 'ai-title', title: 'Alternative field name' },
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.ai_title, 'Alternative field name');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('is null when no ai-title record', async () => {
+    const { dir, filePath } = writeTempJsonl([userRec()]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.ai_title, null);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('first ai-title record wins when multiple appear', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      { type: 'ai-title', aiTitle: 'First title' },
+      { type: 'ai-title', aiTitle: 'Second title' },
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.ai_title, 'First title');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// ── subagent_count ────────────────────────────────────────────────────────────
+
+test('subagent_count', async t => {
+  await t.test('counts Agent tool_use blocks', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      assistantRec({ content: [
+        { type: 'tool_use', name: 'Agent', input: { description: 'explore codebase' } },
+        { type: 'tool_use', name: 'Agent', input: { description: 'run tests' } },
+        { type: 'tool_use', name: 'Read',  input: { file_path: 'src/foo.js' } },
+      ]}),
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.subagent_count, 2);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('is 0 when no Agent calls', async () => {
+    const { dir, filePath } = writeTempJsonl([userRec()]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.subagent_count, 0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('accumulates Agent calls across multiple assistant records', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      assistantRec({ content: [{ type: 'tool_use', name: 'Agent', input: {} }] }),
+      assistantRec({ content: [
+        { type: 'tool_use', name: 'Agent', input: {} },
+        { type: 'tool_use', name: 'Agent', input: {} },
+      ]}),
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.subagent_count, 3);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// ── branches ─────────────────────────────────────────────────────────────────
+
+test('branches', async t => {
+  await t.test('collects unique branches from user records', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      userRec({ gitBranch: 'main' }),
+      userRec({ gitBranch: 'feat/x' }),
+      userRec({ gitBranch: 'main' }),
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.deepEqual([...session.branches].sort(), ['feat/x', 'main']);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('collects from turn_duration records too', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      turnDurationRec({ gitBranch: 'main', durationMs: 0, messageCount: 0 }),
+      userRec({ gitBranch: 'feat/y' }),
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.deepEqual([...session.branches].sort(), ['feat/y', 'main']);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('is empty array when no gitBranch in records', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      { type: 'permission-mode', permissionMode: 'default' },
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.deepEqual(session.branches, []);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  await t.test('deduplicates repeated branches', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      userRec({ gitBranch: 'main' }),
+      userRec({ gitBranch: 'main' }),
+      userRec({ gitBranch: 'main' }),
+    ]);
+    try {
+      const session = analyzeSession('proj', filePath);
+      assert.deepEqual(session.branches, ['main']);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
 

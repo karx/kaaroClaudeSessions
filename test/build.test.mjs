@@ -4,9 +4,36 @@ import {
   calcRecencyScore,
   calcRecencyLevel,
   assignProjectColors,
+  orderClientModules,
   MAX_AGE_MS,
   PALETTE,
 } from '../build.mjs';
+
+// ── orderClientModules — concat-order guard (TODO #6) ─────────────────────────
+
+test('orderClientModules', async t => {
+  await t.test('sorts NN-name.js files lexically (numeric order for 2-digit prefixes)', () => {
+    assert.deepEqual(
+      orderClientModules(['13-live-updates.js', '00-boot.js', '01-data.js', '00-core.js']),
+      ['00-boot.js', '00-core.js', '01-data.js', '13-live-updates.js'],
+    );
+  });
+
+  await t.test('throws on a name that breaks numeric ordering (e.g. 09b-)', () => {
+    assert.throws(() => orderClientModules(['09-matrix.js', '09b-sneaky.js']), /09b-sneaky\.js/);
+  });
+
+  await t.test('throws on a missing two-digit prefix', () => {
+    assert.throws(() => orderClientModules(['helpers.js']), /helpers\.js/);
+  });
+
+  await t.test('accepts every real client module', async () => {
+    const fs = await import('node:fs');
+    const real = fs.readdirSync(new URL('../experience/client', import.meta.url))
+      .filter(f => f.endsWith('.js'));
+    assert.deepEqual(orderClientModules(real), [...real].sort());
+  });
+});
 
 // ── calcRecencyScore ──────────────────────────────────────────────────────────
 
@@ -138,5 +165,38 @@ test('assignProjectColors', async t => {
   await t.test('single project gets first palette color', () => {
     const { PROJECT_COLORS } = assignProjectColors([{ id: 'solo' }], PALETTE);
     assert.equal(PROJECT_COLORS['solo'], PALETTE[0]);
+  });
+});
+
+// ── loadClusterOverrides ──────────────────────────────────────────────────────
+
+test('loadClusterOverrides', async t => {
+  const { loadClusterOverrides } = await import('../build.mjs');
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kaaro-overrides-'));
+
+  await t.test('returns null when the file is absent', () => {
+    assert.equal(loadClusterOverrides(path.join(dir, 'nope.json')), null);
+  });
+
+  await t.test('returns the parsed object for a valid file', () => {
+    const p = path.join(dir, 'valid.json');
+    const obj = { version: 1, projects: { 'proj-a': { pin: ['s1'] } } };
+    fs.writeFileSync(p, JSON.stringify(obj), 'utf8');
+    assert.deepEqual(loadClusterOverrides(p), obj);
+  });
+
+  await t.test('returns null (no throw) for malformed JSON', () => {
+    const p = path.join(dir, 'broken.json');
+    fs.writeFileSync(p, '{ not json', 'utf8');
+    assert.equal(loadClusterOverrides(p), null);
+  });
+
+  await t.test('returns null (no throw) for schema-invalid content', () => {
+    const p = path.join(dir, 'invalid.json');
+    fs.writeFileSync(p, JSON.stringify({ version: 99 }), 'utf8');
+    assert.equal(loadClusterOverrides(p), null);
   });
 });

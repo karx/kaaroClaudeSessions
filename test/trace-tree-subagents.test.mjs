@@ -43,11 +43,13 @@ test('with spawns — tree.subagents filled; turn.spawned_subagents linked by to
   assert.equal(tree.subagents.length, 1);
   assert.equal(tree.subagents[0].agent_id, 'aaa111');
   assert.equal(tree.subagents[0].tree, undefined);
+  assert.equal(tree.subagents[0].jsonl_path, undefined, 'FS path stripped from API refs');
 
   const asst = tree.segments[0].turns.find(t => t.role === 'assistant');
   assert.equal(asst.spawned_subagents.length, 1);
   assert.equal(asst.spawned_subagents[0].agent_id, 'aaa111');
   assert.equal(asst.spawned_subagents[0].description, 'Explore template.html');
+  assert.equal(asst.spawned_subagents[0].jsonl_path, undefined);
 });
 
 test('childTrees map attaches nested tree on matching spawn', () => {

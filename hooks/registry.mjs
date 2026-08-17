@@ -86,21 +86,32 @@ export const HARNESS_REGISTRY = [
       size_proxy: 'tokens_work',
     },
     watch: {
-      matchLogFile: (rel) => rel.replace(/\\/g, '/').endsWith('.jsonl'),
+      matchLogFile: (rel) => {
+        const p = rel.replace(/\\/g, '/');
+        if (p.endsWith('.jsonl')) return true;
+        // Sidechain meta: proj/<parent>/subagents/agent-*.meta.json
+        if (p.endsWith('.meta.json') && p.includes('/subagents/')) return true;
+        return false;
+      },
       ctxFromPath(relPath) {
         const parts = relPath.replace(/\\/g, '/').split('/');
         if (parts.length < 2) return null;
         const project_id = parts[0];
-        // Nested sidechain: proj/<parent>/subagents/agent-*.jsonl → attribute to parent
+        // Nested sidechain: proj/<parent>/subagents/agent-*.{jsonl,meta.json} → parent
         if (parts.length >= 4 && parts[2] === 'subagents') {
           const parent_id = parts[1];
+          const leaf = parts[3]
+            .replace(/\.meta\.json$/i, '')
+            .replace(/\.jsonl$/i, '')
+            .replace(/^agent-/, '');
           return {
             harness: 'claude-code', session_id: parent_id,
             slug: parent_id.slice(0, 8), project_id,
             project_label: deriveLabel(project_id),
-            agent_id: parts[3].replace(/\.jsonl$/, '').replace(/^agent-/, ''),
+            agent_id: leaf,
           };
         }
+        if (!parts[1].endsWith('.jsonl')) return null;
         const session_id = parts[1].replace(/\.jsonl$/, '');
         return {
           harness: 'claude-code', session_id,
@@ -110,8 +121,9 @@ export const HARNESS_REGISTRY = [
       },
       rebuildArg(relPath) {
         const parts = relPath.replace(/\\/g, '/').split('/');
-        if (parts.length === 2) return `--session=${parts[0]}/${parts[1]}`;
-        // Sidechain change → rebuild parent session jsonl
+        if (parts.length === 2 && parts[1].endsWith('.jsonl'))
+          return `--session=${parts[0]}/${parts[1]}`;
+        // Sidechain jsonl or meta → rebuild parent session jsonl
         if (parts.length >= 4 && parts[2] === 'subagents') {
           return `--session=${parts[0]}/${parts[1]}.jsonl`;
         }

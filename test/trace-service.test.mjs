@@ -232,6 +232,45 @@ test('buildTrace — subagent fingerprint invalidates when child meta changes', 
   }
 });
 
+test('buildTrace — public subagent refs omit jsonl_path', () => {
+  const dir = tempDir();
+  const parentId = 'parent-uuid-no-path';
+  const fp = join(dir, `${parentId}.jsonl`);
+  writeFileSync(fp, [
+    JSON.stringify({ type: 'user', timestamp: 't0', message: { content: 'spawn for path strip test' } }),
+    JSON.stringify({ type: 'assistant', timestamp: 't1', message: {
+      model: 'm', stop_reason: 'tool_use',
+      usage: { input_tokens: 1, output_tokens: 2 },
+      content: [
+        { type: 'tool_use', id: 'toolu_P', name: 'Agent',
+          input: { description: 'path strip', subagent_type: 'Explore' } },
+      ],
+    } }),
+  ].join('\n'), 'utf8');
+  const sub = join(dir, parentId, 'subagents');
+  mkdirSync(sub, { recursive: true });
+  writeFileSync(join(sub, 'agent-path1.meta.json'), JSON.stringify({
+    agentType: 'Explore', description: 'path strip', toolUseId: 'toolu_P', spawnDepth: 1,
+  }), 'utf8');
+  writeFileSync(join(sub, 'agent-path1.jsonl'),
+    JSON.stringify({ type: 'user', timestamp: 'c0', message: { content: 'child body text here' } }) + '\n', 'utf8');
+  try {
+    const tree = createTraceService().buildTrace(fp, 'P', parentId, 'claude-code');
+    assert.ok(tree.subagents?.length >= 1);
+    for (const s of tree.subagents) {
+      assert.equal(s.jsonl_path, undefined, 'no host paths in API payload');
+      assert.equal(s.meta_path, undefined);
+    }
+    const asst = tree.segments[0].turns.find(t => t.spawned_subagents?.length);
+    if (asst) {
+      for (const s of asst.spawned_subagents)
+        assert.equal(s.jsonl_path, undefined);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('buildTrace — empty toolUseId still attaches child tree via agent id', () => {
   const dir = tempDir();
   const parentId = 'parent-uuid-empty-tu';

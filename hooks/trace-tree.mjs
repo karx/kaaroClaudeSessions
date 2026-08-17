@@ -345,7 +345,9 @@ function _lookupChildTree(spawn, childTrees) {
 }
 
 function _cloneSpawn(spawn, childTrees) {
-  const ref = { ...spawn };
+  // Public API ref: no host filesystem paths (service keeps them for I/O only).
+  const { jsonl_path: _dropPath, meta_path: _dropMeta, ...rest } = spawn || {};
+  const ref = { ...rest };
   const nested = _lookupChildTree(spawn, childTrees);
   if (nested !== undefined) ref.tree = nested;
   return ref;

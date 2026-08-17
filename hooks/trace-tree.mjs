@@ -104,7 +104,7 @@ function _newSegment(index) {
  * }} [opts] —
  *   side-channel metadata for harnesses that store it outside the transcript
  *   (grok summary.json). Optional spawns / childTrees attach SubagentRefs
- *   (Phase 2 of context-tree RFC) without I/O in this module.
+ *   without I/O in this module.
  * @returns {{ ai_title: string|null, segments: object[], subagents?: object[] }}
  */
 export function reconstructTraceFromNRs(nrs, opts = {}) {

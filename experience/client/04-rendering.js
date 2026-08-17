@@ -78,9 +78,10 @@ function renderNodeContent(el, d) {
     el.append('circle').attr('r',Math.max(2,r-4)).attr('fill',d.color).attr('fill-opacity',.15);
     el.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('font-size',10).attr('fill',d.color).attr('pointer-events','none').text(d.member_count);
   } else if (d.type === 'subagent') {
-    // Small hollow ring — not a session diamond; spawn color #cc2244
-    el.append('circle').attr('r',r).attr('fill',KAARO_TOKENS.bg).attr('stroke','#cc2244').attr('stroke-width',1.4);
-    el.append('circle').attr('r',Math.max(1.2,r-2)).attr('fill','#cc2244').attr('fill-opacity',.35);
+    // Small hollow ring (not a session diamond) — same accent as spawn edges
+    const sc = EDGE_COLORS.spawn;
+    el.append('circle').attr('r',r).attr('fill',KAARO_TOKENS.bg).attr('stroke',sc).attr('stroke-width',1.4);
+    el.append('circle').attr('r',Math.max(1.2,r-2)).attr('fill',sc).attr('fill-opacity',.35);
   } else {
     el.append('path').attr('d',`M0,${-r} L${r},0 L0,${r} L${-r},0 Z`)
       .attr('fill',d.color).attr('fill-opacity',.82).attr('stroke',d.color).attr('stroke-width',.5).attr('stroke-opacity',.4);

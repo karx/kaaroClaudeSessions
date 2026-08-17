@@ -54,7 +54,7 @@ function analyzeSession(projectId, filePath) {
   });
 
   session.tool_timeline = extractToolTimeline(records);
-  // Phase 4: graph stubs only (no nested trees; sidechains stay out of rollup)
+  // Stubs only — sidechain transcripts must not become session nodes / rollup members
   const stubs = stubRefsFromArtifacts(
     listSubagentArtifacts(parentSessionDirFromLog(filePath)),
   );

@@ -160,7 +160,7 @@ export function buildGraph(data, {
           id,
           type:               'subagent',
           label:              (s.agent_id || '').slice(0, 8),
-          color:              PROJECT_COLORS[sess.project_id] || '#cc2244',
+          color:              PROJECT_COLORS[sess.project_id] || '#cc2244', // match EDGE_COLORS.spawn
           project_id:         sess.project_id,
           parent_session_id:  sess.session_id,
           agent_id:           s.agent_id,

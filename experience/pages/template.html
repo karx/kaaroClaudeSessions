@@ -592,13 +592,13 @@ button.btn:hover { background:#403d1e; }
 .thr-tc-del  { display:block; font-size:8px; color:#4a1a1a; white-space:pre; }
 .thr-tc-add  { display:block; font-size:8px; color:#0a2a18; white-space:pre; }
 
-/* Nested subagent trees (from /api/trace subagents) */
+/* Nested subagent trees — accent matches EDGE_COLORS.spawn / TOOL_COLORS.Agent */
 .thr-roster {
   margin:0 0 14px; padding:10px 12px; border:1px solid #3a1520;
-  background:#0a0408; border-left:3px solid #cc2244;
+  background:#0a0408; border-left:3px solid var(--k-spawn, #cc2244);
 }
 .thr-roster-hd {
-  font-size:9px; letter-spacing:0.12em; color:#cc2244; margin-bottom:8px;
+  font-size:9px; letter-spacing:0.12em; color:var(--k-spawn, #cc2244); margin-bottom:8px;
   font-family:var(--k-font-mono, monospace);
 }
 .thr-roster-row {
@@ -607,7 +607,7 @@ button.btn:hover { background:#403d1e; }
 }
 .thr-roster-row:last-child { border-bottom:none; }
 .thr-subagent {
-  margin:4px 0 6px 12px; padding:0 0 0 8px; border-left:2px solid #cc2244;
+  margin:4px 0 6px 12px; padding:0 0 0 8px; border-left:2px solid var(--k-spawn, #cc2244);
   background:#08040a;
 }
 .thr-sub-sum {
@@ -616,9 +616,9 @@ button.btn:hover { background:#403d1e; }
 }
 .thr-sub-sum::-webkit-details-marker { display:none; }
 .thr-sub-sum:hover { color:#e8b8c0; }
-.thr-sub-mark { color:#cc2244; font-weight:600; }
+.thr-sub-mark { color:var(--k-spawn, #cc2244); font-weight:600; }
 .thr-sub-type {
-  color:#cc2244; font-family:var(--k-font-mono, monospace); font-size:9px;
+  color:var(--k-spawn, #cc2244); font-family:var(--k-font-mono, monospace); font-size:9px;
   letter-spacing:0.06em; text-transform:uppercase;
 }
 .thr-sub-desc { color:#d0a8b0; max-width:42em; }

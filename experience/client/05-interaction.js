@@ -35,7 +35,7 @@ function attachTooltip(sel) {
         ${hs.length?`<div class="meta">${hs.length} harness${hs.length===1?'':'es'} · ${hs.join(' · ')}</div>`:''}
         ${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;
     } else if (d.type==='subagent') {
-      tip.innerHTML=`<strong style="color:#cc2244">↳ ${esc(d.agent_type||'subagent')}</strong>
+      tip.innerHTML=`<strong style="color:${EDGE_COLORS.spawn}">↳ ${esc(d.agent_type||'subagent')}</strong>
         <div class="meta">${esc((d.description||d.agent_id||'').slice(0,80))}</div>
         <div class="meta">parent ${(d.parent_session_id||'').slice(0,8)}</div>`;
     } else if (d.type==='session') {
@@ -283,7 +283,8 @@ function showPanel(d) {
       ${ss.map(s=>_nodeRow(s.id,`<span class="pk">${s.date_str||'?'}</span><span class="pv" style="color:${d.color}">${s.label}</span>`)).join('')}`;
   } else if (d.type==='subagent') {
     const parent = nodeById[d.parent_session_id];
-    html=`<h3 style="color:#cc2244">↳ ${esc(d.agent_type||'subagent')}</h3>
+    const sc = EDGE_COLORS.spawn;
+    html=`<h3 style="color:${sc}">↳ ${esc(d.agent_type||'subagent')}</h3>
       <div class="pai-title">${esc(d.description||d.agent_id||'')}</div>
       <div class="prow"><span class="pk">Agent id</span><span class="pv">${esc(d.agent_id||'')}</span></div>
       <div class="prow"><span class="pk">Parent</span><span class="pv">${esc(parent?.label||(d.parent_session_id||'').slice(0,8))}</span></div>
@@ -309,7 +310,7 @@ function showPanel(d) {
       ${d.subagent_count?`<div class="prow"><span class="pk">Subagents</span><span class="pv">${d.subagent_count}</span></div>`:''}
       ${(d.subagents&&d.subagents.length)?`<div class="psep"></div><div class="p-section-hd">◆ SUBAGENTS</div>`+
         d.subagents.map(s=>`<div class="prow subagent-stub" data-thread-open="${esc(d.id)}" title="Open thread">`+
-          `<span class="pk" style="color:#cc2244">↳ ${esc(s.agent_type||'agent')}</span>`+
+          `<span class="pk" style="color:${EDGE_COLORS.spawn}">↳ ${esc(s.agent_type||'agent')}</span>`+
           `<span class="pv" style="text-align:right">${esc((s.description||s.agent_id||'').slice(0,48))}</span>`+
         `</div>`).join('')
       :''}

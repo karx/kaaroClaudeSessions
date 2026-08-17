@@ -693,6 +693,34 @@ test('subagent_count', async t => {
       assert.equal(session.subagent_count, 3);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+
+  await t.test('subagents stubs from sibling subagents/ dir (no nested tree)', async () => {
+    const { dir, filePath } = writeTempJsonl([
+      assistantRec({ content: [
+        { type: 'tool_use', id: 'toolu_A', name: 'Agent',
+          input: { description: 'Explore template', subagent_type: 'Explore' } },
+      ]}),
+    ], 'sess-with-subs');
+    try {
+      const sub = join(dir, 'sess-with-subs', 'subagents');
+      mkdirSync(sub, { recursive: true });
+      writeFileSync(join(sub, 'agent-aaa.meta.json'), JSON.stringify({
+        agentType: 'Explore', description: 'Explore template',
+        toolUseId: 'toolu_A', spawnDepth: 1,
+      }), 'utf8');
+      writeFileSync(join(sub, 'agent-aaa.jsonl'),
+        JSON.stringify({ type: 'user', message: { content: 'hi' } }) + '\n', 'utf8');
+
+      const session = analyzeSession('proj', filePath);
+      assert.equal(session.subagent_count, 1);
+      assert.equal(session.subagents.length, 1);
+      assert.equal(session.subagents[0].agent_id, 'aaa');
+      assert.equal(session.subagents[0].agent_type, 'Explore');
+      assert.equal(session.subagents[0].linked, true);
+      assert.equal(session.subagents[0].tree, undefined);
+      assert.equal(session.subagents[0].jsonl_path, undefined);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
 });
 
 // ── branches ─────────────────────────────────────────────────────────────────

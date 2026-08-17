@@ -145,6 +145,9 @@ test('buildGraph — optional session fields pass through to nodes', async t => 
     context_resets: 3,
     ai_title: 'Fix the auth flow',
     subagent_count: 2,
+    subagents: [
+      { agent_id: 'aaa', tool_use_id: 'tu1', description: 'Explore x', agent_type: 'Explore', spawn_depth: 1, linked: true },
+    ],
     branches: ['main', 'feat/x'],
     tools: { Read: { calls: 7, errors: 0 }, Bash: { calls: 3, errors: 1 } },
   });
@@ -157,6 +160,13 @@ test('buildGraph — optional session fields pass through to nodes', async t => 
     assert.equal(s1.ai_title, 'Fix the auth flow');
     assert.equal(s1.subagent_count, 2);
     assert.deepEqual(s1.branches, ['main', 'feat/x']);
+  });
+
+  await t.test('subagents stubs pass through; absent defaults to []', () => {
+    assert.equal(s1.subagents.length, 1);
+    assert.equal(s1.subagents[0].agent_id, 'aaa');
+    assert.equal(s1.subagents[0].agent_type, 'Explore');
+    assert.deepEqual(s2.subagents, []);
   });
 
   await t.test('absent optional fields default to 0/null/empty', () => {

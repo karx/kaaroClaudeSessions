@@ -156,3 +156,26 @@ function _refFromArtifact(art, { tool_use_id, description, linked }) {
     linked: !!linked,
   };
 }
+
+/**
+ * Graph/analyze stubs only — no jsonl_path, no nested tree.
+ * Prefer meta when present; orphans still appear with linked:false.
+ *
+ * @param {{ agent_id: string, meta: object|null }[]} artifacts
+ * @returns {{ agent_id: string, tool_use_id: string|null, description: string|null,
+ *   agent_type: string|null, spawn_depth: number|null, linked: boolean }[]}
+ */
+export function stubRefsFromArtifacts(artifacts = []) {
+  return artifacts.map(a => {
+    const meta = a.meta || {};
+    const toolUseId = meta.toolUseId || null;
+    return {
+      agent_id: a.agent_id,
+      tool_use_id: toolUseId,
+      description: meta.description || null,
+      agent_type: meta.agentType || null,
+      spawn_depth: typeof meta.spawnDepth === 'number' ? meta.spawnDepth : null,
+      linked: !!toolUseId,
+    };
+  });
+}

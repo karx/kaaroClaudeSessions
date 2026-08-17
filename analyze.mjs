@@ -23,6 +23,11 @@ import {
   deriveLabel, normPath, categorizeBash,
   extractTextFromContent, extractSkills, canonicalProjectId,
 } from './hooks/helpers/analyze-helpers.mjs';
+import {
+  parentSessionDirFromLog,
+  listSubagentArtifacts,
+  stubRefsFromArtifacts,
+} from './hooks/helpers/subagent-discover.mjs';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +54,11 @@ function analyzeSession(projectId, filePath) {
   });
 
   session.tool_timeline = extractToolTimeline(records);
+  // Phase 4: graph stubs only (no nested trees; sidechains stay out of rollup)
+  const stubs = stubRefsFromArtifacts(
+    listSubagentArtifacts(parentSessionDirFromLog(filePath)),
+  );
+  if (stubs.length) session.subagents = stubs;
   enrichSession(session);
   return session;
 }

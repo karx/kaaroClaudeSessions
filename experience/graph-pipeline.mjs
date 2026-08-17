@@ -128,6 +128,7 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       context_resets:   sess.context_resets  || 0,
       ai_title:         sess.ai_title        || null,
       subagent_count:   sess.subagent_count  || 0,
+      subagents:        Array.isArray(sess.subagents) ? sess.subagents : [],
       branches:         sess.branches        || [],
       tools_top:        _topTools(sess.tools),
       sizeNorm,

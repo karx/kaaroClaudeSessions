@@ -293,6 +293,12 @@ function showPanel(d) {
         :`<div class="prow"><span class="pk">Branch</span><span class="pv">${d.git_branch||'?'}</span></div>`}
       ${d.context_resets?`<div class="prow"><span class="pk">Context resets</span><span class="pv">${d.context_resets}</span></div>`:''}
       ${d.subagent_count?`<div class="prow"><span class="pk">Subagents</span><span class="pv">${d.subagent_count}</span></div>`:''}
+      ${(d.subagents&&d.subagents.length)?`<div class="psep"></div><div class="p-section-hd">◆ SUBAGENTS</div>`+
+        d.subagents.map(s=>`<div class="prow subagent-stub" data-thread-open="${esc(d.id)}" title="Open thread">`+
+          `<span class="pk" style="color:#cc2244">↳ ${esc(s.agent_type||'agent')}</span>`+
+          `<span class="pv" style="text-align:right">${esc((s.description||s.agent_id||'').slice(0,48))}</span>`+
+        `</div>`).join('')
+      :''}
       <div class="psep"></div>
       <div class="prow"><span class="pk">Consumption</span><span class="pv">${fmtTok(d.tokens_total)}</span></div>
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtTok(d.tokens_work)}</span></div>
@@ -312,7 +318,8 @@ function showPanel(d) {
       ${_toolBars(d)}
       ${window._traceSection ? window._traceSection(d) : ''}
       <div class="psep"></div>
-      ${d.context_resets ? `<button class="paction paction-thread" data-thread-open="${esc(d.id)}">◆ VIEW THREAD ▸</button>` : ''}
+      ${(d.context_resets || (d.subagents&&d.subagents.length) || TRACE_HARNESSES.has(d.harness))
+        ? `<button class="paction paction-thread" data-thread-open="${esc(d.id)}">◆ VIEW THREAD ▸</button>` : ''}
       <button class="paction" data-resume="${esc(d.id)}">◆ COPY RESUME PROMPT</button>
       <button class="paction" data-share="${esc(d.id)}">◆ SHARE CARD</button>
       `;

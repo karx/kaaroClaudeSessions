@@ -14,6 +14,7 @@ import {
   parentSessionDirFromLog,
   listSubagentArtifacts,
   linkSpawns,
+  stubRefsFromArtifacts,
 } from '../hooks/helpers/subagent-discover.mjs';
 
 function tempRoot() {
@@ -139,6 +140,42 @@ test('linkSpawns — links three Explore metas to Agent tool_use ids', () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('stubRefsFromArtifacts — graph stubs without jsonl_path or tree', () => {
+  const stubs = stubRefsFromArtifacts([
+    {
+      agent_id: 'aaa',
+      jsonl_path: '/x/agent-aaa.jsonl',
+      meta: {
+        agentType: 'Explore',
+        description: 'Explore template',
+        toolUseId: 'toolu_A',
+        spawnDepth: 1,
+      },
+    },
+    { agent_id: 'orphan', jsonl_path: '/x/agent-orphan.jsonl', meta: null },
+  ]);
+  assert.deepEqual(stubs, [
+    {
+      agent_id: 'aaa',
+      tool_use_id: 'toolu_A',
+      description: 'Explore template',
+      agent_type: 'Explore',
+      spawn_depth: 1,
+      linked: true,
+    },
+    {
+      agent_id: 'orphan',
+      tool_use_id: null,
+      description: null,
+      agent_type: null,
+      spawn_depth: null,
+      linked: false,
+    },
+  ]);
+  assert.equal('jsonl_path' in stubs[0], false);
+  assert.equal('tree' in stubs[0], false);
 });
 
 test('linkSpawns — orphan artifact (no meta / no tool match) → linked:false', () => {

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { enrichSession, enrichProject, tokensWork } from '../hooks/enrich-session.mjs';
+import { enrichSession, enrichProject, tokensWork, computeToolMix } from '../hooks/enrich-session.mjs';
+import { isBashToolName } from '../hooks/action-keys.mjs';
 
 function baseSession(overrides = {}) {
   return {
@@ -56,4 +57,68 @@ test('enrichProject — sets tokens_work and tokens_total on a project summary',
   enrichProject(p);
   assert.equal(p.tokens_work, 250);
   assert.equal(p.tokens_total, 380);
+});
+
+// ── tool_mix: canonical cross-harness tool-category ratios ───────────────────
+
+test('isBashToolName — recognizes all bash-family raw names, case-insensitive', () => {
+  assert.equal(isBashToolName('Bash'), true);
+  assert.equal(isBashToolName('PowerShell'), true);
+  assert.equal(isBashToolName('shell'), true);
+  assert.equal(isBashToolName('run_command'), true);
+  assert.equal(isBashToolName('RunInTerminal'), true);
+  assert.equal(isBashToolName('run_in_terminal'), true);
+  assert.equal(isBashToolName('run_terminal_command'), true); // real Grok tool name
+  assert.equal(isBashToolName('Read'), false);
+  assert.equal(isBashToolName(''), false);
+  assert.equal(isBashToolName(null), false);
+});
+
+test('computeToolMix — canonicalizes raw tool names across harness vocabularies', () => {
+  const s = baseSession({
+    tools: {
+      Read: { calls: 2, errors: 0 },
+      view_file: { calls: 3, errors: 0 },      // antigravity name → also 'read'
+      Write: { calls: 1, errors: 0 },
+      Bash: { calls: 5, errors: 0 },            // excluded — bash comes from bash_categories
+    },
+    bash_categories: { git: 2, run: 3, other: 0 },
+  });
+  const mix = computeToolMix(s);
+  assert.deepEqual(mix, {
+    read: 5, write: 1, edit: 0, grep_glob: 0, agent: 0, web: 0, other: 0,
+    bash_git: 2, bash_run: 3, bash_other: 0,
+  });
+});
+
+test('computeToolMix — bash counts come from bash_categories, not re-derived from tools', () => {
+  const s = baseSession({
+    tools: { Bash: { calls: 99, errors: 0 } }, // would corrupt result if not excluded
+    bash_categories: { git: 1, run: 0, other: 0 },
+  });
+  const mix = computeToolMix(s);
+  assert.equal(mix.bash_git, 1);
+  assert.equal(mix.bash_run, 0);
+  assert.equal(mix.bash_other, 0);
+  assert.equal(mix.other, 0);
+});
+
+test('computeToolMix — missing bash_categories defaults all bash keys to 0', () => {
+  const s = baseSession({ tools: { Read: { calls: 1, errors: 0 } } });
+  delete s.bash_categories;
+  const mix = computeToolMix(s);
+  assert.equal(mix.bash_git, 0);
+  assert.equal(mix.bash_run, 0);
+  assert.equal(mix.bash_other, 0);
+});
+
+test('enrichSession — sets tool_mix', () => {
+  const s = baseSession({
+    tools: { Read: { calls: 2, errors: 0 }, Write: { calls: 1, errors: 0 } },
+  });
+  enrichSession(s);
+  assert.deepEqual(s.tool_mix, {
+    read: 2, write: 1, edit: 0, grep_glob: 0, agent: 0, web: 0, other: 0,
+    bash_git: 0, bash_run: 0, bash_other: 0,
+  });
 });

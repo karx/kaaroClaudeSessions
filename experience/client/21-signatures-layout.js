@@ -9,7 +9,9 @@
 
 let THREE_MOD = null;
 let OrbitControlsCtor = null;
+let _threeLoadPromise = null;
 let _renderer = null, _scene = null, _camera = null, _controls = null, _rafId = null;
+let _sceneGeneration = 0;
 
 const SIG_RADIUS  = 60;
 const SIG_ZGAP    = 26;
@@ -146,15 +148,33 @@ function buildSignaturesLegend(container, ids, harnessColors) {
   container.appendChild(legend);
 }
 
-function signaturesRenderLoop() {
-  _rafId = requestAnimationFrame(signaturesRenderLoop);
+// `generation` closes over the scene this loop belongs to — if a newer scene
+// has since been built (disposeSignaturesScene bumps _sceneGeneration), this
+// chain stops itself instead of rendering/updating disposed three.js objects.
+function signaturesRenderLoop(generation) {
+  if (generation !== _sceneGeneration) return;
+  _rafId = requestAnimationFrame(() => signaturesRenderLoop(generation));
   _controls.update();
   _renderer.render(_scene, _camera);
+}
+
+// Idempotent: always tears down any live scene/render-loop first, so calling
+// this more than once (e.g. the tab re-entered while a prior load was still
+// in flight) can never leave a stale renderer or rAF chain running.
+function disposeSignaturesScene() {
+  _sceneGeneration++;
+  if (_rafId != null) cancelAnimationFrame(_rafId);
+  _rafId = null;
+  if (_controls) _controls.dispose();
+  if (_renderer) _renderer.dispose();
+  _scene = null; _camera = null; _controls = null; _renderer = null;
 }
 
 function buildSignaturesScene() {
   const container = document.getElementById('signatures-view');
   if (!container) return;
+  disposeSignaturesScene();
+  const generation = _sceneGeneration;
   container.innerHTML = '';
   container.style.position = 'relative';
 
@@ -188,7 +208,7 @@ function buildSignaturesScene() {
   buildToolMixGrid(_scene, ids, sessions, HARNESS_COLORS);
   buildSignaturesLegend(container, ids, HARNESS_COLORS);
 
-  signaturesRenderLoop();
+  signaturesRenderLoop(generation);
 }
 
 async function signaturesEnter() {
@@ -202,9 +222,18 @@ async function signaturesEnter() {
   if (!THREE_MOD) {
     if (container) container.innerHTML =
       '<div style="color:#445;padding:60px;text-align:center;font-family:monospace;font-size:13px">Loading 3D library…</div>';
+    // Shared in-flight promise: if the tab is re-entered while three.js is
+    // still loading, later callers await the same load instead of racing a
+    // second dynamic import (and a second scene build once it resolves).
+    if (!_threeLoadPromise) {
+      _threeLoadPromise = (async () => {
+        const mod = await import('three');
+        const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+        return { mod, OrbitControls };
+      })().catch(e => { _threeLoadPromise = null; throw e; });
+    }
     try {
-      THREE_MOD = await import('three');
-      ({ OrbitControls: OrbitControlsCtor } = await import('three/addons/controls/OrbitControls.js'));
+      ({ mod: THREE_MOD, OrbitControls: OrbitControlsCtor } = await _threeLoadPromise);
     } catch (e) {
       if (container) container.innerHTML =
         '<div style="color:#a55;padding:60px;text-align:center;font-family:monospace;font-size:13px">Failed to load 3D library.</div>';
@@ -216,11 +245,7 @@ async function signaturesEnter() {
 }
 
 function signaturesExit() {
-  if (_rafId != null) cancelAnimationFrame(_rafId);
-  _rafId = null;
-  if (_controls) _controls.dispose();
-  if (_renderer) _renderer.dispose();
-  _scene = null; _camera = null; _controls = null; _renderer = null;
+  disposeSignaturesScene();
   const container = document.getElementById('signatures-view');
   if (container) { container.innerHTML = ''; container.style.display = 'none'; }
 }

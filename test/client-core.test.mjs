@@ -107,6 +107,14 @@ test('resolveControlVisibility — only the active layout’s control panels sho
 
 // ── DAW lane geometry (extracted from 19-daw-builder) ─────────────────────────
 
+test('TOOL_MIX_COLORS — derived from DAW_FAMILY_LANES, plus web fallback', async () => {
+  const { TOOL_MIX_COLORS, DAW_FAMILY_LANES } = await import('../experience/client-core.mjs');
+  assert.equal(TOOL_MIX_COLORS.write, DAW_FAMILY_LANES.find(l => l.id === 'file').toolColors.write);
+  assert.equal(TOOL_MIX_COLORS.bash_git, DAW_FAMILY_LANES.find(l => l.id === 'system').toolColors.bash_git);
+  assert.equal(TOOL_MIX_COLORS.agent, DAW_FAMILY_LANES.find(l => l.id === 'ai').toolColors.agent);
+  assert.equal(TOOL_MIX_COLORS.web, '#336688'); // no DAW lane carries 'web'
+});
+
 test('DAW_FAMILY_LANES — four family lanes with portions summing to ~0.88', async () => {
   const { DAW_FAMILY_LANES } = await import('../experience/client-core.mjs');
   assert.deepEqual(DAW_FAMILY_LANES.map(l => l.id), ['file', 'system', 'ai', 'context']);
@@ -296,4 +304,90 @@ test('computeClusterHidden', async t => {
     const hidden = computeClusterHidden(nodes);
     assert.ok(hidden.has('s1') && hidden.has('s2') && !hidden.has('cl1'));
   });
+});
+
+// ── Ontology view ──────────────────────────────────────────────────────────────
+
+test('assignHarnessColors — sorted, deterministic, cycles the palette', async () => {
+  const { assignHarnessColors, HARNESS_PALETTE } = await import('../experience/client-core.mjs');
+  const { HARNESS_COLORS } = assignHarnessColors(['grok', 'claude-code', 'pi']);
+  assert.equal(HARNESS_COLORS['claude-code'], HARNESS_PALETTE[0]);
+  assert.equal(HARNESS_COLORS['grok'], HARNESS_PALETTE[1]);
+  assert.equal(HARNESS_COLORS['pi'], HARNESS_PALETTE[2]);
+});
+
+test('computeOntologyMetrics — per-session 0-1 axes, scale log-scaled (tokens_work, tool_calls fallback)', async () => {
+  const { computeOntologyMetrics } = await import('../experience/client-core.mjs');
+  const maxima = { diversity: 8, density: 5, scaleTokens: 1000, scaleCalls: 50 };
+
+  const tokenful = {
+    tokens_work: 1000, tool_calls: 10, tool_diversity: 8, ai_title: 'x', branches: ['main'],
+    subagent_count: 1, context_resets: 1, skills: ['transcript'],
+    message_count: 40, duration_min: 20,
+  };
+  const m = computeOntologyMetrics(tokenful, maxima);
+  assert.equal(m.scale, 1); // at maxima.scaleTokens → log1p ratio hits 1
+  assert.equal(m.diversity, 1);
+  assert.equal(m.structure, 1);
+  assert.equal(m.density, 2 / 5); // 40/20=2 msgs/min, maxima.density=5
+
+  // tokenless session (tokens_work=0) falls back to the tool_calls domain, not the tokens domain
+  const tokenless = { tokens_work: 0, tool_calls: 50, tool_diversity: 0, message_count: 0, duration_min: 0 };
+  const m2 = computeOntologyMetrics(tokenless, maxima);
+  assert.equal(m2.scale, 1); // at maxima.scaleCalls → full scale within its own domain
+  assert.equal(m2.diversity, 0);
+
+  const empty = { tokens_work: 0, tool_calls: 0 };
+  assert.equal(computeOntologyMetrics(empty, maxima).scale, 0);
+
+  assert.deepEqual(computeOntologyMetrics({}, {}), { scale: 0, diversity: 0, structure: 0, density: 0 });
+
+  // log-scale must not crush modest-but-real values toward zero the way a linear/sqrt
+  // ratio against a heavy-tailed maximum would (this was the bug: dots all piling up
+  // near the origin regardless of real value differences)
+  const modest = { tokens_work: 10 };
+  const mModest = computeOntologyMetrics(modest, { scaleTokens: 1000 });
+  assert.ok(mModest.scale > 10 / 1000, 'log scale should sit well above the raw linear ratio');
+});
+
+test('harnessSignature — shape averages + capability rates, tokenful from harnessCaps', async () => {
+  const { harnessSignature } = await import('../experience/client-core.mjs');
+  const nodes = [
+    { harness: 'claude-code', tokens_work: 1000, tool_diversity: 4, ai_title: 'a', branches: ['main'], skills: ['x'], message_count: 10, duration_min: 5 },
+    { harness: 'claude-code', tokens_work: 0, tool_calls: 0, tool_diversity: 0, message_count: 0, duration_min: 0 },
+    { harness: 'grok', tokens_work: 0, tool_calls: 25, tool_diversity: 2, message_count: 5, duration_min: 5 },
+  ];
+  const maxima = { diversity: 4, density: 2, scaleTokens: 1000, scaleCalls: 50 };
+  const caps = { 'claude-code': true, grok: false };
+
+  const cc = harnessSignature(nodes, 'claude-code', maxima, caps);
+  assert.equal(cc.shape.scale, 0.5); // (1 + 0) / 2
+  assert.equal(cc.capability.branches, 0.5); // 1 of 2 sessions
+  assert.equal(cc.capability.ai_title, 0.5);
+  assert.equal(cc.capability.skills, 0.5);
+  assert.equal(cc.capability.tokenful, 1);
+
+  const grok = harnessSignature(nodes, 'grok', maxima, caps);
+  assert.equal(grok.capability.tokenful, 0);
+  assert.equal(grok.capability.branches, 0);
+
+  const empty = harnessSignature(nodes, 'unknown-harness', maxima, caps);
+  assert.deepEqual(empty.shape, { scale: 0, diversity: 0, structure: 0, density: 0 });
+  assert.deepEqual(empty.capability, { branches: 0, tokenful: 0, skills: 0, ai_title: 0 });
+});
+
+test('harnessToolMix — ratio-of-sums across a harness\'s sessions, not average-of-ratios', async () => {
+  const { harnessToolMix } = await import('../experience/client-core.mjs');
+  const nodes = [
+    { harness: 'grok', tool_mix: { read: 8, write: 0, bash_run: 2 } },  // 10 calls
+    { harness: 'grok', tool_mix: { read: 0, write: 90, bash_run: 0 } }, // 90 calls — dominates
+    { harness: 'pi',   tool_mix: { read: 1 } },
+  ];
+  const mix = harnessToolMix(nodes, 'grok');
+  // totals: read=8, write=90, bash_run=2 → sum=100
+  assert.equal(mix.read, 0.08);
+  assert.equal(mix.write, 0.9);
+  assert.equal(mix.bash_run, 0.02);
+
+  assert.deepEqual(harnessToolMix(nodes, 'no-such-harness'), {});
 });

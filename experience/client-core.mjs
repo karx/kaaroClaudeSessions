@@ -134,6 +134,15 @@ export const DAW_FAMILY_LANES = [
   },
 ];
 
+/**
+ * Canonical tool-category colors for the ontology tool-mix charts — flattens
+ * DAW_FAMILY_LANES' per-key colors (already the "color is grammar" vocabulary
+ * for tool categories) into one lookup, plus `web` which has no DAW lane.
+ */
+export const TOOL_MIX_COLORS = Object.assign(
+  {}, ...DAW_FAMILY_LANES.map(l => l.toolColors), { web: '#336688' }
+);
+
 /** Stack lanes under the ruler; every lane keeps an 18px minimum height. */
 export function computeLaneLayout(H, lanes = DAW_FAMILY_LANES, rulerH = 20) {
   const usable = H - rulerH;
@@ -331,4 +340,118 @@ export function resolveControlVisibility(layoutHandlers, active) {
     for (const id of (h.controls || [])) vis[id] = name === active;
   }
   return vis;
+}
+
+// ── Ontology view (harness/session ontology exploration) ─────────────────────
+// No imports here (self-contained module contract) — a small dedicated palette
+// mirrors experience/graph-data.mjs's PALETTE rather than reusing it directly.
+
+export const HARNESS_PALETTE = [
+  '#00aaff', '#ff4488', '#cc44ff', '#ff8800',
+  '#00ff88', '#ffcc00', '#00cccc', '#ff6666',
+];
+
+/** Harnesses sorted alphabetically for stable colour assignment across runs. */
+export function assignHarnessColors(harnessIds) {
+  const HARNESS_COLORS = {};
+  [...harnessIds].sort().forEach((id, i) => {
+    HARNESS_COLORS[id] = HARNESS_PALETTE[i % HARNESS_PALETTE.length];
+  });
+  return { HARNESS_COLORS };
+}
+
+/**
+ * Per-session 0-1 ontology axes for the shape radar / scatter.
+ * `scale` is log-scaled tokens_work (falling back to tool_calls for
+ * tokenless sessions, in its own separate maxima pool — same domain-split
+ * idiom as `sizeNorm` in graph-pipeline.mjs) rather than a linear/sqrt ratio.
+ * tokens_work is heavily heavy-tailed across real sessions (three orders of
+ * magnitude between harnesses) — a linear or sqrt ratio against the max
+ * crushes almost every session toward 0, making the scatter/radar look like
+ * positions "don't update" regardless of real differences. log1p spreads
+ * modest-but-real values out instead of flattening them against outliers.
+ * @param {object} sessionNode
+ * @param {{diversity?: number, density?: number, scaleTokens?: number, scaleCalls?: number}} maxima
+ *   — max values across the currently visible session set; caller precomputes once per render.
+ */
+export function computeOntologyMetrics(sessionNode, maxima = {}) {
+  const tokensWork = sessionNode.tokens_work || 0;
+  const toolCalls   = sessionNode.tool_calls  || 0;
+  const scale = tokensWork > 0
+    ? (maxima.scaleTokens > 0 ? Math.log1p(tokensWork) / Math.log1p(maxima.scaleTokens) : 0)
+    : (maxima.scaleCalls  > 0 ? Math.log1p(toolCalls)  / Math.log1p(maxima.scaleCalls)  : 0);
+
+  const diversity = maxima.diversity > 0
+    ? (sessionNode.tool_diversity || 0) / maxima.diversity
+    : 0;
+
+  const structureFlags = [
+    !!sessionNode.ai_title,
+    (sessionNode.branches || []).length > 0,
+    (sessionNode.subagent_count || 0) > 0,
+    (sessionNode.context_resets || 0) > 0,
+    (sessionNode.skills || []).length > 0,
+  ];
+  const structure = structureFlags.filter(Boolean).length / structureFlags.length;
+
+  const rawDensity = (sessionNode.message_count || 0) / Math.max(1, sessionNode.duration_min || 0);
+  const density = maxima.density > 0 ? rawDensity / maxima.density : 0;
+
+  return { scale, diversity, structure, density };
+}
+
+/**
+ * A harness's ontology fingerprint — shape (continuous, averaged across its
+ * sessions) and capability (per-signal rate: fraction of its sessions with
+ * that field present, except `tokenful` which is the hard registry capability).
+ * @param {object[]} sessionNodes — all session nodes (any harness)
+ * @param {string} harnessId
+ * @param {{diversity?: number, density?: number}} maxima
+ * @param {Object<string, boolean>} harnessCaps — harness id → has token telemetry
+ */
+export function harnessSignature(sessionNodes, harnessId, maxima = {}, harnessCaps = {}) {
+  const sessions = sessionNodes.filter(n => n.harness === harnessId);
+  const n = sessions.length;
+
+  const metrics = sessions.map(s => computeOntologyMetrics(s, maxima));
+  const avg = key => n > 0 ? metrics.reduce((sum, m) => sum + m[key], 0) / n : 0;
+  const rate = pred => n > 0 ? sessions.filter(pred).length / n : 0;
+
+  return {
+    shape: {
+      scale:     avg('scale'),
+      diversity: avg('diversity'),
+      structure: avg('structure'),
+      density:   avg('density'),
+    },
+    capability: {
+      branches: rate(s => (s.branches || []).length > 0),
+      tokenful: harnessCaps[harnessId] ? 1 : 0,
+      skills:   rate(s => (s.skills || []).length > 0),
+      ai_title: rate(s => !!s.ai_title),
+    },
+  };
+}
+
+/**
+ * A harness's tool-category contribution ratios (the "tool mix" donut),
+ * computed as ratio-of-sums across its sessions' raw tool_mix counts — never
+ * an average-of-ratios, which would skew toward small sessions.
+ * @param {object[]} sessionNodes
+ * @param {string} harnessId
+ * @returns {Object<string, number>} category → 0-1 ratio (sums to ~1, or {} if no calls)
+ */
+export function harnessToolMix(sessionNodes, harnessId) {
+  const totals = {};
+  for (const s of sessionNodes) {
+    if (s.harness !== harnessId) continue;
+    for (const [key, calls] of Object.entries(s.tool_mix || {})) {
+      totals[key] = (totals[key] || 0) + (calls || 0);
+    }
+  }
+  const sum = Object.values(totals).reduce((a, b) => a + b, 0);
+  if (sum === 0) return totals;
+  const ratios = {};
+  for (const [key, calls] of Object.entries(totals)) ratios[key] = calls / sum;
+  return ratios;
 }

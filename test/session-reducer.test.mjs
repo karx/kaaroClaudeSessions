@@ -65,6 +65,16 @@ test('reduceSession — bash_categories recognizes all real harness shell-tool n
   assert.equal(s.bash_categories.git, 3);
 });
 
+test('reduceSession — bash_categories recognizes shell-tool names regardless of case (isBashToolName, not a case-sensitive Set)', () => {
+  const s = reduceSession([
+    { kind: 'tool_use', harness: 'grok', ts: TS1, tool: 'powershell',
+      input: { command: 'git log' } },
+    { kind: 'tool_use', harness: 'grok', ts: TS1, tool: 'RUN_IN_TERMINAL',
+      input: { command: 'git status' } },
+  ], META);
+  assert.equal(s.bash_categories.git, 2);
+});
+
 test('reduceSession — tokens accumulation', () => {
   const s = reduceSession([
     { kind: 'tokens', harness: 'claude-code', ts: TS1,

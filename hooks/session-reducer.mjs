@@ -6,6 +6,7 @@
  */
 
 import { normPath, categorizeBash, BUILTIN_COMMANDS } from './helpers/analyze-helpers.mjs';
+import { isBashToolName } from './action-keys.mjs';
 
 export const FILE_OP_TOOLS = {
   Read: 'read', Write: 'write', Edit: 'edit',
@@ -27,11 +28,6 @@ export const FILE_OP_TOOLS = {
   insert_edit_into_file: 'edit',
   replace_string_in_file: 'edit',
 };
-const BASH_TOOLS = new Set([
-  'Bash', 'bash', 'run_command', 'Shell', 'PowerShell',
-  'run_terminal_command', 'run_in_terminal',
-]);
-
 function filePathFromInput(input = {}) {
   return input.file_path ?? input.path ?? input.AbsolutePath ?? input.TargetFile ?? null;
 }
@@ -213,7 +209,7 @@ export function reduceSession(records, meta) {
           session.file_ops[fp][op]++;
         }
 
-        if (BASH_TOOLS.has(name) && rec.input?.command) {
+        if (isBashToolName(name) && rec.input?.command) {
           const cat = categorizeBash(rec.input.command);
           session.bash_categories[cat] = (session.bash_categories[cat] || 0) + 1;
         }

@@ -82,6 +82,7 @@ export const HARNESS_REGISTRY = [
     capabilities: {
       tokens: true, pulse: true, trace: true,
       context_resets: true, ai_title: true, subagent_count: true, branches: true,
+      subagent_tree: true,
       size_proxy: 'tokens_work',
     },
     watch: {
@@ -90,6 +91,16 @@ export const HARNESS_REGISTRY = [
         const parts = relPath.replace(/\\/g, '/').split('/');
         if (parts.length < 2) return null;
         const project_id = parts[0];
+        // Nested sidechain: proj/<parent>/subagents/agent-*.jsonl → attribute to parent
+        if (parts.length >= 4 && parts[2] === 'subagents') {
+          const parent_id = parts[1];
+          return {
+            harness: 'claude-code', session_id: parent_id,
+            slug: parent_id.slice(0, 8), project_id,
+            project_label: deriveLabel(project_id),
+            agent_id: parts[3].replace(/\.jsonl$/, '').replace(/^agent-/, ''),
+          };
+        }
         const session_id = parts[1].replace(/\.jsonl$/, '');
         return {
           harness: 'claude-code', session_id,
@@ -99,7 +110,12 @@ export const HARNESS_REGISTRY = [
       },
       rebuildArg(relPath) {
         const parts = relPath.replace(/\\/g, '/').split('/');
-        return parts.length === 2 ? `--session=${parts[0]}/${parts[1]}` : null;
+        if (parts.length === 2) return `--session=${parts[0]}/${parts[1]}`;
+        // Sidechain change → rebuild parent session jsonl
+        if (parts.length >= 4 && parts[2] === 'subagents') {
+          return `--session=${parts[0]}/${parts[1]}.jsonl`;
+        }
+        return null;
       },
     },
   },

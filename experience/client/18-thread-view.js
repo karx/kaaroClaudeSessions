@@ -64,7 +64,7 @@
       arg = inp.pattern ? `"${inp.pattern}"${inp.path ? ' in ' + inp.path : ''}` : '';
     } else if (n === 'Glob') {
       arg = inp.pattern || '';
-    } else if (n === 'Agent') {
+    } else if (n === 'Agent' || n === 'Task') {
       arg = inp.description || '';
     } else if (n === 'WebSearch' || n === 'ToolSearch') {
       arg = inp.query || '';
@@ -106,8 +106,61 @@
     diffHtml;
   }
 
+  // ── Nested subagent tree (from /api/trace subagents / turn.spawned_subagents)
+  function _toolSummaryLine(summary) {
+    if (!summary || !Object.keys(summary).length) return '';
+    return Object.entries(summary)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([name, n]) => `${name}×${n}`)
+      .join(' · ');
+  }
+
+  function _renderSubagent(ref, depth = 0) {
+    if (!ref || depth > 2) return '';
+    const type = ref.agent_type || 'agent';
+    const desc = ref.description || ref.agent_id || 'subagent';
+    const shortId = (ref.agent_id || '').slice(0, 8);
+    const toolsLine = _toolSummaryLine(ref.tree?.segments?.[0]?.tool_summary);
+    const nestedTurns = (ref.tree?.segments || []).flatMap(s => s.turns || []);
+    const body = ref.tree
+      ? (nestedTurns.length
+          ? `<div class="thr-sub-turns">${nestedTurns.map(t => _renderTurn(t, depth + 1)).join('')}</div>`
+          : '<div class="thr-sub-empty">no turns in child transcript</div>')
+      : '<div class="thr-sub-empty">transcript unavailable</div>';
+
+    return `<details class="thr-subagent" data-agent-id="${esc(ref.agent_id || '')}">` +
+      `<summary class="thr-sub-sum">` +
+        `<span class="thr-sub-mark">↳</span>` +
+        `<span class="thr-sub-type">${esc(type)}</span>` +
+        `<span class="thr-sub-desc">${esc(desc)}</span>` +
+        (shortId ? `<span class="thr-sub-id">${esc(shortId)}</span>` : '') +
+        (toolsLine ? `<span class="thr-sub-tools">${esc(toolsLine)}</span>` : '') +
+      `</summary>` +
+      body +
+    `</details>`;
+  }
+
+  function _subagentRoster(subagents) {
+    if (!subagents || !subagents.length) return '';
+    const rows = subagents.map(s => {
+      const toolsLine = _toolSummaryLine(s.tree?.segments?.[0]?.tool_summary);
+      return `<div class="thr-roster-row">` +
+        `<span class="thr-sub-mark">↳</span>` +
+        `<span class="thr-sub-type">${esc(s.agent_type || 'agent')}</span>` +
+        `<span class="thr-sub-desc">${esc(s.description || s.agent_id || '?')}</span>` +
+        (s.linked === false ? '<span class="thr-sub-unlinked">unlinked</span>' : '') +
+        (toolsLine ? `<span class="thr-sub-tools">${esc(toolsLine)}</span>` : '') +
+      `</div>`;
+    }).join('');
+    return `<div class="thr-roster">` +
+      `<div class="thr-roster-hd">◆ SUBAGENTS (${subagents.length})</div>` +
+      rows +
+    `</div>`;
+  }
+
   // ── Single turn ───────────────────────────────────────────────────────────
-  function _renderTurn(turn) {
+  function _renderTurn(turn, depth = 0) {
     const isUser = turn.role === 'user';
     const time   = _timeLabel(turn.ts);
     const dur    = _fmtDur(turn.duration_ms);
@@ -129,11 +182,31 @@
       ? `<div class="thr-turn-text thr-turn-text-copy" data-thr-copy title="Click to copy" role="button" tabindex="0">${esc(turn.text)}${trunc}</div>`
       : '';
 
+    const spawnById = new Map(
+      (turn.spawned_subagents || []).filter(s => s.tool_use_id).map(s => [s.tool_use_id, s]),
+    );
+
     const toolsHtml = (turn.tool_calls || []).length
-      ? `<div class="thr-tcs">${turn.tool_calls.map(_renderToolCall).join('')}</div>`
+      ? `<div class="thr-tcs">${turn.tool_calls.map(tc => {
+          let html = _renderToolCall(tc);
+          if ((tc.name === 'Agent' || tc.name === 'Task') && tc.id && spawnById.has(tc.id)) {
+            html += _renderSubagent(spawnById.get(tc.id), depth);
+          }
+          return html;
+        }).join('')}</div>`
       : '';
 
-    return `<div class="thr-turn thr-turn-${isUser ? 'user' : 'asst'}">${header}${textHtml}${toolsHtml}</div>`;
+    // Spawns not attached under an Agent/Task tool row (missing tool_use_id or no matching tool)
+    const renderedIds = new Set(
+      (turn.tool_calls || [])
+        .filter(tc => (tc.name === 'Agent' || tc.name === 'Task') && tc.id && spawnById.has(tc.id))
+        .map(tc => tc.id),
+    );
+    const orphanSpawns = (turn.spawned_subagents || [])
+      .filter(s => !s.tool_use_id || !renderedIds.has(s.tool_use_id));
+    const orphanHtml = orphanSpawns.map(s => _renderSubagent(s, depth)).join('');
+
+    return `<div class="thr-turn thr-turn-${isUser ? 'user' : 'asst'}">${header}${textHtml}${toolsHtml}${orphanHtml}</div>`;
   }
 
   // ── Segment block ─────────────────────────────────────────────────────────
@@ -191,6 +264,7 @@
     aitEl.style.display = data.ai_title ? '' : 'none';
 
     const parts = [];
+    if (data.subagents?.length) parts.push(_subagentRoster(data.subagents));
     segs.forEach(seg => {
       parts.push(_segBlock(seg, color));
       if (seg.compact_trigger === 'auto') parts.push(_compact());

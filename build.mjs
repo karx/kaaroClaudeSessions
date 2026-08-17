@@ -203,6 +203,8 @@ function run() {
     '%%IN_FLIGHT_COLOR%%':  IN_FLIGHT_COLOR,
     '%%TRACE_HARNESSES%%':  JSON.stringify(
       HARNESS_REGISTRY.filter(h => h.capabilities.trace).map(h => h.id)),
+    '%%HARNESS_CAPS_JSON%%': JSON.stringify(
+      Object.fromEntries(HARNESS_REGISTRY.map(h => [h.id, h.capabilities.tokens]))),
     ...tokenSubs(),
   });
 

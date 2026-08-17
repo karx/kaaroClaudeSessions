@@ -24,3 +24,6 @@ function _saveExpanded() { localStorage.setItem('kaaro-expanded-clusters', JSON.
 
 // Harnesses whose sessions can serve /api/trace (from the registry at build time).
 const TRACE_HARNESSES = new Set(%%TRACE_HARNESSES%%);
+
+// Harness id → has real token telemetry (from the registry at build time).
+const HARNESS_CAPS = %%HARNESS_CAPS_JSON%%;

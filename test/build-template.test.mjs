@@ -110,3 +110,10 @@ test('00-core carries the %%KAARO_TOKENS%% marker for canvas JS', async () => {
   const fs = await import('node:fs');
   assert.ok(fs.readFileSync('experience/client/00-core.js', 'utf8').includes('%%KAARO_TOKENS%%'));
 });
+
+// ── Harness capability injection (Ontology View) ──────────────────────────────
+
+test('01-data carries the %%HARNESS_CAPS_JSON%% marker', async () => {
+  const fs = await import('node:fs');
+  assert.ok(fs.readFileSync('experience/client/01-data.js', 'utf8').includes('%%HARNESS_CAPS_JSON%%'));
+});

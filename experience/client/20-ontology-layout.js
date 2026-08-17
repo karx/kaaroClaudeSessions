@@ -156,3 +156,13 @@ function refreshOntology() {
   computeOntologyPositions();
   applyStaticPositions();
 }
+
+// ── Lifecycle hooks (referenced from LAYOUT_HANDLERS.ontology) ───────────────
+function ontologyApplyFilters() {
+  nodeSel.style('display', d => {
+    if (d.type !== 'session') return 'none';
+    if (!sessionMatchesFilters(d, SESSION_FILTERS)) return 'none';
+    return null;
+  });
+  renderOntologyContent();
+}

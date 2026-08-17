@@ -1,29 +1,15 @@
 // ── Filters ───────────────────────────────────────────────────────────────────
+// Every layout owns its own filter-refresh behavior via LAYOUT_HANDLERS[name]
+// .onFilterChange (11-layout-manager.js) — dispatch here is deliberately just
+// a lookup, not another per-layout if-chain, so adding a layout can't forget
+// to wire this the way ontology/signatures initially did (nothing enforced a
+// case here matching a case in the resize handler below).
 function applyFilters() {
-  if (currentLayout === 'matrix')   { renderMatrix();   return; }
-  if (currentLayout === '3d')       { layout3D.exit(); layout3D.enter(); return; }
-  if (currentLayout === 'swimlane') { renderSwimlane(); return; }
-  if (currentLayout === 'arc') {
-    nodeSel.attr('display', d => {
-      if (d.type !== 'session') return 'none';
-      if (!sessionMatchesFilters(d, SESSION_FILTERS)) return 'none';
-      return null;
-    });
-    edgeSel.attr('display', 'none');
-    projLabelSel.attr('display', 'none');
-    if (arcXScale) drawArcArcs();
-    return;
-  }
-  if (currentLayout === 'ontology') {
-    nodeSel.style('display', d => {
-      if (d.type !== 'session') return 'none';
-      if (!sessionMatchesFilters(d, SESSION_FILTERS)) return 'none';
-      return null;
-    });
-    renderOntologyContent();
-    return;
-  }
+  LAYOUT_HANDLERS[currentLayout]?.onFilterChange?.();
+}
 
+// force layout's filter behavior: file/cluster visibility + simulation resync.
+function applyForceFilters() {
   const showFiles   = document.getElementById('cb-files').checked;
   const showRoFiles = document.getElementById('cb-ro-files').checked;
   const showBranch  = document.getElementById('cb-branch').checked;

@@ -249,3 +249,19 @@ function signaturesExit() {
   const container = document.getElementById('signatures-view');
   if (container) { container.innerHTML = ''; container.style.display = 'none'; }
 }
+
+// ── Lifecycle hooks (referenced from LAYOUT_HANDLERS.signatures) ─────────────
+// Both are no-ops while three.js is still loading (THREE_MOD/_renderer null) —
+// signaturesEnter() rebuilds the scene from the current SESSION_FILTERS/W/H
+// once the load resolves, so there's nothing stale to correct yet.
+function signaturesApplyFilters() {
+  if (!THREE_MOD) return;
+  buildSignaturesScene();
+}
+
+function signaturesResize() {
+  if (!_renderer || !_camera) return;
+  _renderer.setSize(W, H);
+  _camera.aspect = W / H;
+  _camera.updateProjectionMatrix();
+}

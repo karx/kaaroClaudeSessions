@@ -27,5 +27,9 @@ const layout3D = {
     document.getElementById('three-view').style.display='none';
     document.getElementById('canvas').style.display='block';
     if(this._g){document.getElementById('three-view').innerHTML='';this._g=null;}
-  }
+  },
+  // Filters have no cheap incremental update for the 3d-force-graph library —
+  // a full exit+enter rebuilds graphData() from the current SESSION_FILTERS.
+  onFilterChange() { this.exit(); this.enter(); },
+  onResize() { if (this._g) this._g.width(W).height(H); },
 };

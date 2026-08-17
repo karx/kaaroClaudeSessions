@@ -138,7 +138,7 @@ Layout modules and their responsibilities:
 - `08-arc.js` — temporal coupling map; file co-access arcs; hub list
 - `09-matrix.js` — file × session co-occurrence matrix
 - `10-3d.js` — 3d-force-graph integration
-- `11-layout-manager.js` — switches between layouts, manages active controls panel
+- `11-layout-manager.js` — `LAYOUT_HANDLERS` is the single registry for per-layout behavior: `controls` (panel ids), `enter`/`exit`, and — for any layout with its own rendering surface — `onFilterChange` (called by `applyFilters()` in `12-controls.js`) and `onResize` (called by the resize listener in `13-live-updates.js`, `force` exempt). Both call sites are a bare `LAYOUT_HANDLERS[currentLayout]?.onX?.()` lookup, not a per-layout `if` chain, specifically so a new layout can't wire up `enter`/`exit` here and silently leave filtering or resize unhandled elsewhere — that's how Ontology/Signatures initially shipped. `'3d': layout3D` must stay that exact object reference (never a spread copy) since `layout3D.enter`/`exit`/`onFilterChange`/`onResize` read `this._g` — `test/layout-dispatch.test.mjs` pins all of this via source-text assertions (the browser-JS equivalent of `design-lint.test.mjs`)
 
 Live and audio modules:
 - `13-live-updates.js` — SSE client; consumes `updated/status/tool_call/tokens/words` events; calls `window.playPulse(event, data)` and `window.updateGraph(newData)`
@@ -219,6 +219,7 @@ Test files map to modules:
 - `test/sse-hub.test.mjs` / `test/pulse-emitter.test.mjs` / `test/rebuild-orchestrator.test.mjs` / `test/http-routes.test.mjs` → the decomposed serve runtime (ephemeral ports, no child processes)
 - `test/client-core.test.mjs` → `experience/client-core.mjs` (formatters, colors, geometry, SSE wiring, filters, force profiles, DAW legend, ontology math: `assignHarnessColors`/`computeOntologyMetrics`/`harnessSignature`/`harnessToolMix`)
 - `test/design-tokens.test.mjs` / `test/design-lint.test.mjs` → Register A tokens + the grammar guard (no blue chrome, no shadows/gradients/large radii)
+- `test/layout-dispatch.test.mjs` → source-text guard on the `LAYOUT_HANDLERS[currentLayout]?.onFilterChange/onResize?.()` dispatch contract in `11-layout-manager.js`/`12-controls.js`/`13-live-updates.js`/`10-3d.js` — same technique as design-lint, for code that can't run under `node --test`
 
 ## Known coverage gaps
 

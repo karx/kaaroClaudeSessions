@@ -1,7 +1,14 @@
 // ── Layout manager ────────────────────────────────────────────────────────────
 // Each handler declares its control panels via `controls`; setLayout applies
 // visibility generically (resolveControlVisibility from the shared core) —
-// enter/exit only manage layers and simulation state.
+// enter/exit manage layers and simulation state. `onFilterChange`/`onResize`
+// are the other two moments every layout with its own rendering surface must
+// react to (checkbox/date/harness filters; window resize) — applyFilters()
+// (12-controls.js) and the resize listener (13-live-updates.js) both just
+// look up `LAYOUT_HANDLERS[currentLayout]` instead of keeping a parallel
+// per-layout if-chain of their own, so a new layout can't wire up enter/exit
+// here and silently leave filtering or resize unhandled elsewhere (that's how
+// the Ontology/Signatures tabs shipped without either, initially).
 const LAYOUT_HANDLERS = {
   force: {
     controls: ['force-options'],
@@ -17,7 +24,8 @@ const LAYOUT_HANDLERS = {
       simulation.alpha(0.25).restart();
       nodeSel.call(drag);
     },
-    exit() {}
+    exit() {},
+    onFilterChange: applyForceFilters,
   },
   swimlane: {
     controls: ['sl-options'],
@@ -35,7 +43,9 @@ const LAYOUT_HANDLERS = {
       edgeLayer.style('display',null); nodeLayer.style('display',null); labelLayer.style('display',null);
       slLayer.style('display','none');
       decorLayer.selectAll('*').remove();
-    }
+    },
+    onFilterChange: renderSwimlane,
+    onResize: renderSwimlane,
   },
   arc: {
     controls: ['arc-options'],
@@ -58,7 +68,9 @@ const LAYOUT_HANDLERS = {
       edgeSel.attr('display', null);
       focusedArcFileId = null;
       decorLayer.selectAll('*').remove();
-    }
+    },
+    onFilterChange: arcApplyFilters,
+    onResize: arcResize,
   },
   matrix: {
     controls: [],
@@ -68,18 +80,24 @@ const LAYOUT_HANDLERS = {
       document.getElementById('three-view').style.display='none';
       simulation.stop(); renderMatrix();
     },
-    exit() {}
+    exit() {},
+    onFilterChange: renderMatrix,
+    onResize: renderMatrix,
   },
   '3d': layout3D,
   ontology: {
     controls: ['ontology-options'],
     enter: ontologyEnter,
     exit: ontologyExit,
+    onFilterChange: ontologyApplyFilters,
+    onResize: refreshOntology,
   },
   signatures: {
     controls: [],
     enter: signaturesEnter,
     exit: signaturesExit,
+    onFilterChange: signaturesApplyFilters,
+    onResize: signaturesResize,
   },
 };
 

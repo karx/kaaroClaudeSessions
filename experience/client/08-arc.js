@@ -311,3 +311,19 @@ function applyStaticPositions() {
   edgeSel.attr('d', edgePathD);
   projLabelSel.attr('x', d => d.x ?? 0).attr('y', d => (d.y ?? 0) + PROJ_R + 13);
 }
+
+// ── Lifecycle hooks (referenced from LAYOUT_HANDLERS.arc) ────────────────────
+function arcApplyFilters() {
+  nodeSel.attr('display', d => {
+    if (d.type !== 'session') return 'none';
+    if (!sessionMatchesFilters(d, SESSION_FILTERS)) return 'none';
+    return null;
+  });
+  edgeSel.attr('display', 'none');
+  projLabelSel.attr('display', 'none');
+  if (arcXScale) drawArcArcs();
+}
+
+function arcResize() {
+  computeArcPositions(); drawArcDecor(); applyStaticPositions();
+}

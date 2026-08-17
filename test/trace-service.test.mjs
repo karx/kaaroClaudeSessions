@@ -232,6 +232,81 @@ test('buildTrace — subagent fingerprint invalidates when child meta changes', 
   }
 });
 
+test('buildTrace — depth-2 flat sibling nests under spawning agent (not empty nested dir)', () => {
+  // CC layout: both agents under parent/subagents/ (siblings). Parent spawns A;
+  // A spawns B. Recursive discovery must find B as sibling of A, not under A/subagents/.
+  const dir = tempDir();
+  const parentId = 'parent-uuid-depth2';
+  const fp = join(dir, `${parentId}.jsonl`);
+  writeFileSync(fp, [
+    JSON.stringify({ type: 'user', timestamp: 't0', message: { content: 'delegate to explore agent A' } }),
+    JSON.stringify({ type: 'assistant', timestamp: 't1', message: {
+      model: 'm', stop_reason: 'tool_use',
+      usage: { input_tokens: 1, output_tokens: 2 },
+      content: [
+        { type: 'tool_use', id: 'toolu_A', name: 'Agent',
+          input: { description: 'agent A explore', subagent_type: 'Explore' } },
+      ],
+    } }),
+  ].join('\n'), 'utf8');
+
+  const sub = join(dir, parentId, 'subagents');
+  mkdirSync(sub, { recursive: true });
+
+  writeFileSync(join(sub, 'agent-depthA.meta.json'), JSON.stringify({
+    agentType: 'Explore', description: 'agent A explore', toolUseId: 'toolu_A', spawnDepth: 1,
+  }), 'utf8');
+  writeFileSync(join(sub, 'agent-depthA.jsonl'), [
+    JSON.stringify({ type: 'user', timestamp: 'a0', isSidechain: true, agentId: 'depthA',
+      sessionId: parentId, message: { content: 'do work as A' } }),
+    JSON.stringify({ type: 'assistant', timestamp: 'a1', isSidechain: true, agentId: 'depthA',
+      sessionId: parentId, message: {
+        model: 'm', stop_reason: 'tool_use',
+        usage: { input_tokens: 1, output_tokens: 2 },
+        content: [
+          { type: 'tool_use', id: 'toolu_B', name: 'Agent',
+            input: { description: 'agent B nested', subagent_type: 'Explore' } },
+        ],
+      } }),
+  ].join('\n'), 'utf8');
+
+  writeFileSync(join(sub, 'agent-depthB.meta.json'), JSON.stringify({
+    agentType: 'Explore', description: 'agent B nested', toolUseId: 'toolu_B', spawnDepth: 2,
+  }), 'utf8');
+  writeFileSync(join(sub, 'agent-depthB.jsonl'), [
+    JSON.stringify({ type: 'user', timestamp: 'b0', isSidechain: true, agentId: 'depthB',
+      sessionId: parentId, message: { content: 'do work as B' } }),
+    JSON.stringify({ type: 'assistant', timestamp: 'b1', isSidechain: true, agentId: 'depthB',
+      sessionId: parentId, message: {
+        model: 'm', stop_reason: 'end_turn',
+        usage: { input_tokens: 1, output_tokens: 2 },
+        content: [
+          { type: 'tool_use', id: 'br', name: 'Read', input: { file_path: 'nested.mjs' } },
+        ],
+      } }),
+  ].join('\n'), 'utf8');
+
+  try {
+    const tree = createTraceService().buildTrace(fp, 'P', parentId, 'claude-code', {
+      maxSubagentDepth: 2,
+    });
+    const a = tree.subagents.find(s => s.agent_id === 'depthA');
+    assert.ok(a, 'depth-1 agent A on parent');
+    assert.ok(a.tree, 'A has nested tree');
+    const nested = (a.tree.subagents || []).find(s => s.agent_id === 'depthB');
+    assert.ok(nested, 'B nests under A (flat sibling discovery)');
+    assert.ok(nested.tree, 'B has its own tree');
+    assert.equal(nested.tree.segments[0].tool_summary.Read, 1);
+
+    // A must not list B only as a parent-level orphan without nesting
+    const aTurn = a.tree.segments[0].turns.find(t => t.spawned_subagents?.length);
+    assert.ok(aTurn, 'A assistant turn carries spawned_subagents');
+    assert.equal(aTurn.spawned_subagents[0].agent_id, 'depthB');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('buildTrace — public subagent refs omit jsonl_path', () => {
   const dir = tempDir();
   const parentId = 'parent-uuid-no-path';

@@ -12,6 +12,8 @@ import { join } from 'path';
 
 import {
   parentSessionDirFromLog,
+  subagentScanDirFromLog,
+  agentIdFromSidechainLog,
   listSubagentArtifacts,
   linkSpawns,
   stubRefsFromArtifacts,
@@ -33,6 +35,27 @@ test('parentSessionDirFromLog — X.jsonl → X directory path', () => {
     parentSessionDirFromLog(join('proj', 'abc-uuid.jsonl')),
     join('proj', 'abc-uuid'),
   );
+});
+
+test('subagentScanDirFromLog — parent and flat sidechain share parent dir', () => {
+  const parentLog = join('proj', 'abc-uuid.jsonl');
+  const sidechain = join('proj', 'abc-uuid', 'subagents', 'agent-aaa111.jsonl');
+  assert.equal(subagentScanDirFromLog(parentLog), join('proj', 'abc-uuid'));
+  assert.equal(subagentScanDirFromLog(sidechain), join('proj', 'abc-uuid'));
+  // Wrong nested layout must NOT be used as scan root for siblings
+  assert.notEqual(
+    subagentScanDirFromLog(sidechain),
+    join('proj', 'abc-uuid', 'subagents', 'agent-aaa111'),
+  );
+});
+
+test('agentIdFromSidechainLog — only agent-*.jsonl under subagents/', () => {
+  assert.equal(
+    agentIdFromSidechainLog(join('proj', 'u', 'subagents', 'agent-xyz.jsonl')),
+    'xyz',
+  );
+  assert.equal(agentIdFromSidechainLog(join('proj', 'u.jsonl')), null);
+  assert.equal(agentIdFromSidechainLog(join('proj', 'u', 'other', 'agent-x.jsonl')), null);
 });
 
 test('listSubagentArtifacts — missing or empty dir → []', () => {

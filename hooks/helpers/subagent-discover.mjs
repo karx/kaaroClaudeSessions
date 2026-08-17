@@ -35,6 +35,41 @@ export function parentSessionDirFromLog(logFilePath) {
 }
 
 /**
+ * CC stores all agents flat under `<parentUuid>/subagents/`, including
+ * spawnDepth ≥ 2 (siblings, not nested dirs). Return the parent session
+ * directory such that `listSubagentArtifacts(dir)` finds that flat set.
+ *
+ * - Parent: `…/<uuid>.jsonl` → `…/<uuid>`
+ * - Sidechain: `…/<uuid>/subagents/agent-*.jsonl` → `…/<uuid>`
+ *
+ * @param {string} logFilePath
+ * @returns {string}
+ */
+export function subagentScanDirFromLog(logFilePath) {
+  if (!logFilePath) return parentSessionDirFromLog(logFilePath);
+  const dir = path.dirname(logFilePath);
+  const base = path.basename(logFilePath);
+  if (/^agent-.+\.jsonl$/i.test(base) && path.basename(dir) === 'subagents') {
+    return path.dirname(dir);
+  }
+  return parentSessionDirFromLog(logFilePath);
+}
+
+/**
+ * Sidechain agent id from `…/subagents/agent-<id>.jsonl`, else null.
+ * @param {string} logFilePath
+ * @returns {string|null}
+ */
+export function agentIdFromSidechainLog(logFilePath) {
+  if (!logFilePath) return null;
+  const base = path.basename(logFilePath);
+  const m = base.match(/^agent-(.+)\.jsonl$/i);
+  if (!m) return null;
+  if (path.basename(path.dirname(logFilePath)) !== 'subagents') return null;
+  return m[1];
+}
+
+/**
  * @param {string} parentSessionDir — directory next to parent `.jsonl`
  * @returns {{ agent_id: string, meta_path: string|null, jsonl_path: string, meta: object|null }[]}
  */

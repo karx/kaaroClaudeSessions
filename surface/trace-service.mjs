@@ -16,7 +16,8 @@ import path from 'path';
 import { getHarness } from '../hooks/registry.mjs';
 import { reconstructTraceFromNRs, childTreeKey } from '../hooks/trace-tree.mjs';
 import {
-  parentSessionDirFromLog,
+  subagentScanDirFromLog,
+  agentIdFromSidechainLog,
   listSubagentArtifacts,
   linkSpawns,
 } from '../hooks/helpers/subagent-discover.mjs';
@@ -48,11 +49,15 @@ export function createTraceService() {
       visited.add(abs);
 
       const watchPaths = [filePath];
-      // Discover children whenever the harness supports trees (stubs always;
-      // nested transcripts only when depth < maxDepth).
+      // Flat CC layout: all agents under <parent>/subagents/ (siblings at any spawnDepth).
       let artifacts = [];
+      const selfAgentId = agentIdFromSidechainLog(filePath);
       if (harness.capabilities?.subagent_tree) {
-        artifacts = listSubagentArtifacts(parentSessionDirFromLog(filePath));
+        artifacts = listSubagentArtifacts(subagentScanDirFromLog(filePath));
+        // Sidechain: do not treat self as a spawn candidate.
+        if (selfAgentId) {
+          artifacts = artifacts.filter(a => a.agent_id !== selfAgentId);
+        }
         for (const a of artifacts) {
           if (a.jsonl_path) watchPaths.push(a.jsonl_path);
           if (a.meta_path) watchPaths.push(a.meta_path);
@@ -78,13 +83,18 @@ export function createTraceService() {
             tool_id: nr.tool_id || null,
             description: nr.input?.description || nr.input?.prompt || null,
           }));
-        const spawns = linkSpawns(agentToolUses, artifacts);
+        let spawns = linkSpawns(agentToolUses, artifacts);
+        // On a sidechain, only linked spawns (not every sibling as orphan).
+        if (selfAgentId) {
+          spawns = spawns.filter(s => s.linked && s.agent_id);
+        }
         const childTrees = {};
 
         // Load nested child trees only while remaining depth budget allows.
         if (depth < maxDepth) {
           for (const s of spawns) {
             if (!s.jsonl_path || !fs.existsSync(s.jsonl_path)) continue;
+            if (visited.has(path.resolve(s.jsonl_path))) continue;
             const child = buildTrace(
               s.jsonl_path,
               projectId,

@@ -14,6 +14,15 @@ function applyFilters() {
     if (arcXScale) drawArcArcs();
     return;
   }
+  if (currentLayout === 'ontology') {
+    nodeSel.style('display', d => {
+      if (d.type !== 'session') return 'none';
+      if (!sessionMatchesFilters(d, SESSION_FILTERS)) return 'none';
+      return null;
+    });
+    renderOntologyContent();
+    return;
+  }
 
   const showFiles   = document.getElementById('cb-files').checked;
   const showRoFiles = document.getElementById('cb-ro-files').checked;
@@ -273,6 +282,10 @@ document.getElementById('arc-max-span')?.addEventListener('input', function() {
   refreshArc();
 });
 
+// ── Ontology-specific controls ─────────────────────────────────────────────────
+document.getElementById('ont-x-axis')?.addEventListener('change', refreshOntology);
+document.getElementById('ont-y-axis')?.addEventListener('change', refreshOntology);
+
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────
 const SHORTCUTS_DEF = [
   { key:'f', label:'F',      desc:'Force graph layout',   action:()=>setLayout('force') },
@@ -280,6 +293,7 @@ const SHORTCUTS_DEF = [
   { key:'a', label:'A',      desc:'Arc coupling map',     action:()=>setLayout('arc') },
   { key:'m', label:'M',      desc:'Matrix view',          action:()=>setLayout('matrix') },
   { key:'g', label:'G',      desc:'3D force graph',       action:()=>setLayout('3d') },
+  { key:'o', label:'O',      desc:'Ontology view',        action:()=>setLayout('ontology') },
 ];
 
 function _loadSCPrefs() {

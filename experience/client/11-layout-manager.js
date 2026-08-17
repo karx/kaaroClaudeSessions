@@ -70,7 +70,17 @@ const LAYOUT_HANDLERS = {
     },
     exit() {}
   },
-  '3d': layout3D
+  '3d': layout3D,
+  ontology: {
+    controls: ['ontology-options'],
+    enter: ontologyEnter,
+    exit: ontologyExit,
+  },
+  signatures: {
+    controls: [],
+    enter: signaturesEnter,
+    exit: signaturesExit,
+  },
 };
 
 function applyControlVisibility(active) {

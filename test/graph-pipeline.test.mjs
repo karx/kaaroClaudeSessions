@@ -175,6 +175,22 @@ test('buildGraph — optional session fields pass through to nodes', async t => 
   });
 });
 
+// ── tool_mix passthrough (derived upstream by enrich-session) ─────────────────
+test('buildGraph — tool_mix is passthrough, never recomputed', async t => {
+  await t.test('session node carries sess.tool_mix verbatim', () => {
+    const d = makeData();
+    // a shape enrich-session's real formula would never produce — proves passthrough
+    d.sessions[0].tool_mix = { read: 999, write: 0, edit: 0, grep_glob: 0, agent: 0, web: 0, other: 0, bash_git: 0, bash_run: 0, bash_other: 0 };
+    const result = buildGraph(d, { referenceMs: Date.now() });
+    assert.equal(result.nodes.find(n => n.id === 's1').tool_mix.read, 999);
+  });
+
+  await t.test('absent tool_mix defaults to {}', () => {
+    const result = buildGraph(makeData(), { referenceMs: Date.now() });
+    assert.deepEqual(result.nodes.find(n => n.id === 's2').tool_mix, {});
+  });
+});
+
 // ── session source field ──────────────────────────────────────────────────────
 test('buildGraph — session source field', async t => {
   await t.test('defaults to "claude-code" when session has no source property', () => {

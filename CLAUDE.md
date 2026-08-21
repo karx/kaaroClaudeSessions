@@ -209,7 +209,7 @@ Test files map to modules:
 - `test/analyze-opencode.test.mjs` → `hooks/analyzers/analyze-opencode.mjs` (read/analyze/scan over temp storage tree)
 - `test/copilot-adapter.test.mjs` → `hooks/adapters/copilot.mjs` + `hooks/helpers/copilot-helpers.mjs` (op-log mapping, URI decode, aliases)
 - `test/analyze-copilot.test.mjs` → `hooks/analyzers/analyze-copilot.mjs` (workspace attribution, both formats, real SQLite index fixture)
-- `test/adapters/nr-compliance.test.mjs` → all seven adapters vs the NR contract (sample traces + golden sessions) — the harness-format-change guard
+- `test/adapters/nr-compliance.test.mjs` → all eight adapters vs the NR contract (sample traces + golden sessions) — the harness-format-change guard
 - `test/adapters/{claude-code,pi,grok,antigravity}.test.mjs` → per-adapter golden fixtures (opencode/copilot/command-code adapters are covered by their own `test/<name>-adapter.test.mjs` instead)
 - `test/normalized-record.test.mjs` → `hooks/normalized-record.mjs` (KIND_FIELDS, validateNormalizedRecord)
 - `test/harness-parity.test.mjs` → sample traces + capability-enforced field parity (registry flags ARE the matrix)

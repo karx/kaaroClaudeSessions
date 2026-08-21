@@ -21,13 +21,13 @@
 
 import { deriveLabel } from './helpers/analyze-helpers.mjs';
 import {
-  CLAUDE_PROJECTS_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
+  CLAUDE_PROJECTS_ROOT, CODEX_HOME_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
   OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
 } from './harness-paths.mjs';
 import { deriveGrokProjectId, deriveGrokLabel } from './helpers/grok-helpers.mjs';
 import { copilotWorkspaceLabel } from './helpers/copilot-helpers.mjs';
 import {
-  locateClaudeCodeSession, locatePiSession, locateAntigravitySession, locateGrokSession,
+  locateClaudeCodeSession, locateCodexSession, locatePiSession, locateAntigravitySession, locateGrokSession,
   locateOpencodeSession, locateCopilotSession, locateCommandCodeSession,
 } from './session-locators.mjs';
 import path from 'node:path';
@@ -42,6 +42,7 @@ function readJsonlRecords(filePath) {
   return { records: parseJsonlFile(filePath).records };
 }
 import { recordsToNormalized as ccAdapter }   from './adapters/claude-code.mjs';
+import { recordsToNormalized as codexAdapter } from './adapters/codex.mjs';
 import { recordsToNormalized as piAdapter }   from './adapters/pi.mjs';
 import { recordsToNormalized as agAdapter }   from './adapters/antigravity.mjs';
 import { recordsToNormalized as grokAdapter } from './adapters/grok.mjs';
@@ -50,7 +51,7 @@ import { recordsToNormalized as cpAdapter }   from './adapters/copilot.mjs';
 import { recordsToNormalized as cmdAdapter }  from './adapters/command-code.mjs';
 
 export {
-  PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT, OPENCODE_STORAGE_ROOT,
+  CODEX_HOME_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT, OPENCODE_STORAGE_ROOT,
   COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
 } from './harness-paths.mjs';
 
@@ -58,7 +59,7 @@ function derivePiLabel(slug) {
   return deriveLabel(slug.replace(/^--/, '').replace(/--$/, ''));
 }
 
-export const HARNESS_IDS = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
+export const HARNESS_IDS = ['claude-code', 'codex', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
 
 function opencodeSlug(sessionId) {
   return sessionId.replace(/^ses_/, '').slice(0, 8);
@@ -101,6 +102,39 @@ export const HARNESS_REGISTRY = [
         const parts = relPath.replace(/\\/g, '/').split('/');
         return parts.length === 2 ? `--session=${parts[0]}/${parts[1]}` : null;
       },
+    },
+  },
+  {
+    id: 'codex',
+    label: 'Codex',
+    adapter: codexAdapter,
+    scan: { module: './analyzers/analyze-codex.mjs', export: 'scanCodexSessions' },
+    locateSession: locateCodexSession,
+    readSessionRecords: readJsonlRecords,
+    roots: [CODEX_HOME_ROOT],
+    capabilities: {
+      tokens: true, pulse: true, trace: true,
+      context_resets: false, ai_title: true, subagent_count: false, branches: true,
+      size_proxy: 'tokens_work',
+    },
+    watch: {
+      matchLogFile(rel) {
+        const n = rel.replace(/\\/g, '/');
+        return /^sessions\/\d{4}\/\d{2}\/\d{2}\/rollout-.*\.jsonl$/.test(n);
+      },
+      ctxFromPath(relPath) {
+        const n = relPath.replace(/\\/g, '/');
+        const file = path.basename(n);
+        const session_id = file.replace(/\.jsonl$/, '').match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)?.[1];
+        if (!session_id) return null;
+        return {
+          harness: 'codex', session_id,
+          slug: session_id.slice(0, 8),
+          project_id: null,
+          project_label: 'Codex',
+        };
+      },
+      rebuildArg: () => null,
     },
   },
   {

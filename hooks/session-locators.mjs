@@ -9,7 +9,7 @@
 import fs   from 'fs';
 import path from 'path';
 import {
-  CLAUDE_PROJECTS_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
+  CLAUDE_PROJECTS_ROOT, CODEX_HOME_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
   OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
 } from './harness-paths.mjs';
 
@@ -81,6 +81,31 @@ export function locateClaudeCodeSession(sessionId, root = CLAUDE_PROJECTS_ROOT) 
     const found = findByPrefix(projPath, sessionId, '.jsonl')
       || findByPrefix(path.join(projPath, 'subagents'), sessionId, '.jsonl');
     if (found) return { filePath: found.filePath, projectId: proj, sessionId: found.id };
+  }
+  return null;
+}
+
+/**
+ * @param {string} sessionId
+ * @param {string} [root]
+ * @returns {{ filePath: string, projectId: null, sessionId: string }|null}
+ */
+export function locateCodexSession(sessionId, root = CODEX_HOME_ROOT) {
+  if (!sessionId || !fs.existsSync(root)) return null;
+  const sessionsRoot = path.join(root, 'sessions');
+  if (!fs.existsSync(sessionsRoot)) return null;
+
+  const stack = [sessionsRoot];
+  while (stack.length) {
+    const dir = stack.pop();
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(p);
+      } else if (entry.isFile() && entry.name.endsWith(`${sessionId}.jsonl`)) {
+        return { filePath: p, projectId: null, sessionId };
+      }
+    }
   }
   return null;
 }

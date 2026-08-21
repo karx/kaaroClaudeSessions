@@ -9,6 +9,7 @@ It is intended to be **self-growing**: when adding or discovering differences fo
 | Harness       | ID            | Root (default)                  | Tokens | Pulse (live) | Trace (/api/trace) | Notes / Quirks |
 |---------------|---------------|---------------------------------|--------|--------------|--------------------|---------------|
 | Claude Code   | `claude-code` | `~/.claude/projects/`           | Yes    | Yes          | Yes                | Full optional fields (context_resets, ai_title, subagent_count, branches). `turn_duration` provides authoritative `message_count`, `slug`, `duration_ms`. |
+| Codex         | `codex`       | `$CODEX_HOME` or `~/.codex/`    | Yes    | Yes          | Yes                | Dated rollout JSONL under `sessions/YYYY/MM/DD/`. Thread titles from `session_index.jsonl`; project attribution from `session_meta.cwd`; tool calls/results from `response_item` function calls. Watches active rollout files live. See [CODEX.md](./CODEX.md). |
 | Pi            | `pi`          | (via `PI_SESSIONS_ROOT`)        | Yes    | Yes          | No                 | Optionals declared `false` in registry are data-absent in Pi's raw format (only `session`/`model_change`/`thinking_level_change`/`message` record types exist — verified 2026-07-19). `thinking_level_change` maps to a `mode_shift` NR. Usage may be absent on some messages (guarded). |
 | Antigravity   | `antigravity` | `~/.gemini/antigravity/brain/`  | No     | Yes          | No                 | Tokenless (size_proxy = tool_calls). No project_id (always null). Uses `transcript.jsonl` (preferred) or `overview.txt`. |
 | Grok          | `grok`        | (via `GROK_SESSIONS_ROOT`)      | No     | Yes          | Yes                | Tokenless (size_proxy = tool_calls). Streaming chunks: dedup on `turnStartMs` when present; content blocks for text handled separately. Rich meta from summary/signals. |
@@ -22,9 +23,14 @@ See `hooks/sessions-schema.mjs` OPTIONAL_SESSION_FIELDS for the full list.
 
 Populated (✓) / absent or partial (—) as of latest:
 
-- `context_resets`, `ai_title`, `subagent_count`, `branches`: ✓ for claude-code + grok; — for pi + antigravity. opencode: `ai_title` ✓ (session info `title`), others —. copilot: `ai_title` ✓ (customTitle op or SQLite index), others —. command-code: `ai_title` ✓ (`.meta.json`) and `branches` ✓, `context_resets`/`subagent_count` —.
+- `context_resets`, `ai_title`, `subagent_count`, `branches`: ✓ for claude-code + grok; — for pi + antigravity. Codex: `ai_title` ✓ (`session_index.jsonl`) and `branches` ✓ when git metadata is present, `context_resets`/`subagent_count` —. opencode: `ai_title` ✓ (session info `title`), others —. copilot: `ai_title` ✓ (customTitle op or SQLite index), others —. command-code: `ai_title` ✓ (`.meta.json`) and `branches` ✓, `context_resets`/`subagent_count` —.
 - `message_count`: Authoritative from harness metadata when available (CC `turn_duration`); derived as `user_turns + assistant_turns` fallback for others.
 - `content_blocks` / `thinking_count`: Populated via `content_block` normalized records (CC/Grok). Used for UI dots and panels.
+
+## Harness-Specific Guides
+
+- [Codex harness](./CODEX.md) — local rollout layout, title index, output-token
+  handling, live watch behavior, trace support, and test entry points.
 
 ## Normalized Record Kinds (common vocabulary)
 
@@ -113,4 +119,4 @@ graph only shows what's still on disk" as a general caveat, not a claude-code-sp
 
 Update this file whenever behavior or support changes. It is the single source of truth visible to contributors and users.
 
-Last updated: 2026-07-09, garden pass — paths resynced to the `hooks/`+`surface/` two-layer split, Command Code (7th harness) added.
+Last updated: 2026-08-21, Codex harness added for local rollout transcripts and live pulse/trace support.

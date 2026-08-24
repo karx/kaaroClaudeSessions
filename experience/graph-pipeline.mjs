@@ -36,18 +36,31 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
 
   const { PROJECT_COLORS, COLOR_TO_INDEX } = assignProjectColors(data.projects, PALETTE);
 
+  // Raw harness-native project_id → canonical project id (from buildSessionsOutput's
+  // raw_ids). Sessions keep their native project_id in sessions-data.json; this
+  // lookup is how node/edge construction sees one project per repo. Built from
+  // data, not imported from hooks/ — experience/ never imports hooks/.
+  const canonicalOf = {};
+  for (const proj of data.projects)
+    for (const raw of proj.raw_ids || [proj.id]) canonicalOf[raw] = proj.id;
+  const canon = rawId => canonicalOf[rawId] || rawId;
+
   // Project last-activity index
   const projLastTs = {};
   for (const s of data.sessions) {
     const ts = s.last_timestamp || s.first_timestamp;
-    if (ts && (!projLastTs[s.project_id] || ts > projLastTs[s.project_id]))
-      projLastTs[s.project_id] = ts;
+    const pid = canon(s.project_id);
+    if (ts && (!projLastTs[pid] || ts > projLastTs[pid]))
+      projLastTs[pid] = ts;
   }
 
   const nodes = [];
   const edges = [];
 
   // ── Project nodes ──────────────────────────────────────────────────────────
+  const consumption = p => p.tokens_total > 0 ? p.tokens_total : (p.tool_calls || 0);
+  const MAX_CONSUMPTION = Math.max(1, ...data.projects.map(consumption));
+
   for (const proj of data.projects) {
     const pLastTs = projLastTs[proj.id] || null;
     nodes.push({
@@ -60,6 +73,9 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       tokens_total:  proj.tokens_total || 0,
       tokens_work:   proj.tokens_work  || 0,
       skills:        proj.skills || [],
+      harnesses:     proj.harnesses || [],
+      raw_ids:       proj.raw_ids || [],
+      sizeNorm:      Math.sqrt(consumption(proj) / MAX_CONSUMPTION),
       last_activity: pLastTs,
       recency:       recencyScore(pLastTs),
       recencyLevel:  recencyLevel(pLastTs),
@@ -81,8 +97,8 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       id:               sess.session_id,
       type:             'session',
       label:            sess.slug || sess.session_id.slice(0, 8),
-      color:            PROJECT_COLORS[sess.project_id] || '#888888',
-      project_id:       sess.project_id,
+      color:            PROJECT_COLORS[canon(sess.project_id)] || '#888888',
+      project_id:       canon(sess.project_id),
       git_branch:       sess.git_branch || null,
       harness:          sess.harness || sess.source || 'claude-code',
       tokens_work,
@@ -119,14 +135,22 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       inFlight:         isSessionInFlight(sess, Date.now()),
       cluster_id:       null,
     });
-    edges.push({ source: sess.session_id, target: sess.project_id, type: 'membership' });
+    edges.push({ source: sess.session_id, target: canon(sess.project_id), type: 'membership' });
   }
 
   // ── Cluster (bundle) nodes + edges ─────────────────────────────────────────
   const sessionNodeById = {};
   for (const n of nodes) if (n.type === 'session') sessionNodeById[n.id] = n;
 
-  const clusters = buildClusters(data.sessions, clusterOverrides);
+  // buildClusters groups internally by raw project_id; normalize a shallow copy
+  // so sessions sharing a canonical project across harness dialects (e.g. a Pi
+  // fork merged into a CC project) become cluster-eligible against each other.
+  // data.sessions itself (and sessions-data.json) is left untouched.
+  const sessionsForClusters = data.sessions.map(s => {
+    const cid = canon(s.project_id);
+    return cid === s.project_id ? s : { ...s, project_id: cid };
+  });
+  const clusters = buildClusters(sessionsForClusters, clusterOverrides);
   const sumOver = (c, field) => c.member_ids.reduce((sum, id) => sum + (sessionNodeById[id]?.[field] || 0), 0);
   // Clusters normalize on their own scale — against session MAX_WORK every big
   // cluster would peg 1.0.
@@ -204,7 +228,7 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       id:          s.session_id,
       date_str:    s.date_str,
       ts:          s.first_timestamp,
-      color:       PROJECT_COLORS[s.project_id] || '#888',
+      color:       PROJECT_COLORS[canon(s.project_id)] || '#888',
       project:     s.project_label || s.project_id,
       slug:        s.slug || s.session_id.slice(0, 8),
       tokens_work: s.tokens_work || s.tool_calls || 0,

@@ -553,6 +553,152 @@ test('buildGraph — no clusters when sessions share nothing', () => {
   assert.ok(result.nodes.filter(n => n.type === 'session').every(n => n.cluster_id === null));
 });
 
+// ── project sizeNorm + canonical raw_id remap (G3) ────────────────────────────
+function makeCanonData() {
+  return makeData({
+    projects: [
+      {
+        id: 'proj-a', label: 'Proj A', session_count: 2,
+        raw_ids: ['proj-a', 'proj-a-raw'], harnesses: ['claude-code', 'pi'],
+        tokens: { input: 100, output: 200, cache_create: 50, cache_read: 30 },
+        tokens_work: 250, tokens_total: 380, tool_calls: 0,
+        skills: ['review'],
+      },
+      {
+        id: 'proj-b', label: 'Proj B', session_count: 1,
+        raw_ids: ['proj-b'], harnesses: ['antigravity'],
+        tokens: { input: 0, output: 0, cache_create: 0, cache_read: 0 },
+        tokens_work: 0, tokens_total: 0, tool_calls: 40,
+        skills: [],
+      },
+    ],
+    sessions: [
+      {
+        session_id: 's1', project_id: 'proj-a', slug: 'alpha',
+        tokens: { input: 50, output: 80, cache_create: 20, cache_read: 10 },
+        tokens_work: 100,
+        first_timestamp: '2026-05-01T10:00:00.000Z',
+        last_timestamp:  '2026-05-01T10:30:00.000Z',
+        git_branch: 'main', date_str: '2026-05-01', duration_min: 30,
+        tool_calls: 10, tool_errors: 1, tool_diversity: 5, message_count: 8,
+        user_turns: 4, assistant_turns: 4, cache_hit_rate: 20, skills: [],
+      },
+      {
+        // Pi-shaped raw id for the same canonical project — must remap
+        session_id: 's3', project_id: 'proj-a-raw', slug: 'gamma', harness: 'pi',
+        tokens: { input: 20, output: 40, cache_create: 10, cache_read: 5 },
+        tokens_work: 50,
+        first_timestamp: '2026-05-03T10:00:00.000Z',
+        last_timestamp:  '2026-05-03T10:30:00.000Z',
+        git_branch: 'main', date_str: '2026-05-03', duration_min: 20,
+        tool_calls: 5, tool_errors: 0, tool_diversity: 3, message_count: 4,
+        user_turns: 2, assistant_turns: 2, cache_hit_rate: 10, skills: [],
+      },
+      {
+        session_id: 's4', project_id: 'proj-b', slug: 'delta', harness: 'antigravity',
+        tokens: { input: 0, output: 0, cache_create: 0, cache_read: 0 },
+        tokens_work: 0,
+        first_timestamp: '2026-05-04T10:00:00.000Z',
+        last_timestamp:  '2026-05-04T10:30:00.000Z',
+        git_branch: 'main', date_str: '2026-05-04', duration_min: 10,
+        tool_calls: 40, tool_errors: 0, tool_diversity: 2, message_count: 3,
+        user_turns: 1, assistant_turns: 1, cache_hit_rate: 0, skills: [],
+      },
+    ],
+  });
+}
+
+test('buildGraph — project sizeNorm and raw_id canonical remap (G3)', async t => {
+  const REF = new Date('2026-05-11T00:00:00.000Z').getTime();
+  const data = makeCanonData();
+  const result = buildGraph(data, { referenceMs: REF });
+
+  await t.test('project node passes through harnesses and raw_ids', () => {
+    const projA = result.nodes.find(n => n.id === 'proj-a');
+    assert.deepEqual(projA.harnesses, ['claude-code', 'pi']);
+    assert.deepEqual(projA.raw_ids, ['proj-a', 'proj-a-raw']);
+  });
+
+  await t.test('sizeNorm: max-tokens_total project is 1, tokenless-only project falls back to tool_calls', () => {
+    const projA = result.nodes.find(n => n.id === 'proj-a');
+    const projB = result.nodes.find(n => n.id === 'proj-b');
+    assert.equal(projA.sizeNorm, 1);
+    assert.equal(projB.sizeNorm, Math.sqrt(40 / 380));
+  });
+
+  await t.test('session under a non-canonical raw project_id is remapped to the canonical id and color', () => {
+    const s3   = result.nodes.find(n => n.id === 's3');
+    const projA = result.nodes.find(n => n.id === 'proj-a');
+    assert.equal(s3.project_id, 'proj-a');
+    assert.equal(s3.color, projA.color);
+    assert.notEqual(s3.color, '#888888');
+  });
+
+  await t.test('membership edge for the raw-id session targets the canonical project', () => {
+    const e = result.edges.find(e => e.type === 'membership' && e.source === 's3');
+    assert.equal(e.target, 'proj-a');
+  });
+
+  await t.test('timeline entry for the raw-id session carries the canonical color', () => {
+    const projA = result.nodes.find(n => n.id === 'proj-a');
+    const tl = result.timeline.find(e => e.id === 's3');
+    assert.equal(tl.color, projA.color);
+  });
+
+  await t.test('the input sessions array keeps its native, harness-spelled project_id', () => {
+    assert.equal(data.sessions.find(s => s.session_id === 's3').project_id, 'proj-a-raw');
+  });
+});
+
+function makeCanonClusterData() {
+  const mkSess = (id, projectId, ts, extra = {}) => ({
+    session_id: id, project_id: projectId, slug: `slug-${id}`,
+    tokens: { input: 10, output: 80, cache_create: 20, cache_read: 10 },
+    tokens_work: 100,
+    first_timestamp: `${ts}T10:00:00.000Z`, last_timestamp: `${ts}T11:00:00.000Z`,
+    git_branch: 'main', date_str: ts, duration_min: 60,
+    tool_calls: 10, tool_errors: 0, tool_diversity: 4, message_count: 8,
+    user_turns: 4, assistant_turns: 4, cache_hit_rate: 20, skills: [],
+    ...extra,
+  });
+  return makeData({
+    projects: [{
+      id: 'proj-a', label: 'Proj A', session_count: 2,
+      raw_ids: ['proj-a', 'proj-a-raw'], harnesses: ['claude-code', 'pi'],
+      tokens: { input: 100, output: 200, cache_create: 50, cache_read: 30 },
+      tokens_work: 250, tokens_total: 380, tool_calls: 0, skills: [],
+    }],
+    sessions: [
+      mkSess('c1', 'proj-a', '2026-05-01', {
+        file_ops: { 'src/auth.js': { read: 1, write: 1, edit: 0 } }, ai_title: 'auth rework',
+      }),
+      mkSess('c2', 'proj-a-raw', '2026-05-02', {
+        file_ops: { 'src/auth.js': { read: 1, write: 0, edit: 1 } }, ai_title: 'auth cleanup', harness: 'pi',
+      }),
+    ],
+  });
+}
+
+test('buildGraph — cluster grouping uses canonical project id across raw-id sessions (G3)', async t => {
+  const REF = new Date('2026-05-11T00:00:00.000Z').getTime();
+  const result = buildGraph(makeCanonClusterData(), { referenceMs: REF });
+  const cluster = result.nodes.find(n => n.type === 'cluster');
+
+  await t.test('cluster forms across sessions carrying different raw project ids', () => {
+    assert.ok(cluster, 'expected a cluster to form across the two raw-id sessions');
+    assert.deepEqual(cluster.member_ids.sort(), ['c1', 'c2']);
+  });
+
+  await t.test('cluster carries the canonical project id, not a raw one', () => {
+    assert.equal(cluster.project_id, 'proj-a');
+  });
+
+  await t.test('cluster membership edge targets the canonical project', () => {
+    const e = result.edges.find(e => e.type === 'membership' && e.source === cluster.id);
+    assert.equal(e.target, 'proj-a');
+  });
+});
+
 test('buildGraph — tokenless session sizes by tool_calls', async t => {
   const data = makeData({
     sessions: [

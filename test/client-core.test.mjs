@@ -12,6 +12,7 @@ import {
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
   connectEvents, resolveControlVisibility,
   hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
+  SIM_ALPHA_DECAY,
 } from '../experience/client-core.mjs';
 
 test('fmtTok — M/k/plain formatting', () => {
@@ -69,6 +70,10 @@ test('hexPath — pointy-top regular hexagon, 6 vertices at radius r', async () 
   assert.ok(Math.abs(verts[0][1] - -20) < 1e-9, 'first vertex is pointy-top: y≈-r');
   for (const [x, y] of verts)
     assert.ok(Math.abs(Math.hypot(x, y) - 20) < 1e-9, 'every vertex sits at distance r from origin');
+});
+
+test('SIM_ALPHA_DECAY settles the force layout in a few seconds, not twenty', () => {
+  assert.ok(SIM_ALPHA_DECAY >= 0.018 && SIM_ALPHA_DECAY <= 0.023);
 });
 
 test('HARNESS_FILL_OPACITY is a quiet cell fill, not a solid neon disk', () => {

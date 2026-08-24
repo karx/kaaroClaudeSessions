@@ -57,6 +57,9 @@ export const EDGE_WIDTH   = { membership: 1.4, write: 1, edit: 1, read: .7, bran
 
 export const NODE_RADII = { PR_MIN: 18, PR_MAX: 34, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13, CL_MIN: 12, CL_MAX: 24 };
 
+// d3 default is 0.0228 (~5s settle). 0.006 ran ~19s of manyBody on 700+ nodes.
+export const SIM_ALPHA_DECAY = 0.02;
+
 function hexVertices(r) {
   const pts = [];
   for (let k = 0; k < 6; k++) {

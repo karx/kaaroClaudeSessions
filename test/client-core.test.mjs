@@ -11,7 +11,7 @@ import {
   fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
   connectEvents, resolveControlVisibility,
-  hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK,
+  hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
 } from '../experience/client-core.mjs';
 
 test('fmtTok — M/k/plain formatting', () => {
@@ -71,23 +71,29 @@ test('hexPath — pointy-top regular hexagon, 6 vertices at radius r', async () 
     assert.ok(Math.abs(Math.hypot(x, y) - 20) < 1e-9, 'every vertex sits at distance r from origin');
 });
 
-test('harnessMarks — one tick per harness, vertices first, on the hex stroke', async () => {
-  const { harnessMarks } = await import('../experience/client-core.mjs');
-  assert.deepEqual(harnessMarks([], 20), []);
+test('HARNESS_FILL_OPACITY is a quiet cell fill, not a solid neon disk', () => {
+  assert.equal(HARNESS_FILL_OPACITY, 0.35);
+});
 
-  const one = harnessMarks(['claude-code'], 20);
-  assert.equal(one.length, 1);
-  assert.equal(one[0].harness, 'claude-code');
-  assert.ok(Math.abs(one[0].x - 0) < 1e-9 && Math.abs(one[0].y - -20) < 1e-9, 'first mark sits on the top vertex, same as hexPath vertex 0');
-
-  const two = harnessMarks(['claude-code', 'pi'], 20);
-  assert.equal(two.length, 2);
-  assert.equal(two[1].harness, 'pi');
-  assert.notDeepEqual(two[1], two[0]);
-
-  const marks = harnessMarks(['claude-code', 'pi', 'grok'], 20);
-  for (const m of marks)
-    assert.ok(Math.abs(Math.hypot(m.x, m.y) - 20) < 1e-9, 'every mark sits at distance r from origin');
+test('HARNESS_MARK has seven distinct non-blue data hues', () => {
+  const ids = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
+  const hexes = ids.map(id => HARNESS_MARK[id]);
+  assert.equal(new Set(hexes).size, 7);
+  for (const hex of hexes) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    if (max === min) continue;
+    const d = max - min;
+    const l = (max + min) / 2;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    h *= 360;
+    assert.ok(!(s >= 0.06 && h >= 190 && h <= 268), `${hex} is blue-family chrome (h=${h.toFixed(0)})`);
+  }
 });
 
 function pathPts(d) {

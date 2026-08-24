@@ -75,11 +75,13 @@ export function hexPath(r) {
   return pathFromPts(hexVertices(r));
 }
 
-// Harness tick color on the project hex stroke — data, not chrome (mirrors TOOL_COLORS).
+// Harness fill on the project hex — data, not chrome (mirrors TOOL_COLORS).
+// No blue-family hues: Register A retired navy chrome; ticks/fills still encode identity.
 export const HARNESS_MARK = {
-  'claude-code': '#4a9eff', pi: '#ff9944', antigravity: '#44cc88',
-  grok: '#cc4488', opencode: '#aacc44', copilot: '#8866ee', 'command-code': '#ffcc44',
+  'claude-code': '#2a9d8f', pi: '#ff9944', antigravity: '#44cc88',
+  grok: '#cc4488', opencode: '#aacc44', copilot: '#c070b0', 'command-code': '#ffcc44',
 };
+export const HARNESS_FILL_OPACITY = 0.35;
 
 function uniqHarnesses(harnesses) {
   const list = [];
@@ -90,15 +92,6 @@ function uniqHarnesses(harnesses) {
     list.push(h);
   }
   return list;
-}
-
-/** Tick positions on a project hex's stroke, one per distinct harness — vertices first (6), then mid-edges (6 more) for a 7th+. */
-export function harnessMarks(harnesses, r) {
-  return uniqHarnesses(harnesses).map((h, i) => {
-    const slot = i % 12;
-    const a = slot < 6 ? slot * Math.PI / 3 : ((slot - 6) * Math.PI / 3 + Math.PI / 6);
-    return { x: r * Math.sin(a), y: -r * Math.cos(a), harness: h };
-  });
 }
 
 function rayHexIntersect(angle, verts) {

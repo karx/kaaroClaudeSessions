@@ -12,8 +12,8 @@ let W = window.innerWidth, H = window.innerHeight - TL_H;
 // Formatters, colors, and geometry come from the injected shared core
 // (00-core.js ← experience/client-core.mjs): fmtTok, esc, TOOL_COLORS,
 // nodeRadius, hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK,
-// EDGE_COLORS, edgeOpacity(d, MAX_WEIGHT), edgeWidth(d, MAX_WEIGHT).
-// Project glyphs scale by sizeNorm; harness count fills the hex.
+// HARNESS_FILL_OPACITY, EDGE_COLORS, edgeOpacity(d, MAX_WEIGHT),
+// edgeWidth(d, MAX_WEIGHT). Project glyphs scale by sizeNorm; harness count fills the hex.
 
 // Active history-view filters — consumed via sessionMatchesFilters (core).
 const SESSION_FILTERS = { harnesses: null, projects: null, from: null, to: null };

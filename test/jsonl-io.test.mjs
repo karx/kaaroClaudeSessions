@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { parseJsonlFile } from '../hooks/jsonl-io.mjs';
+import { parseJsonlFile, MAX_JSONL_BYTES } from '../hooks/jsonl-io.mjs';
 
 function withTempFile(content, fn) {
   const dir = join(tmpdir(), 'kaaro-jsonl-io-' + Date.now() + '-' + Math.random().toString(36).slice(2));
@@ -48,4 +48,18 @@ test('parseJsonlFile — sizeBytes counts multibyte content correctly', () => {
     const { sizeBytes } = parseJsonlFile(fp);
     assert.equal(sizeBytes, Buffer.byteLength(line, 'utf8'));
   });
+});
+
+test('parseJsonlFile — throws (not crashes) on a file over the size cap, instead of reading it into memory', () => {
+  withTempFile('{"a":1}\n', (fp) => {
+    assert.throws(
+      () => parseJsonlFile(fp, { maxBytes: 4 }),
+      /too large/i,
+    );
+  });
+});
+
+test('parseJsonlFile — default cap is generous but finite (guards runaway/corrupt logs)', () => {
+  assert.ok(MAX_JSONL_BYTES > 100 * 1024 * 1024);
+  assert.ok(MAX_JSONL_BYTES < 10 * 1024 * 1024 * 1024);
 });

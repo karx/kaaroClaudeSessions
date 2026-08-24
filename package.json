@@ -1,6 +1,6 @@
 {
   "name": "kaaro-sessions",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "type": "module",
   "description": "Live multi-harness AI coding session observability surface — a kaaroViewer companion tool",
   "keywords": ["claude-code", "sessions", "graph", "visualization", "d3", "observability", "multi-harness"],
@@ -8,11 +8,11 @@
   "author": "karx",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/karx/kaaroClaudeSessions.git"
+    "url": "git+https://github.com/karx/kaaroSessions.git"
   },
-  "homepage": "https://github.com/karx/kaaroClaudeSessions#readme",
+  "homepage": "https://github.com/karx/kaaroSessions#readme",
   "bugs": {
-    "url": "https://github.com/karx/kaaroClaudeSessions/issues"
+    "url": "https://github.com/karx/kaaroSessions/issues"
   },
   "engines": { "node": ">=18.0.0" },
   "bin": {

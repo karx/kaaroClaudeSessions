@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>kaaroSessions — the JSONL is not permanent</title>
 <meta name="title" content="kaaroSessions — the JSONL is not permanent">
-<meta name="description" content="A system-usage observability layer for your AI coding agents. Seven harnesses, one record vocabulary, nothing leaves the machine.">
-<meta name="keywords" content="claude code, ai sessions, observability, session graph, multi-harness, developer analytics, kaaro">
+<meta name="description" content="A live observability surface for your AI coding agent sessions. Seven harnesses, one record vocabulary, nothing leaves the machine. What you see is what's still on disk.">
+<meta name="keywords" content="claude code, ai sessions, observability surface, session graph, multi-harness, developer analytics, kaaro">
 <meta name="author" content="karx">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://karx.github.io/kaaroSessions/">
@@ -17,7 +17,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://karx.github.io/kaaroSessions/">
 <meta property="og:title" content="kaaroSessions — the JSONL is not permanent">
-<meta property="og:description" content="A system-usage observability layer for your AI coding agents. Seven harnesses, one record vocabulary, nothing leaves the machine.">
+<meta property="og:description" content="A live observability surface for your AI coding agent sessions. Seven harnesses, one record vocabulary, nothing leaves the machine. What you see is what's still on disk.">
 <meta property="og:image" content="https://karx.github.io/kaaroSessions/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -25,7 +25,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="kaaroSessions — the JSONL is not permanent">
-<meta name="twitter:description" content="A system-usage observability layer for your AI coding agents. Seven harnesses, one record vocabulary, nothing leaves the machine.">
+<meta name="twitter:description" content="A live observability surface for your AI coding agent sessions. Seven harnesses, one record vocabulary, nothing leaves the machine. What you see is what's still on disk.">
 <meta name="twitter:image" content="https://karx.github.io/kaaroSessions/og-image.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -66,6 +66,57 @@
     white-space: nowrap;
   }
   .btn:hover { background: #ff6600; color: #000000; }
+  .nr-pipe {
+    display: grid; grid-template-columns: repeat(5, minmax(0,1fr));
+    gap: 1px; background: #1e1e00; margin: 0 0 22px;
+  }
+  .nr-stage {
+    background: #101008; padding: 12px 10px; cursor: pointer;
+    border: 1px solid transparent; transition: border-color 0.15s ease;
+  }
+  .nr-stage:hover, .nr-stage.on { border-color: #ff6600; }
+  .nr-stage .n { color: #ff6600; font-size: 10px; letter-spacing: 0.08em; }
+  .nr-stage .l { color: #e8e000; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 4px; }
+  .nr-stage .d { color: #445544; font-size: 10px; margin-top: 6px; min-height: 28px; line-height: 1.4; }
+  .nr-split { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; align-items: start; }
+  .nr-table-wrap { overflow-x: auto; border: 1px solid #1e1e00; }
+  .nr-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .nr-table th {
+    color: #ffaa00; text-align: left; padding: 6px 6px; border-bottom: 2px solid #1e1e00;
+    font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+  }
+  .nr-table td { padding: 5px 6px; border-bottom: 1px solid #1e1e00; white-space: nowrap; }
+  .nr-table tr { cursor: pointer; }
+  .nr-table tr:hover td { background: #101008; }
+  .nr-table tr.on td { outline: 1px solid #00cccc; outline-offset: -1px; }
+  .nr-dot { color: #00ff88; }
+  .nr-miss { color: #445544; }
+  .nr-kind { color: #ccccaa; }
+  .nr-inspect { background: #101008; border: 1px solid #1e1e00; padding: 14px 16px; min-height: 280px; }
+  .nr-k { color: #ffaa00; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; }
+  .nr-pulse { color: #e8e000; }
+  .nr-json {
+    background: #000; border: 1px solid #1e1e00; padding: 8px 10px;
+    color: #00cccc; font-size: 11px; line-height: 1.5; overflow-x: auto;
+    white-space: pre; margin-top: 8px;
+  }
+  .nr-chip {
+    display: inline-block; border: 1px solid #1e1e00; color: #445544;
+    padding: 2px 7px; font-size: 10px; letter-spacing: 0.04em; cursor: pointer;
+    margin: 2px 4px 2px 0; background: transparent;
+    font-family: inherit; transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .nr-chip:hover { border-color: #ff6600; color: #ff6600; }
+  .nr-chip.on { border-color: #00cccc; color: #00cccc; }
+  .nr-chip.play { border-color: #ff6600; color: #ff6600; margin-right: 10px; }
+  .nr-chip.play.on { border-color: #00ff88; color: #00ff88; }
+  .nr-tape { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .nr-beat {
+    border: 1px solid #1e1e00; padding: 6px 8px; font-size: 10px;
+    color: #445544; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .nr-beat.on { border-color: #ff6600; color: #ff6600; }
+  .nr-meta { font-size: 10px; color: #445544; margin-top: 10px; line-height: 1.5; }
   @media (max-width: 720px) {
     .three-step { grid-template-columns: 1fr !important; }
     .harness-grid { grid-template-columns: 1fr !important; }
@@ -73,6 +124,8 @@
     .hero-h1 { font-size: 30px !important; }
     .topbar-repo { display: none !important; }
     .graph-deco { display: none !important; }
+    .nr-pipe { grid-template-columns: 1fr !important; }
+    .nr-split { grid-template-columns: 1fr !important; }
   }
 </style>
 </head>
@@ -105,8 +158,8 @@
       <div class="eyebrow" style="margin-bottom:16px;">Incident log &middot; 2026-08-24</div>
 
       <div style="border:1px solid #1e1e00; background:#101008; padding:22px 24px; font-size:13px; line-height:1.7;">
-        <div style="color:#00cccc;">$ kaaroSessions --graph</div>
-        <div style="color:#ccccaa;">&#9656; 12 sessions found &middot; 2026-07-16 &rarr; 2026-08-23 <span style="color:#6b6b6b;">(~5 weeks)</span></div>
+        <div style="color:#00cccc;">$ npx kaaro-sessions</div>
+        <div style="color:#ccccaa;">&#9656; snapshot: <span style="color:#e8e000;">12 sessions</span> &middot; 2026-07-16 &rarr; 2026-08-23 <span style="color:#6b6b6b;">(~5 weeks)</span></div>
         <div style="color:#ccccaa; margin-bottom:14px;">&#9656; expected: <span style="color:#e8e000;">~5 months</span> of actual usage</div>
 
         <div style="color:#ffaa00; font-weight:700; letter-spacing:0.06em; margin-top:10px;">ROOT CAUSE</div>
@@ -130,49 +183,49 @@
       </div>
 
       <div style="font-size:12px; color:#6b6b6b; margin-top:14px;">
-        Other harnesses' retention behavior is undocumented and unverified. Assume every one of the
-        seven below is doing this to you too, on its own schedule.
+        Raise <span class="mono" style="color:#6b6b6b;">cleanupPeriodDays</span> if you want Claude Code to keep more.
+        Other harnesses' retention is unverified. kaaroSessions reads what's still on disk &mdash; it does not archive.
       </div>
     </div>
   </div>
 
   <!-- 2. REFRAME -->
   <div class="wrap" style="padding:64px 32px 56px; text-align:center; position:relative;">
-    <div class="eyebrow" style="margin-bottom:18px;">&#9656; the pivot</div>
-    <h1 class="hero-h1" style="font-size:42px; line-height:1.15; color:#ccccaa; margin:0 0 22px; letter-spacing:-0.01em;">
-      THIS IS NOT A <span style="color:#445544;">GRAPH VIEWER.</span>
+    <div class="eyebrow" style="margin-bottom:18px;">&#9656; the surface</div>
+    <h1 class="hero-h1" style="font-size:36px; line-height:1.2; color:#ccccaa; margin:0 0 22px; letter-spacing:-0.01em;">
+      See the sessions while they still exist.
     </h1>
     <p style="max-width:720px; margin:0 auto; font-size:15px; line-height:1.7; color:#ccccaa;">
-      kaaroSessions is a <span style="color:#ff6600; font-weight:600;">system-usage observability layer</span> for your
-      AI coding agents. It normalizes and persists a record of what you actually did &mdash; across every harness &mdash;
-      independent of any single harness's retention sweep. The JSONL was never the tool.
-      Now it isn't even permanent.
+      kaaroSessions is a <span style="color:#ff6600; font-weight:600;">live observability surface</span> for your
+      AI coding agents. It normalizes whatever transcripts are still on disk &mdash; seven harnesses, one record
+      vocabulary, nothing leaves the machine. It does not outlive a retention sweep.
+      The JSONL was never the tool. Now it isn't even permanent.
     </p>
     <div style="margin-top:26px; font-size:12px; color:#6b6b6b; max-width:600px; margin-left:auto; margin-right:auto;">
-      A live local graph of your AI coding sessions &mdash; seven harnesses, one picture, nothing leaves the machine.
+      History, Live, and Sonic &mdash; seven harnesses, one picture, local only.
     </div>
   </div>
 
   <!-- 3. MAGIC MOMENT -->
   <div style="border-top:1px solid #1e1e00; border-bottom:1px solid #1e1e00; background:#080800;">
     <div class="wrap" style="padding:52px 32px;">
-      <div class="eyebrow" style="margin-bottom:22px;">the magic moment</div>
+      <div class="eyebrow" style="margin-bottom:22px;">three views</div>
       <div class="three-step" style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1px; background:#1e1e00;">
         <div style="background:#101008; padding:22px;">
           <div style="color:#ff6600; font-size:20px; font-weight:700;">01</div>
-          <div style="color:#e8e000; font-size:12px; letter-spacing:0.06em; margin:10px 0 8px; text-transform:uppercase;">Run</div>
+          <div style="color:#e8e000; font-size:12px; letter-spacing:0.06em; margin:10px 0 8px; text-transform:uppercase;">History · Graph</div>
           <div style="font-size:12px; background:#000; border:1px solid #1e1e00; padding:8px 10px; color:#00cccc; margin-bottom:10px;">npx kaaro-sessions</div>
-          <div style="font-size:13px; color:#ccccaa; line-height:1.6;">Your projects appear.</div>
+          <div style="font-size:13px; color:#ccccaa; line-height:1.6;">Sessions, projects, files &mdash; what was worked on, laid out in time.</div>
         </div>
         <div style="background:#101008; padding:22px;">
           <div style="color:#ff6600; font-size:20px; font-weight:700;">02</div>
-          <div style="color:#e8e000; font-size:12px; letter-spacing:0.06em; margin:10px 0 8px; text-transform:uppercase;">Click</div>
-          <div style="font-size:13px; color:#ccccaa; line-height:1.6;">Click one session &rarr; Thread View replays the turns &mdash; tools, errors, context resets.</div>
+          <div style="color:#e8e000; font-size:12px; letter-spacing:0.06em; margin:10px 0 8px; text-transform:uppercase;">Live · Mission Control</div>
+          <div style="font-size:13px; color:#ccccaa; line-height:1.6;">What's running right now &mdash; last actions, token burn, errors as they happen.</div>
         </div>
         <div style="background:#101008; padding:22px;">
           <div style="color:#ff6600; font-size:20px; font-weight:700;">03</div>
-          <div style="color:#e8e000; font-size:12px; letter-spacing:0.06em; margin:10px 0 8px; text-transform:uppercase;">Watch</div>
-          <div style="font-size:13px; color:#ccccaa; line-height:1.6;">If an agent is running, Mission Control ticks and the DAW makes the tool calls audible.</div>
+          <div style="color:#e8e000; font-size:12px; letter-spacing:0.06em; margin:10px 0 8px; text-transform:uppercase;">Sonic · DAW</div>
+          <div style="font-size:13px; color:#ccccaa; line-height:1.6;">Hear writes, tests, agents, failures &mdash; then shape the mix.</div>
         </div>
       </div>
 
@@ -203,7 +256,7 @@
     <div class="eyebrow" style="margin-bottom:6px;">seven harnesses &middot; one record vocabulary</div>
     <div style="font-size:13px; color:#6b6b6b; margin-bottom:24px; max-width:640px;">
       Every harness writes its own transcript format. kaaroSessions normalizes all of them into one
-      NormalizedRecord vocabulary. Adding an eighth harness is a localized adapter, not a rewrite.
+      record vocabulary. Adding an eighth harness is a localized adapter, not a rewrite.
     </div>
 
     <div class="harness-grid" style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:1px; background:#1e1e00; border:1px solid #1e1e00;">
@@ -245,6 +298,42 @@
     </div>
   </div>
 
+  <!-- 4b. NORMALIZED HOP -->
+  <div id="nr-root" style="background:#080800; border-top:1px solid #1e1e00; border-bottom:1px solid #1e1e00;">
+    <div class="wrap" style="padding:52px 32px;">
+      <div class="eyebrow" style="margin-bottom:6px;">the hop &middot; one record vocabulary</div>
+      <div style="font-size:13px; color:#6b6b6b; margin-bottom:22px; max-width:720px;">
+        Raw JSONL never reaches the graph, Mission Control, or the DAW. Each adapter emits
+        the same 16 kinds. Click a stage, a kind, or play a turn.
+      </div>
+
+      <div class="nr-pipe" id="nr-pipe"></div>
+
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+        <button class="nr-chip play" id="nr-play" type="button">&#9656; play a turn</button>
+        <span style="font-size:11px; color:#445544;" id="nr-play-lab">user_turn &rarr; tool_use &rarr; tool_result &rarr; words &rarr; tokens &rarr; compact</span>
+      </div>
+      <div class="nr-tape" id="nr-tape"></div>
+
+      <div class="nr-split" style="margin-top:22px;">
+        <div>
+          <div class="nr-table-wrap">
+            <table class="nr-table" id="nr-table"></table>
+          </div>
+          <div class="nr-meta">
+            &#9679; adapter emits this kind &nbsp;&middot;&nbsp; · data-absent in that harness format.
+            <span class="mono">api_error</span> is in the contract; no adapter emits it yet.
+            SRC: hooks/normalized-record.mjs &middot; adapters/* &middot; pulse-transformer.mjs
+          </div>
+        </div>
+        <div class="nr-inspect" id="nr-inspect">
+          <div class="nr-k">select a kind</div>
+          <div style="font-size:12px; color:#6b6b6b; margin-top:8px;">Click a row or play a turn.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 5. PRIVACY -->
   <div style="background:#080800; border-top:1px solid #1e1e00; border-bottom:1px solid #1e1e00;">
     <div class="wrap" style="padding:52px 32px;">
@@ -272,7 +361,7 @@
         </div>
         <div style="display:flex; justify-content:space-between; border-bottom:1px solid #1e1e00; padding-bottom:10px;">
           <span style="font-size:12px; color:#ffaa00; letter-spacing:0.05em;">HOSTING</span>
-          <span style="font-size:12px; color:#ccccaa;">none &mdash; runs on your machine</span>
+          <span style="font-size:12px; color:#ccccaa;">none &mdash; the app runs on your machine</span>
         </div>
       </div>
     </div>
@@ -282,16 +371,18 @@
   <div class="wrap" style="padding:56px 32px;">
     <div class="eyebrow" style="margin-bottom:22px;">install</div>
     <div style="border:1px solid #1e1e00; background:#101008; padding:22px 24px; max-width:600px;">
-      <div style="font-size:13px; line-height:2; color:#00cccc;">
-        <div>npx kaaro-sessions</div>
+      <div style="font-size:13px; line-height:2;">
+        <div><span style="color:#6b6b6b;"># published</span></div>
+        <div style="color:#00cccc;">npx kaaro-sessions</div>
+        <div style="margin-top:8px;"><span style="color:#6b6b6b;"># from a clone</span></div>
+        <div style="color:#00cccc;">npm start</div>
       </div>
     </div>
     <div style="font-size:12px; color:#6b6b6b; margin-top:12px;">
       Node 18+. Zero npm dependencies. Published on npm as <span class="mono">kaaro-sessions</span>.
     </div>
     <div style="font-size:11px; color:#445544; margin-top:16px;">
-      From source instead:
-      <span class="mono">git clone https://github.com/karx/kaaroSessions &amp;&amp; cd kaaroSessions &amp;&amp; node serve.mjs</span>
+      Clone: <span class="mono">git clone https://github.com/karx/kaaroSessions &amp;&amp; cd kaaroSessions</span>
     </div>
   </div>
 
@@ -299,11 +390,10 @@
   <div style="border-top:1px solid #1e1e00;">
     <div class="wrap" style="padding:52px 32px 48px; text-align:center;">
       <div style="font-size:15px; color:#ccccaa; margin-bottom:22px; max-width:520px; margin-left:auto; margin-right:auto; line-height:1.6;">
-        Clone it. Run it on your own transcripts. Tell me what the graph got wrong.
+        Clone it. Run it on your own transcripts. Tell me what it got wrong.
       </div>
       <a class="btn" href="https://github.com/karx/kaaroSessions" target="_blank" rel="noopener">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-4-4 4-4"/><path d="M15 6l4 4-4 4"/></svg>
-        github.com/karx/kaaroSessions
+        &#9656; github.com/karx/kaaroSessions
       </a>
       <div style="font-size:11px; color:#445544; margin-top:26px;">
         AGPL-3.0 licensed &middot; zero dependencies &middot; kaaroSessions
@@ -312,5 +402,264 @@
   </div>
 
 </div>
+
+<script type="application/json" id="nr-seed">
+{
+  "harnesses": [
+    {"id":"claude-code","short":"cc"},
+    {"id":"pi","short":"pi"},
+    {"id":"antigravity","short":"ag"},
+    {"id":"grok","short":"gk"},
+    {"id":"opencode","short":"oc"},
+    {"id":"copilot","short":"cp"},
+    {"id":"command-code","short":"cd"}
+  ],
+  "stages": [
+    {"id":"raw","label":"Raw JSONL","desc":"Harness transcript. One format per agent. Experience never reads this."},
+    {"id":"adapter","label":"Adapter","desc":"hooks/adapters/<harness>.mjs. Sonic-unaware. Localized hop."},
+    {"id":"nr","label":"NormalizedRecord","desc":"16 kinds. kind + harness + ts on every record."},
+    {"id":"pulse","label":"Pulse","desc":"transformer stamps the stream. Unknown kinds never go silent."},
+    {"id":"views","label":"History · Live · Sonic","desc":"Graph, Mission Control, DAW consume only the surface."}
+  ],
+  "kinds": [
+    {"id":"user_turn","blurb":"A human prompt entering the session.","lane":"stream","pulse":"human_turn","required":[],"optional":["text","display_text","cwd","branch"],"emit":[1,1,1,1,1,1,1]},
+    {"id":"assistant_turn","blurb":"One assistant message envelope. Tokenless harnesses may emit a synthetic tokens pulse.","lane":"snapshot","pulse":"—","required":[],"optional":["model","stop_reason","content_length","text"],"emit":[1,1,1,1,1,1,1]},
+    {"id":"tool_use","blurb":"One tool invocation. Key (read/write/bash_git/…) is derived later — adapters stay sonic-unaware.","lane":"stream","pulse":"tool_call","required":["tool"],"optional":["category","input","tool_id"],"emit":[1,1,1,1,1,1,1]},
+    {"id":"tool_result","blurb":"Outcome of a tool invocation. error=true becomes a tool_error pulse.","lane":"stream","pulse":"tool_result","required":[],"optional":["tool","error","tool_id","error_text"],"emit":[1,0,1,1,1,0,1]},
+    {"id":"tokens","blurb":"Token usage for one assistant turn. Four counters: input, output, cache_create, cache_read.","lane":"stream","pulse":"tokens","required":["tokens"],"optional":[],"emit":[1,1,0,0,1,1,0]},
+    {"id":"skill_invoke","blurb":"A skill / slash-command detected in a user turn. Feeds the session bundle, not the live stream.","lane":"snapshot","pulse":"—","required":["skill"],"optional":[],"emit":[1,0,0,0,0,0,0]},
+    {"id":"context_reset","blurb":"Compaction boundary — segments the session's context tree.","lane":"stream","pulse":"compact","required":[],"optional":[],"emit":[1,0,0,1,0,0,0]},
+    {"id":"session_meta","blurb":"Session-level metadata drops (title, model, cwd, duration…).","lane":"snapshot","pulse":"—","required":[],"optional":["ai_title","model","cwd","slug","title"],"emit":[1,1,1,1,1,1,0]},
+    {"id":"permission_mode","blurb":"Permission mode change (plan / acceptEdits / bypassPermissions).","lane":"stream","pulse":"permission","required":[],"optional":["mode"],"emit":[1,0,0,0,0,0,0]},
+    {"id":"branch_change","blurb":"Git branch observed to change mid-session.","lane":"snapshot","pulse":"—","required":["branch"],"optional":[],"emit":[1,0,0,0,0,0,1]},
+    {"id":"content_block","blurb":"One assistant content block. Text ≥3 words → words pulse; shorter → chirp; thinking stays thinking.","lane":"stream","pulse":"words","required":["block_type"],"optional":["text","chunk"],"emit":[1,1,0,1,1,1,1]},
+    {"id":"mode_shift","blurb":"Agent operating-mode shift.","lane":"stream","pulse":"mode_shift","required":[],"optional":["mode"],"emit":[1,1,0,0,0,0,0]},
+    {"id":"attachment","blurb":"User-attached context (files, images) entering the conversation.","lane":"stream","pulse":"attachment","required":[],"optional":["subtype"],"emit":[1,0,0,0,0,0,0]},
+    {"id":"scaffold","blurb":"System-injected scaffolding — harness loading guardrails into the context window.","lane":"stream","pulse":"scaffold","required":[],"optional":["content_preview"],"emit":[0,0,1,0,0,0,0]},
+    {"id":"api_error","blurb":"Harness/API-level failure (quota, rate limit, auth). Distinct from a tool failing.","lane":"stream","pulse":"api_error","required":["message"],"optional":["code"],"emit":[0,0,0,0,0,0,0]},
+    {"id":"unknown_record","blurb":"Catch-all: a raw record type the adapter does not recognise. Nothing is silently dropped.","lane":"stream","pulse":"unknown","required":[],"optional":["raw_type"],"emit":[1,1,1,1,1,1,0]}
+  ],
+  "tape": [
+    {"kind":"user_turn","label":"human","preview":"fix the landing copy"},
+    {"kind":"tool_use","label":"read","preview":"Read · public/index.html"},
+    {"kind":"tool_result","label":"ok","preview":"tool_result"},
+    {"kind":"content_block","label":"words","preview":"the JSONL was never the tool"},
+    {"kind":"tokens","label":"tokens","preview":"in 1200 · out 340"},
+    {"kind":"context_reset","label":"compact","preview":"context window reset"}
+  ],
+  "samples": {
+    "user_turn": {
+      "claude-code": {
+        "raw": "{\"type\":\"user\",\"message\":{\"content\":\"fix the landing copy\"}}",
+        "nr": "{\"kind\":\"user_turn\",\"harness\":\"claude-code\",\"text\":\"fix the landing copy\"}",
+        "pulse": "human_turn { text }"
+      }
+    },
+    "tool_use": {
+      "claude-code": {
+        "raw": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"public/index.html\"}}]}}",
+        "nr": "{\"kind\":\"tool_use\",\"harness\":\"claude-code\",\"tool\":\"Read\",\"input\":{\"file_path\":\"public/index.html\"}}",
+        "pulse": "tool_call { key:\"read\", where:\"public/index.html\" }"
+      },
+      "antigravity": {
+        "raw": "{\"source\":\"MODEL\",\"tool_calls\":[{\"name\":\"view_file\",\"args\":{\"AbsolutePath\":\"public/index.html\"}}]}",
+        "nr": "{\"kind\":\"tool_use\",\"harness\":\"antigravity\",\"tool\":\"view_file\",\"input\":{\"file_path\":\"public/index.html\"}}",
+        "pulse": "tool_call { key:\"read\", where:\"public/index.html\" }"
+      }
+    },
+    "tokens": {
+      "claude-code": {
+        "raw": "{\"message\":{\"usage\":{\"input_tokens\":1200,\"output_tokens\":340,\"cache_read_input_tokens\":8000}}}",
+        "nr": "{\"kind\":\"tokens\",\"harness\":\"claude-code\",\"tokens\":{\"input\":1200,\"output\":340,\"cache_create\":0,\"cache_read\":8000}}",
+        "pulse": "tokens { input, output, cache_read }"
+      }
+    },
+    "content_block": {
+      "grok": {
+        "raw": "{\"content\":{\"text\":\"the JSONL was never the tool\"}}",
+        "nr": "{\"kind\":\"content_block\",\"harness\":\"grok\",\"block_type\":\"text\",\"text\":\"the JSONL was never the tool\",\"chunk\":true}",
+        "pulse": "words { word_count: 7 }"
+      }
+    },
+    "scaffold": {
+      "antigravity": {
+        "raw": "{\"type\":\"EPHEMERAL_MESSAGE\",\"content\":\"workspace reminder\"}",
+        "nr": "{\"kind\":\"scaffold\",\"harness\":\"antigravity\",\"content_preview\":\"workspace reminder\"}",
+        "pulse": "scaffold { content_preview }"
+      }
+    },
+    "context_reset": {
+      "claude-code": {
+        "raw": "{\"type\":\"compact_boundary\"}",
+        "nr": "{\"kind\":\"context_reset\",\"harness\":\"claude-code\"}",
+        "pulse": "compact"
+      }
+    }
+  }
+}
+</script>
+<script>
+(function () {
+  'use strict';
+  const seed = JSON.parse(document.getElementById('nr-seed').textContent);
+  const $pipe = document.getElementById('nr-pipe');
+  const $table = document.getElementById('nr-table');
+  const $inspect = document.getElementById('nr-inspect');
+  const $tape = document.getElementById('nr-tape');
+  const $play = document.getElementById('nr-play');
+  let kindIdx = 0;
+  let stageIdx = 2;
+  let harnessId = 'claude-code';
+  let playing = false;
+  let playTimer = null;
+  let nrListen = false;
+
+  function kindById(id) { return seed.kinds.find(k => k.id === id); }
+
+  function renderPipe() {
+    $pipe.innerHTML = seed.stages.map((s, i) =>
+      '<div class="nr-stage' + (i === stageIdx ? ' on' : '') + '" data-i="' + i + '">' +
+        '<div class="n">0' + i + '</div>' +
+        '<div class="l">' + s.label + '</div>' +
+        '<div class="d">' + s.desc + '</div>' +
+      '</div>'
+    ).join('');
+  }
+
+  function renderTape(active) {
+    $tape.innerHTML = seed.tape.map((t, i) =>
+      '<div class="nr-beat' + (i === active ? ' on' : '') + '">' + t.label + '</div>'
+    ).join('');
+  }
+
+  function renderTable() {
+    const head = '<tr><th>kind</th>' +
+      seed.harnesses.map(h => '<th title="' + h.id + '">' + h.short + '</th>').join('') +
+      '<th>lane</th><th>pulse</th></tr>';
+    const body = seed.kinds.map((k, i) => {
+      const cells = k.emit.map(v => v
+        ? '<td class="nr-dot">&#9679;</td>'
+        : '<td class="nr-miss">·</td>').join('');
+      return '<tr class="' + (i === kindIdx ? 'on' : '') + '" data-i="' + i + '">' +
+        '<td class="nr-kind">' + k.id + '</td>' + cells +
+        '<td style="color:#6b6b6b">' + k.lane + '</td>' +
+        '<td class="nr-pulse">' + k.pulse + '</td></tr>';
+    }).join('');
+    $table.innerHTML = '<thead>' + head + '</thead><tbody>' + body + '</tbody>';
+  }
+
+  function sampleFor(kind, hid) {
+    const bag = seed.samples[kind.id];
+    if (!bag) return null;
+    if (bag[hid]) return { hid: hid, rec: bag[hid] };
+    const first = Object.keys(bag)[0];
+    return { hid: first, rec: bag[first] };
+  }
+
+  function pretty(s) {
+    try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
+  }
+
+  function renderInspect() {
+    const k = seed.kinds[kindIdx];
+    const emitH = seed.harnesses.filter((_, i) => k.emit[i]);
+    if (emitH.length && !emitH.some(h => h.id === harnessId)) harnessId = emitH[0].id;
+    const chips = emitH.length
+      ? emitH.map(h => '<button class="nr-chip' + (h.id === harnessId ? ' on' : '') + '" data-h="' + h.id + '" type="button">' + h.id + '</button>').join('')
+      : '<span style="color:#445544;font-size:11px">no adapter emits this kind yet</span>';
+    const req = k.required.length ? k.required.join(' · ') : '—';
+    const opt = k.optional.length ? k.optional.join(' · ') : '—';
+    const got = sampleFor(k, harnessId);
+    let hop = '';
+    if (got) {
+      hop =
+        '<div style="font-size:10px;color:#ffaa00;letter-spacing:0.06em;margin-top:12px">RAW · ' + got.hid + '</div>' +
+        '<div class="nr-json">' + pretty(got.rec.raw) + '</div>' +
+        '<div style="font-size:10px;color:#ffaa00;letter-spacing:0.06em;margin-top:10px">NORMALIZEDRECORD</div>' +
+        '<div class="nr-json">' + pretty(got.rec.nr) + '</div>' +
+        '<div style="font-size:10px;color:#ffaa00;letter-spacing:0.06em;margin-top:10px">PULSE</div>' +
+        '<div class="nr-json">' + got.rec.pulse + '</div>';
+    }
+    $inspect.innerHTML =
+      '<div class="nr-k">' + k.id + '</div>' +
+      '<div style="font-size:12px;color:#ccccaa;margin-top:8px;line-height:1.5">' + k.blurb + '</div>' +
+      '<div class="nr-meta">LANE ' + k.lane + ' &nbsp;·&nbsp; PULSE <span class="nr-pulse">' + k.pulse + '</span></div>' +
+      '<div class="nr-meta">REQUIRED ' + req + '<br>OPTIONAL ' + opt + '</div>' +
+      '<div style="margin-top:10px">' + chips + '</div>' +
+      hop;
+  }
+
+  function selectKind(i) {
+    kindIdx = (i + seed.kinds.length) % seed.kinds.length;
+    renderTable();
+    renderInspect();
+  }
+
+  function selectStage(i) { stageIdx = i; renderPipe(); }
+
+  $pipe.addEventListener('click', e => {
+    const el = e.target.closest('.nr-stage');
+    if (!el) return;
+    selectStage(+el.dataset.i);
+  });
+  $table.addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-i]');
+    if (!tr) return;
+    selectKind(+tr.dataset.i);
+  });
+  $inspect.addEventListener('click', e => {
+    const chip = e.target.closest('.nr-chip[data-h]');
+    if (!chip) return;
+    harnessId = chip.dataset.h;
+    renderInspect();
+  });
+
+  function stopPlay() {
+    playing = false;
+    if (playTimer) { clearInterval(playTimer); playTimer = null; }
+    $play.classList.remove('on');
+    $play.textContent = '\u25B6 play a turn';
+  }
+
+  function playTurn() {
+    if (playing) { stopPlay(); renderTape(-1); return; }
+    playing = true;
+    $play.classList.add('on');
+    $play.textContent = '\u25A0 stop';
+    let i = 0;
+    function tick() {
+      if (i >= seed.tape.length) {
+        stopPlay();
+        selectStage(4);
+        return;
+      }
+      const step = seed.tape[i];
+      renderTape(i);
+      const idx = seed.kinds.findIndex(k => k.id === step.kind);
+      if (idx >= 0) selectKind(idx);
+      selectStage(i < 1 ? 0 : (i === 1 ? 1 : (i >= 4 ? 3 : 2)));
+      i++;
+    }
+    tick();
+    playTimer = setInterval(tick, 700);
+  }
+  $play.addEventListener('click', playTurn);
+
+  document.getElementById('nr-root').addEventListener('pointerdown', () => { nrListen = true; });
+  document.addEventListener('keydown', ev => {
+    if (!nrListen) return;
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (ev.key === 'j' || ev.key === 'ArrowDown') { ev.preventDefault(); selectKind(kindIdx + 1); }
+    else if (ev.key === 'k' || ev.key === 'ArrowUp') { ev.preventDefault(); selectKind(kindIdx - 1); }
+    else if (ev.key === ' ') { ev.preventDefault(); playTurn(); }
+  });
+
+  renderPipe();
+  renderTape(-1);
+  selectKind(2);
+}());
+</script>
 </body>
 </html>
+

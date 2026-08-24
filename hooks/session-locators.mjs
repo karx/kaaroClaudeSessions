@@ -18,6 +18,34 @@ function sessionIdFromPiFilename(filename) {
   return base.includes('_') ? base.slice(base.indexOf('_') + 1) : base;
 }
 
+// The graph, Mission Control, and the DAW builder all display/accept the
+// 8-char `session_id.slice(0, 8)` slug rather than the full id. Every
+// locator below falls back to a case-insensitive prefix match on that slug
+// once an exact-id lookup misses, so pasting the slug shown in the UI
+// resolves the same session everywhere (not just for Grok).
+const SLUG_MIN_LEN = 8;
+
+/**
+ * Scan `dir` for a file `${id}${ext}` where `id` case-insensitively starts
+ * with `needle`. Returns the first match, or null.
+ * @param {string} dir
+ * @param {string} needle
+ * @param {string} ext
+ * @returns {{ id: string, filePath: string }|null}
+ */
+function findByPrefix(dir, needle, ext) {
+  if (needle.length < SLUG_MIN_LEN) return null;
+  let names;
+  try { names = fs.readdirSync(dir); } catch { return null; }
+  const lower = needle.toLowerCase();
+  for (const name of names) {
+    if (!name.endsWith(ext)) continue;
+    const id = name.slice(0, -ext.length);
+    if (id.toLowerCase().startsWith(lower)) return { id, filePath: path.join(dir, name) };
+  }
+  return null;
+}
+
 /**
  * @param {string} sessionId
  * @param {string} [root]
@@ -42,6 +70,18 @@ export function locateClaudeCodeSession(sessionId, root = CLAUDE_PROJECTS_ROOT) 
       return { filePath: subCandidate, projectId: proj, sessionId };
     }
   }
+
+  // 8-char slug prefix (graph/Mission Control/DAW slug = session_id.slice(0, 8))
+  for (const proj of fs.readdirSync(root)) {
+    const projPath = path.join(root, proj);
+    try {
+      if (!fs.statSync(projPath).isDirectory()) continue;
+    } catch { continue; }
+
+    const found = findByPrefix(projPath, sessionId, '.jsonl')
+      || findByPrefix(path.join(projPath, 'subagents'), sessionId, '.jsonl');
+    if (found) return { filePath: found.filePath, projectId: proj, sessionId: found.id };
+  }
   return null;
 }
 
@@ -63,6 +103,23 @@ export function locatePiSession(sessionId, root = PI_SESSIONS_ROOT) {
       if (!file.endsWith('.jsonl')) continue;
       if (sessionIdFromPiFilename(file) === sessionId) {
         return { filePath: path.join(projPath, file), projectId: proj, sessionId };
+      }
+    }
+  }
+
+  // 8-char slug prefix (graph/Mission Control/DAW slug = session_id.slice(0, 8))
+  if (sessionId.length < SLUG_MIN_LEN) return null;
+  const needle = sessionId.toLowerCase();
+  for (const proj of fs.readdirSync(root)) {
+    const projPath = path.join(root, proj);
+    let files;
+    try { files = fs.readdirSync(projPath); } catch { continue; }
+
+    for (const file of files) {
+      if (!file.endsWith('.jsonl')) continue;
+      const id = sessionIdFromPiFilename(file);
+      if (id.toLowerCase().startsWith(needle)) {
+        return { filePath: path.join(projPath, file), projectId: proj, sessionId: id };
       }
     }
   }
@@ -140,6 +197,12 @@ export function locateOpencodeSession(sessionId, root = OPENCODE_STORAGE_ROOT) {
       return { filePath: candidate, projectId: null, sessionId };
     }
   }
+
+  // 8-char slug prefix (graph/Mission Control/DAW slug = session_id.slice(0, 8))
+  for (const bucket of fs.readdirSync(sessionRoot)) {
+    const found = findByPrefix(path.join(sessionRoot, bucket), sessionId, '.json');
+    if (found) return { filePath: found.filePath, projectId: null, sessionId: found.id };
+  }
   return null;
 }
 
@@ -158,6 +221,15 @@ export function locateCopilotSession(sessionId, root = COPILOT_WORKSPACE_STORAGE
       if (fs.existsSync(candidate)) {
         return { filePath: candidate, projectId: null, sessionId };
       }
+    }
+  }
+
+  // 8-char slug prefix (graph/Mission Control/DAW slug = session_id.slice(0, 8))
+  for (const ws of fs.readdirSync(root)) {
+    const chatDir = path.join(root, ws, 'chatSessions');
+    for (const ext of ['.jsonl', '.json']) {
+      const found = findByPrefix(chatDir, sessionId, ext);
+      if (found) return { filePath: found.filePath, projectId: null, sessionId: found.id };
     }
   }
   return null;
@@ -181,6 +253,17 @@ export function locateCommandCodeSession(sessionId, root = COMMANDCODE_PROJECTS_
     if (fs.existsSync(candidate)) {
       return { filePath: candidate, projectId: proj, sessionId };
     }
+  }
+
+  // 8-char slug prefix (graph/Mission Control/DAW slug = session_id.slice(0, 8))
+  for (const proj of fs.readdirSync(root)) {
+    const projPath = path.join(root, proj);
+    try {
+      if (!fs.statSync(projPath).isDirectory()) continue;
+    } catch { continue; }
+
+    const found = findByPrefix(projPath, sessionId, '.jsonl');
+    if (found) return { filePath: found.filePath, projectId: proj, sessionId: found.id };
   }
   return null;
 }

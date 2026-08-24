@@ -35,6 +35,41 @@ test('resolveClaudeCodeSession — finds project session file', () => {
   }
 });
 
+test('resolveClaudeCodeSession — finds session by 8-char slug prefix', () => {
+  const root = makeTemp('kaaro-res-cc-slug');
+  try {
+    const proj = join(root, 'D--src-foo');
+    mkdirSync(proj);
+    const sessionId = '01a03426-46ee-77e0-bf36-f87a6403b5db';
+    writeFileSync(join(proj, `${sessionId}.jsonl`), '{"type":"user"}\n', 'utf8');
+
+    const found = resolveClaudeCodeSession(sessionId.slice(0, 8), root);
+    assert.ok(found);
+    assert.equal(found.sessionId, sessionId);
+    assert.equal(found.projectId, 'D--src-foo');
+    assert.ok(found.filePath.endsWith(`${sessionId}.jsonl`));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveClaudeCodeSession — finds subagents session by 8-char slug prefix', () => {
+  const root = makeTemp('kaaro-res-cc-sub-slug');
+  try {
+    const sub = join(root, 'D--src-foo', 'subagents');
+    mkdirSync(sub, { recursive: true });
+    const sessionId = '01a03426-46ee-77e0-bf36-f87a6403b5db';
+    writeFileSync(join(sub, `${sessionId}.jsonl`), '{}', 'utf8');
+
+    const found = resolveClaudeCodeSession(sessionId.slice(0, 8), root);
+    assert.ok(found);
+    assert.equal(found.sessionId, sessionId);
+    assert.equal(found.projectId, 'D--src-foo');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('resolveClaudeCodeSession — finds subagents session file', () => {
   const root = makeTemp('kaaro-res-cc-sub');
   try {
@@ -64,6 +99,24 @@ test('resolvePiSession — matches UUID after timestamp prefix', () => {
     assert.ok(found);
     assert.equal(found.projectId, '--D--src-ebrain--');
     assert.equal(found.sessionId, sessionId);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolvePiSession — finds session by 8-char slug prefix', () => {
+  const root = makeTemp('kaaro-res-pi-slug');
+  try {
+    const proj = join(root, '--D--src-ebrain--');
+    mkdirSync(proj);
+    const sessionId = '019dca2b-f4f5-7609-96ae-fe883f7a03db';
+    const file = `2026-04-26T14-22-51-638Z_${sessionId}.jsonl`;
+    writeFileSync(join(proj, file), '{}', 'utf8');
+
+    const found = resolvePiSession(sessionId.slice(0, 8), root);
+    assert.ok(found);
+    assert.equal(found.sessionId, sessionId);
+    assert.equal(found.projectId, '--D--src-ebrain--');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -179,5 +232,52 @@ test('resolveSessionFile — locates copilot chat session in workspace storage',
     assert.ok(found, 'copilot session located');
     assert.equal(found.harness, 'copilot');
     assert.ok(found.filePath.endsWith('sess-42.jsonl'));
+  } finally { rm(root, { recursive: true, force: true }); }
+});
+
+// ── 8-char slug prefix parity (DAW /api/audio, Mission Control, graph slug) ──
+
+test('resolveSessionFile — locates opencode session by 8-char slug prefix', async () => {
+  const { mkdirSync: mk, writeFileSync: wr, rmSync: rm } = await import('fs');
+  const { tmpdir } = await import('os');
+  const root = join(tmpdir(), 'kaaro-oc-slug-' + Date.now());
+  mk(join(root, 'session', 'bucketA'), { recursive: true });
+  const sessionId = 'ses_abc123def456';
+  wr(join(root, 'session', 'bucketA', `${sessionId}.json`), `{"id":"${sessionId}"}`, 'utf8');
+  try {
+    const found = resolveSessionFile(sessionId.slice(0, 8), { harness: 'opencode', roots: { opencode: root } });
+    assert.ok(found, 'opencode session located by prefix');
+    assert.equal(found.sessionId, sessionId);
+    assert.ok(found.filePath.endsWith(`${sessionId}.json`));
+  } finally { rm(root, { recursive: true, force: true }); }
+});
+
+test('resolveSessionFile — locates copilot chat session by 8-char slug prefix', async () => {
+  const { mkdirSync: mk, writeFileSync: wr, rmSync: rm } = await import('fs');
+  const { tmpdir } = await import('os');
+  const root = join(tmpdir(), 'kaaro-cp-slug-' + Date.now());
+  mk(join(root, 'ws-hash-1', 'chatSessions'), { recursive: true });
+  const sessionId = '01a03426-46ee-77e0-bf36-f87a6403b5db';
+  wr(join(root, 'ws-hash-1', 'chatSessions', `${sessionId}.jsonl`), '{"kind":0,"v":{}}', 'utf8');
+  try {
+    const found = resolveSessionFile(sessionId.slice(0, 8), { harness: 'copilot', roots: { copilot: root } });
+    assert.ok(found, 'copilot session located by prefix');
+    assert.equal(found.sessionId, sessionId);
+    assert.ok(found.filePath.endsWith(`${sessionId}.jsonl`));
+  } finally { rm(root, { recursive: true, force: true }); }
+});
+
+test('resolveSessionFile — locates command-code session by 8-char slug prefix', async () => {
+  const { mkdirSync: mk, writeFileSync: wr, rmSync: rm } = await import('fs');
+  const { tmpdir } = await import('os');
+  const root = join(tmpdir(), 'kaaro-cmdc-slug-' + Date.now());
+  mk(join(root, 'D--src-foo'), { recursive: true });
+  const sessionId = '02b14537-57ff-88f1-c047-g98b7514c6ec';
+  wr(join(root, 'D--src-foo', `${sessionId}.jsonl`), '{}', 'utf8');
+  try {
+    const found = resolveSessionFile(sessionId.slice(0, 8), { harness: 'command-code', roots: { 'command-code': root } });
+    assert.ok(found, 'command-code session located by prefix');
+    assert.equal(found.sessionId, sessionId);
+    assert.equal(found.projectId, 'D--src-foo');
   } finally { rm(root, { recursive: true, force: true }); }
 });

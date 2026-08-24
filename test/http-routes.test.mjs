@@ -177,6 +177,25 @@ test('GET /api/trace/:id — 400 empty, 404 unresolved, 404 trace-incapable, 200
   });
 });
 
+test('GET /api/trace/:id — passes the resolved full session id (not the URL slug) to buildTrace', async () => {
+  // Regression: a caller pasting the 8-char slug shown by the graph/DAW/Mission
+  // Control must reconstruct the trace for the *resolved* session, not the slug.
+  let receivedSessionId = null;
+  const deps = makeDeps({
+    resolveSessionFile: (id) => ({ filePath: 'f', projectId: 'p', sessionId: 'full-session-id-0123456789', harness: 'claude-code' }),
+    buildTrace: (filePath, projectId, sessionId) => {
+      receivedSessionId = sessionId;
+      return { session_id: sessionId, ai_title: 'T', segments: [] };
+    },
+  });
+  await withServer(deps, async (base) => {
+    const r = await fetch(`${base}/api/trace/01a03426`);
+    assert.equal(r.status, 200);
+    assert.equal(receivedSessionId, 'full-session-id-0123456789');
+    assert.equal((await r.json()).session_id, 'full-session-id-0123456789');
+  });
+});
+
 test('GET /api/audio/:id — 400 empty, 404 unresolved, 200 sim payload', async () => {
   await withServer(makeDeps(), async (base) => {
     assert.equal((await fetch(`${base}/api/audio/`)).status, 400);

@@ -90,7 +90,7 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
       if (!harness?.capabilities?.trace) {
         res.writeHead(404); res.end('trace not supported for this harness'); return;
       }
-      const tree = buildTrace(found.filePath, found.projectId, sessionId, found.harness);
+      const tree = buildTrace(found.filePath, found.projectId, found.sessionId, found.harness);
       if (!tree) { res.writeHead(500); res.end('reconstruction failed'); return; }
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(tree));

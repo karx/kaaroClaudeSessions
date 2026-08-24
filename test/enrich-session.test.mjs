@@ -51,6 +51,13 @@ test('enrichSession — sets tokens_work from tokens', () => {
   assert.equal(s.tokens_work, 70);
 });
 
+test('enrichSession — sets tokens_total (overall consumption) as a top-level field', () => {
+  const s = baseSession(); // 100+50+20+80
+  enrichSession(s);
+  assert.equal(s.tokens_total, 250);
+  assert.equal(s.tokens_total, s.tokens.total);
+});
+
 test('enrichProject — sets tokens_work and tokens_total on a project summary', () => {
   const p = { id: 'proj-a', tokens: { input: 100, output: 200, cache_create: 50, cache_read: 30 } };
   enrichProject(p);

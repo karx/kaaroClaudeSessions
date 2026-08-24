@@ -16,7 +16,7 @@ function makeData(overrides = {}) {
       {
         session_id: 's1', project_id: 'proj-a', slug: 'alpha',
         tokens: { input: 50, output: 80, cache_create: 20, cache_read: 10 },
-        tokens_work: 100, // set upstream by enrichSession
+        tokens_work: 100, tokens_total: 160, // set upstream by enrichSession
         first_timestamp: '2026-05-01T10:00:00.000Z',
         last_timestamp:  '2026-05-01T10:30:00.000Z',
         git_branch: 'main', date_str: '2026-05-01', duration_min: 30,
@@ -26,7 +26,7 @@ function makeData(overrides = {}) {
       {
         session_id: 's2', project_id: 'proj-a', slug: 'beta',
         tokens: { input: 50, output: 120, cache_create: 30, cache_read: 20 },
-        tokens_work: 150, // set upstream by enrichSession
+        tokens_work: 150, tokens_total: 220, // set upstream by enrichSession
         first_timestamp: '2026-05-05T14:00:00.000Z',
         last_timestamp:  '2026-05-05T14:45:00.000Z',
         git_branch: 'main', date_str: '2026-05-05', duration_min: 45,
@@ -223,18 +223,49 @@ test('buildGraph — project node fields', async t => {
 test('buildGraph — session sizeNorm', async t => {
   const result = buildGraph(makeData(), { referenceMs: Date.now() });
 
-  await t.test('session with maximum tokens_work has sizeNorm 1.0', () => {
-    // s2 has output=120, cache_create=30 → tokens_work=150 = MAX_WORK
+  await t.test('session with maximum tokens_total has sizeNorm 1.0', () => {
+    // s2 tokens_total=220 is MAX; sizeNorm is overall consumption, not tokens_work
     const s2 = result.nodes.find(n => n.id === 's2');
     assert.equal(s2.sizeNorm, 1.0);
   });
 
-  await t.test('session with lower tokens_work has 0 < sizeNorm < 1', () => {
-    // s1 has output=80, cache_create=20 → tokens_work=100 < 150
+  await t.test('session with lower tokens_total has 0 < sizeNorm < 1', () => {
     const s1 = result.nodes.find(n => n.id === 's1');
-    assert.ok(s1.sizeNorm > 0 && s1.sizeNorm < 1,
-      `expected 0 < sizeNorm < 1, got ${s1.sizeNorm}`);
+    assert.equal(s1.sizeNorm, Math.sqrt(160 / 220));
   });
+});
+
+test('buildGraph — session sizeNorm uses tokens_total not tokens_work (G6)', () => {
+  const data = makeData({
+    sessions: [
+      {
+        session_id: 'work-heavy', project_id: 'proj-a', slug: 'wh',
+        tokens: { input: 0, output: 200, cache_create: 0, cache_read: 0 },
+        tokens_work: 200, tokens_total: 200,
+        first_timestamp: '2026-05-01T10:00:00.000Z',
+        last_timestamp:  '2026-05-01T10:30:00.000Z',
+        date_str: '2026-05-01', tool_calls: 5, tool_errors: 0,
+        tool_diversity: 1, message_count: 2, user_turns: 1, assistant_turns: 1,
+        cache_hit_rate: 0, skills: [],
+      },
+      {
+        session_id: 'cache-heavy', project_id: 'proj-a', slug: 'ch',
+        tokens: { input: 0, output: 10, cache_create: 0, cache_read: 400 },
+        tokens_work: 10, tokens_total: 410,
+        first_timestamp: '2026-05-02T10:00:00.000Z',
+        last_timestamp:  '2026-05-02T10:30:00.000Z',
+        date_str: '2026-05-02', tool_calls: 5, tool_errors: 0,
+        tool_diversity: 1, message_count: 2, user_turns: 1, assistant_turns: 1,
+        cache_hit_rate: 97.6, skills: [],
+      },
+    ],
+  });
+  const result = buildGraph(data, { referenceMs: Date.now() });
+  const work = result.nodes.find(n => n.id === 'work-heavy');
+  const cache = result.nodes.find(n => n.id === 'cache-heavy');
+  assert.equal(cache.sizeNorm, 1.0, 'cache_read-dominated session is the large disk');
+  assert.ok(work.sizeNorm < 1, 'high tokens_work alone does not win sizeNorm');
+  assert.equal(work.sizeNorm, Math.sqrt(200 / 410));
 });
 
 test('buildGraph — session errorLevel', async t => {
@@ -706,7 +737,7 @@ test('buildGraph — tokenless session sizes by tool_calls', async t => {
         session_id: 'ag1', project_id: 'proj-a', slug: 'ag-sess',
         harness: 'antigravity',
         tokens: { input: 0, output: 0, cache_create: 0, cache_read: 0 },
-        tokens_work: 0,
+        tokens_work: 0, tokens_total: 0,
         first_timestamp: '2026-05-01T10:00:00.000Z',
         last_timestamp:  '2026-05-01T10:30:00.000Z',
         date_str: '2026-05-01', tool_calls: 40, tool_errors: 0,
@@ -717,7 +748,7 @@ test('buildGraph — tokenless session sizes by tool_calls', async t => {
         session_id: 'ag2', project_id: 'proj-a', slug: 'ag-sess2',
         harness: 'antigravity',
         tokens: { input: 0, output: 0, cache_create: 0, cache_read: 0 },
-        tokens_work: 0,
+        tokens_work: 0, tokens_total: 0,
         first_timestamp: '2026-05-02T10:00:00.000Z',
         last_timestamp:  '2026-05-02T10:30:00.000Z',
         date_str: '2026-05-02', tool_calls: 10, tool_errors: 0,
@@ -728,7 +759,7 @@ test('buildGraph — tokenless session sizes by tool_calls', async t => {
   });
   const result = buildGraph(data, { referenceMs: new Date('2026-05-11T00:00:00.000Z').getTime() });
 
-  await t.test('sizeNorm uses tool_calls when tokens_work is zero', () => {
+  await t.test('sizeNorm uses tool_calls when tokens_total is zero', () => {
     const big = result.nodes.find(n => n.id === 'ag1');
     const small = result.nodes.find(n => n.id === 'ag2');
     assert.ok(big.sizeNorm > small.sizeNorm);

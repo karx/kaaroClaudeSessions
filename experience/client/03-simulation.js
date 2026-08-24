@@ -3,6 +3,12 @@ const projPos = {};
 function seedPositions(graphData) {
   const pnodes = graphData.nodes.filter(n => n.type === 'project');
   pnodes.forEach((p, i) => {
+    // Already positioned (live sim state carried over by updateGraph, or a prior
+    // seed) — refresh the anchor cache from it but don't clobber x/y/fx/fy.
+    // Free-layout mode relies on this: otherwise every live update snaps
+    // projects back to their original ring position. restoreForceLayout()
+    // owns fx/fy for the current profile after this runs.
+    if (p.x != null) { projPos[p.id] = { x: p.x, y: p.y }; return; }
     if (projPos[p.id]) { p.x = projPos[p.id].x; p.y = projPos[p.id].y; }
     else { const a = (i / pnodes.length) * 2 * Math.PI - Math.PI / 2; p.x = W*.5 + 240*Math.cos(a); p.y = H*.5 + 210*Math.sin(a); }
     p.fx = p.x; p.fy = p.y; projPos[p.id] = { x: p.x, y: p.y };

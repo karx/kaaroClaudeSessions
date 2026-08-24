@@ -157,6 +157,26 @@ test('harnessWedges — empty / one / two / three / four+', () => {
   }
 });
 
+test('harnessWedges — weighted by session counts', () => {
+  // No weights (or all-equal weights) is unchanged from the equal-angle default.
+  const bare = harnessWedges(['claude-code', 'pi'], 20);
+  assert.deepEqual(harnessWedges(['claude-code', 'pi'], 20, null), bare);
+  assert.deepEqual(harnessWedges(['claude-code', 'pi'], 20, { 'claude-code': 1, pi: 1 }), bare);
+
+  // claude-code: 3 sessions, pi: 1 session → 75%/25% split, boundary at 270°
+  // (the left-side midpoint of a pointy-top hex, not a vertex).
+  const w = harnessWedges(['claude-code', 'pi'], 20, { 'claude-code': 3, pi: 1 });
+  assert.equal(w.length, 2);
+  assert.equal(w[0].harness, 'claude-code');
+  assert.equal(w[1].harness, 'pi');
+  const majority = pathPts(w[0].d);
+  const minority = pathPts(w[1].d);
+  assert.ok(near(majority[0][0], 0) && near(majority[0][1], 0), 'wedges start at center');
+  const hasLeftMid = p => p.some(([x, y]) => near(x, -20 * Math.sqrt(3) / 2, 1e-4) && near(y, 0, 1e-4));
+  assert.ok(hasLeftMid(majority), 'majority wedge reaches the 270° boundary (left side midpoint)');
+  assert.ok(hasLeftMid(minority), 'minority wedge shares the same boundary point');
+});
+
 test('harnessBreakdown — preserves glyph order, counts sessions, carries mark color', () => {
   assert.deepEqual(harnessBreakdown([]), []);
   const rows = harnessBreakdown(

@@ -136,17 +136,28 @@ function ptsNear(a, b) {
  * 1 → solid hex; 2 → half-split through top–bottom vertices; 3 → 120°
  * center fan (vertex-aligned); 4+ → equal-angle polygons from the center
  * to each side/corner the ray hits.
+ *
+ * `weights` (optional `{ [harness]: count }`) makes wedge angle proportional
+ * to share of count instead of equal division — e.g. session counts per
+ * harness. Omitted, null, or all-equal weights reproduce the equal-angle
+ * default exactly.
  */
-export function harnessWedges(harnesses, r) {
+export function harnessWedges(harnesses, r, weights) {
   const list = uniqHarnesses(harnesses);
   if (!list.length) return [];
   const verts = hexVertices(r);
   if (list.length === 1) return [{ harness: list[0], d: pathFromPts(verts) }];
   const n = list.length;
   const tau = Math.PI * 2;
+  const w = weights ? list.map(h => Math.max(0, weights[h] || 0)) : list.map(() => 1);
+  const totalW = w.reduce((a, b) => a + b, 0) || n;
+  const bounds = [0];
+  let acc = 0;
+  for (const wi of w) { acc += wi; bounds.push(acc / totalW * tau); }
+  bounds[n] = tau; // exact close — avoids float drift leaving a hairline gap
   return list.map((h, i) => {
-    const a0 = i * tau / n;
-    const a1 = (i + 1) * tau / n;
+    const a0 = bounds[i];
+    const a1 = bounds[i + 1];
     const p0 = rayHexIntersect(a0, verts);
     const p1 = rayHexIntersect(a1, verts);
     const mid = verts.filter((_, k) => angleInOpenWedge(k * Math.PI / 3, a0, a1));

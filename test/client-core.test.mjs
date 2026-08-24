@@ -57,6 +57,38 @@ test('nodeRadius — project scales by sizeNorm (PR_MIN..PR_MAX), session/file/c
   assert.equal(nodeRadius({ type: 'file', sizeNorm: 0.5 }), 8);
 });
 
+test('hexPath — pointy-top regular hexagon, 6 vertices at radius r', async () => {
+  const { hexPath } = await import('../experience/client-core.mjs');
+  const d = hexPath(20);
+  assert.ok(d.startsWith('M'));
+  assert.ok(d.endsWith('Z'));
+  const verts = d.slice(1, -1).split('L').map(p => p.split(',').map(Number));
+  assert.equal(verts.length, 6);
+  assert.ok(Math.abs(verts[0][0] - 0) < 1e-9, 'first vertex is pointy-top: x≈0');
+  assert.ok(Math.abs(verts[0][1] - -20) < 1e-9, 'first vertex is pointy-top: y≈-r');
+  for (const [x, y] of verts)
+    assert.ok(Math.abs(Math.hypot(x, y) - 20) < 1e-9, 'every vertex sits at distance r from origin');
+});
+
+test('harnessMarks — one tick per harness, vertices first, on the hex stroke', async () => {
+  const { harnessMarks } = await import('../experience/client-core.mjs');
+  assert.deepEqual(harnessMarks([], 20), []);
+
+  const one = harnessMarks(['claude-code'], 20);
+  assert.equal(one.length, 1);
+  assert.equal(one[0].harness, 'claude-code');
+  assert.ok(Math.abs(one[0].x - 0) < 1e-9 && Math.abs(one[0].y - -20) < 1e-9, 'first mark sits on the top vertex, same as hexPath vertex 0');
+
+  const two = harnessMarks(['claude-code', 'pi'], 20);
+  assert.equal(two.length, 2);
+  assert.equal(two[1].harness, 'pi');
+  assert.notDeepEqual(two[1], two[0]);
+
+  const marks = harnessMarks(['claude-code', 'pi', 'grok'], 20);
+  for (const m of marks)
+    assert.ok(Math.abs(Math.hypot(m.x, m.y) - 20) < 1e-9, 'every mark sits at distance r from origin');
+});
+
 test('edge opacity/width — weighted edges scale with sqrt(weight/max)', () => {
   assert.ok(EDGE_COLORS.write);
   const base = edgeOpacity({ type: 'read' }, 100);

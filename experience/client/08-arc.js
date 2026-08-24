@@ -309,5 +309,5 @@ function applyStaticPositions() {
   GRAPH.nodes.forEach(n => { if (n.fx != null) n.x = n.fx; if (n.fy != null) n.y = n.fy; });
   nodeSel.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`);
   edgeSel.attr('d', edgePathD);
-  projLabelSel.attr('x', d => d.x ?? 0).attr('y', d => (d.y ?? 0) + PROJ_R + 13);
+  projLabelSel.attr('x', d => d.x ?? 0).attr('y', d => (d.y ?? 0) + nodeRadius(d) + 13);
 }

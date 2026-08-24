@@ -4,10 +4,34 @@
   "type": "module",
   "description": "Live multi-harness AI coding session observability surface — a kaaroViewer companion tool",
   "keywords": ["claude-code", "sessions", "graph", "visualization", "d3", "observability", "multi-harness"],
+  "license": "AGPL-3.0-or-later",
+  "author": "karx",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/karx/kaaroClaudeSessions.git"
+  },
+  "homepage": "https://github.com/karx/kaaroClaudeSessions#readme",
+  "bugs": {
+    "url": "https://github.com/karx/kaaroClaudeSessions/issues"
+  },
   "engines": { "node": ">=18.0.0" },
   "bin": {
     "kaaro-sessions": "./serve.mjs"
   },
+  "files": [
+    "analyze.mjs",
+    "build.mjs",
+    "serve.mjs",
+    "hooks/",
+    "surface/",
+    "experience/",
+    "cluster-overrides.json",
+    "favicon.svg",
+    "og-image.png",
+    "site.webmanifest",
+    "robots.txt",
+    "generate-og-png.html"
+  ],
   "scripts": {
     "start":              "node serve.mjs",
     "analyze":            "node analyze.mjs",

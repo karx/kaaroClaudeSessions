@@ -22,11 +22,22 @@ No `npm install` needed — zero external dependencies.
 ## Quick start
 
 ```bash
+npx kaaro-sessions
+```
+
+Or, from a clone of this repo:
+
+```bash
 node serve.mjs
 ```
 
-Opens `http://localhost:3333` automatically. The server watches for session changes
-and pushes live updates to the browser via SSE.
+Both open `http://localhost:3333` automatically. The server watches for session
+changes and pushes live updates to the browser via SSE.
+
+```bash
+npx kaaro-sessions --port=3334   # alternate port
+npx kaaro-sessions --no-open     # skip auto browser open
+```
 
 - `/` — landing page: pick Graph, Mission Control, or DAW
 - `/graph` — the history view (force graph, swimlane, arc, matrix, 3D)
@@ -75,3 +86,7 @@ and pushes live updates to the browser via SSE.
 All data is read locally from your machine and served only to `127.0.0.1`.
 Nothing is sent to any external service. The generated `sessions-data.json`,
 `graph.html`, and `graph-data.json` are gitignored — don't commit them.
+
+## License
+
+[AGPL-3.0-or-later](LICENSE)

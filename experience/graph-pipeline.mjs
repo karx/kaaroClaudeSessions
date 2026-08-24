@@ -83,15 +83,18 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
   }
 
   // ── Session nodes ──────────────────────────────────────────────────────────
-  const MAX_WORK = Math.max(1, ...data.sessions.map(s => s.tokens_work || 0));
+  // sizeNorm = overall consumption (tokens_total), same definition as project hexes.
+  // tokens_work stays on the node for "AI work" panels/timeline — not the disk scale.
+  const MAX_TOTAL = Math.max(1, ...data.sessions.map(s => s.tokens_total || 0));
   const MAX_TOOL_CALLS = Math.max(1, ...data.sessions.map(s => s.tool_calls || 0));
 
   for (const sess of data.sessions) {
     const t           = sess.tokens || {};
     // derived upstream by enrichSession — passthrough only
-    const tokens_work = sess.tokens_work || 0;
-    const sizeNorm    = tokens_work > 0
-      ? Math.sqrt(tokens_work / MAX_WORK)
+    const tokens_work  = sess.tokens_work  || 0;
+    const tokens_total = sess.tokens_total || 0;
+    const sizeNorm    = tokens_total > 0
+      ? Math.sqrt(tokens_total / MAX_TOTAL)
       : Math.sqrt((sess.tool_calls || 0) / MAX_TOOL_CALLS);
     nodes.push({
       id:               sess.session_id,
@@ -104,7 +107,7 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       tokens_work,
       tokens_cached:    t.cache_read || 0,
       tokens_output:    t.output || 0,
-      tokens_total:     t.total || 0,
+      tokens_total,
       cache_hit_rate:   sess.cache_hit_rate,
       tool_calls:       sess.tool_calls,
       tool_errors:      sess.tool_errors,

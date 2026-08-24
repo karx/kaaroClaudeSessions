@@ -55,7 +55,7 @@ function renderNodeContent(el, d) {
     } else {
       for (const w of wedges)
         el.append('path').attr('d',w.d)
-          .attr('fill',HARNESS_MARK[w.harness]||d.color).attr('fill-opacity',.83)
+          .attr('fill',HARNESS_MARK[w.harness]||d.color).attr('fill-opacity',HARNESS_FILL_OPACITY)
           .attr('stroke', wedges.length>1 ? KAARO_TOKENS.bg : 'none')
           .attr('stroke-width', wedges.length>1 ? 1 : 0);
       el.append('path').attr('d',hexPath(r)).attr('fill','none').attr('stroke',d.color).attr('stroke-width',2.5);

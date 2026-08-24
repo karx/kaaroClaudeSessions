@@ -113,6 +113,9 @@ test('landing shell — shortcut chrome and section ids', () => {
   }
   assert.ok(html.includes('? help'), 'status bar should document ? help');
   assert.ok(html.includes('enable audio'), 'audio is opt-in');
+  assert.ok(html.includes('Every adapter normalizes into the same sixteen kind vocabulary.'));
+  assert.ok(html.includes('id="hop-guide"') && html.includes('id="nr-legend"'));
+  assert.ok(html.includes("Hop: what you're looking at") || html.includes('what you\'re looking at'));
   assert.ok(!html.includes('id="tile-graph"') && !html.includes('kaaroSessions --graph'), 'no app-only G/N/D chooser on the public page');
 });
 

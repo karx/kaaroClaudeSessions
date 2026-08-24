@@ -85,6 +85,8 @@
     border: 1px solid transparent; transition: border-color 0.15s ease;
   }
   .nr-stage:hover, .nr-stage.on { border-color: #ff6600; }
+  .nr-pipe.held .nr-stage { opacity: 0.4; }
+  .nr-pipe.held .nr-stage.on { opacity: 1; }
   .nr-stage .n { color: #ff6600; font-size: 10px; letter-spacing: 0.08em; }
   .nr-stage .l { color: #e8e000; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 4px; }
   .nr-stage .d { color: #445544; font-size: 10px; margin-top: 6px; min-height: 28px; line-height: 1.4; }
@@ -131,6 +133,27 @@
   }
   .nr-beat.on { border-color: #ff6600; color: #ff6600; }
   .nr-meta { font-size: 10px; color: #445544; margin-top: 10px; line-height: 1.5; }
+  .nr-legend {
+    margin-top: 12px; font-size: 10px; color: #445544; line-height: 1.5;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .nr-legend-row { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; }
+  .nr-leg { display: inline-flex; align-items: center; gap: 6px; }
+  .nr-leg b { color: #ccccaa; font-weight: 400; }
+  #hop-guide {
+    position: fixed; inset: 0; background: #000000; z-index: 8998;
+    display: none; align-items: center; justify-content: center;
+  }
+  #hop-guide.open { display: flex; }
+  .hop-guide-box {
+    border: 1px solid #1e1e00; background: #080800; padding: 28px 32px;
+    max-width: 560px; width: 92%; max-height: 86vh; overflow-y: auto;
+  }
+  .hop-guide-box .g-h {
+    color: #ffaa00; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; margin: 14px 0 6px;
+  }
+  .hop-guide-box .g-h:first-child { margin-top: 0; }
+  .hop-guide-box p { font-size: 12px; color: #ccccaa; line-height: 1.55; margin: 0; }
 
   #statusbar {
     position: fixed; bottom: 0; left: 0; right: 0; height: 18px;
@@ -248,11 +271,13 @@
   <!-- 3. HOP (harnesses live here) -->
   <section id="s-hop" style="background:#080800; border-top:1px solid #1e1e00; border-bottom:1px solid #1e1e00;">
     <div class="wrap" style="padding:52px 32px;">
-      <div class="eyebrow" style="margin-bottom:6px;">the hop &middot; seven harnesses &middot; one record vocabulary</div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:6px;">
+        <div class="eyebrow">the hop &middot; seven harnesses &middot; one record vocabulary</div>
+        <button class="nr-chip" id="hop-guide-btn" type="button" title="what you're looking at">&#9432; looking at</button>
+      </div>
       <div style="font-size:13px; color:#6b6b6b; margin-bottom:22px; max-width:720px;">
-        Raw JSONL never reaches History, Live, or Sonic. Each adapter emits the same 16 kinds.
-        A green cell means that adapter actually emits the kind &mdash; not that every harness is complete.
-        Click a stage to see the selected kind at that point in the hop.
+        Every adapter normalizes into the same sixteen kind vocabulary.
+        Raw JSONL never reaches History, Live, or Sonic.
       </div>
 
       <div class="nr-pipe" id="nr-pipe"></div>
@@ -260,7 +285,7 @@
       <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
         <button class="nr-chip play" id="nr-play" type="button">&#9656; play a turn</button>
         <button class="nr-chip audio" id="nr-audio" type="button">♪ enable audio</button>
-        <span style="font-size:11px; color:#445544;" id="nr-play-lab">user_turn &rarr; tool_use &rarr; tool_result &rarr; content_block &rarr; tokens &rarr; context_reset</span>
+        <span style="font-size:11px; color:#445544;" id="nr-play-lab">walks the kinds of one turn &middot; pipeline stays put</span>
       </div>
       <div class="nr-tape" id="nr-tape"></div>
 
@@ -269,11 +294,30 @@
           <div class="nr-table-wrap">
             <table class="nr-table" id="nr-table"></table>
           </div>
-          <div class="nr-meta">
-            &#9679; adapter emits this kind &nbsp;&middot;&nbsp; · data-absent in that harness format.
-            <span class="mono">api_error</span> is in the contract; no adapter emits it yet.
-            Eighth harness = one adapter. Recipe: <span class="mono">docs/harnesses.md</span>.
-            SRC: hooks/normalized-record.mjs &middot; adapters/* &middot; pulse-transformer.mjs
+          <div class="nr-legend" id="nr-legend">
+            <div class="nr-legend-row">
+              <span class="nr-leg"><span class="nr-dot">&#9679;</span> <b>emit</b> this adapter writes the kind</span>
+              <span class="nr-leg"><span class="nr-miss">·</span> <b>absent</b> not in that harness format</span>
+              <span class="nr-leg"><span style="color:#00cccc">&#9633;</span> <b>selected</b> kind in the inspector</span>
+            </div>
+            <div class="nr-legend-row">
+              <span class="nr-leg"><b>stream</b> live pulse</span>
+              <span class="nr-leg"><b>snapshot</b> session bundle</span>
+              <span class="nr-leg"><b>pulse</b> what the stream emits, or &mdash;</span>
+            </div>
+            <div class="nr-legend-row">
+              <span class="nr-leg">cc claude-code</span>
+              <span class="nr-leg">pi</span>
+              <span class="nr-leg">ag antigravity</span>
+              <span class="nr-leg">gk grok</span>
+              <span class="nr-leg">oc opencode</span>
+              <span class="nr-leg">cp copilot</span>
+              <span class="nr-leg">cd command-code</span>
+            </div>
+            <div class="nr-legend-row">
+              <span><span class="mono">api_error</span> is in the contract; no adapter emits it yet.
+              Eighth harness = one adapter · <span class="mono">docs/harnesses.md</span></span>
+            </div>
           </div>
         </div>
         <div class="nr-inspect" id="nr-inspect"></div>
@@ -399,6 +443,21 @@
 
 <div id="statusbar"><span id="sys">? help · 1–7 jump · J/K kind · space play · A audio</span></div>
 <div id="help-panel"><div class="help-box" id="help-content"></div></div>
+<div id="hop-guide">
+  <div class="hop-guide-box" id="hop-guide-box">
+    <div class="g-h">&#9432; what you're looking at</div>
+    <p>This is the hop: raw harness transcripts become one sixteen-kind vocabulary, then a pulse, then History / Live / Sonic. Nothing in the views reads JSONL.</p>
+    <div class="g-h">pipeline</div>
+    <p>Five stages, left to right. Click one (or [ ]) to see the selected kind at that stage in the inspector: raw transcript, adapter, NormalizedRecord, pulse, or the three views.</p>
+    <div class="g-h">matrix</div>
+    <p>Rows are the sixteen kinds. Columns are harnesses. Green &#9679; means that adapter emits the kind; · means the format has no such record. A cyan outline is the kind in the inspector. stream rows feed the live pulse; snapshot rows feed the session bundle.</p>
+    <div class="g-h">inspector</div>
+    <p>The selected kind at the selected stage, for one harness. Chips with body-colored labels have a sample hop. H cycles harnesses. Empty hop = no sample for that pair, not a missing kind.</p>
+    <div class="g-h">tape</div>
+    <p>A canned turn. Space or &#9656; play a turn walks kinds only: user_turn → tool_use → tool_result → content_block → tokens → context_reset. The pipeline stage stays where you left it. Click a chip to jump. Audio is opt-in (A).</p>
+    <div class="help-footer" id="hop-guide-close">[ CLOSE ]</div>
+  </div>
+</div>
 
 <script type="application/json" id="nr-seed">
 {
@@ -804,7 +863,7 @@
     const st = seed.stages[stageIdx];
     const aud = audioOn ? '♪ on' : '♪ off';
     if (playing) {
-      $sys.textContent = 'playing turn · space stop · ' + aud + ' · ' + k.id + ' · ' + st.id;
+      $sys.textContent = 'playing kinds · pipeline held · space stop · ' + aud + ' · ' + k.id;
       return;
     }
     $sys.textContent = '? help · 1–7 jump · J/K kind · [ ] stage · space play · A audio · ' + aud + ' · ' + k.id + ' · ' + st.id;
@@ -964,6 +1023,7 @@
 
   function jump(id) {
     closeHelp();
+    closeHopGuide();
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -978,10 +1038,11 @@
       '<div class="help-row" id="hrow-j"><span class="help-key">J / K</span><span class="help-desc">Next · previous kind</span></div>',
       '<div class="help-row" id="hrow-brack"><span class="help-key">[ / ]</span><span class="help-desc">Previous · next pipeline stage</span></div>',
       '<div class="help-row" id="hrow-h"><span class="help-key">H</span><span class="help-desc">Cycle harness on current kind</span></div>',
-      '<div class="help-row" id="hrow-space"><span class="help-key">SPACE</span><span class="help-desc">Play / stop a turn</span></div>',
+      '<div class="help-row" id="hrow-space"><span class="help-key">SPACE</span><span class="help-desc">Play / stop a turn (kinds only)</span></div>',
       '<div class="help-row" id="hrow-a"><span class="help-key">A</span><span class="help-desc">Enable / mute audio (opt-in)</span></div>',
       '<div class="help-sep"></div>',
       '<div class="help-row" id="hrow-?"><span class="help-key">?</span><span class="help-desc">Toggle this panel</span></div>',
+      '<div class="help-row" id="hrow-i"><span class="help-key">I</span><span class="help-desc">Hop: what you\'re looking at</span></div>',
       '<div class="help-row"><span class="help-key">ESC</span><span class="help-desc">Close panel</span></div>',
       '<div class="help-footer" id="help-close">[ CLOSE ]</div>',
     ].join('');
@@ -995,6 +1056,7 @@
     row.classList.add('flashing');
   }
   function openHelp() {
+    closeHopGuide();
     $help.classList.add('open');
     renderHelp();
   }
@@ -1003,23 +1065,39 @@
     if ($help.classList.contains('open')) closeHelp(); else openHelp();
   }
 
+  const $hopGuide = document.getElementById('hop-guide');
+  function openHopGuide() {
+    closeHelp();
+    $hopGuide.classList.add('open');
+    ensureHopVisible();
+  }
+  function closeHopGuide() { $hopGuide.classList.remove('open'); }
+  function toggleHopGuide() {
+    if ($hopGuide.classList.contains('open')) closeHopGuide(); else openHopGuide();
+  }
+
   function stopPlay() {
     playing = false;
     if (playTimer) { clearInterval(playTimer); playTimer = null; }
     $play.classList.remove('on');
     $play.textContent = '\u25B6 play a turn';
+    $pipe.classList.remove('held');
     sysLine();
+  }
+  function revealKindRow() {
+    const tr = $table.querySelector('tr.on');
+    if (tr) tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   function playTurn() {
     if (playing) { stopPlay(); tapeIdx = -1; paint(); return; }
     playing = true;
     $play.classList.add('on');
     $play.textContent = '\u25A0 stop';
+    $pipe.classList.add('held');
     let i = 0;
     function tick() {
       if (i >= seed.tape.length) {
         stopPlay();
-        stageIdx = 4;
         paint();
         return;
       }
@@ -1027,13 +1105,13 @@
       const step = seed.tape[i];
       const idx = seed.kinds.findIndex(k => k.id === step.kind);
       if (idx >= 0) kindIdx = idx;
-      stageIdx = i < 1 ? 0 : (i === 1 ? 1 : (i >= 4 ? 3 : 2));
       paint();
+      revealKindRow();
       playKind(step.kind);
       i++;
     }
     tick();
-    playTimer = setInterval(tick, 700);
+    playTimer = setInterval(tick, 900);
   }
 
   $pipe.addEventListener('click', e => {
@@ -1068,6 +1146,9 @@
   }
   document.getElementById('help-btn').addEventListener('click', toggleHelp);
   $help.addEventListener('click', e => { if (e.target === $help) closeHelp(); });
+  document.getElementById('hop-guide-btn').addEventListener('click', toggleHopGuide);
+  document.getElementById('hop-guide-close').addEventListener('click', closeHopGuide);
+  $hopGuide.addEventListener('click', e => { if (e.target === $hopGuide) closeHopGuide(); });
 
   document.addEventListener('keydown', ev => {
     const tag = document.activeElement && document.activeElement.tagName;
@@ -1076,12 +1157,20 @@
 
     if (key === '?' || (key === '/' && ev.shiftKey)) {
       ev.preventDefault();
+      closeHopGuide();
       toggleHelp();
       flash('hrow-?');
       return;
     }
+    if (key === 'i' || key === 'I') {
+      ev.preventDefault();
+      flash('hrow-i');
+      toggleHopGuide();
+      return;
+    }
     if (key === 'Escape') {
       if ($help.classList.contains('open')) { closeHelp(); return; }
+      if ($hopGuide.classList.contains('open')) { closeHopGuide(); return; }
       if (playing) { stopPlay(); return; }
       return;
     }

@@ -60,6 +60,50 @@ See `hooks/adapters/*.mjs` + `hooks/session-reducer.mjs` and the Architecture No
 
 The goal is that a new harness feels like a localized, obvious addition with minimal cross-file churn — see `notes/crystallized/harness-architecture.md` for a fully worked example (Command Code).
 
+## Source Data Retention (why history disappears)
+
+kaaroSessions only reads whatever transcripts a harness still has on disk — it has no
+storage of its own (`sessions-data.json`/`graph-data.json` are regenerated from scratch
+on every `analyze.mjs` run, gitignored, never a historical archive). If a harness deletes
+its own old transcripts, they vanish from the graph too, with no warning.
+
+**Claude Code prunes its own history.** `~/.claude/projects/**/*.jsonl` is swept by a
+built-in background job controlled by the `cleanupPeriodDays` setting (introduced in CC
+v0.2.117; scope expanded in v2.1.117 to also cover `~/.claude/tasks/`,
+`~/.claude/shell-snapshots/`, `~/.claude/backups/`). **Default is 30 days** — any session
+transcript whose file hasn't been written to in 30+ days gets deleted automatically to
+cap disk usage. The clock is keyed off the file's last-modified time, not the session's
+original start date, so a session you keep resuming stays alive indefinitely; a session
+you touch once and never resume ages out a month later.
+
+This is not a kaaroSessions bug and not a recent change — it's been there almost since
+CC's beginning. It's just easy to not notice until the graph looks sparser than expected.
+
+**To change it:** add to `~/.claude/settings.json` (global) or a project's `.claude/settings.json`:
+
+```json
+{
+  "cleanupPeriodDays": 365
+}
+```
+
+`cleanupPeriodDays: 0` is rejected by CC with a validation error (it used to silently
+disable transcript persistence entirely — don't rely on that). Pick a number of days
+generous enough that you won't mind the loss.
+
+**Confirmed 2026-08-24** (this repo's dev machine): live claude-code sessions only went
+back to 2026-07-16 despite ~5 months of actual usage. The gap was recovered by discovering
+`~/.claude` was itself a manually-`git init`'d + pushed repo with periodic snapshot
+commits — those blobs held 95 sessions (2026-03-21 → 2026-05-07) that had already aged
+out of the live directory. If you want a durable safety net beyond raising
+`cleanupPeriodDays`, periodically committing `~/.claude` to a **private** git remote is
+one option — but audit `.gitignore` first: `.credentials.json` (live OAuth token) and
+`sessions/*.key` have no business in git history and were found tracked unprotected
+during that investigation.
+
+Other harnesses' retention behavior is currently undocumented/unverified — treat "the
+graph only shows what's still on disk" as a general caveat, not a claude-code-specific one.
+
 ## Known Gaps / Future
 
 - Subagent sessions under CC `<project>/subagents/*.jsonl` are not yet walked by the main CC scanner.

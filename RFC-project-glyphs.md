@@ -295,3 +295,4 @@ On `/graph` after analyze+build:
 - Hex fill splits match the harnesses that actually have sessions there (quiet 0.35 opacity).
 - Session disks use the same consumption definition.
 - `node --test` green; no duplicate project ids in `buildGraph` output for the Pi `--…--` dialect.
+- Performance verification is **REQ-GRAPH-PERF-01** (`docs/GRAPH-PERFORMANCE-REQUIREMENT.md`) — a headed Chrome DevTools run, not claimed by the glyph implementation.

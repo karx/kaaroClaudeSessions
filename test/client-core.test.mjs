@@ -11,6 +11,7 @@ import {
   fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
   connectEvents, resolveControlVisibility,
+  hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK,
 } from '../experience/client-core.mjs';
 
 test('fmtTok — M/k/plain formatting', () => {
@@ -87,6 +88,81 @@ test('harnessMarks — one tick per harness, vertices first, on the hex stroke',
   const marks = harnessMarks(['claude-code', 'pi', 'grok'], 20);
   for (const m of marks)
     assert.ok(Math.abs(Math.hypot(m.x, m.y) - 20) < 1e-9, 'every mark sits at distance r from origin');
+});
+
+function pathPts(d) {
+  return d.replace(/Z$/i, '').slice(1).split('L').map(p => p.split(',').map(Number));
+}
+
+function near(a, b, eps = 1e-6) {
+  return Math.abs(a - b) < eps;
+}
+
+test('harnessWedges — empty / one / two / three / four+', () => {
+  assert.deepEqual(harnessWedges([], 20), []);
+  assert.deepEqual(harnessWedges(null, 20), []);
+
+  const solid = harnessWedges(['claude-code'], 20);
+  assert.equal(solid.length, 1);
+  assert.equal(solid[0].harness, 'claude-code');
+  assert.equal(solid[0].d, hexPath(20), 'single harness is a solid hex, not a fan');
+
+  const split = harnessWedges(['claude-code', 'pi'], 20);
+  assert.equal(split.length, 2);
+  assert.equal(split[0].harness, 'claude-code');
+  assert.equal(split[1].harness, 'pi');
+  const left = pathPts(split[0].d);
+  const right = pathPts(split[1].d);
+  assert.ok(left.length >= 3 && right.length >= 3);
+  assert.ok(near(left[0][0], 0) && near(left[0][1], 0), 'n=2 wedges start at the center');
+  // Vertical split through top and bottom vertices of a pointy-top hex.
+  const hasTop = p => p.some(([x, y]) => near(x, 0) && near(y, -20));
+  const hasBot = p => p.some(([x, y]) => near(x, 0) && near(y, 20));
+  assert.ok(hasTop(left) && hasBot(left), 'first half includes the top–bottom diagonal');
+  assert.ok(hasTop(right) && hasBot(right), 'second half shares the same diagonal');
+
+  const tri = harnessWedges(['claude-code', 'pi', 'grok'], 20);
+  assert.equal(tri.length, 3);
+  // 120° rays hit vertices 0, 2, 4 (top, lower-right, lower-left).
+  const tri0 = pathPts(tri[0].d);
+  assert.ok(near(tri0[0][0], 0) && near(tri0[0][1], 0));
+  assert.ok(tri0.some(([x, y]) => near(x, 0) && near(y, -20)), 'first 120° wedge includes the top vertex');
+
+  const quad = harnessWedges(['claude-code', 'pi', 'grok', 'opencode'], 20);
+  assert.equal(quad.length, 4);
+  const q0 = pathPts(quad[0].d);
+  assert.ok(near(q0[0][0], 0) && near(q0[0][1], 0), 'n=4 is a fan from the center');
+  // 90° ray from top hits the right flat (side midpoint), not a vertex.
+  const sideHit = q0.find(([x, y]) => near(x, 20 * Math.sqrt(3) / 2, 1e-4) && near(y, 0, 1e-4));
+  assert.ok(sideHit, 'n=4 first wedge lands on a hex side, not only corners');
+
+  const seven = harnessWedges(
+    ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'], 20);
+  assert.equal(seven.length, 7);
+  for (const w of seven) {
+    const pts = pathPts(w.d);
+    assert.ok(near(pts[0][0], 0) && near(pts[0][1], 0));
+    assert.ok(pts.length >= 3);
+  }
+});
+
+test('harnessBreakdown — preserves glyph order, counts sessions, carries mark color', () => {
+  assert.deepEqual(harnessBreakdown([]), []);
+  const rows = harnessBreakdown(
+    ['claude-code', 'pi'],
+    [
+      { harness: 'pi' },
+      { harness: 'claude-code' },
+      { harness: 'claude-code' },
+      { source: 'pi' },
+    ],
+  );
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].harness, 'claude-code');
+  assert.equal(rows[0].count, 2);
+  assert.equal(rows[0].color, HARNESS_MARK['claude-code']);
+  assert.equal(rows[1].harness, 'pi');
+  assert.equal(rows[1].count, 2);
 });
 
 test('edge opacity/width — weighted edges scale with sqrt(weight/max)', () => {

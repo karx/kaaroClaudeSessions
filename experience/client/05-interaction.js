@@ -11,8 +11,10 @@ function attachTooltip(sel) {
   sel.on('mouseover',(ev,d)=>{
     tip.style.display='block';
     if (d.type==='project') {
+      const hs = d.harnesses || [];
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
         <div class="meta">${d.session_count} sessions · AI work: ${fmtTok(d.tokens_work)}</div>
+        ${hs.length?`<div class="meta">${hs.length} harness${hs.length===1?'':'es'} · ${hs.join(' · ')}</div>`:''}
         ${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;
     } else if (d.type==='session') {
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
@@ -244,10 +246,14 @@ function showPanel(d) {
   const nb=neighbours(d.id); let html='';
   if (d.type==='project') {
     const ss=[...nb].filter(id=>id!==d.id).map(id=>nodeById[id]).filter(n=>n?.type==='session');
+    const hRows = harnessBreakdown(d.harnesses, ss).map(h =>
+      `<div class="prow"><span class="pk" style="color:${h.color}">● ${esc(h.harness)}</span><span class="pv">${h.count}</span></div>`
+    ).join('');
     html=`<h3 style="color:${d.color}">${d.label}</h3>
       <div class="prow"><span class="pk">Sessions</span><span class="pv">${d.session_count}</span></div>
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtTok(d.tokens_work)}</span></div>
       <div class="prow"><span class="pk">Skills</span><span class="pv">${d.skills.map(s=>'<span class="ptag">/'+s+'</span>').join('')||'none'}</span></div>
+      ${hRows?`<div class="psep"></div><div class="p-section-hd">◆ HARNESSES</div>${hRows}`:''}
       <div class="psep"></div>
       ${ss.map(s=>_nodeRow(s.id,`<span class="pk">${s.date_str||'?'}</span><span class="pv" style="color:${d.color}">${s.label}</span>`)).join('')}`;
   } else if (d.type==='session') {

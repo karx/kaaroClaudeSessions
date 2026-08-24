@@ -1,7 +1,7 @@
 # RFC: Project Glyphs
 
 **Project:** kaaroSessions  
-**Status:** Proposed  
+**Status:** Implemented (PR #11)  
 **Date:** 2026-08-25  
 **Relates to:** multi-harness project identity · force-graph node language · session `sizeNorm` / consumption  
 **Grounding:** live `sessions-data.json` on the authoring machine (2026-08-24), 24 project nodes, 3 label collisions
@@ -168,15 +168,20 @@ Do **not** size projects by `tokens_work` (output + cache_create). Cache read is
 
 Session node sizing is **out of this RFC’s implementation** except a one-line note in §8: same consumption rule should follow in a later unit so session disks and project hexes share a definition of “big.”
 
-### 5.3 Depth: harness ticks
+### 5.3 Depth: harness fill
 
-On the hex stroke, one tick per distinct `harnesses[]` value, equally spaced on the 6 vertices (start at top). Tick = 3px radial dash or a 2.5px filled dot in a **harness color**, not the project color.
+The hex *interior* encodes how many harnesses touched the repo. Stroke stays the project color (place). Fill uses `HARNESS_MARK` at `HARNESS_FILL_OPACITY` 0.35 (a cell, not a neon pie):
 
-Harness colors (Register A, data not chrome — same idea as `TOOL_COLORS`):
+| n | fill |
+|---|---|
+| 1 | solid hex in that harness color |
+| 2 | split through the top–bottom vertices |
+| 3 | 120° center fan (vertex-aligned) |
+| 4+ | equal-angle polygons from the center to each side/corner the ray hits |
 
-Propose a small `HARNESS_MARK` map in `experience/client-core.mjs` (single source, tests). Six vertices, seven harnesses: seventh overlaps the first vertex with a smaller inner dot, or we use the mid-edge. Prefer **vertices first, then mid-edges** (12 slots). Never a second project node.
+`harnessWedges(harnesses, r)` in `experience/client-core.mjs` is the geometry. Never a second project node. `session_count` is not written inside the hex — count stays in the hover panel / `◆ HARNESSES` list.
 
-`session_count` is **not** written inside the hex (clusters already put a number in the disk). Count stays in the hover panel / label.
+Harness colors are data, not chrome (same idea as `TOOL_COLORS`). No blue-family hues — Register A retired navy chrome.
 
 ### 5.4 Recency
 
@@ -236,9 +241,9 @@ Follow EXECUTION.md: 🔴 failing test → 🟢 minimal code → 📦 one commit
 `test/client-core.test.mjs`: `type:'project'` uses `PR_MIN`/`PR_MAX` × `sizeNorm` (not fixed 26).
 
 **Unit G5 — hex path helper**  
-Pure `hexPath(r)` in client-core, tested point count / symmetry. `04-rendering.js` uses it instead of two circles. Harness ticks: test a small `harnessMarks(harnesses, r)` returning `{x,y,harness}[]`. Visual proof: `node build.mjs`, `/graph`, one EBRAIN hex, Pi sessions attached, ticks ≥ 2.
+Pure `hexPath(r)` / `harnessWedges(harnesses, r)` in client-core. `04-rendering.js` fills the hex by harness count. Visual proof: `node build.mjs`, `/graph`, one EBRAIN hex, Pi sessions attached.
 
-**Out of RFC v1:** session `sizeNorm` switched from `tokens_work` to `tokens_total`. Call it follow-up G6 so session disks and project hexes share “consumption.” Do not block G1–G5 on it.
+**G6 (landed):** session `sizeNorm` uses `tokens_total` (overall consumption), same as project hexes. `tool_calls` fallback when total is 0. Timeline/swimlane stay on `tokens_work`.
 
 ---
 
@@ -250,7 +255,7 @@ Pure `hexPath(r)` in client-core, tested point count / symmetry. `04-rendering.j
 | `surface/analyze-orchestrator.mjs` | group on canonical id; `raw_ids`, `harnesses` |
 | `hooks/analyze.mjs` `buildProjectSummary` | expose `tool_calls` on project if not already |
 | `experience/graph-pipeline.mjs` | passthrough + project `sizeNorm` |
-| `experience/client-core.mjs` | `hexPath`, `harnessMarks`, `PR_MIN`/`PR_MAX` |
+| `experience/client-core.mjs` | `hexPath`, `harnessWedges`, `HARNESS_MARK`, `PR_MIN`/`PR_MAX` |
 | `experience/client/04-rendering.js` | hex + ticks |
 | `test/analyze-helpers.test.mjs` | G1 |
 | `test/analyze-orchestrator.test.mjs` | G2 |
@@ -266,7 +271,7 @@ No `experience/` → `hooks/` imports.
 1. **Merge on canonical path slug, not label.** Prevents false merges.
 2. **Hex, not another circle.** Type is silhouette.
 3. **Project size = `tokens_total` (overall consumption),** tool_calls only when the unified project has no tokens at all.
-4. **Harness ticks on the hex, not extra nodes.**
+4. **Harness fill on the hex, not extra nodes or stroke ticks.**
 5. **Session JSON keeps native `project_id`.** Graph membership uses canonical id.
 6. **Synthetic flutes stay out of graph sizing.**
 
@@ -276,7 +281,7 @@ No `experience/` → `hooks/` imports.
 
 1. **Command Code `users-<user>-…`:** implement the strip in G1 now, or wait for a live collision? Recommendation: include the strip in G1 tests with a synthetic id; no production Command Code dump required.
 2. **Hex pointy-top vs flat-top.** Recommendation: pointy-top (stronger “not a circle” at 20px).
-3. **G6 (session size → `tokens_total`)** in the same PR as G1–G5 or after? Recommendation: **after**. Unifying projects changes the map; changing session scale changes every disk at once.
+3. **G6 (session size → `tokens_total`)** in the same PR as G1–G5 or after? **After, then landed on PR #11.** Max session radius is unchanged (still 0…1 → 5–20px); only ranking shifts toward cache-read-heavy sessions.
 
 ---
 
@@ -287,5 +292,6 @@ On `/graph` after analyze+build:
 - One node labelled EBRAIN (and KAAROSESSIONS, ART-OF-INTENT).
 - That node is a **hex**, not a ring.
 - Larger hexes are the high-`tokens_total` repos.
-- Ticks on the hex match the harnesses that actually have sessions there.
+- Hex fill splits match the harnesses that actually have sessions there (quiet 0.35 opacity).
+- Session disks use the same consumption definition.
 - `node --test` green; no duplicate project ids in `buildGraph` output for the Pi `--…--` dialect.

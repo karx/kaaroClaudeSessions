@@ -48,8 +48,10 @@ test('blockGeom — ambient floor strips vs top-anchored activity spikes', () =>
   assert.deepEqual(blockGeom({ type: 'tool_call', tool: 'Mystery' }, trackH), { h: 20, yOff: 2 });
 });
 
-test('nodeRadius — project fixed, session/file scale by sizeNorm', () => {
-  assert.equal(nodeRadius({ type: 'project' }), 26);
+test('nodeRadius — project scales by sizeNorm (PR_MIN..PR_MAX), session/file/cluster too', () => {
+  assert.equal(nodeRadius({ type: 'project', sizeNorm: 0 }), 18);
+  assert.equal(nodeRadius({ type: 'project', sizeNorm: 1 }), 34);
+  assert.equal(nodeRadius({ type: 'project' }), 18, 'missing sizeNorm defaults to 0');
   assert.equal(nodeRadius({ type: 'session', sizeNorm: 0 }), 5);
   assert.equal(nodeRadius({ type: 'session', sizeNorm: 1 }), 20);
   assert.equal(nodeRadius({ type: 'file', sizeNorm: 0.5 }), 8);

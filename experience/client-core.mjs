@@ -55,10 +55,10 @@ export const EDGE_WIDTH   = { membership: 1.4, write: 1, edit: 1, read: .7, bran
 
 // ── Geometry ──────────────────────────────────────────────────────────────────
 
-export const NODE_RADII = { PROJ_R: 26, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13, CL_MIN: 12, CL_MAX: 24 };
+export const NODE_RADII = { PR_MIN: 18, PR_MAX: 34, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13, CL_MIN: 12, CL_MAX: 24 };
 
 export function nodeRadius(d, r = NODE_RADII) {
-  if (d.type === 'project') return r.PROJ_R;
+  if (d.type === 'project') return r.PR_MIN + (r.PR_MAX - r.PR_MIN) * (d.sizeNorm || 0);
   if (d.type === 'session') return r.SR_MIN + (r.SR_MAX - r.SR_MIN) * (d.sizeNorm || 0);
   if (d.type === 'cluster') return r.CL_MIN + (r.CL_MAX - r.CL_MIN) * (d.sizeNorm || 0);
   return r.FR_MIN + (r.FR_MAX - r.FR_MIN) * (d.sizeNorm || 0);

@@ -25,10 +25,9 @@ const JSON_HEADERS = {
  * @param {{ root: string, html: string, data: string, daw: string, now: string }} deps.paths
  * @param {(sessionId: string) => object|null} deps.resolveSessionFile
  * @param {(filePath: string, projectId: string|null, sessionId: string, harness: string) => object|null} deps.buildTrace
- * @param {(filePath: string, projectId: string|null, sessionId: string, harness: string, opts?: object) => object|null} [deps.buildAudio]
  * @returns {(req: import('http').IncomingMessage, res: import('http').ServerResponse) => void}
  */
-export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace, buildAudio }) {
+export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace }) {
   return (req, res) => {
     const pathOnly = req.url.split('?')[0];
     if (pathOnly === '/events') {
@@ -94,24 +93,6 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
       if (!tree) { res.writeHead(500); res.end('reconstruction failed'); return; }
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(tree));
-      return;
-    }
-
-    if (req.url.startsWith('/api/audio/')) {
-      const raw = req.url.slice('/api/audio/'.length);
-      const qIdx = raw.indexOf('?');
-      const idPart = qIdx === -1 ? raw : raw.slice(0, qIdx);
-      const query = qIdx === -1 ? '' : raw.slice(qIdx + 1);
-      const sessionId = decodeURIComponent(idPart).replace(/\.jsonl$/, '');
-      if (!sessionId) { res.writeHead(400); res.end('missing session_id'); return; }
-      const found = resolveSessionFile(sessionId);
-      if (!found) { res.writeHead(404); res.end('session not found'); return; }
-      if (typeof buildAudio !== 'function') { res.writeHead(501); res.end('audio not wired'); return; }
-      const preset = new URLSearchParams(query).get('preset') || 'cognitive-flow';
-      const payload = buildAudio(found.filePath, found.projectId, found.sessionId, found.harness, { preset });
-      if (!payload) { res.writeHead(500); res.end('audio simulation failed'); return; }
-      res.writeHead(200, JSON_HEADERS);
-      res.end(JSON.stringify(payload));
       return;
     }
 

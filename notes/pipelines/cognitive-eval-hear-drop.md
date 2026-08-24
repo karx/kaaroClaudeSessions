@@ -127,7 +127,7 @@ Skill and branch should be first-class (registry already has room; transformer d
 | `unknown` | 39 | 129 | **no** |
 | `tool_result` | 0 | 25 | **no** |
 
-On `/graph` with `♪ ON` you hear tools, words, humans, CC attachments/mode, errors. You do **not** hear the thinking bed or CC’s tool-result harps. Session replay (`/daw?session=`) uses `simulateSession` → `playPulse` for **every** event type, so replay is closer to the CLI transcript than live is.
+On `/graph` with `♪ ON` you hear tools, words, humans, CC attachments/mode, errors. You do **not** hear the thinking bed or CC’s tool-result harps. The CLI dump (`simulateSession` / `dump-pulses.mjs`) still lists **every** mapped pulse type, so the transcript is fuller than the live ear.
 
 ---
 
@@ -160,9 +160,9 @@ CC **129 ticks = 39% of audible events** is mostly this leak. Fix: stamp `nr_kin
 - Percussion pile → one hit
 - Visual beat-ring still draws **every** pulse (`ghosts` have no oscillator)
 
-At 60× replay, a `t+11s` wall of five `read_file` harps becomes a triad, not five C4s. The CLI transcript still lists five harps — **eval dumps overstate polyphony vs what `/daw` plays.**
+A `t+11s` wall of five `read_file` harps in one 80 ms live flush becomes a triad, not five C4s. The CLI transcript still lists five harps — **eval dumps overstate polyphony vs what `/graph` and `/daw` play.**
 
-Live still uses the 80 ms batch + beat grid, then the same cap. Dense Grok read bursts on `/graph` also chord.
+Live uses the 80 ms batch + beat grid, then the same cap. Dense Grok read bursts on `/graph` also chord.
 
 ### Adapter / JSONL (never a pulse)
 
@@ -178,7 +178,7 @@ Live still uses the 80 ms batch + beat grid, then the same cap. Dense Grok read 
 |---|---|---|
 | Can you hear file writes vs reads? | Yes, late (4 bass / 57 pling / 128 harp) | Barely (0 write, 0 edit, 5 read) |
 | Can you hear the human? | 13 pads | 30 pads + 29 clicks |
-| Can you hear thinking live? | No (126 in replay only) | No (22 in replay only) |
+| Can you hear thinking live? | No (126 in CLI dump only) | No (22 in CLI dump only) |
 | Can you hear cache weather? | No (fake zero-token flutes) | Yes (dull flute, cr≈100%) |
 | Can you hear shell vs file? | **No** — 60 shells are harp | Yes — 14 hats |
 | How much is structural noise? | 39 ticks (7%) | **129 ticks (39%)** |
@@ -190,7 +190,7 @@ Live still uses the 80 ms batch + beat grid, then the same cap. Dense Grok read 
 
 1. **Stamp `nr_kind` on unknown pulses** so the existing off-rules actually silence assistant_turn / content_block / session_meta. CC mix changes overnight (ticks 129 → ~21 unknown_record).
 2. **Alias `run_terminal_command` → bash_*** (and MCP names) in `action-keys.mjs`. Grok shell becomes hats/snares.
-3. **Subscribe `thinking` (and optionally `tool_result`) on live SSE** so Graph matches replay.
+3. **Subscribe `thinking` (and optionally `tool_result`) on live SSE** so Graph matches the CLI transcript.
 4. **Don’t emit `tokens` from Grok `assistant_turn`.** Kill the fake flute.
 5. **`skill_invoke` / `branch_change` as real pulse events** — already in the NR vocabulary.
 

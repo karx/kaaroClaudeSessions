@@ -353,12 +353,9 @@
   }
 
   // ── Beat scheduler ────────────────────────────────────────────────────────────
-  // Live: 80 ms batch, then snap onto the next beat (musical grid).
-  // Replay (_audioImmediate): 24 ms cohort, no beat grid — enough time to
-  // collect same-timestamp pulses so coalesceVoices can turn a pile into a chord.
+  // 80 ms batch, then snap onto the next beat (musical grid).
   let _beatAt = 0, _barBeat = 0, _batchBuf = [], _batchTimer = null;
   const BATCH_MS = 80;
-  const REPLAY_COHORT_MS = 24;
 
   function _flushBatch() {
     _batchTimer = null;
@@ -371,16 +368,11 @@
       ? coalesceVoices(buf, { scale })
       : { audible: buf };
 
-    let at;
-    if (window._audioImmediate) {
-      at = now + 0.02;
-    } else {
-      const bd = 60 / (window.AUDIO_SETTINGS.bpm || 120);
-      if (_beatAt < now + 0.02) { _beatAt = now + 0.02; _barBeat = 0; }
-      at = _beatAt;
-      _barBeat = (_barBeat + 1) % (window.AUDIO_SETTINGS.beatsPerBar || 4);
-      _beatAt += bd;
-    }
+    const bd = 60 / (window.AUDIO_SETTINGS.bpm || 120);
+    if (_beatAt < now + 0.02) { _beatAt = now + 0.02; _barBeat = 0; }
+    const at = _beatAt;
+    _barBeat = (_barBeat + 1) % (window.AUDIO_SETTINGS.beatsPerBar || 4);
+    _beatAt += bd;
 
     const stagger = Math.min(0.012, 0.04 / Math.max(1, audible.length - 1));
     // Every original pulse still draws; only `audible` gets an oscillator.
@@ -407,8 +399,7 @@
     const finalVol  = (vol != null ? vol : 0.42) * mixerGain;
     _batchBuf.push({ name, hz, vol: finalVol, sonic, meta });
     if (!ac()) return;
-    const wait = window._audioImmediate ? REPLAY_COHORT_MS : BATCH_MS;
-    if (!_batchTimer) _batchTimer = setTimeout(_flushBatch, wait);
+    if (!_batchTimer) _batchTimer = setTimeout(_flushBatch, BATCH_MS);
   }
 
   function startVoice(c, at, v) {

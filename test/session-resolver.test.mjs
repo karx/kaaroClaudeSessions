@@ -235,7 +235,7 @@ test('resolveSessionFile — locates copilot chat session in workspace storage',
   } finally { rm(root, { recursive: true, force: true }); }
 });
 
-// ── 8-char slug prefix parity (DAW /api/audio, Mission Control, graph slug) ──
+// ── 8-char slug prefix parity (Mission Control, graph slug, /api/trace) ──
 
 test('resolveSessionFile — locates opencode session by 8-char slug prefix', async () => {
   const { mkdirSync: mk, writeFileSync: wr, rmSync: rm } = await import('fs');

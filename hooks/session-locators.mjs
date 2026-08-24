@@ -163,7 +163,7 @@ export function locateGrokSession(sessionId, root = GROK_SESSIONS_ROOT) {
     }
   }
 
-  // 8-char slug prefix (DAW /api/audio, sim-audio.mjs)
+  // 8-char slug prefix (graph / Mission Control slug, sim-audio.mjs)
   if (sessionId.length < 8) return null;
   const needle = sessionId.toLowerCase();
   for (const encodedCwd of fs.readdirSync(root)) {

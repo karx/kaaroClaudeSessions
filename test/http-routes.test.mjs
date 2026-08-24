@@ -32,7 +32,6 @@ function makeDeps(over = {}) {
     },
     resolveSessionFile: () => null,
     buildTrace: () => null,
-    buildAudio: () => null,
     ...over,
   };
 }
@@ -178,7 +177,7 @@ test('GET /api/trace/:id — 400 empty, 404 unresolved, 404 trace-incapable, 200
 });
 
 test('GET /api/trace/:id — passes the resolved full session id (not the URL slug) to buildTrace', async () => {
-  // Regression: a caller pasting the 8-char slug shown by the graph/DAW/Mission
+  // Regression: a caller pasting the 8-char slug shown by the graph/Mission
   // Control must reconstruct the trace for the *resolved* session, not the slug.
   let receivedSessionId = null;
   const deps = makeDeps({
@@ -193,30 +192,6 @@ test('GET /api/trace/:id — passes the resolved full session id (not the URL sl
     assert.equal(r.status, 200);
     assert.equal(receivedSessionId, 'full-session-id-0123456789');
     assert.equal((await r.json()).session_id, 'full-session-id-0123456789');
-  });
-});
-
-test('GET /api/audio/:id — 400 empty, 404 unresolved, 200 sim payload', async () => {
-  await withServer(makeDeps(), async (base) => {
-    assert.equal((await fetch(`${base}/api/audio/`)).status, 400);
-    assert.equal((await fetch(`${base}/api/audio/unknown-id`)).status, 404);
-  });
-
-  const capable = makeDeps({
-    resolveSessionFile: () => ({ filePath: 'f', projectId: 'p', sessionId: 's', harness: 'grok' }),
-    buildAudio: () => ({
-      session_id: 's', slug: 's', harness: 'grok', preset: 'cognitive-flow',
-      duration_ms: 1000, summary: { total: 1, tool_call: 1 }, silentCount: 0,
-      events: [{ relMs: 0, event: 'tool_call', hz: 261.6, sonic: { instrument: 'harp', key: 'read' }, data: {} }],
-    }),
-  });
-  await withServer(capable, async (base) => {
-    const r = await fetch(`${base}/api/audio/s?preset=cognitive-flow`);
-    assert.equal(r.status, 200);
-    const body = await r.json();
-    assert.equal(body.harness, 'grok');
-    assert.equal(body.events.length, 1);
-    assert.equal(body.events[0].sonic.instrument, 'harp');
   });
 });
 
@@ -288,7 +263,7 @@ test('GET /daw — serves DAW page; query string does not 404', async () => {
     deps.paths.daw = join(dir, 'daw-builder.html');
     await withServer(deps, async (base) => {
       assert.ok((await (await fetch(`${base}/daw`)).text()).includes('DAW PAGE'));
-      assert.ok((await (await fetch(`${base}/daw?session=01a03426`)).text()).includes('DAW PAGE'));
+      assert.ok((await (await fetch(`${base}/daw?x=1`)).text()).includes('DAW PAGE'));
     });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

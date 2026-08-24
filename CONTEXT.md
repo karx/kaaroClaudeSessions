@@ -129,7 +129,7 @@ The timestamp the harness attached when it captured the transcript record. Carri
 _Avoid_: arrival time, `Date.now()` at play, heardAt
 
 **Sonic Encoder**:
-The single mapping from Stream pulses to sounding parameters (instrument, pitch, pan, brightness, volume, family) and, for each Burst, to audible voices plus ghosts. It consumes the Observability Surface (pulses with Recorded Time and Canonical Action Keys). It does not parse JSONL, call adapters, or call Web Audio. Live Stream and Import both consume this encoder. Playback (beat grid, speed, mute) and viewers (graph widget, DAW lanes) must not re-derive it. Every `instrument` it emits is a Playable Instrument or `off`.
+The single mapping from Stream pulses to sounding parameters (instrument, pitch, pan, brightness, volume, family) and, for each Burst, to audible voices plus ghosts. It consumes the Observability Surface (pulses with Recorded Time and Canonical Action Keys). It does not parse JSONL, call adapters, or call Web Audio. Playback (beat grid, mute) and viewers (graph widget, DAW lanes) must not re-derive it. Every `instrument` it emits is a Playable Instrument or `off`.
 
 _Avoid_: pulse-audio engine, scheduler, a second resolveSonic in the browser, running adapters inside simulateSession
 
@@ -141,17 +141,12 @@ _Avoid_: falling back to harp at play time, a second instrument table in the bro
 **Burst**:
 The set of pulses that share Recorded Time. Voice Coalescing applies per Burst. Live `/graph` and live `/daw` hear the same bursts because they subscribe to the same Stream.
 
-_Avoid_: 80 ms batch, 24 ms cohort, flush window (those are leftover playback timers, not the burst definition)
+_Avoid_: treating the 80 ms live batch timer as the burst definition
 
 **Voice Coalescing**:
 The encoder policy that turns one Burst into a small set of sounding voices: unison spread under the polyphony cap, chord collapse over it, percussion as one hit. Ghosts stay in the visual score so the DAW and graph widget still draw every pulse.
 
 _Avoid_: polyphony (the cap, not the feature)
-
-**Import** (beta, `/daw` only):
-Loading a historical session’s pulses into the same Sonic Encoder the live Stream uses. Extra DAW machinery (speed, playhead, SIM emit, lanes) may wrap Import; `/graph` does not offer it.
-
-_Avoid_: replay-as-a-different-encoder, SIM as the product name
 
 **Sample Trace** (in Event Registry entries):
 A per-harness, versioned fixture colocated with each Audio Event Type definition. Provides both an input `record` (raw JSONL shape) and an `expect` array (expected NormalizedRecords). Serves as the canonical TDD contract for adapter correctness. Version is a monotonic integer per `{ eventType, harness }` pair — increment when the record shape changes. `test/harness-parity.test.mjs` validates all sample traces automatically.

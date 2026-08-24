@@ -38,15 +38,18 @@ GRAPH.nodes.forEach(n => nodeById[n.id] = n);
 // ── Node rendering ────────────────────────────────────────────────────────────
 function renderNodeContent(el, d) {
   const r = nodeRadius(d);
-  if (d.recencyLevel > 0) {
-    const spd=['','4s','2.4s','1.4s'][d.recencyLevel];
-    const opa=['','0.2','0.45','0.75'][d.recencyLevel];
+  // recencyLevel 1 ("< 2 days") is a static hairline — infinite CSS pulses
+  // on a week of sessions is the compositor tax. One ring from level 2 up.
+  if (d.recencyLevel === 1) {
+    el.append('circle').attr('r', r + (d.type==='project'?6:5))
+      .attr('fill','none').attr('stroke',d.color).attr('stroke-width',1).attr('stroke-opacity',.2)
+      .attr('pointer-events','none');
+  } else if (d.recencyLevel > 1) {
+    const spd=['','','2.4s','1.4s'][d.recencyLevel];
+    const opa=['','','0.45','0.75'][d.recencyLevel];
     const pr=r+(d.type==='project'?6:5);
     el.append('circle').attr('class','pring').attr('r',pr).attr('stroke',d.color)
       .style('animation-duration',spd).style('--po',opa);
-    if (d.recencyLevel===3)
-      el.append('circle').attr('class','pring').attr('r',pr).attr('stroke',d.color)
-        .style('animation-duration',spd).style('animation-delay','-0.7s').style('--po',opa);
   }
   if (d.type === 'project') {
     const wedges = harnessWedges(d.harnesses, r);
@@ -84,11 +87,19 @@ function renderNodeContent(el, d) {
 function joinNodes(graphData) {
   return nodeLayer.selectAll('g.node').data(graphData.nodes, d=>d.id).join(
     enter => { const g = enter.append('g').attr('class',d=>'node node-'+d.type).style('cursor','pointer'); g.each(function(d){renderNodeContent(d3.select(this),d);}); return g; },
-    update => update,
+    update => update.each(function(d){
+      const el = d3.select(this);
+      el.selectAll('*').remove();
+      renderNodeContent(el, d);
+    }),
     exit   => exit.remove()
   );
 }
 let nodeSel = joinNodes(GRAPH);
+
+document.addEventListener('visibilitychange', () => {
+  document.documentElement.classList.toggle('k-hidden', document.hidden);
+});
 
 let projLabelSel = labelLayer.selectAll('text.pl').data(GRAPH.nodes.filter(n=>n.type==='project'), d=>d.id)
   .join('text').attr('class','pl').attr('text-anchor','middle').attr('fill',d=>d.color)

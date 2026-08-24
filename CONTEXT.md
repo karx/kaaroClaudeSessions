@@ -87,9 +87,9 @@ See Normalized Event.
 ## Audio / Sonic Layer
 
 **Event Registry** (`experience/audio/event-registry.mjs`):
-The single source of truth for all audio event types. Each entry declares: canonical key, family, default sonic parameters (instrument, pan, reverb send, brightness, volume, octave), a human description, and per-harness sample traces for TDD. Replaces the scattered `SPATIAL`, `TOOL_FAMILY`, and `DEFAULT_SETTINGS.instruments` tables that previously lived inline in the audio simulator.
+The single source of truth for all audio event types. Each entry declares: canonical key, family, default sonic parameters (instrument, pan, reverb send, brightness, volume, octave), a human description, and per-harness sample traces for TDD. The `instrument` field is a Playable Instrument or `off` — it names a voice the browser engine can actually produce.
 
-_Avoid_: instrument map, spatial table, sonic defaults object
+_Avoid_: instrument map, spatial table, sonic defaults object, naming a synth the engine does not implement
 
 **Audio Event Type** (or Event Type):
 A named, versioned entry in the Event Registry. Every pulse emitted by the Pulse Transformer must have a type that exists in the registry. Current canonical set:
@@ -111,11 +111,47 @@ _Avoid_: fallback event, dropped record, silent record
 A pulse derived by heuristic when a harness's `capabilities` flag indicates a data dimension is unavailable (e.g. `tokens: false` for Antigravity and Grok). Carried as a normal pulse with `data.synthetic: true`. Example: `tokens` pulse approximated from `content_length / 4` as an `output` proxy. Distinct from the Catch-all — a Synthetic Event models a known-missing capability with a deliberate approximation; the Catch-all handles genuinely unknown record types.
 
 **Pulse Transformer** (`hooks/pulse-transformer.mjs`):
-Converts `NormalizedRecord[]` (the adapter output) into typed pulses for `resolveSonic`. Replaces the archived per-harness `pulse-adapters.mjs`, which previously re-parsed raw JSONL per harness. With the unified pipeline, raw JSONL is parsed exactly once — by the adapter — and all downstream layers (session reducer, pulse transformer) consume NormalizedRecords. The transformer:
+Converts `NormalizedRecord[]` (the adapter output) into typed pulses for the Sonic Encoder. Replaces the archived per-harness `pulse-adapters.mjs`, which previously re-parsed raw JSONL per harness. With the unified pipeline, raw JSONL is parsed exactly once — by the adapter — and all downstream layers (session reducer, pulse transformer) consume NormalizedRecords. The transformer:
 - Maps each NormalizedRecord kind to one or more Audio Event Types
-- Uses `data.key` (canonical action key, set by the adapter) for `tool_call` routing — never raw tool names
+- Derives the Canonical Action Key on `tool_call` pulses (`data.key`) from `nr.tool + nr.category` — never raw tool names in the encoder
 - Emits Synthetic Events for harnesses with `capabilities.tokens: false`
 - Emits a Catch-all `unknown` pulse for any kind not in its mapping
+- Stamps **Recorded Time** on every pulse (`data.ts`) from the NormalizedRecord
+
+**Canonical Action Key**:
+The small tool-action vocabulary (`read · write · edit · grep_glob · agent · bash_git · bash_run · bash_other · web · other`) carried on Stream `tool_call` pulses as `data.key`. Derived once by the Pulse Transformer from `nr.tool + nr.category`. It is Stream vocabulary, not a sonic concept — the Sonic Encoder looks up the Event Registry by this key and must not re-derive aliases from raw tool names.
+
+_Avoid_: putting keys on NormalizedRecord, a second alias ladder in resolveSonic
+
+**Recorded Time**:
+The timestamp the harness attached when it captured the transcript record. Carried on every pulse as `ts`. This is the burst clock — not when the browser received the SSE event, not when an oscillator starts.
+
+_Avoid_: arrival time, `Date.now()` at play, heardAt
+
+**Sonic Encoder**:
+The single mapping from Stream pulses to sounding parameters (instrument, pitch, pan, brightness, volume, family) and, for each Burst, to audible voices plus ghosts. It consumes the Observability Surface (pulses with Recorded Time and Canonical Action Keys). It does not parse JSONL, call adapters, or call Web Audio. Live Stream and Import both consume this encoder. Playback (beat grid, speed, mute) and viewers (graph widget, DAW lanes) must not re-derive it. Every `instrument` it emits is a Playable Instrument or `off`.
+
+_Avoid_: pulse-audio engine, scheduler, a second resolveSonic in the browser, running adapters inside simulateSession
+
+**Playable Instrument**:
+A synth the browser pulse engine actually implements today: `harp · bass · bell · flute · bit · pling · snare · kick · hat · buzz`, plus `off`. The Event Registry and Sonic Encoder may only name these. Aspirational timbres (pad, sweep, chime, click, tick, woodblock) stay in the description until someone writes the synth.
+
+_Avoid_: falling back to harp at play time, a second instrument table in the browser, AudioWorklet / unguarded StereoPanner as a requirement
+
+**Burst**:
+The set of pulses that share Recorded Time. Voice Coalescing applies per Burst. Live `/graph` and live `/daw` hear the same bursts because they subscribe to the same Stream.
+
+_Avoid_: 80 ms batch, 24 ms cohort, flush window (those are leftover playback timers, not the burst definition)
+
+**Voice Coalescing**:
+The encoder policy that turns one Burst into a small set of sounding voices: unison spread under the polyphony cap, chord collapse over it, percussion as one hit. Ghosts stay in the visual score so the DAW and graph widget still draw every pulse.
+
+_Avoid_: polyphony (the cap, not the feature)
+
+**Import** (beta, `/daw` only):
+Loading a historical session’s pulses into the same Sonic Encoder the live Stream uses. Extra DAW machinery (speed, playhead, SIM emit, lanes) may wrap Import; `/graph` does not offer it.
+
+_Avoid_: replay-as-a-different-encoder, SIM as the product name
 
 **Sample Trace** (in Event Registry entries):
 A per-harness, versioned fixture colocated with each Audio Event Type definition. Provides both an input `record` (raw JSONL shape) and an `expect` array (expected NormalizedRecords). Serves as the canonical TDD contract for adapter correctness. Version is a monotonic integer per `{ eventType, harness }` pair — increment when the record shape changes. `test/harness-parity.test.mjs` validates all sample traces automatically.
@@ -128,10 +164,10 @@ samples: {
 ```
 
 **Chirp**:
-A short assistant text emission (fewer than 3 words) that the current `words` threshold filters out. Mapped to a distinct, lightweight instrument (e.g. `woodblock`) to preserve conversational cadence without overwhelming the mix with full `bell` events for micro-acknowledgments like "Got it." or "Writing now."
+A short assistant text emission (fewer than 3 words) that the current `words` threshold filters out. A distinct, lightweight Playable Instrument preserves conversational cadence without a full `bell` for micro-acknowledgments like "Got it." or "Writing now."
 
 **Scaffold**:
-An audio event type representing system-injected context: `EPHEMERAL_MESSAGE` records in Antigravity, `attachment` subtypes in Claude Code. Distinct from user-driven prompts — represents the harness's internal guardrails and workflow reminders being loaded into the agent's context window. Mapped to a non-melodic, structural-feeling instrument (e.g. reverse cymbal, woodblock).
+An audio event type representing system-injected context: `EPHEMERAL_MESSAGE` records in Antigravity, `attachment` subtypes in Claude Code. Distinct from user-driven prompts — the harness's internal guardrails and workflow reminders entering the agent's context window. Structural, non-melodic; the Playable Instrument is whatever the registry names, not a synth the engine does not have.
 
 ## Relationships (to kaaro family)
 

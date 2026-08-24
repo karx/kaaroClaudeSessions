@@ -8,12 +8,16 @@
  *
  * @param {string} filePath
  * @param {number} byteOffset  - byte position to start reading from (default 0)
- * @returns {{ records: object[], newOffset: number }}
+ * @param {{ maxBytes?: number }} [opts] — delta size cap (shares MAX_JSONL_BYTES
+ *   with parseJsonlFile by default) + test seam
+ * @returns {{ records: object[], newOffset: number, skippedBytes?: number }}
  */
 
 import fs from 'fs';
+import { MAX_JSONL_BYTES } from './jsonl-io.mjs';
 
-export function tailRead(filePath, byteOffset = 0) {
+export function tailRead(filePath, byteOffset = 0, opts = {}) {
+  const maxBytes = opts.maxBytes ?? MAX_JSONL_BYTES;
   let buf;
   try {
     const fd = fs.openSync(filePath, 'r');
@@ -21,6 +25,11 @@ export function tailRead(filePath, byteOffset = 0) {
       const size = fs.fstatSync(fd).size;
       if (size <= byteOffset) return { records: [], newOffset: byteOffset };
       const readLen = size - byteOffset;
+      // Refuse to bulk-allocate an unbounded delta — e.g. the first watch
+      // event after a restart, on a transcript that grew huge (or huger)
+      // while unwatched. Jump straight to EOF so we don't retry the same
+      // oversized delta forever; caller decides whether/how to log it.
+      if (readLen > maxBytes) return { records: [], newOffset: size, skippedBytes: readLen };
       buf = Buffer.allocUnsafe(readLen);
       fs.readSync(fd, buf, 0, readLen, byteOffset);
     } finally {

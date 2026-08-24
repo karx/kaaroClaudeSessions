@@ -126,3 +126,50 @@ test('tailAndPulse — errors never escape (missing file is a no-op)', () => {
   const emitter = createPulseEmitter({ hub: fakeHub(), activeState: createActiveState() });
   assert.doesNotThrow(() => emitter.tailAndPulse('Z:/nope/missing.jsonl', CC_CTX));
 });
+
+// ── Size cap (OOM guard) ─────────────────────────────────────────────────────
+// Same class of bug as parseJsonlFile's 512MB cap, but on the live path: a
+// transcript that grew huge while unwatched must not be bulk-allocated on
+// the first tail after restart. injected maxBytes stands in for a real
+// gigabyte fixture (matches the jsonl-io/jsonl-tail test-seam convention).
+
+test('tailAndPulse — over-cap delta is skipped, not crashed, and offset jumps past it (no retry loop)', () => {
+  withTempDir((dir) => {
+    const fp = join(dir, 's.jsonl');
+    const oneLine = CC_LINE + '\n';
+    // Cap sized so two lines together are over cap, but one line alone is under it.
+    const cap = Buffer.byteLength(oneLine, 'utf8') + 5;
+    writeFileSync(fp, oneLine + oneLine, 'utf8'); // delta from offset 0 exceeds cap
+    const hub = fakeHub();
+    const emitter = createPulseEmitter({ hub, activeState: createActiveState(), maxBytes: cap });
+
+    assert.doesNotThrow(() => emitter.tailAndPulse(fp, CC_CTX));
+    assert.equal(hub.events.filter(e => e.event === 'tool_call').length, 0, 'oversized delta produced no pulses');
+
+    // If offset had stayed at 0 (retry loop), this delta would again be two
+    // lines (still over cap) and still skip. If offset jumped to EOF as
+    // designed, this new single-line delta is under cap and reads normally.
+    appendFileSync(fp, oneLine, 'utf8');
+    emitter.tailAndPulse(fp, CC_CTX);
+    assert.equal(hub.events.filter(e => e.event === 'tool_call').length, 1, 'offset had advanced past the skipped bytes');
+  });
+});
+
+test('json read_mode — over-cap file is skipped, not crashed: no pulses, no throw', () => {
+  withTempDir((dir) => {
+    const fp = join(dir, 'msg_big.json');
+    writeFileSync(fp, JSON.stringify({
+      id: 'msg_big', sessionID: 'ses_abcdef1234', role: 'assistant',
+      time: { created: 1766698107679 }, modelID: 'm', providerID: 'opencode',
+      tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 1, write: 2 } },
+      finish: 'stop', _parts: [],
+    }), 'utf8');
+    const hub = fakeHub();
+    const emitter = createPulseEmitter({ hub, activeState: createActiveState(), maxBytes: 4 });
+    const ctx = { harness: 'opencode', session_id: null, slug: null,
+      project_id: null, project_label: null, read_mode: 'json' };
+
+    assert.doesNotThrow(() => emitter.tailAndPulse(fp, ctx));
+    assert.equal(hub.events.filter(e => e.event !== 'now').length, 0, 'oversized json produced no data pulses');
+  });
+});

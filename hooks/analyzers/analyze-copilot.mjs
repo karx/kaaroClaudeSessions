@@ -30,6 +30,7 @@ import {
   deriveAntigravityLabel as deriveLabelFromPath,
 } from '../helpers/antigravity-helpers.mjs';
 import { COPILOT_WORKSPACE_STORAGE_ROOT } from '../harness-paths.mjs';
+import { MAX_JSONL_BYTES } from '../jsonl-io.mjs';
 
 export { COPILOT_WORKSPACE_STORAGE_ROOT };
 export { workspaceFolderPath }; // canonical home: hooks/helpers/copilot-helpers.mjs
@@ -61,8 +62,17 @@ export function readChatSessionIndex(dbPath) {
 /**
  * Read one chatSessions file → op records.
  * .jsonl → parsed op lines; .json (old dump) → [dump] (adapter treats it as snapshot).
+ * @param {string} filePath
+ * @param {{ maxBytes?: number }} [opts] — shares MAX_JSONL_BYTES with parseJsonlFile + test seam
  */
-export function readCopilotSession(filePath) {
+export function readCopilotSession(filePath, opts = {}) {
+  const maxBytes = opts.maxBytes ?? MAX_JSONL_BYTES;
+  const { size } = fs.statSync(filePath);
+  if (size > maxBytes) {
+    throw new Error(
+      `Copilot session file too large to parse (${(size / 1024 / 1024).toFixed(1)}MB > ${(maxBytes / 1024 / 1024).toFixed(1)}MB cap): ${filePath}`
+    );
+  }
   const raw = fs.readFileSync(filePath, 'utf8');
   const sizeBytes = Buffer.byteLength(raw, 'utf8');
   if (filePath.endsWith('.jsonl')) {

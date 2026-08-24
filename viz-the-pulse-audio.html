@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Pulse Audio Clearly — Terminal Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #000000;
+  --surface: #080800;
+  --surface2: #101008;
+  --border: #1e1e00;
+  --c-live: #00cccc;
+  --c-label: #ffaa00;
+  --c-pos: #00ff88;
+  --c-neg: #ff5555;
+  --c-warn: #ff6600;
+  --c-neutral: #ccccaa;
+  --c-dim: #445544;
+  --c-accent: #ff6600;
+  --s-critical: #ff5555;
+  --s-warning: #ff6600;
+  --s-stable: #00ff88;
+  --s-unknown: #445544;
+  --fam-file: #3d9a4a;
+  --fam-system: #6a7acc;
+  --fam-ai: #c050b0;
+  --fam-context: #3aa0b8;
+  --fam-unset: #665f55;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  background: var(--bg);
+  color: var(--c-neutral);
+  line-height: 1.55;
+  font-size: 13px;
+  padding-bottom: 36px;
+}
+.t-mono { font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+.t-prose { font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+#progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--c-accent); width: 0; z-index: 1001; }
+#sticky-header {
+  position: sticky; top: 2px; background: var(--bg); border-bottom: 1px solid var(--border);
+  padding: 8px 16px; display: flex; align-items: center; gap: 10px; z-index: 1000; font-size: 13px;
+}
+#doc-title { color: var(--c-neutral); letter-spacing: 0.06em; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 16px 16px 0; }
+.quad {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px;
+}
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 2px; overflow: hidden; }
+.panel-header {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  background: var(--surface2); border-bottom: 1px solid var(--border);
+}
+.panel-title { font-size: 11px; font-weight: 600; color: var(--c-label); letter-spacing: 0.1em; text-transform: uppercase; flex: 1; }
+.panel-meta { font-size: 10px; color: var(--c-dim); }
+.panel-body { padding: 12px; }
+.provenance { font-size: 10px; color: var(--c-dim); padding: 4px 12px; border-top: 1px solid var(--border); }
+.metric { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.metric:last-child { border-bottom: 0; }
+.metric .lab { color: var(--c-label); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+.metric .val { font-size: 28px; font-weight: 600; line-height: 1.1; color: var(--c-live); }
+.metric .unit { font-size: 10px; color: var(--c-dim); margin-left: 6px; }
+.status-row { display: flex; gap: 8px; align-items: baseline; font-size: 11px; padding: 4px 0; }
+.status-row .dots { flex: 1; color: var(--c-dim); overflow: hidden; white-space: nowrap; }
+.alert-row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+.alert-row:last-child { border-bottom: 0; }
+.alert-row a { color: var(--c-dim); text-decoration: none; }
+.alert-row a:hover { color: var(--c-live); }
+.badge { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 2px; text-transform: uppercase; }
+.badge-critical { background: var(--s-critical); color: #fff; }
+.badge-warning  { background: var(--s-warning); color: #000; }
+.badge-stable   { background: var(--s-stable); color: #000; }
+.badge-alert    { background: transparent; border: 1px solid var(--s-critical); color: var(--s-critical); animation: blink 1.4s step-end infinite; }
+.badge-caution  { background: transparent; border: 1px solid var(--c-warn); color: var(--c-warn); }
+@keyframes blink { 50% { opacity: 0; } }
+.layout { display: flex; gap: 16px; }
+#toc { position: sticky; top: 46px; width: 176px; flex-shrink: 0; max-height: calc(100vh - 80px); overflow-y: auto; padding: 8px 0; align-self: flex-start; }
+.toc-header { font-size: 10px; color: var(--c-label); letter-spacing: 0.12em; padding: 4px 12px 8px; }
+#toc a { display: block; font-size: 11px; color: var(--c-dim); padding: 3px 12px; text-decoration: none; border-left: 2px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#toc a:hover { color: var(--c-neutral); background: var(--surface); }
+#toc a.active { color: var(--c-live); border-left-color: var(--c-accent); }
+main { flex: 1; min-width: 0; }
+section { padding: 8px 0 36px; }
+h2 { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-label); margin: 0 0 12px; font-weight: 600; }
+h3 { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-accent); margin: 20px 0 8px; font-weight: 600; }
+p { max-width: 68ch; color: var(--c-neutral); }
+.prose { max-width: 68ch; }
+.data-row { font-size: 12px; display: grid; grid-template-columns: var(--row-cols, 120px 1fr); gap: 0 1rem; align-items: center; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.data-row:hover { background: var(--surface2); }
+.field-label { color: var(--c-label); }
+.field-value { color: var(--c-live); }
+.field-value.pos { color: var(--c-pos); }
+.field-value.neg { color: var(--c-neg); }
+.field-value.warn { color: var(--c-warn); }
+.heat-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.heat-table th { color: var(--c-label); text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--border); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+.heat-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+.heat-table tr:hover td { filter: brightness(1.15); }
+.heat-table tr.sel td { outline: 1px solid var(--c-live); }
+.stat-callout { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--c-warn); padding: 16px 20px; display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
+.stat-value { font-size: 2.2rem; font-weight: 600; line-height: 1; }
+.stat-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-label); }
+.stat-context { font-size: 12px; color: var(--c-dim); }
+.timeline { display: grid; gap: 0; }
+.tl-item { display: grid; grid-template-columns: 72px 16px 1fr; gap: 0 12px; }
+.tl-time { font-size: 11px; color: var(--c-dim); text-align: right; padding-top: 3px; }
+.tl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c-accent); border: 2px solid var(--bg); margin-top: 4px; }
+.tl-line { width: 2px; background: var(--border); flex: 1; margin: 4px auto 0; min-height: 36px; }
+.tl-connector { display: flex; flex-direction: column; align-items: center; }
+.tl-phase { font-size: 11px; letter-spacing: 0.08em; margin-bottom: 6px; color: var(--c-label); }
+.tl-alert { margin-top: 8px; padding: 6px 10px; background: var(--surface2); border-left: 2px solid var(--c-warn); font-size: 11px; color: var(--c-warn); }
+.pull-quote { margin: 1.5rem 0; padding: 1.1rem 1.4rem; border-left: 3px solid var(--c-accent); background: var(--surface); }
+.pq-text { font-size: 1.02rem; font-style: italic; color: var(--c-neutral); margin: 0 0 0.5rem; max-width: 60ch; }
+.pull-quote cite { font-size: 11px; color: var(--c-dim); font-style: normal; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1px; background: var(--border); margin: 12px 0; }
+.card { background: var(--surface); padding: 14px; }
+.card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; flex-wrap: wrap; }
+.card-list { margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--c-dim); display: flex; flex-direction: column; gap: 5px; }
+.card-list li { display: flex; gap: 6px; }
+.reveal { opacity: 0; transform: translateY(12px); transition: opacity 0.25s ease, transform 0.25s ease; }
+.reveal.revealed { opacity: 1; transform: none; }
+.reveal-stagger { opacity: 0; transform: translateY(10px); transition: opacity 0.25s ease, transform 0.25s ease; }
+.reveal-stagger.revealed { opacity: 1; transform: none; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stereo-wrap { position: relative; height: 280px; background: var(--surface2); border: 1px solid var(--border); }
+#stereo { width: 100%; height: 100%; display: block; }
+.legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.btn {
+  background: var(--surface2); color: var(--c-body, var(--c-neutral));
+  border: 1px solid var(--border); font: 10px 'IBM Plex Mono', monospace;
+  letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 10px; cursor: pointer;
+}
+.btn:hover { border-color: var(--c-accent); color: var(--c-accent); }
+.btn.on { border-color: var(--c-pos); color: var(--c-pos); }
+.btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+input[type=range] { width: 100%; accent-color: var(--c-accent); }
+input[type=text], select {
+  background: var(--bg); color: var(--c-live); border: 1px solid var(--border);
+  font: 12px 'IBM Plex Mono', monospace; padding: 4px 8px;
+}
+#cmd-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface2);
+  border-top: 1px solid var(--border); padding: 4px 16px; display: flex; gap: 18px;
+  font-size: 11px; color: var(--c-dim); z-index: 999; align-items: center; flex-wrap: wrap;
+}
+#cmd-bar span { display: flex; align-items: center; gap: 4px; }
+kbd { background: var(--border); color: var(--c-label); padding: 1px 5px; border-radius: 2px; font-size: 10px; }
+.closing { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--c-pos); padding: 16px 20px; }
+.help-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72); z-index: 2000;
+  align-items: center; justify-content: center;
+}
+.help-overlay.show { display: flex; }
+.help-box { background: var(--surface); border: 1px solid var(--border); padding: 20px 24px; max-width: 420px; }
+#fam-chart-wrap { height: 180px; position: relative; }
+.coalesce-box { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.voice-chip { display: inline-block; font-size: 10px; padding: 2px 6px; margin: 2px; border: 1px solid var(--border); }
+.voice-chip.aud { border-color: var(--c-pos); color: var(--c-pos); }
+.voice-chip.ghost { border-color: var(--c-dim); color: var(--c-dim); }
+.signal { font-size: 11px; letter-spacing: 0.04em; padding: 10px; background: var(--surface2); overflow-x: auto; white-space: nowrap; color: var(--c-dim); }
+.signal b { color: var(--c-live); font-weight: 600; }
+.axis-bar { height: 8px; background: var(--border); position: relative; margin: 6px 0 14px; }
+.axis-bar .mark { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--c-live); }
+.axis-lab { display: flex; justify-content: space-between; font-size: 10px; color: var(--c-dim); }
+#toc-toggle { display: none; }
+@media (max-width: 860px) {
+  .quad, .two, .coalesce-box { grid-template-columns: 1fr; }
+  #toc { display: none; }
+  #toc.open { display: block; position: fixed; top: 42px; left: 0; right: 0; width: auto; background: var(--bg); z-index: 1100; max-height: 60vh; border-bottom: 1px solid var(--border); }
+  #toc-toggle { display: inline; }
+}
+</style>
+</head>
+<body>
+<div id="progress-bar"></div>
+<header id="sticky-header">
+  <span class="t-mono" style="color:var(--c-accent)">◈</span>
+  <span id="doc-title">THE PULSE AUDIO CLEARLY</span>
+  <span class="badge badge-warning">LIVE ENGINE</span>
+  <span class="badge badge-caution">DRIFT</span>
+  <button id="toc-toggle" class="btn" type="button">≡</button>
+  <span style="flex:1"></span>
+  <span id="section-counter" class="t-mono" style="color:var(--c-dim);font-size:11px">§ 0 / 9</span>
+</header>
+
+<div class="wrap">
+  <div class="quad">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">KEY METRICS</span><span class="panel-meta">14-pulse-audio.js</span></div>
+      <div class="panel-body">
+        <div class="metric"><span class="lab">Sonic axes</span><span><span class="val reveal" data-count-to="7">0</span><span class="unit">per voice</span></span></div>
+        <div class="metric"><span class="lab">Synths in INSTS</span><span><span class="val reveal" data-count-to="10" style="color:var(--c-pos)">0</span><span class="unit">harp…buzz</span></span></div>
+        <div class="metric"><span class="lab">Max polyphony</span><span><span class="val reveal" data-count-to="4" style="color:var(--c-live)">0</span><span class="unit">oscillators / flush</span></span></div>
+        <div class="metric"><span class="lab">Live batch window</span><span><span class="val reveal" data-count-to="80">0</span><span class="unit">ms → beat grid</span></span></div>
+        <div class="metric"><span class="lab">Registry keys missing a synth</span><span><span class="val reveal" data-count-to="6" style="color:var(--c-neg)">0</span><span class="unit">fall back to harp</span></span></div>
+      </div>
+      <div class="provenance">SRC: experience/client/14-pulse-audio.js · INSTS + coalesceVoices · AS OF: 2026-08-24</div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">DATA MATRIX</span><span class="panel-meta">pan · brightness · vol</span></div>
+      <div class="panel-body" style="padding:0;overflow:auto;max-height:280px">
+        <table class="heat-table" id="quad-heat"></table>
+      </div>
+      <div class="provenance">SRC: SPATIAL + COG_SOUND tables in 14-pulse-audio.js L132–175</div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">STATUS</span><span class="panel-meta">pipeline stages</span></div>
+      <div class="panel-body" id="status-board"></div>
+      <div class="provenance">SRC: ADR-001 + pulse-transformer.mjs + audio-service.mjs</div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">ALERTS ▲</span><span class="badge badge-alert">5 OPEN</span></div>
+      <div class="panel-body">
+        <div class="alert-row"><span style="color:var(--c-neg)">▲ 6</span><span style="color:var(--c-warn)">registry instruments have no oscillator</span><a href="#s-drift">→ §8</a></div>
+        <div class="alert-row"><span style="color:var(--c-neg)">▲ fam=null</span><span style="color:var(--c-warn)">11 cognition keys missing from AUDIO_FAMILIES</span><a href="#s-families">→ §3</a></div>
+        <div class="alert-row"><span style="color:var(--c-neg)">▲ dual resolveSonic</span><span style="color:var(--c-warn)">browser tables ≠ EVENT_TYPES / audio-sim</span><a href="#s-drift">→ §8</a></div>
+        <div class="alert-row"><span style="color:var(--c-warn)">▲ thinking/unknown</span><span style="color:var(--c-warn)">in COGNITION_EVENTS, not in COG_SOUND → harp</span><a href="#s-drift">→ §8</a></div>
+        <div class="alert-row"><span style="color:var(--c-warn)">▲ bash_run/hat</span><span style="color:var(--c-warn)">swapped vs registry (kick / hat)</span><a href="#s-drift">→ §8</a></div>
+      </div>
+      <div class="provenance">SRC: live engine vs experience/audio/event-registry.mjs</div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <nav id="toc"><div class="toc-header">CONTENTS</div></nav>
+    <main>
+
+<section id="s-pipeline">
+  <h2>1 · Pipeline</h2>
+  <p class="prose">A JSONL byte becomes a note only after four translations. Adapters never hear audio. <code>resolveSonic</code> is the first sonic-aware function, and in the browser it still lives inside <code>14-pulse-audio.js</code> — not the Event Registry.</p>
+  <div class="timeline reveal">
+    <div class="tl-item">
+      <div class="tl-time">0</div>
+      <div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-phase">RAW JSONL</div>
+        <p>Harness transcript. One file (or tree) per session. Experience layer never reads this.</p>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">1</div>
+      <div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-phase">ADAPTER → NORMALIZEDRECORD</div>
+        <p>Per-harness <code>hooks/adapters/*.mjs</code>. Sonic-unaware. Emits <code>kind</code>, <code>tool</code>, <code>category</code>, tokens, text.</p>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">2</div>
+      <div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-phase">PULSE TRANSFORMER</div>
+        <p><code>toolNameToKey(tool, category)</code> stamps <code>data.key</code>. Every NR emits ≥1 pulse. Unknown kinds become <code>unknown</code>, never silence.</p>
+        <div class="tl-alert">▶ Canonical keys: read write edit grep_glob agent bash_git bash_run bash_other web other</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">3</div>
+      <div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-phase">RESOLVESONIC</div>
+        <p>Seven axes: instrument, pan, brightness, volMult, octave, sendAmt, pitch degree. Mapping rules first-match-wins. Then timbre / mixer.</p>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">4</div>
+      <div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-phase">SCHEDULER → COALESCE → OSCILLATOR</div>
+        <p>Live: 80 ms batch, snap to next beat. Replay: 24 ms cohort, no grid. <code>coalesceVoices</code> caps oscillators at 4; ghosts still draw on the DAW.</p>
+        <div class="tl-alert">▶ Ring entry is stamped to heardAt so the playhead sits on the note you hear, not the enqueue.</div>
+      </div>
+    </div>
+  </div>
+  <div class="signal t-mono reveal" style="margin-top:14px">
+    JSONL → <b>adapter</b> → NR → <b>transformer</b> → pulse → <b>resolveSonic</b> → batch → <b>coalesceVoices</b> → inst → LPF(bri) → pan → masterGain → masterFilter(pressure) → dest
+    <span style="color:var(--c-dim)">  ↘ sendAmt → convolver 1.8s</span>
+  </div>
+  <blockquote class="pull-quote reveal">
+    <div class="pq-mark" style="color:var(--c-accent);font-size:2rem;line-height:1">"</div>
+    <p class="pq-text">Spatial semantics: file-writes=left, bash=far-left, reads=center, words=right, agent=far-right+reverb. Cognitive pressure: rolling cache_ratio + density → masterFilter cutoff (dull under load).</p>
+    <cite>— experience/client/14-pulse-audio.js · header comment</cite>
+  </blockquote>
+</section>
+
+<section id="s-axes">
+  <h2>2 · Seven axes</h2>
+  <p class="prose">Color is grammar. Each axis carries one meaning. Changing an axis for decoration breaks the encoding.</p>
+  <div class="card-grid reveal-stagger">
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">01</span><span>INSTRUMENT</span></div>
+      <ul class="card-list"><li><span style="color:var(--c-pos)">▶</span> Category / timbre. File=plucked, system=perc, AI=bell, tokens=flute, failure=buzz.</li></ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">02</span><span>PAN</span></div>
+      <ul class="card-list"><li><span style="color:var(--c-pos)">▶</span> Stereo place. Mutation left, observation/delegation right. Harness bias added then clamped ±1.</li></ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">03</span><span>BRIGHTNESS</span></div>
+      <ul class="card-list"><li><span style="color:var(--c-pos)">▶</span> Voice lowpass cutoff Hz. Sharp new state ≈10 kHz. Warm cache ≈800 Hz. Only <code>tokens</code> is dynamic.</li></ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">04</span><span>VOLMULT</span></div>
+      <ul class="card-list"><li><span style="color:var(--c-pos)">▶</span> Importance / velocity. Write 1.30, chirp 0.35, api_error 1.40. Mixer family gain multiplies after.</li></ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">05</span><span>OCTAVE</span></div>
+      <ul class="card-list"><li><span style="color:var(--c-pos)">▶</span> Register vs project root. Agent intended +1 (registry); compact −2; tokens −1. Identity without leaving the scale.</li></ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">06</span><span>SENDAMT</span></div>
+      <ul class="card-list"><li><span style="color:var(--c-pos)">▶</span> Reverb send. Agent 0.40, web 0.28, compact 0.30, tokens 0.00. Cognitive distance, not wetness for beauty.</li></ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">07</span><span>DEGREE / HZ</span></div>
+      <ul class="card-list"><li><span style="color:var(--c-pos)">▶</span> Pitch inside the scale. Default <code>path_hash(where)</code>. Words: floor(word_count/15) clamped to scale length. Tokens: always degree 0.</li></ul>
+    </div>
+  </div>
+  <h3>Project root</h3>
+  <p class="prose">MIDI roots cycle <code>[60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79]</code> from the project’s color index. Same file path hashes to the same degree in every project; the tonic moves so projects don’t unison. Harness pan bias is added after SPATIAL then clamped ±1: <code>pi −0.15 · antigravity +0.15 · grok +0.25</code>.</p>
+  <p class="prose"><code>playPulse</code> applies a second volume stage the matrix does not show: tool_call uses instrument default when volMult is 1 else <code>0.42 × volMult</code>; tokens <code>min(0.11, 0.04+log1p(output/300)×0.028) × volMult</code>; words <code>0.11 × volMult</code>; cognition <code>0.12 × volMult</code>. Then mixer family gain (no-op when fam is null).</p>
+  <div class="two">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">PATH HASH → DEGREE</span></div>
+      <div class="panel-body">
+        <div class="data-row" style="--row-cols:90px 1fr"><span class="field-label">WHERE</span><input id="path-in" type="text" value="src/app.js" style="width:100%"></div>
+        <div class="data-row" style="--row-cols:90px 1fr"><span class="field-label">SCALE</span><span class="field-value" id="path-scale">major_pentatonic [0,2,4,7,9]</span></div>
+        <div class="data-row" style="--row-cols:90px 1fr"><span class="field-label">DEGREE</span><span class="field-value" id="path-deg">—</span></div>
+        <div class="data-row" style="--row-cols:90px 1fr"><span class="field-label">HZ @ C4</span><span class="field-value" id="path-hz">—</span></div>
+        <button class="btn" id="btn-path" type="button" style="margin-top:8px">PLAY DEGREE</button>
+      </div>
+      <div class="provenance">SRC: strHash djb2 · getDegree() · noteMode=path_hash</div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">TOKENS BRIGHTNESS</span></div>
+      <div class="panel-body">
+        <div class="axis-lab"><span>fresh 5000 Hz</span><span>cached 800 Hz</span></div>
+        <input id="cache-slider" type="range" min="0" max="100" value="40">
+        <div class="data-row" style="--row-cols:110px 1fr"><span class="field-label">CACHE RATIO</span><span class="field-value" id="cache-r">0.40</span></div>
+        <div class="data-row" style="--row-cols:110px 1fr"><span class="field-label">BRIGHTNESS</span><span class="field-value" id="cache-b">3320 Hz</span></div>
+        <div class="axis-bar"><div class="mark" id="cache-mark" style="left:40%"></div></div>
+        <p style="font-size:11px;color:var(--c-dim);margin:0">brightness = round(800 + 4200 × (1 − cache_read / (output + cache_read)))</p>
+        <button class="btn" id="btn-flute" type="button" style="margin-top:8px">PLAY FLUTE</button>
+      </div>
+      <div class="provenance">SRC: resolveSonic tokens branch · L223–227</div>
+    </div>
+  </div>
+</section>
+
+<section id="s-families">
+  <h2>3 · Stereo field</h2>
+  <p class="prose">X = pan (−1 left / +1 right). Y = brightness (warm bottom / sharp top). Dot size = volMult. Click a dot to hear the live-engine voice. Unset-family keys (cognition) have <code>fam=null</code> so the mixer cannot route them.</p>
+  <div class="btn-row">
+    <span class="t-mono" style="font-size:10px;color:var(--c-dim);align-self:center">FAMILY</span>
+    <span><span class="legend-dot" style="background:var(--fam-file)"></span>file</span>
+    <span><span class="legend-dot" style="background:var(--fam-system)"></span>system</span>
+    <span><span class="legend-dot" style="background:var(--fam-ai)"></span>ai</span>
+    <span><span class="legend-dot" style="background:var(--fam-context)"></span>context</span>
+    <span><span class="legend-dot" style="background:var(--fam-unset)"></span>unset</span>
+  </div>
+  <div class="two">
+    <div class="stereo-wrap"><svg id="stereo" viewBox="0 0 640 280"></svg></div>
+    <div>
+      <div id="fam-chart-wrap"><canvas id="fam-chart"></canvas></div>
+      <div class="panel" style="margin-top:8px">
+        <div class="panel-header"><span class="panel-title">SELECTED VOICE</span><span class="panel-meta" id="sel-key">click a dot</span></div>
+        <div class="panel-body" id="sel-body" style="font-size:12px;color:var(--c-dim)">No selection.</div>
+        <div class="provenance">SRC: SPATIAL + DEFAULT_SETTINGS.instruments + COG_SOUND</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="s-matrix">
+  <h2>4 · Event matrix</h2>
+  <p class="prose">What the browser actually plays. Rows are keys in <code>SPATIAL</code>. Click a row to hear it. Heat is magnitude of the encoding (not risk): hotter pan = further from center; hotter brightness = sharper.</p>
+  <div style="overflow:auto">
+    <table class="heat-table" id="full-heat"></table>
+  </div>
+  <div class="provenance">SRC: 14-pulse-audio.js SPATIAL L132–154 · COG_SOUND L165–175 · DEFAULT_SETTINGS L36–45</div>
+</section>
+
+<section id="s-instruments">
+  <h2>5 · Instruments</h2>
+  <p class="prose">Ten oscillators. Percussion (<code>snare kick hat</code>) ignores Hz. Everything else is harmonic. Registry names not in this set resolve to <code>INSTS[name] || harp</code>.</p>
+  <div class="btn-row" id="inst-btns"></div>
+  <div class="card-grid reveal-stagger" id="inst-cards"></div>
+  <div class="stat-callout reveal">
+    <div class="stat-value t-mono" style="color:var(--c-neg)">6</div>
+    <div class="stat-label">REGISTRY VOICES WITH NO SYNTH</div>
+    <div class="stat-context">pad · click · chime · sweep · tick · woodblock → harp</div>
+    <span class="badge badge-critical">CRITICAL</span>
+  </div>
+</section>
+
+<section id="s-pressure">
+  <h2>6 · Cognitive pressure</h2>
+  <p class="prose">A master-bus automation, not a per-voice axis. Twenty-sample rolling cache ratio plus 10-second event density drive a lowpass on the whole mix. Heavy cached context + dense pulses → the session dulls.</p>
+  <div class="two">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">FORMULA</span></div>
+      <div class="panel-body">
+        <div class="data-row" style="--row-cols:140px 1fr"><span class="field-label">DENSITY P</span><span class="field-value">min(1, eventsIn10s / 30)</span></div>
+        <div class="data-row" style="--row-cols:140px 1fr"><span class="field-label">AVG CACHE</span><span class="field-value">mean of last 20 token ratios</span></div>
+        <div class="data-row" style="--row-cols:140px 1fr"><span class="field-label">PRESSURE</span><span class="field-value">0.6·cache + 0.4·density</span></div>
+        <div class="data-row" style="--row-cols:140px 1fr"><span class="field-label">CUTOFF</span><span class="field-value">max(200, 12000 · (1 − p·0.70)^1.5)</span></div>
+      </div>
+      <div class="provenance">SRC: _updatePressure() L296–310</div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">WORDS DEGREE</span></div>
+      <div class="panel-body">
+        <p style="margin:0 0 8px;font-size:12px;color:var(--c-dim)">Longer assistant turns climb the scale. 15 words per degree, capped at the top of the active scale (pentatonic = 5 tones).</p>
+        <input id="words-slider" type="range" min="3" max="80" value="24">
+        <div class="data-row" style="--row-cols:110px 1fr"><span class="field-label">WORD COUNT</span><span class="field-value" id="words-n">24</span></div>
+        <div class="data-row" style="--row-cols:110px 1fr"><span class="field-label">DEGREE</span><span class="field-value" id="words-d">1</span></div>
+        <button class="btn" id="btn-words" type="button" style="margin-top:8px">PLAY WORDS</button>
+      </div>
+      <div class="provenance">SRC: playPulse words branch · deg = min(iv.length-1, floor(word_count/15))</div>
+    </div>
+  </div>
+</section>
+
+<section id="s-coalesce">
+  <h2>7 · Scheduler + polyphony</h2>
+  <p class="prose">This is the current change set. A simultaneous burst used to stack N harps on C4. Now the flush runs <code>coalesceVoices</code>: under the cap, unisons spread into a scale chord; over the cap, high-salience keys keep a voice and the rest of each family collapse to a chord (or one percussion hit). Oscillator count never exceeds 4. Ghosts still paint on the DAW.</p>
+  <div class="btn-row">
+    <button class="btn" data-burst="reads" type="button">12 READS</button>
+    <button class="btn" data-burst="write" type="button">WRITE + 10 READS</button>
+    <button class="btn" data-burst="mixed" type="button">MIXED FAMILIES</button>
+    <button class="btn" data-burst="snares" type="button">8 SNARES</button>
+    <button class="btn" data-burst="under" type="button">3 UNISON HARPS</button>
+  </div>
+  <div class="coalesce-box">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">AUDIBLE</span><span class="panel-meta" id="aud-meta">—</span></div>
+      <div class="panel-body" id="aud-box"></div>
+      <div class="provenance">SRC: experience/client-core.mjs coalesceVoices · VOICE_MAX_POLYPHONY=4 · VOICE_MAX_CHORD=3</div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">GHOSTS</span><span class="panel-meta">drawn, no oscillator</span></div>
+      <div class="panel-body" id="ghost-box"></div>
+      <div class="provenance">SRC: startVoice only runs on audible[] · ring still gets every original pulse</div>
+    </div>
+  </div>
+  <h3>Two clocks</h3>
+  <div class="two">
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">LIVE</span><span>SSE PULSES</span><span class="badge badge-stable">80 MS</span></div>
+      <ul class="card-list">
+        <li><span style="color:var(--c-pos)">▶</span> Batch 80 ms, then snap onto the next beat (BPM grid, default 120).</li>
+        <li><span style="color:var(--c-pos)">▶</span> Stagger ≤12 ms across the audible chord so attacks don’t phase-cancel.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">REPLAY</span><span>_audioImmediate</span><span class="badge badge-warning">24 MS</span></div>
+      <ul class="card-list">
+        <li><span style="color:var(--c-pos)">▶</span> Session replay from <code>GET /api/audio/:id</code>. No beat grid — same-timestamp pulses must still cohort so coalesce can chord them.</li>
+        <li><span style="color:var(--c-pos)">▶</span> DAW playhead uses <code>voicesSoundingAt(_scheduledVoices, audioNow)</code>; ring <code>ts</code> rewritten to scheduled wall time.</li>
+      </ul>
+    </div>
+  </div>
+  <h3>Salience order</h3>
+  <p class="prose">When slots run out: <code>tool_error/api_error 100 · write 90 · edit 80 · words/human_turn 70 · agent 65 · bash_* 55–45 · read 30 · tokens 12 · thinking 10</code>. Percussion piles become one hit with a log2 volume boost, never a snare chord.</p>
+</section>
+
+<section id="s-drift">
+  <h2>8 · Live engine vs registry</h2>
+  <p class="prose"><code>CONTEXT.md</code> says the Event Registry is the single source of truth. The browser still has its own <code>SPATIAL</code>, <code>COG_SOUND</code>, <code>AUDIO_FAMILIES</code>, and <code>DEFAULT_SETTINGS.instruments</code>. Server-side <code>audio-sim.mjs</code> reads the registry. Replay still calls <code>playPulse</code>, so you hear the browser tables even when <code>/api/audio</code> computed a different sonic.</p>
+  <div style="overflow:auto">
+    <table class="heat-table" id="drift-table"></table>
+  </div>
+  <div class="provenance">SRC: 14-pulse-audio.js vs experience/audio/event-registry.mjs EVENT_TYPES</div>
+  <div class="stat-callout reveal" style="border-left-color:var(--c-neg);margin-top:16px">
+    <div class="stat-value t-mono" style="color:var(--c-neg)">fam=null</div>
+    <div class="stat-label">MIXER CANNOT ROUTE COGNITION</div>
+    <div class="stat-context">AUDIO_FAMILIES lists file / system / ai / context only. human_turn, compact, errors, chirp, attachment, scaffold, thinking, unknown get TOOL_FAMILY[key] = undefined, so MIXER_GAINS never applies and DAW lanes miss them unless family is patched later.</div>
+    <span class="badge badge-critical">CRITICAL</span>
+  </div>
+</section>
+
+<section id="s-production">
+  <h2>9 · Production path</h2>
+  <p class="prose">The uncommitted change set wires a trace-shaped audio endpoint. Same locate → read → simulate → JSON pattern as <code>/api/trace</code>. mtime+preset cached.</p>
+  <div class="timeline reveal">
+    <div class="tl-item">
+      <div class="tl-time">HTTP</div>
+      <div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-phase">GET /api/audio/:session_id?preset=cognitive-flow</div>
+        <p><code>surface/http-routes.mjs</code> strips query, resolves the file via 8-char slug, calls <code>buildAudio</code>.</p>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">SVC</div>
+      <div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-phase">AUDIO-SERVICE</div>
+        <p><code>readSessionRecords</code> → <code>simulateSession</code> (registry + presets) → payload of <code>{relMs, event, hz, sonic, data}</code>.</p>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">DAW</div>
+      <div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div>
+      <div class="tl-content">
+        <div class="tl-phase">19-DAW-BUILDER REPLAY</div>
+        <p>LOAD fetches the payload. PLAY sets <code>_audioImmediate=true</code> and fires <code>playPulse(ev.event, data)</code> on a speed-scaled timeout. Precomputed <code>sonic</code>/<code>hz</code> are not what you hear — the browser re-resolves.</p>
+        <div class="tl-alert">▶ Dual encoding is audible: sim used the registry; the speaker uses 14-pulse-audio.js.</div>
+      </div>
+    </div>
+  </div>
+  <div class="closing reveal">
+    <div class="stat-label">TAKEAWAY</div>
+    <p>Sonic encoding is a spatial grammar: left mutates, right observes, dull means cached or failing, bright means new, reverb means a cognitive branch left the room. The live engine in <code>14-pulse-audio.js</code> is what you hear. The Event Registry is what the design says you should hear. Until those tables collapse into one, documentation that only cites the registry is lying about the mix.</p>
+  </div>
+</section>
+
+    </main>
+  </div>
+</div>
+
+<div id="cmd-bar">
+  <span><kbd>J</kbd><kbd>K</kbd> navigate</span>
+  <span><kbd>1</kbd>–<kbd>9</kbd> jump</span>
+  <span><kbd>F</kbd> find</span>
+  <span><kbd>T</kbd> top</span>
+  <span><kbd>?</kbd> help</span>
+  <span><kbd>SPACE</kbd> play selected</span>
+  <span id="cmd-input" style="display:none"><kbd>:</kbd> <input id="cmd-field" placeholder="section or key…"></span>
+</div>
+<div class="help-overlay" id="help">
+  <div class="help-box">
+    <div class="panel-title" style="margin-bottom:10px">KEYBOARD</div>
+    <div class="data-row" style="--row-cols:80px 1fr"><span class="field-label">J / K</span><span>next / prev section</span></div>
+    <div class="data-row" style="--row-cols:80px 1fr"><span class="field-label">1–9</span><span>jump to section</span></div>
+    <div class="data-row" style="--row-cols:80px 1fr"><span class="field-label">T</span><span>top</span></div>
+    <div class="data-row" style="--row-cols:80px 1fr"><span class="field-label">F</span><span>find</span></div>
+    <div class="data-row" style="--row-cols:80px 1fr"><span class="field-label">SPACE</span><span>play selected event</span></div>
+    <div class="data-row" style="--row-cols:80px 1fr"><span class="field-label">ESC</span><span>close</span></div>
+    <p style="font-size:11px;color:var(--c-dim);margin:12px 0 0">Click stereo dots or matrix rows to hear the live-engine voice. First click unlocks AudioContext.</p>
+  </div>
+</div>
+
+<script type="application/json" id="seed-data">
+{
+  "title": "The Pulse Audio Clearly",
+  "asOf": "2026-08-24",
+  "source": "experience/client/14-pulse-audio.js",
+  "scale": [0, 2, 4, 7, 9],
+  "scaleName": "major_pentatonic",
+  "events": [
+    {"key":"write","fam":"file","inst":"bass","pan":-0.15,"send":0.05,"bri":10000,"oct":0,"vol":1.00,"desc":"New state creation"},
+    {"key":"edit","fam":"file","inst":"pling","pan":-0.10,"send":0.05,"bri":9000,"oct":0,"vol":1.00,"desc":"Mutation"},
+    {"key":"read","fam":"file","inst":"harp","pan":0.05,"send":0.06,"bri":7000,"oct":0,"vol":1.00,"desc":"File observation"},
+    {"key":"grep_glob","fam":"file","inst":"bit","pan":0.10,"send":0.04,"bri":5500,"oct":0,"vol":1.00,"desc":"Codebase scan"},
+    {"key":"bash_git","fam":"system","inst":"snare","pan":-0.30,"send":0.04,"bri":3500,"oct":0,"vol":1.00,"desc":"Git operation"},
+    {"key":"bash_run","fam":"system","inst":"hat","pan":-0.30,"send":0.04,"bri":3500,"oct":0,"vol":1.00,"desc":"Process execution (engine: hat, registry: kick)"},
+    {"key":"bash_other","fam":"system","inst":"kick","pan":-0.30,"send":0.04,"bri":3500,"oct":0,"vol":1.00,"desc":"Shell misc (engine: kick, registry: hat)"},
+    {"key":"agent","fam":"ai","inst":"bell","pan":0.35,"send":0.40,"bri":4500,"oct":0,"vol":1.00,"desc":"Subagent spawn"},
+    {"key":"web","fam":"ai","inst":"bell","pan":0.45,"send":0.28,"bri":5800,"oct":0,"vol":1.00,"desc":"External network IO"},
+    {"key":"other","fam":"ai","inst":"harp","pan":0.00,"send":0.08,"bri":6000,"oct":0,"vol":1.00,"desc":"Unmapped tool"},
+    {"key":"tokens","fam":"context","inst":"flute","pan":0.00,"send":0.00,"bri":5000,"oct":-1,"vol":1.00,"desc":"Cognitive cost; brightness from cache ratio"},
+    {"key":"words","fam":"context","inst":"bell","pan":0.20,"send":0.15,"bri":9000,"oct":1,"vol":1.00,"desc":"Linguistic output ≥3 words"},
+    {"key":"human_turn","fam":null,"inst":"bell","pan":0.30,"send":0.25,"bri":6000,"oct":-1,"vol":0.90,"desc":"User prompt (registry: pad, pan 0)"},
+    {"key":"attachment","fam":null,"inst":"pling","pan":0.25,"send":0.15,"bri":6500,"oct":0,"vol":0.50,"desc":"Context loading (registry: click)"},
+    {"key":"chirp","fam":null,"inst":"pling","pan":0.20,"send":0.10,"bri":8000,"oct":1,"vol":0.35,"desc":"Micro-ack <3 words (registry: woodblock)"},
+    {"key":"mode_shift","fam":null,"inst":"hat","pan":-0.10,"send":0.02,"bri":7000,"oct":0,"vol":0.50,"desc":"Plan/mode toggle (registry: chime)"},
+    {"key":"permission","fam":null,"inst":"hat","pan":-0.10,"send":0.02,"bri":7000,"oct":0,"vol":0.50,"desc":"Permission gate (registry: tick)"},
+    {"key":"scaffold","fam":null,"inst":"hat","pan":-0.20,"send":0.05,"bri":4000,"oct":-1,"vol":0.40,"desc":"System injection (registry: woodblock)"},
+    {"key":"compact","fam":null,"inst":"kick","pan":0.00,"send":0.30,"bri":1200,"oct":-2,"vol":1.20,"desc":"Context reset (registry: sweep)"},
+    {"key":"tool_error","fam":null,"inst":"buzz","pan":-0.10,"send":0.05,"bri":1500,"oct":-1,"vol":1.10,"desc":"Tool failure"},
+    {"key":"api_error","fam":null,"inst":"buzz","pan":0.00,"send":0.10,"bri":900,"oct":-2,"vol":1.40,"desc":"API/harness failure — loudest lowest"},
+    {"key":"thinking","fam":null,"inst":"harp","pan":0.00,"send":0.05,"bri":7000,"oct":0,"vol":1.00,"desc":"COGNITION_EVENTS only — no COG_SOUND → harp fallback"},
+    {"key":"unknown","fam":null,"inst":"harp","pan":0.00,"send":0.05,"bri":7000,"oct":0,"vol":1.00,"desc":"Catch-all; engine fallback harp, registry tick"},
+    {"key":"tool_result","fam":null,"inst":"off","pan":0,"send":0,"bri":0,"oct":0,"vol":0,"silent":true,"desc":"Engine-silent: playPulse never dispatches tool_result (registry: harp)"}
+  ],
+  "registry": {
+    "write":"bass","edit":"pling","read":"harp","grep_glob":"bit",
+    "bash_git":"snare","bash_run":"kick","bash_other":"hat",
+    "agent":"bell","web":"bell","other":"harp",
+    "tokens":"flute","words":"bell","human_turn":"pad","attachment":"click",
+    "chirp":"woodblock","mode_shift":"chime","permission":"tick","scaffold":"woodblock",
+    "compact":"sweep","tool_error":"buzz","api_error":"buzz","thinking":"pad","unknown":"tick","tool_result":"harp"
+  },
+  "registryAxes": {
+    "read":{"inst":"harp","pan":0.05,"send":0.05,"bri":6500,"oct":0,"vol":0.65,"fam":"file"},
+    "write":{"inst":"bass","pan":-0.15,"send":0.05,"bri":10000,"oct":0,"vol":1.30,"fam":"file"},
+    "edit":{"inst":"pling","pan":-0.10,"send":0.05,"bri":8500,"oct":0,"vol":1.00,"fam":"file"},
+    "grep_glob":{"inst":"bit","pan":0.10,"send":0.03,"bri":5000,"oct":0,"vol":0.55,"fam":"file"},
+    "agent":{"inst":"bell","pan":0.35,"send":0.40,"bri":4500,"oct":1,"vol":1.20,"fam":"ai"},
+    "bash_git":{"inst":"snare","pan":-0.30,"send":0.03,"bri":3500,"oct":0,"vol":1.10,"fam":"system"},
+    "bash_run":{"inst":"kick","pan":-0.30,"send":0.03,"bri":2800,"oct":0,"vol":1.00,"fam":"system"},
+    "bash_other":{"inst":"hat","pan":-0.30,"send":0.02,"bri":4000,"oct":0,"vol":0.55,"fam":"system"},
+    "web":{"inst":"bell","pan":0.45,"send":0.28,"bri":5500,"oct":1,"vol":0.80,"fam":"ai"},
+    "other":{"inst":"harp","pan":0.00,"send":0.06,"bri":6500,"oct":0,"vol":0.60,"fam":"ai"},
+    "tokens":{"inst":"flute","pan":0.00,"send":0.02,"bri":5000,"oct":-1,"vol":0.50,"fam":"context"},
+    "words":{"inst":"bell","pan":0.20,"send":0.15,"bri":9000,"oct":1,"vol":0.90,"fam":"context"},
+    "chirp":{"inst":"woodblock","pan":0.15,"send":0.01,"bri":7000,"oct":0,"vol":0.30,"fam":"context"},
+    "human_turn":{"inst":"pad","pan":0.00,"send":0.08,"bri":7000,"oct":0,"vol":0.70,"fam":"human"},
+    "attachment":{"inst":"click","pan":0.05,"send":0.02,"bri":8000,"oct":0,"vol":0.40,"fam":"human"},
+    "mode_shift":{"inst":"chime","pan":0.00,"send":0.10,"bri":6000,"oct":0,"vol":0.50,"fam":"context"},
+    "compact":{"inst":"sweep","pan":0.00,"send":0.00,"bri":1000,"oct":-1,"vol":0.80,"fam":"system"},
+    "permission":{"inst":"tick","pan":0.00,"send":0.00,"bri":3000,"oct":0,"vol":0.40,"fam":"system"},
+    "scaffold":{"inst":"woodblock","pan":0.00,"send":0.01,"bri":2500,"oct":-1,"vol":0.35,"fam":"system"},
+    "tool_error":{"inst":"buzz","pan":-0.10,"send":0.05,"bri":1500,"oct":-1,"vol":0.90,"fam":"system"},
+    "tool_result":{"inst":"harp","pan":0.05,"send":0.03,"bri":5000,"oct":0,"vol":0.40,"fam":"system"},
+    "api_error":{"inst":"buzz","pan":0.00,"send":0.10,"bri":900,"oct":-2,"vol":1.30,"fam":"system"},
+    "thinking":{"inst":"pad","pan":-0.10,"send":0.06,"bri":4000,"oct":-1,"vol":0.25,"fam":"context"},
+    "unknown":{"inst":"tick","pan":0.00,"send":0.00,"bri":3000,"oct":0,"vol":0.25,"fam":"meta"}
+  },
+  "insts": [
+    {"name":"harp","dur":0.9,"kind":"tone","wave":"triangle+sine","use":"read / other"},
+    {"name":"bass","dur":1.4,"kind":"tone","wave":"sine /2","use":"write"},
+    {"name":"bell","dur":2.5,"kind":"tone","wave":"sine ×2","use":"agent / words / human_turn"},
+    {"name":"flute","dur":0.65,"kind":"tone","wave":"sine","use":"tokens"},
+    {"name":"bit","dur":0.22,"kind":"tone","wave":"square","use":"grep_glob"},
+    {"name":"pling","dur":0.48,"kind":"tone","wave":"sine","use":"edit / chirp / attachment"},
+    {"name":"snare","dur":0.12,"kind":"perc","wave":"noise HP 1200","use":"bash_git"},
+    {"name":"kick","dur":0.25,"kind":"perc","wave":"sine 120→40","use":"compact / bash_other"},
+    {"name":"hat","dur":0.04,"kind":"perc","wave":"noise HP 8000","use":"bash_run / permission / mode_shift / scaffold"},
+    {"name":"buzz","dur":0.27,"kind":"tone","wave":"saw down-sweep","use":"tool_error / api_error"}
+  ],
+  "priority": {
+    "tool_error":100,"api_error":100,"write":90,"edit":80,"words":70,"human_turn":70,
+    "agent":65,"bash_git":55,"bash_run":50,"bash_other":45,"read":30,"grep_glob":28,
+    "other":25,"tokens":12,"thinking":10,"unknown":8,"permission":8
+  }
+}
+</script>
+<script>
+const SEED = JSON.parse(document.getElementById('seed-data').textContent);
+const EVENTS = SEED.events;
+const SCALE = SEED.scale;
+const FAM_COLOR = { file:'#3d9a4a', system:'#6a7acc', ai:'#c050b0', context:'#3aa0b8', null:'#665f55' };
+const PERC = new Set(['snare','kick','hat']);
+
+function midiToHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+function strHash(s) {
+  if (!s) return 0;
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (((h << 5) + h) ^ s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/* ── Audio (mirrors 14-pulse-audio.js INSTS) ── */
+let _ac = null;
+function ac() {
+  if (!_ac) { try { _ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
+  if (_ac.state === 'suspended') _ac.resume().catch(() => {});
+  return _ac;
+}
+function envTo(out, c, at, vol, dur) {
+  const g = c.createGain();
+  g.gain.setValueAtTime(Math.max(0.0001, vol), at);
+  g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+  g.connect(out);
+  return g;
+}
+const INSTS = {
+  harp(c, at, hz, vol, out) {
+    const env = envTo(out, c, at, vol ?? 0.42, 0.9);
+    [[1,'triangle',0.72],[2,'sine',0.28]].forEach(([m,t,w]) => {
+      const o = c.createOscillator(); o.type = t; o.frequency.value = hz * m;
+      const g = c.createGain(); g.gain.value = w; o.connect(g); g.connect(env); o.start(at); o.stop(at+0.9);
+    });
+  },
+  bass(c, at, hz, vol, out) {
+    const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = hz / 2;
+    o.connect(envTo(out, c, at, vol ?? 0.48, 1.4)); o.start(at); o.stop(at+1.4);
+  },
+  bell(c, at, hz, vol, out) {
+    const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = hz * 2;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol ?? 0.32, at+0.008);
+    g.gain.exponentialRampToValueAtTime(0.001, at+2.5);
+    o.connect(g); g.connect(out); o.start(at); o.stop(at+2.5);
+  },
+  flute(c, at, hz, vol, out) {
+    const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = hz;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol ?? 0.18, at+0.07);
+    g.gain.setValueAtTime(vol ?? 0.18, at+0.2); g.gain.exponentialRampToValueAtTime(0.001, at+0.65);
+    o.connect(g); g.connect(out); o.start(at); o.stop(at+0.65);
+  },
+  bit(c, at, hz, vol, out) {
+    const o = c.createOscillator(); o.type = 'square'; o.frequency.value = hz;
+    o.connect(envTo(out, c, at, vol ?? 0.14, 0.22)); o.start(at); o.stop(at+0.22);
+  },
+  pling(c, at, hz, vol, out) {
+    const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = hz;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol ?? 0.30, at+0.005);
+    g.gain.exponentialRampToValueAtTime(0.001, at+0.48);
+    o.connect(g); g.connect(out); o.start(at); o.stop(at+0.48);
+  },
+  snare(c, at, vol, out) {
+    const buf = c.createBuffer(1, Math.floor(c.sampleRate*0.12), c.sampleRate);
+    const d = buf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+    const src = c.createBufferSource(); src.buffer = buf;
+    const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1200;
+    src.connect(f); f.connect(envTo(out, c, at, vol ?? 0.32, 0.12)); src.start(at); src.stop(at+0.12);
+  },
+  kick(c, at, vol, out) {
+    const o = c.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(120, at); o.frequency.exponentialRampToValueAtTime(40, at+0.15);
+    o.connect(envTo(out, c, at, vol ?? 0.46, 0.25)); o.start(at); o.stop(at+0.25);
+  },
+  hat(c, at, vol, out) {
+    const buf = c.createBuffer(1, Math.floor(c.sampleRate*0.04), c.sampleRate);
+    const d = buf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+    const src = c.createBufferSource(); src.buffer = buf;
+    const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 8000;
+    src.connect(f); f.connect(envTo(out, c, at, vol ?? 0.18, 0.04)); src.start(at); src.stop(at+0.04);
+  },
+  buzz(c, at, hz, vol, out) {
+    const o = c.createOscillator(); o.type = 'sawtooth';
+    const f0 = Math.max(60, hz || 160);
+    o.frequency.setValueAtTime(f0, at);
+    o.frequency.exponentialRampToValueAtTime(Math.max(36, f0*0.35), at+0.22);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(Math.min(0.6, (vol ?? 0.4)*1.1), at+0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, at+0.26);
+    o.connect(g); g.connect(out); o.start(at); o.stop(at+0.27);
+  }
+};
+
+let selected = null;
+function playEvent(ev, extra = {}) {
+  if (!ev || ev.silent) return;
+  const c = ac(); if (!c) return;
+  const at = c.currentTime + 0.02;
+  const deg = extra.degree != null ? extra.degree : 0;
+  const oct = ev.oct || 0;
+  const hz = midiToHz(60 + SCALE[deg % SCALE.length] + oct * 12);
+  const bri = extra.brightness != null ? extra.brightness : ev.bri;
+  const vol = 0.28 * (ev.vol || 1);
+  const name = INSTS[ev.inst] ? ev.inst : 'harp';
+  const filt = c.createBiquadFilter(); filt.type = 'lowpass';
+  filt.frequency.value = bri || 7000; filt.Q.value = 0.8;
+  let panner = null;
+  try { panner = c.createStereoPanner(); panner.pan.value = ev.pan || 0; } catch {}
+  const endpoint = panner || c.destination;
+  filt.connect(endpoint);
+  if (panner) panner.connect(c.destination);
+  const fn = INSTS[name] || INSTS.harp;
+  PERC.has(name) ? fn(c, at, vol, filt) : fn(c, at, hz, vol, filt);
+  selected = ev;
+}
+
+function playInst(name) {
+  const c = ac(); if (!c) return;
+  const fn = INSTS[name]; if (!fn) return;
+  const at = c.currentTime + 0.05;
+  const tmpOut = c.createGain(); tmpOut.gain.value = 1; tmpOut.connect(c.destination);
+  PERC.has(name) ? fn(c, at, undefined, tmpOut) : fn(c, at, midiToHz(64), undefined, tmpOut);
+}
+
+/* ── Heat tables ── */
+function applyHeat(table) {
+  const cols = {};
+  table.querySelectorAll('td[data-val]').forEach(td => {
+    const col = td.dataset.col;
+    if (!cols[col]) cols[col] = [];
+    cols[col].push(parseFloat(td.dataset.val));
+  });
+  table.querySelectorAll('td[data-val]').forEach(td => {
+    const col = td.dataset.col;
+    const vals = cols[col];
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const norm = (parseFloat(td.dataset.val) - min) / (max - min || 1);
+    const dir = td.dataset.heatDir;
+    let hue = 42; // amber = data magnitude (not risk)
+    if (dir === 'bad') hue = 0;
+    if (dir === 'good') hue = 120;
+    td.style.background = `hsla(${hue}, 70%, ${15 + norm * 28}%, ${0.18 + norm * 0.55})`;
+    td.style.color = norm > 0.62 ? '#fff' : 'var(--c-neutral)';
+  });
+}
+
+function quadHeat() {
+  const keys = ['write','read','agent','tokens','words','compact','tool_error','human_turn'];
+  const rows = keys.map(k => EVENTS.find(e => e.key === k)).filter(Boolean);
+  const el = document.getElementById('quad-heat');
+  el.innerHTML = '<thead><tr><th>Key</th><th>Inst</th><th>Pan</th><th>Bri</th><th>Vol</th></tr></thead><tbody>' +
+    rows.map(e => `<tr>
+      <td class="field-label">${e.key}</td>
+      <td>${e.inst}</td>
+      <td data-val="${Math.abs(e.pan)}" data-col="pan">${e.pan.toFixed(2)}</td>
+      <td data-val="${e.bri}" data-col="bri">${e.bri}</td>
+      <td data-val="${e.vol}" data-col="vol">${e.vol.toFixed(2)}</td>
+    </tr>`).join('') + '</tbody>';
+  applyHeat(el);
+}
+
+function fullHeat() {
+  const el = document.getElementById('full-heat');
+  el.innerHTML = '<thead><tr><th></th><th>Key</th><th>Fam</th><th>Inst</th><th>Pan</th><th>Send</th><th>Bri</th><th>Oct</th><th>Vol</th><th>Desc</th></tr></thead><tbody>' +
+    EVENTS.map(e => `<tr data-key="${e.key}">
+      <td><span class="legend-dot" style="background:${FAM_COLOR[e.fam]}"></span></td>
+      <td class="field-label">${e.key}${e.silent ? ' <span class="badge badge-caution">silent</span>' : ''}</td>
+      <td>${e.fam || '—'}</td>
+      <td>${e.inst}</td>
+      <td ${e.silent?'':`data-val="${Math.abs(e.pan)}" data-col="pan"`}>${e.pan.toFixed(2)}</td>
+      <td ${e.silent?'':`data-val="${e.send}" data-col="send"`}>${e.send.toFixed(2)}</td>
+      <td ${e.silent?'':`data-val="${e.bri}" data-col="bri"`}>${e.bri}</td>
+      <td ${e.silent?'':`data-val="${e.oct+3}" data-col="oct"`}>${e.oct}</td>
+      <td ${e.silent?'':`data-val="${e.vol}" data-col="vol"`}>${e.vol.toFixed(2)}</td>
+      <td style="color:var(--c-dim);font-size:10px">${e.desc}</td>
+    </tr>`).join('') + '</tbody>';
+  applyHeat(el);
+  el.querySelectorAll('tbody tr').forEach(tr => {
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', () => {
+      el.querySelectorAll('tr.sel').forEach(x => x.classList.remove('sel'));
+      tr.classList.add('sel');
+      const ev = EVENTS.find(e => e.key === tr.dataset.key);
+      if (ev) { playEvent(ev); showSel(ev); }
+    });
+  });
+}
+
+function driftTable() {
+  const el = document.getElementById('drift-table');
+  const axes = SEED.registryAxes || {};
+  const rows = EVENTS.map(e => {
+    const r = axes[e.key] || {};
+    const notes = [];
+    if (e.silent) notes.push('engine silent');
+    const regInst = r.inst || SEED.registry[e.key] || '—';
+    if (!e.silent && regInst !== e.inst) notes.push(`inst ${e.inst}≠${regInst}`);
+    if (!e.silent && r.pan != null && r.pan !== e.pan) notes.push(`pan ${e.pan}≠${r.pan}`);
+    if (!e.silent && r.send != null && r.send !== e.send) notes.push(`send ${e.send}≠${r.send}`);
+    if (!e.silent && r.bri != null && r.bri !== e.bri) notes.push(`bri ${e.bri}≠${r.bri}`);
+    if (!e.silent && r.oct != null && r.oct !== e.oct) notes.push(`oct ${e.oct}≠${r.oct}`);
+    if (!e.silent && r.vol != null && r.vol !== e.vol) notes.push(`vol ${e.vol}≠${r.vol}`);
+    if (!e.silent && r.fam != null && r.fam !== e.fam) notes.push(`fam ${e.fam}≠${r.fam}`);
+    const drifted = notes.length > 0;
+    return `<tr>
+      <td class="field-label">${e.key}</td>
+      <td>${e.silent ? 'off' : e.inst}</td>
+      <td>${regInst}</td>
+      <td data-val="${drifted?1:0}" data-col="d" data-heat-dir="bad">${drifted ? 'DRIFT' : 'match'}</td>
+      <td style="color:var(--c-dim);font-size:10px">${notes.join(' · ')}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = '<thead><tr><th>Key</th><th>Engine INST</th><th>Registry INST</th><th>Status</th><th>Axes</th></tr></thead><tbody>' + rows + '</tbody>';
+  applyHeat(el);
+}
+
+/* ── Stereo field ── */
+function drawStereo() {
+  const svg = document.getElementById('stereo');
+  const W = 640, H = 280, pad = 36;
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  function el(name, attrs) {
+    const n = document.createElementNS(ns, name);
+    Object.entries(attrs).forEach(([k,v]) => n.setAttribute(k, v));
+    return n;
+  }
+  svg.appendChild(el('rect', { x:0, y:0, width:W, height:H, fill:'#101008' }));
+  svg.appendChild(el('line', { x1:W/2, y1:pad, x2:W/2, y2:H-pad, stroke:'#1e1e00', 'stroke-dasharray':'3 3' }));
+  svg.appendChild(el('text', { x:pad, y:H-10, fill:'#445544', 'font-size':'10', 'font-family':'IBM Plex Mono' })).textContent = 'L  mutation';
+  svg.appendChild(el('text', { x:W-pad-70, y:H-10, fill:'#445544', 'font-size':'10', 'font-family':'IBM Plex Mono' })).textContent = 'observation  R';
+  svg.appendChild(el('text', { x:8, y:18, fill:'#445544', 'font-size':'10', 'font-family':'IBM Plex Mono' })).textContent = 'sharp';
+  svg.appendChild(el('text', { x:8, y:H-pad-4, fill:'#445544', 'font-size':'10', 'font-family':'IBM Plex Mono' })).textContent = 'warm';
+  EVENTS.filter(e => !e.silent).forEach(e => {
+    const x = pad + ((e.pan + 1) / 2) * (W - pad*2);
+    const y = pad + (1 - (e.bri - 800) / (10000 - 800)) * (H - pad*2);
+    const r = 4 + e.vol * 6;
+    const c = el('circle', { cx:x, cy:y, r, fill: FAM_COLOR[e.fam], 'fill-opacity':'0.85', stroke:'#000000', 'stroke-width':'1', style:'cursor:pointer' });
+    c.addEventListener('click', () => { playEvent(e); showSel(e); });
+    svg.appendChild(c);
+    const t = el('text', { x:x+r+3, y:y+3, fill:'#ccccaa', 'font-size':'8', 'font-family':'IBM Plex Mono', style:'pointer-events:none' });
+    t.textContent = e.key;
+    svg.appendChild(t);
+  });
+}
+
+function showSel(e) {
+  document.getElementById('sel-key').textContent = e.key;
+  document.getElementById('sel-body').innerHTML = [
+    ['INSTRUMENT', e.inst],
+    ['FAMILY', e.fam || 'null'],
+    ['PAN', e.pan.toFixed(2)],
+    ['BRIGHTNESS', e.bri + ' Hz'],
+    ['SEND', e.send.toFixed(2)],
+    ['OCTAVE', String(e.oct)],
+    ['VOLMULT', e.vol.toFixed(2)],
+    ['NOTE', e.desc]
+  ].map(([k,v]) => `<div class="data-row" style="--row-cols:110px 1fr"><span class="field-label">${k}</span><span class="field-value">${v}</span></div>`).join('');
+  selected = e;
+}
+
+/* ── Family doughnut ── */
+function famChart() {
+  const counts = { file:0, system:0, ai:0, context:0, unset:0 };
+  EVENTS.filter(e => !e.silent).forEach(e => { counts[e.fam || 'unset']++; });
+  Chart.defaults.color = '#445544';
+  Chart.defaults.borderColor = '#1e1e00';
+  Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+  Chart.defaults.font.size = 11;
+  new Chart(document.getElementById('fam-chart'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(counts),
+      datasets: [{
+        data: Object.values(counts),
+        backgroundColor: ['#3d9a4a','#6a7acc','#c050b0','#3aa0b8','#665f55'],
+        borderWidth: 1, borderColor: '#000'
+      }]
+    },
+    options: {
+      animation: false,
+      plugins: { legend: { position: 'right', labels: { boxWidth: 10 } } },
+      cutout: '62%'
+    }
+  });
+}
+
+/* ── Status board ── */
+function statusBoard() {
+  const rows = [
+    ['JSONL → NR adapters', 'STABLE', 'stable'],
+    ['Pulse transformer', 'STABLE', 'stable'],
+    ['Event Registry defaults', 'STABLE', 'stable'],
+    ['Browser INSTS coverage', '10 / 16', 'warning'],
+    ['Family routing (human/meta)', 'MISSING', 'critical'],
+    ['Polyphony coalesce', 'STABLE', 'stable'],
+    ['Dual resolveSonic', 'DRIFT', 'warning'],
+    ['/api/audio production', 'NEW', 'stable']
+  ];
+  document.getElementById('status-board').innerHTML = rows.map(([lab, badge, kind]) => {
+    const dots = '·'.repeat(Math.max(2, 28 - lab.length));
+    return `<div class="status-row"><span class="field-label">${lab}</span><span class="dots">${dots}</span><span class="badge badge-${kind === 'critical' ? 'critical' : kind === 'warning' ? 'warning' : 'stable'}">${badge}</span></div>`;
+  }).join('');
+}
+
+/* ── Instruments ── */
+function instUi() {
+  const btns = document.getElementById('inst-btns');
+  const cards = document.getElementById('inst-cards');
+  SEED.insts.forEach(i => {
+    const b = document.createElement('button');
+    b.className = 'btn'; b.type = 'button'; b.textContent = i.name;
+    b.onclick = () => playInst(i.name);
+    btns.appendChild(b);
+  });
+  cards.innerHTML = SEED.insts.map(i => `
+    <div class="card">
+      <div class="card-header"><span style="color:var(--c-label)">${i.kind.toUpperCase()}</span><span>${i.name}</span><span class="badge ${i.kind==='perc'?'badge-warning':'badge-stable'}">${i.dur}s</span></div>
+      <ul class="card-list">
+        <li><span style="color:var(--c-pos)">▶</span> ${i.wave}</li>
+        <li><span style="color:var(--c-dim)">·</span> ${i.use}</li>
+      </ul>
+    </div>`).join('');
+}
+
+/* ── Path hash / cache / words ── */
+function updatePath() {
+  const where = document.getElementById('path-in').value;
+  const deg = where ? strHash(where) % SCALE.length : 0;
+  const hz = midiToHz(60 + SCALE[deg]).toFixed(1);
+  document.getElementById('path-deg').textContent = deg + '  (interval ' + SCALE[deg] + ')';
+  document.getElementById('path-hz').textContent = hz;
+  return deg;
+}
+function updateCache() {
+  const r = document.getElementById('cache-slider').value / 100;
+  const bri = Math.round(800 + 4200 * (1 - r));
+  document.getElementById('cache-r').textContent = r.toFixed(2);
+  document.getElementById('cache-b').textContent = bri + ' Hz';
+  document.getElementById('cache-mark').style.left = (document.getElementById('cache-slider').value) + '%';
+  return { r, bri };
+}
+function updateWords() {
+  const n = +document.getElementById('words-slider').value;
+  const deg = Math.min(SCALE.length - 1, Math.floor(n / 15));
+  document.getElementById('words-n').textContent = n;
+  document.getElementById('words-d').textContent = deg;
+  return deg;
+}
+
+/* ── coalesceVoices (mirror of client-core.mjs) ── */
+const VOICE_MAX_POLYPHONY = 4, VOICE_MAX_CHORD = 3;
+function voicePriority(v) {
+  return SEED.priority[v.sonic?.key] ?? 40;
+}
+function coalesceVoices(voices, opts = {}) {
+  const maxPoly = opts.maxPoly ?? VOICE_MAX_POLYPHONY;
+  const chordMax = opts.chordMax ?? VOICE_MAX_CHORD;
+  const scale = opts.scale || [0, 4, 7, 12];
+  if (!voices.length) return { audible: [], ghosts: [] };
+  function hzOf(v) { return Number(v.hz) || 261.6; }
+  function spreadChord(vs) {
+    if (vs.length <= 1) return vs;
+    const hzs = vs.map(hzOf);
+    if (Math.max(...hzs) - Math.min(...hzs) >= 2) return vs;
+    const root = hzs[0];
+    return vs.map((v, i) => ({ ...v, hz: root * Math.pow(2, (scale[i % scale.length] || 0) / 12) }));
+  }
+  if (voices.length <= maxPoly) return { audible: spreadChord(voices), ghosts: [] };
+  const byFam = new Map();
+  for (const v of voices) {
+    const f = v.sonic?.fam || 'other';
+    if (!byFam.has(f)) byFam.set(f, []);
+    byFam.get(f).push(v);
+  }
+  for (const g of byFam.values()) g.sort((a,b) => voicePriority(b) - voicePriority(a));
+  const fams = [...byFam.entries()].sort((a,b) => voicePriority(b[1][0]) - voicePriority(a[1][0]));
+  function want(group) {
+    if (PERC.has(group[0].name)) return 1;
+    if (group.length === 1) return 1;
+    return Math.min(chordMax, group.length);
+  }
+  const alloc = new Map(fams.map(([f]) => [f, 0]));
+  let slots = maxPoly;
+  while (slots > 0) {
+    let gave = false;
+    for (const [f, group] of fams) {
+      if (alloc.get(f) < want(group) && slots > 0) { alloc.set(f, alloc.get(f)+1); slots--; gave = true; }
+    }
+    if (!gave) break;
+  }
+  const audible = [], ghosts = [];
+  for (const [f, group] of fams) {
+    const n = group.length, k = alloc.get(f);
+    if (!k) { ghosts.push(...group); continue; }
+    const boost = n > 1 ? 1 + 0.18 * Math.log2(n) : 1;
+    if (PERC.has(group[0].name) || n === 1) {
+      audible.push({ ...group[0], vol: (group[0].vol ?? 0.42) * boost, clusterN: n > 1 ? n : undefined });
+      ghosts.push(...group.slice(1));
+      continue;
+    }
+    const rootHz = hzOf(group[0]);
+    const vol = (group[0].vol ?? 0.42) * boost / Math.sqrt(k);
+    for (let i = 0; i < k; i++) {
+      audible.push({ ...group[Math.min(i, n-1)], hz: rootHz * Math.pow(2, (scale[i] || 0) / 12), vol, clusterN: n });
+    }
+    ghosts.push(...group);
+  }
+  return { audible, ghosts };
+}
+
+function v(over = {}) {
+  const { sonic, ...rest } = over;
+  return { name: 'harp', hz: 261.6, vol: 0.4, sonic: { key: 'read', fam: 'file', ...sonic }, ...rest };
+}
+const BURSTS = {
+  reads: () => Array.from({ length: 12 }, () => v({})),
+  write: () => [v({ name:'bass', hz:130.8, sonic:{ key:'write', fam:'file' } }), ...Array.from({ length:10 }, () => v({}))],
+  mixed: () => [
+    ...Array.from({ length:6 }, () => v({})),
+    ...Array.from({ length:6 }, () => v({ name:'bell', sonic:{ key:'other', fam:'ai' } })),
+    ...Array.from({ length:6 }, () => v({ name:'flute', sonic:{ key:'tokens', fam:'context' } }))
+  ],
+  snares: () => Array.from({ length:8 }, () => v({ name:'snare', sonic:{ key:'bash_git', fam:'system' } })),
+  under: () => [v({}), v({}), v({})]
+};
+
+function renderBurst(name) {
+  const { audible, ghosts } = coalesceVoices(BURSTS[name](), { scale: SCALE });
+  document.getElementById('aud-meta').textContent = audible.length + ' / max 4';
+  document.getElementById('aud-box').innerHTML = audible.map(a =>
+    `<span class="voice-chip aud">${a.name}${a.clusterN>1?' ×'+a.clusterN:''} ${a.sonic.key} ${Math.round(a.hz)}Hz</span>`
+  ).join('') || '<span style="color:var(--c-dim)">none</span>';
+  document.getElementById('ghost-box').innerHTML = ghosts.map(g =>
+    `<span class="voice-chip ghost">${g.name} ${g.sonic.key}</span>`
+  ).join('') || '<span style="color:var(--c-pos)">none — all audible</span>';
+  const c = ac();
+  if (c) {
+    const at = c.currentTime + 0.04;
+    audible.forEach((a, i) => {
+      const fn = INSTS[a.name] || INSTS.harp;
+      const filt = c.createBiquadFilter(); filt.type = 'lowpass';
+      filt.frequency.value = 8000; filt.Q.value = 0.8;
+      filt.connect(c.destination);
+      const vol = Math.min(0.28, (a.vol || 0.4) * 0.45);
+      PERC.has(a.name) ? fn(c, at + i * 0.012, vol, filt) : fn(c, at + i * 0.012, a.hz, vol, filt);
+    });
+  }
+}
+
+/* ── Nav ── */
+const sections = Array.from(document.querySelectorAll('section[id]'));
+let currentIdx = 0;
+const toc = document.getElementById('toc');
+sections.forEach((s, i) => {
+  const a = document.createElement('a');
+  a.href = '#' + s.id;
+  a.textContent = s.querySelector('h2').textContent.replace(/\s+/g, ' ').trim();
+  a.addEventListener('click', () => { currentIdx = i; });
+  toc.appendChild(a);
+});
+function setActive(idx) {
+  currentIdx = idx;
+  toc.querySelectorAll('a').forEach((a, i) => a.classList.toggle('active', i === idx));
+  document.getElementById('section-counter').textContent = `§ ${idx + 1} / ${sections.length}`;
+}
+window.addEventListener('scroll', () => {
+  const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+  document.getElementById('progress-bar').style.width = (Math.max(0, Math.min(1, pct)) * 100) + '%';
+  const visible = sections.findIndex(s => s.getBoundingClientRect().top > 60);
+  const idx = Math.max(0, (visible === -1 ? sections.length : visible) - 1);
+  setActive(idx);
+});
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT') {
+    if (e.key === 'Escape') { document.getElementById('cmd-input').style.display = 'none'; document.activeElement.blur(); }
+    return;
+  }
+  if (e.key === 'j' || e.key === 'ArrowDown') {
+    currentIdx = Math.min(currentIdx + 1, sections.length - 1);
+    sections[currentIdx].scrollIntoView({ behavior: 'smooth' });
+  } else if (e.key === 'k' || e.key === 'ArrowUp') {
+    currentIdx = Math.max(currentIdx - 1, 0);
+    sections[currentIdx].scrollIntoView({ behavior: 'smooth' });
+  } else if (e.key === 't') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (/^[1-9]$/.test(e.key)) {
+    const idx = parseInt(e.key, 10) - 1;
+    if (sections[idx]) sections[idx].scrollIntoView({ behavior: 'smooth' });
+  } else if (e.key === 'f' || e.key === 'F') {
+    document.getElementById('cmd-input').style.display = 'flex';
+    document.getElementById('cmd-field').focus();
+  } else if (e.key === '?' ) {
+    document.getElementById('help').classList.toggle('show');
+  } else if (e.key === 'Escape') {
+    document.getElementById('help').classList.remove('show');
+    document.getElementById('cmd-input').style.display = 'none';
+  } else if (e.key === ' ' || e.key === 'Spacebar') {
+    e.preventDefault();
+    if (selected) playEvent(selected);
+  }
+});
+document.getElementById('cmd-field').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const q = e.target.value.toLowerCase().trim();
+  const hit = sections.find(s => s.textContent.toLowerCase().includes(q)) ||
+              EVENTS.find(ev => ev.key === q);
+  if (hit && hit.key) { playEvent(hit); showSel(hit); }
+  else if (hit) hit.scrollIntoView({ behavior: 'smooth' });
+  document.getElementById('cmd-input').style.display = 'none';
+});
+document.getElementById('help').addEventListener('click', ev => {
+  if (ev.target.id === 'help') ev.currentTarget.classList.remove('show');
+});
+document.getElementById('toc-toggle').addEventListener('click', () => toc.classList.toggle('open'));
+
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(en => {
+    if (!en.isIntersecting) return;
+    en.target.classList.add('revealed');
+    if (en.target.dataset.countTo !== undefined) animateCount(en.target);
+    revealObserver.unobserve(en.target);
+  });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal, .reveal-stagger').forEach(el => revealObserver.observe(el));
+
+function animateCount(el) {
+  const target = parseFloat(el.dataset.countTo);
+  const suffix = el.dataset.suffix || '';
+  const prefix = el.dataset.prefix || '';
+  const decimals = (el.dataset.countTo || '').includes('.') ? 1 : 0;
+  const start = performance.now();
+  (function tick(now) {
+    const p = Math.min((now - start) / 900, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = prefix + (target * eased).toFixed(decimals) + suffix;
+    if (p < 1) requestAnimationFrame(tick);
+  })(start);
+}
+
+/* ── bind ── */
+document.getElementById('path-in').addEventListener('input', updatePath);
+document.getElementById('btn-path').addEventListener('click', () => {
+  const deg = updatePath();
+  playEvent(EVENTS.find(e => e.key === 'read'), { degree: deg });
+});
+document.getElementById('cache-slider').addEventListener('input', updateCache);
+document.getElementById('btn-flute').addEventListener('click', () => {
+  const { bri } = updateCache();
+  playEvent(EVENTS.find(e => e.key === 'tokens'), { brightness: bri, degree: 0 });
+});
+document.getElementById('words-slider').addEventListener('input', updateWords);
+document.getElementById('btn-words').addEventListener('click', () => {
+  const deg = updateWords();
+  playEvent(EVENTS.find(e => e.key === 'words'), { degree: deg });
+});
+document.querySelectorAll('[data-burst]').forEach(b => b.addEventListener('click', () => renderBurst(b.dataset.burst)));
+
+quadHeat();
+fullHeat();
+driftTable();
+drawStereo();
+famChart();
+statusBoard();
+instUi();
+updatePath();
+updateCache();
+updateWords();
+renderBurst('under');
+setActive(0);
+</script>
+</body>
+</html>

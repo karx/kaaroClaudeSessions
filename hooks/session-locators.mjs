@@ -105,6 +105,22 @@ export function locateGrokSession(sessionId, root = GROK_SESSIONS_ROOT) {
       return { filePath: updates, projectId: encodedCwd, sessionId };
     }
   }
+
+  // 8-char slug prefix (DAW /api/audio, sim-audio.mjs)
+  if (sessionId.length < 8) return null;
+  const needle = sessionId.toLowerCase();
+  for (const encodedCwd of fs.readdirSync(root)) {
+    const projDir = path.join(root, encodedCwd);
+    let names;
+    try { names = fs.readdirSync(projDir); } catch { continue; }
+    for (const sid of names) {
+      if (!sid.toLowerCase().startsWith(needle)) continue;
+      const updates = path.join(projDir, sid, 'updates.jsonl');
+      if (fs.existsSync(updates)) {
+        return { filePath: updates, projectId: encodedCwd, sessionId: sid };
+      }
+    }
+  }
   return null;
 }
 

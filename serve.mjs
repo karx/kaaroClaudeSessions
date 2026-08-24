@@ -27,6 +27,7 @@ import { createPulseEmitter } from './surface/pulse-emitter.mjs';
 import { createRebuilder } from './surface/rebuild-orchestrator.mjs';
 import { createRequestHandler } from './surface/http-routes.mjs';
 import { createTraceService } from './surface/trace-service.mjs';
+import { createAudioService } from './surface/audio-service.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
@@ -112,6 +113,7 @@ if (!watchCount) {
 // ── /api/trace (registry-driven; see surface/trace-service.mjs) ──────────────
 
 const { buildTrace } = createTraceService();
+const { buildAudio } = createAudioService();
 
 // ── HTTP server (routes live in surface/http-routes.mjs) ─────────────────────
 
@@ -130,6 +132,7 @@ const server = http.createServer(createRequestHandler({
   },
   resolveSessionFile,
   buildTrace,
+  buildAudio,
 }));
 
 // ── Start ─────────────────────────────────────────────────────────────────────

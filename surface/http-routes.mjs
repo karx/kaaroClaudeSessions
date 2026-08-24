@@ -25,11 +25,13 @@ const JSON_HEADERS = {
  * @param {{ root: string, html: string, data: string, daw: string, now: string }} deps.paths
  * @param {(sessionId: string) => object|null} deps.resolveSessionFile
  * @param {(filePath: string, projectId: string|null, sessionId: string, harness: string) => object|null} deps.buildTrace
+ * @param {(filePath: string, projectId: string|null, sessionId: string, harness: string, opts?: object) => object|null} [deps.buildAudio]
  * @returns {(req: import('http').IncomingMessage, res: import('http').ServerResponse) => void}
  */
-export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace }) {
+export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace, buildAudio }) {
   return (req, res) => {
-    if (req.url === '/events') {
+    const pathOnly = req.url.split('?')[0];
+    if (pathOnly === '/events') {
       hub.addClient(res, req);
       return;
     }
@@ -95,6 +97,24 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
       return;
     }
 
+    if (req.url.startsWith('/api/audio/')) {
+      const raw = req.url.slice('/api/audio/'.length);
+      const qIdx = raw.indexOf('?');
+      const idPart = qIdx === -1 ? raw : raw.slice(0, qIdx);
+      const query = qIdx === -1 ? '' : raw.slice(qIdx + 1);
+      const sessionId = decodeURIComponent(idPart).replace(/\.jsonl$/, '');
+      if (!sessionId) { res.writeHead(400); res.end('missing session_id'); return; }
+      const found = resolveSessionFile(sessionId);
+      if (!found) { res.writeHead(404); res.end('session not found'); return; }
+      if (typeof buildAudio !== 'function') { res.writeHead(501); res.end('audio not wired'); return; }
+      const preset = new URLSearchParams(query).get('preset') || 'cognitive-flow';
+      const payload = buildAudio(found.filePath, found.projectId, found.sessionId, found.harness, { preset });
+      if (!payload) { res.writeHead(500); res.end('audio simulation failed'); return; }
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(payload));
+      return;
+    }
+
     if (req.url === '/' || req.url === '/graph' || req.url === '/graph.html' || req.url === '/home') {
       // / is the landing page; /graph (+ old /graph.html bookmarks) is the
       // history view. While home.html is not built yet, / falls back to the graph.
@@ -114,7 +134,7 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
     }
 
     // ── Dedicated Live Pulse DAW Builder (pure event stream, no graph) ─────────
-    if (req.url === '/daw' || req.url === '/daw-builder' || req.url === '/audio' || req.url === '/builder') {
+    if (pathOnly === '/daw' || pathOnly === '/daw-builder' || pathOnly === '/audio' || pathOnly === '/builder') {
       if (!fs.existsSync(paths.daw)) {
         res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end('<html><body style="font:14px monospace;padding:40px;background:#080810;color:#9aa0b8"><h2>DAW Builder not built yet</h2><p>Run <code>node build.mjs</code> (or the serve will trigger a build on next request in future).</p><p><a href="/graph" style="color:#ff6600">Back to the graph</a></p></body></html>');

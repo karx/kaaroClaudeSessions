@@ -139,6 +139,103 @@ test('evTimeX — right-anchored time axis with scroll offset', async () => {
   assert.equal(evTimeX({ ts: now - 1000 }, now, 800, 30, 1000), 800, 'scrollMs shifts view back');
 });
 
+test('voicesSoundingAt — covers [at, at+dur) and drops expired voices', async () => {
+  const { voicesSoundingAt } = await import('../experience/client-core.mjs');
+  const voices = [
+    { at: 1.0, dur: 0.4, instrument: 'harp' },
+    { at: 1.2, dur: 0.2, instrument: 'bit' },
+    { at: 2.0, dur: 0.5, instrument: 'bell' },
+  ];
+  assert.deepEqual(voicesSoundingAt(voices, 0.9).map(v => v.instrument), []);
+  assert.deepEqual(voicesSoundingAt(voices, 1.1).map(v => v.instrument), ['harp']);
+  assert.deepEqual(voicesSoundingAt(voices, 1.25).map(v => v.instrument), ['harp', 'bit']);
+  assert.deepEqual(voicesSoundingAt(voices, 1.41).map(v => v.instrument), []);
+  assert.deepEqual(voicesSoundingAt(voices, 2.1).map(v => v.instrument), ['bell']);
+  assert.deepEqual(voicesSoundingAt([], 1), []);
+});
+
+test('fmtSoundingLine — instrument ×cluster, label, hz', async () => {
+  const { fmtSoundingLine } = await import('../experience/client-core.mjs');
+  assert.equal(fmtSoundingLine([]), '');
+  assert.equal(fmtSoundingLine(null), '');
+  assert.equal(
+    fmtSoundingLine([{ instrument: 'harp', label: 'read_file', hz: 261.6, clusterN: 12, relMs: 12400 }]),
+    '▶ t+12.4s  harp×12 read_file 262Hz',
+  );
+});
+
+test('fmtSessionT — seconds then mmss', async () => {
+  const { fmtSessionT } = await import('../experience/client-core.mjs');
+  assert.equal(fmtSessionT(null), '');
+  assert.equal(fmtSessionT(12400), 't+12.4s');
+  assert.equal(fmtSessionT(65000), 't+1m05s');
+  assert.equal(fmtSessionT(125000), 't+2m05s');
+});
+
+function v(over = {}) {
+  const { sonic, ...rest } = over;
+  return {
+    name: 'harp', hz: 261.6, vol: 0.4,
+    sonic: { key: 'read', fam: 'file', ...sonic },
+    ...rest,
+  };
+}
+
+test('coalesceVoices — under cap, unison C4 spreads into a chord', async () => {
+  const { coalesceVoices } = await import('../experience/client-core.mjs');
+  const { audible, ghosts } = coalesceVoices([v({}), v({}), v({})], { scale: [0, 4, 7] });
+  assert.equal(audible.length, 3);
+  assert.equal(ghosts.length, 0);
+  const hzs = audible.map(a => +a.hz.toFixed(1));
+  assert.notEqual(hzs[1], hzs[0], 'second tone leaves unison');
+  assert.ok(hzs[2] > hzs[1]);
+});
+
+test('coalesceVoices — 12 reads collapse to a 3-tone file chord', async () => {
+  const { coalesceVoices, VOICE_MAX_CHORD } = await import('../experience/client-core.mjs');
+  const burst = Array.from({ length: 12 }, () => v({}));
+  const { audible, ghosts } = coalesceVoices(burst, { scale: [0, 4, 7, 12] });
+  assert.equal(audible.length, VOICE_MAX_CHORD);
+  assert.equal(ghosts.length, 12);
+  assert.equal(audible[0].clusterN, 12);
+  assert.ok(audible.every(a => a.sonic.fam === 'file'));
+});
+
+test('coalesceVoices — write stays the root of a file-family chord', async () => {
+  const { coalesceVoices } = await import('../experience/client-core.mjs');
+  const burst = [
+    v({ name: 'bass', hz: 130.8, sonic: { key: 'write', fam: 'file' } }),
+    ...Array.from({ length: 10 }, () => v({})),
+  ];
+  const { audible } = coalesceVoices(burst, { scale: [0, 4, 7] });
+  assert.equal(audible[0].sonic.key, 'write');
+  assert.ok(audible.length <= 4);
+  assert.equal(audible[0].clusterN, 11);
+});
+
+test('coalesceVoices — mixed families get one cluster each, never more than maxPoly', async () => {
+  const { coalesceVoices, VOICE_MAX_POLYPHONY } = await import('../experience/client-core.mjs');
+  const burst = [
+    ...Array.from({ length: 6 }, () => v({})),
+    ...Array.from({ length: 6 }, () => v({ name: 'bell', sonic: { key: 'other', fam: 'ai' } })),
+    ...Array.from({ length: 6 }, () => v({ name: 'flute', sonic: { key: 'tokens', fam: 'context' } })),
+  ];
+  const { audible } = coalesceVoices(burst, { scale: [0, 4, 7] });
+  assert.ok(audible.length <= VOICE_MAX_POLYPHONY);
+  const fams = new Set(audible.map(a => a.sonic.fam));
+  assert.ok(fams.size >= 2, 'varied burst keeps more than one family');
+});
+
+test('coalesceVoices — percussion pile is one hit, not a snare chord', async () => {
+  const { coalesceVoices } = await import('../experience/client-core.mjs');
+  const burst = Array.from({ length: 8 }, () => v({ name: 'snare', sonic: { key: 'bash_git', fam: 'system' } }));
+  const { audible, ghosts } = coalesceVoices(burst);
+  assert.equal(audible.length, 1);
+  assert.equal(audible[0].name, 'snare');
+  assert.equal(audible[0].clusterN, 8);
+  assert.equal(ghosts.length, 7);
+});
+
 // ── History-view filters + free force profile (E3) ────────────────────────────
 
 test('sessionMatchesFilters — date range, harness set, project set', async () => {

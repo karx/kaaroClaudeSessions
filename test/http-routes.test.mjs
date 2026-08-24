@@ -32,6 +32,7 @@ function makeDeps(over = {}) {
     },
     resolveSessionFile: () => null,
     buildTrace: () => null,
+    buildAudio: () => null,
     ...over,
   };
 }
@@ -176,6 +177,30 @@ test('GET /api/trace/:id — 400 empty, 404 unresolved, 404 trace-incapable, 200
   });
 });
 
+test('GET /api/audio/:id — 400 empty, 404 unresolved, 200 sim payload', async () => {
+  await withServer(makeDeps(), async (base) => {
+    assert.equal((await fetch(`${base}/api/audio/`)).status, 400);
+    assert.equal((await fetch(`${base}/api/audio/unknown-id`)).status, 404);
+  });
+
+  const capable = makeDeps({
+    resolveSessionFile: () => ({ filePath: 'f', projectId: 'p', sessionId: 's', harness: 'grok' }),
+    buildAudio: () => ({
+      session_id: 's', slug: 's', harness: 'grok', preset: 'cognitive-flow',
+      duration_ms: 1000, summary: { total: 1, tool_call: 1 }, silentCount: 0,
+      events: [{ relMs: 0, event: 'tool_call', hz: 261.6, sonic: { instrument: 'harp', key: 'read' }, data: {} }],
+    }),
+  });
+  await withServer(capable, async (base) => {
+    const r = await fetch(`${base}/api/audio/s?preset=cognitive-flow`);
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.equal(body.harness, 'grok');
+    assert.equal(body.events.length, 1);
+    assert.equal(body.events[0].sonic.instrument, 'harp');
+  });
+});
+
 test('GET /events — SSE handshake delivers connected event', async () => {
   await withServer(makeDeps(), async (base) => {
     const ac = new AbortController();
@@ -231,6 +256,20 @@ test('GET / — falls back to the graph while home is not built yet', async () =
     deps.paths.html = join(dir, 'graph.html');
     await withServer(deps, async (base) => {
       assert.ok((await (await fetch(`${base}/`)).text()).includes('GRAPH PAGE'));
+    });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('GET /daw — serves DAW page; query string does not 404', async () => {
+  const dir = join(tmpdir(), 'kaaro-daw-' + Date.now());
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'daw-builder.html'), '<html>DAW PAGE</html>', 'utf8');
+  try {
+    const deps = makeDeps();
+    deps.paths.daw = join(dir, 'daw-builder.html');
+    await withServer(deps, async (base) => {
+      assert.ok((await (await fetch(`${base}/daw`)).text()).includes('DAW PAGE'));
+      assert.ok((await (await fetch(`${base}/daw?session=01a03426`)).text()).includes('DAW PAGE'));
     });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

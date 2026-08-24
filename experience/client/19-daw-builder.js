@@ -21,6 +21,7 @@
     dragOriScrollMs:0,
     activeTab:      'map',
     editingRuleIdx: null,
+    replay:         { payload: null, timers: [], playing: false, startedAt: 0, speed: 60 },
     mixer: {
       file:    { gain: 1, muted: false, soloed: false },
       system:  { gain: 1, muted: false, soloed: false },
@@ -75,6 +76,8 @@
     const now = nowMs();
     const PX_PER_SEC = W / (S.windowMs / 1000);
     const ring = (window._beatRing || []).slice();
+    const audioT = window._getAudioNow ? window._getAudioNow() : 0;
+    const sounding = voicesSoundingAt(window._scheduledVoices || [], audioT);
 
     // bg
     ctx.fillStyle = '#01010a'; ctx.fillRect(0, 0, W, H);
@@ -116,8 +119,9 @@
         const age = now - ev.ts;
         const fade = Math.max(0.12, 1 - age / (S.windowMs * 2));
         const hot  = ev === S.hovered;
+        const heard = ev.heardAt != null && audioT >= ev.heardAt && audioT < ev.heardAt + 0.55;
 
-        ctx.globalAlpha = hot ? 1 : 0.18 + 0.67 * fade;
+        ctx.globalAlpha = hot || heard ? 1 : 0.18 + 0.67 * fade;
         ctx.fillStyle   = col;
         ctx.fillRect(Math.round(x), by, bw, bh);
 
@@ -132,7 +136,11 @@
           ctx.fillStyle = col;
         }
 
-        if (hot) {
+        if (heard) {
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 1;
+          ctx.strokeRect(Math.round(x) - 0.5, by - 0.5, bw + 1, bh + 1);
+        } else if (hot) {
           ctx.globalAlpha = 1;
           ctx.strokeStyle = '#e0e8ff'; ctx.lineWidth = 1;
           ctx.strokeRect(Math.round(x) - 0.5, by - 0.5, bw + 1, bh + 1);
@@ -152,8 +160,35 @@
       ctx.fillStyle = lg; ctx.fillRect(W - 44, 20, 44, H - 20);
     }
 
+    // Playhead at audio-now (right edge in live). Amber = currently sounding.
+    const playX = Math.round(W - 1) + 0.5;
+    ctx.strokeStyle = sounding.length ? '#ffaa00' : '#554e22';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(playX, 12); ctx.lineTo(playX, H); ctx.stroke();
+    ctx.fillStyle = sounding.length ? '#ffaa00' : '#665f33';
+    ctx.beginPath();
+    ctx.moveTo(playX - 4, 12); ctx.lineTo(playX + 4, 12); ctx.lineTo(playX, 18);
+    ctx.closePath(); ctx.fill();
+
+    updateNowplay(sounding);
+
     // hover tooltip
     drawTooltip(ctx, W, H, now, PX_PER_SEC, ring);
+  }
+
+  let _lastNowplay = '\0';
+  function updateNowplay(sounding) {
+    let text = '—';
+    if (sounding && sounding.length) {
+      text = fmtSoundingLine(sounding) || '—';
+    } else if (S.replay.playing && S.replay.startedAt) {
+      const rel = (Date.now() - S.replay.startedAt) * S.replay.speed;
+      text = '▶ ' + fmtSessionT(rel);
+    }
+    if (text === _lastNowplay) return;
+    _lastNowplay = text;
+    const el = document.getElementById('daw-nowplay');
+    if (el) el.textContent = text;
   }
 
   function drawRuler(ctx, W, now, PX_PER_SEC) {
@@ -751,8 +786,117 @@
   }
 
   // ── SIM tab ────────────────────────────────────────────────────────────────────
+  function stopReplay() {
+    S.replay.timers.forEach(clearTimeout);
+    S.replay.timers = [];
+    S.replay.playing = false;
+    window._audioImmediate = false;
+    const playBtn = document.getElementById('btn-play-session');
+    if (playBtn) playBtn.textContent = 'PLAY ▶';
+  }
+
+  function fmtDur(ms) {
+    const s = Math.round(ms / 1000);
+    if (s < 60) return s + 's';
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m + 'm' + (r ? r + 's' : '');
+  }
+
+  function playReplay() {
+    const payload = S.replay.payload;
+    if (!payload?.events?.length) return;
+    stopReplay();
+    if (window._setAudioMuted) window._setAudioMuted(false);
+    const muteBtn = document.getElementById('btn-mute');
+    if (muteBtn) { muteBtn.textContent = '♪ ON'; muteBtn.className = 'hdr-btn on'; }
+    if (window._beatRing) window._beatRing.length = 0;
+    setLive(true);
+    const speed = parseFloat(document.getElementById('sim-speed')?.value || '60') || 60;
+    window._audioImmediate = true;
+    S.replay.speed = speed;
+    S.replay.startedAt = Date.now();
+    S.replay.playing = true;
+    const playBtn = document.getElementById('btn-play-session');
+    if (playBtn) playBtn.textContent = 'PLAYING…';
+    const statusEl = document.getElementById('sim-replay-status');
+    const wallMs = payload.duration_ms / speed;
+    if (statusEl) statusEl.textContent = payload.events.length + ' events · ' + fmtDur(payload.duration_ms) + ' @ ' + speed + '× → ' + fmtDur(wallMs);
+
+    for (const ev of payload.events) {
+      const t = setTimeout(() => {
+        if (!S.replay.playing) return;
+        const data = Object.assign({}, ev.data, { ts: Date.now(), relMs: ev.relMs });
+        if (window.playPulse) window.playPulse(ev.event, data);
+      }, ev.relMs / speed);
+      S.replay.timers.push(t);
+    }
+    const done = setTimeout(() => {
+      window._audioImmediate = false;
+      S.replay.playing = false;
+      if (playBtn) playBtn.textContent = 'PLAY ▶';
+      if (statusEl) statusEl.textContent = (statusEl.textContent || '') + '  done';
+    }, wallMs + 50);
+    S.replay.timers.push(done);
+  }
+
+  async function loadReplaySession(sid) {
+    const statusEl = document.getElementById('sim-replay-status');
+    const preset = document.getElementById('sim-preset')?.value || 'cognitive-flow';
+    if (!sid) { if (statusEl) statusEl.textContent = 'enter a session id'; return; }
+    if (statusEl) statusEl.textContent = 'loading ' + sid + '…';
+    stopReplay();
+    try {
+      const r = await fetch('/api/audio/' + encodeURIComponent(sid) + '?preset=' + encodeURIComponent(preset));
+      if (!r.ok) {
+        if (statusEl) statusEl.textContent = r.status + ' ' + (await r.text());
+        return;
+      }
+      const payload = await r.json();
+      S.replay.payload = payload;
+      const named = DAW_PRESETS.find(p => p.name.toLowerCase().replace(/\s+/g, '-') === payload.preset);
+      if (named) applyPreset(named);
+      if (statusEl) {
+        const s = payload.summary || {};
+        statusEl.textContent = payload.slug + '  [' + payload.harness + ']  '
+          + (s.total || payload.events.length) + ' events  '
+          + fmtDur(payload.duration_ms) + '  ·  click PLAY (unmute first)';
+      }
+      const sidInp = document.getElementById('sim-sid');
+      if (sidInp) sidInp.value = payload.session_id;
+    } catch (err) {
+      if (statusEl) statusEl.textContent = 'load failed: ' + (err.message || err);
+    }
+  }
+
   function buildSimTab(body) {
     body.innerHTML = `
+      <div class="sec-head">Session Replay</div>
+      <div class="row"><label>session</label>
+        <input id="sim-sid" class="inp" placeholder="01a03426" spellcheck="false"
+               value="${(S.replay.payload && S.replay.payload.session_id) || ''}">
+      </div>
+      <div class="row"><label>preset</label>
+        <select id="sim-preset" class="inp">
+          <option value="cognitive-flow">cognitive-flow</option>
+          <option value="thrash-detector">thrash-detector</option>
+          <option value="session-arc">session-arc</option>
+        </select>
+      </div>
+      <div class="row"><label>speed</label>
+        <select id="sim-speed" class="inp">
+          <option value="30">30×</option>
+          <option value="60" selected>60× (~1.5 min)</option>
+          <option value="120">120×</option>
+          <option value="1">1× realtime</option>
+        </select>
+      </div>
+      <div class="row" style="gap:4px">
+        <button class="btn" id="btn-load-session" style="flex:1">LOAD</button>
+        <button class="btn primary" id="btn-play-session" style="flex:1">PLAY ▶</button>
+        <button class="btn" id="btn-stop-session">STOP</button>
+      </div>
+      <div id="sim-replay-status" style="font-size:8px;color:#665f55;margin:6px 0 12px;line-height:1.4;min-height:24px"></div>
       <div class="sec-head">Event Simulator</div>
       <div class="row"><label>type</label>
         <select id="sim-type" class="inp">
@@ -784,6 +928,20 @@
       <div id="sim-log" style="font-size:8px;color:#445;margin-top:8px;max-height:120px;overflow:auto;"></div>`;
 
     const $ = id => document.getElementById(id);
+
+    if (S.replay.payload?.preset && $('sim-preset')) $('sim-preset').value = S.replay.payload.preset;
+    if (S.replay.payload && $('sim-replay-status')) {
+      const p = S.replay.payload;
+      $('sim-replay-status').textContent = p.slug + '  [' + p.harness + ']  '
+        + (p.summary?.total || p.events.length) + ' events  ' + fmtDur(p.duration_ms);
+    }
+
+    $('btn-load-session').onclick = () => loadReplaySession($('sim-sid').value.trim());
+    $('btn-play-session').onclick = () => playReplay();
+    $('btn-stop-session').onclick = () => stopReplay();
+    $('sim-sid').addEventListener('keydown', e => {
+      if (e.key === 'Enter') loadReplaySession($('sim-sid').value.trim());
+    });
 
     $('btn-emit').onclick = () => {
       const type    = $('sim-type').value;
@@ -1209,9 +1367,21 @@
     wireHeaderControls();
     wireTabs();
     wireKeys();
-    renderTab('map');
+    const params = new URLSearchParams(window.location.search);
+    const qSid = params.get('session');
+    renderTab(qSid ? 'sim' : 'map');
     connectLive();
     seedDefaultMappings();
+    if (qSid) {
+      const speed = params.get('speed');
+      setTimeout(() => {
+        const sidInp = document.getElementById('sim-sid');
+        const speedSel = document.getElementById('sim-speed');
+        if (sidInp) sidInp.value = qSid;
+        if (speed && speedSel) speedSel.value = speed;
+        loadReplaySession(qSid);
+      }, 0);
+    }
 
     // Expose for console power users
     window.MIXER_STATE   = S.mixer;

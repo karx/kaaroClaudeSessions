@@ -115,6 +115,11 @@ test('resolveGrokSession — finds updates.jsonl under encoded cwd', () => {
     assert.ok(found);
     assert.ok(found.filePath.endsWith('updates.jsonl'));
     assert.equal(found.projectId, 'D%3A%5Csrc%5CkaaroSessions');
+
+    const byPrefix = resolveGrokSession(sessionId.slice(0, 8), root);
+    assert.ok(byPrefix);
+    assert.equal(byPrefix.sessionId, sessionId);
+    assert.ok(byPrefix.filePath.endsWith('updates.jsonl'));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

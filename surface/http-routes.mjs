@@ -29,7 +29,8 @@ const JSON_HEADERS = {
  */
 export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace }) {
   return (req, res) => {
-    if (req.url === '/events') {
+    const pathOnly = req.url.split('?')[0];
+    if (pathOnly === '/events') {
       hub.addClient(res, req);
       return;
     }
@@ -88,7 +89,7 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
       if (!harness?.capabilities?.trace) {
         res.writeHead(404); res.end('trace not supported for this harness'); return;
       }
-      const tree = buildTrace(found.filePath, found.projectId, sessionId, found.harness);
+      const tree = buildTrace(found.filePath, found.projectId, found.sessionId, found.harness);
       if (!tree) { res.writeHead(500); res.end('reconstruction failed'); return; }
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(tree));
@@ -114,7 +115,7 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
     }
 
     // ── Dedicated Live Pulse DAW Builder (pure event stream, no graph) ─────────
-    if (req.url === '/daw' || req.url === '/daw-builder' || req.url === '/audio' || req.url === '/builder') {
+    if (pathOnly === '/daw' || pathOnly === '/daw-builder' || pathOnly === '/audio' || pathOnly === '/builder') {
       if (!fs.existsSync(paths.daw)) {
         res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end('<html><body style="font:14px monospace;padding:40px;background:#080810;color:#9aa0b8"><h2>DAW Builder not built yet</h2><p>Run <code>node build.mjs</code> (or the serve will trigger a build on next request in future).</p><p><a href="/graph" style="color:#ff6600">Back to the graph</a></p></body></html>');

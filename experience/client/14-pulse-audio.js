@@ -352,7 +352,8 @@
     return where ? strHash(where) % iv.length : 0;
   }
 
-  // ── Beat scheduler (80 ms batch coalescing) ───────────────────────────────────
+  // ── Beat scheduler ────────────────────────────────────────────────────────────
+  // 80 ms batch, then snap onto the next beat (musical grid).
   let _beatAt = 0, _barBeat = 0, _batchBuf = [], _batchTimer = null;
   const BATCH_MS = 80;
 
@@ -361,49 +362,71 @@
     if (!_batchBuf.length) return;
     const buf = _batchBuf.splice(0);
     const c   = ac(); if (!c) return;
-    const bd  = 60 / (window.AUDIO_SETTINGS.bpm || 120);
     const now = c.currentTime;
+    const scale = SCALES[window.AUDIO_SETTINGS?.scale] || SCALES.major_pentatonic;
+    const { audible } = (typeof coalesceVoices === 'function')
+      ? coalesceVoices(buf, { scale })
+      : { audible: buf };
+
+    const bd = 60 / (window.AUDIO_SETTINGS.bpm || 120);
     if (_beatAt < now + 0.02) { _beatAt = now + 0.02; _barBeat = 0; }
     const at = _beatAt;
     _barBeat = (_barBeat + 1) % (window.AUDIO_SETTINGS.beatsPerBar || 4);
     _beatAt += bd;
-    const stagger = Math.min(0.005, 0.04 / Math.max(1, buf.length - 1));
-    buf.forEach((fn, i) => fn(c, at + i * stagger));
-  }
 
-  function sched(fn) {
-    if (!ac()) return;
-    _batchBuf.push(fn);
-    if (!_batchTimer) _batchTimer = setTimeout(_flushBatch, BATCH_MS);
+    const stagger = Math.min(0.012, 0.04 / Math.max(1, audible.length - 1));
+    // Every original pulse still draws; only `audible` gets an oscillator.
+    const delayMs = Math.max(0, (at - now) * 1000);
+    const wallTs = Date.now() + delayMs;
+    for (const v of buf) {
+      if (v.meta?.ringEv && !v.meta.ringEv._onRing) {
+        v.meta.ringEv.ts = wallTs;
+        v.meta.ringEv.heardAt = at;
+        v.meta.ringEv._onRing = true;
+        _pushToBeatRing(v.meta.ringEv);
+      }
+    }
+    audible.forEach((v, i) => startVoice(c, at + i * stagger, v));
   }
 
   // ── Per-voice signal chain ────────────────────────────────────────────────────
-  // Mixer gains (set by module 19, defaulting to 1)
   window.MIXER_GAINS = { file: 1, system: 1, ai: 1, context: 1 };
+  window._scheduledVoices = [];
+  window._getAudioNow = () => (_ac ? _ac.currentTime : 0);
 
-  function schedVoice(name, hz, vol, sonic) {
+  function schedVoice(name, hz, vol, sonic, meta) {
     const mixerGain = (window.MIXER_GAINS && sonic.fam) ? (window.MIXER_GAINS[sonic.fam] ?? 1) : 1;
     const finalVol  = (vol != null ? vol : 0.42) * mixerGain;
-    sched((c, at) => {
-      if (!_masterGain) return;
-      // Brightness filter
-      const filt = c.createBiquadFilter(); filt.type = 'lowpass';
-      filt.frequency.value = sonic.brightness || 10000; filt.Q.value = 0.8;
-      // Stereo panner (graceful fallback for very old Safari)
-      let panner = null;
-      try { panner = c.createStereoPanner(); panner.pan.value = sonic.pan || 0; } catch {}
-      const endpoint = panner || _masterGain;
-      filt.connect(endpoint);
-      if (panner) panner.connect(_masterGain);
-      // Reverb send
-      if ((sonic.sendAmt || 0) > 0.01 && _reverbConvolver) {
-        const sg = c.createGain(); sg.gain.value = sonic.sendAmt;
-        endpoint.connect(sg); sg.connect(_reverbConvolver);
-      }
-      // Instrument connects into brightness filter as its output node
-      const fn = INSTS[name] || harp;
-      PERC.has(name) ? fn(c, at, finalVol, filt) : fn(c, at, hz, finalVol, filt);
+    _batchBuf.push({ name, hz, vol: finalVol, sonic, meta });
+    if (!ac()) return;
+    if (!_batchTimer) _batchTimer = setTimeout(_flushBatch, BATCH_MS);
+  }
+
+  function startVoice(c, at, v) {
+    if (!_masterGain) return;
+    const { name, hz, vol, sonic, meta } = v;
+    const filt = c.createBiquadFilter(); filt.type = 'lowpass';
+    filt.frequency.value = sonic?.brightness || 10000; filt.Q.value = 0.8;
+    let panner = null;
+    try { panner = c.createStereoPanner(); panner.pan.value = sonic?.pan || 0; } catch {}
+    const endpoint = panner || _masterGain;
+    filt.connect(endpoint);
+    if (panner) panner.connect(_masterGain);
+    if ((sonic?.sendAmt || 0) > 0.01 && _reverbConvolver) {
+      const sg = c.createGain(); sg.gain.value = sonic.sendAmt;
+      endpoint.connect(sg); sg.connect(_reverbConvolver);
+    }
+    const fn = INSTS[name] || harp;
+    PERC.has(name) ? fn(c, at, vol, filt) : fn(c, at, hz, vol, filt);
+
+    const voices = window._scheduledVoices;
+    voices.push({
+      at, dur: INST_DUR[name] || 0.4,
+      instrument: name, hz, key: sonic?.key, fam: sonic?.fam,
+      label: meta?.label || name, relMs: meta?.relMs, event: meta?.event,
+      clusterN: v.clusterN,
     });
+    if (voices.length > 48) voices.shift();
   }
 
   // ── Click track ───────────────────────────────────────────────────────────────
@@ -558,6 +581,10 @@
   const INSTS = { harp, bass, bell, flute, bit, pling, snare, kick, hat, buzz };
   window.INSTS = INSTS;
   const PERC  = new Set(['snare', 'kick', 'hat']);
+  const INST_DUR = {
+    harp: 0.9, bass: 1.4, bell: 2.5, flute: 0.65, bit: 0.22, pling: 0.48,
+    snare: 0.12, kick: 0.25, hat: 0.04, buzz: 0.27,
+  };
 
   window.previewInstrument = function (name) {
     const fn = INSTS[name]; if (!fn) return;
@@ -585,12 +612,15 @@
   const COGNITION_EVENTS = new Set([
     'human_turn', 'compact', 'permission', 'mode_shift',
     'tool_error', 'api_error', 'chirp', 'attachment', 'scaffold',
+    'thinking', 'unknown',
   ]);
 
   window.playPulse = function (event, data) {
+    let ringEv = null;
+    let r = null;
     try {
       if (event === 'tool_call' || event === 'words' || event === 'tokens' || COGNITION_EVENTS.has(event)) {
-        const sonic = resolveSonic(event, data);
+        r = resolveSonic(event, data);
 
         // Track cache ratios for pressure
         if (event === 'tokens') {
@@ -608,7 +638,7 @@
           return total > 0 ? (data.cache_read || 0) / total : 0;
         })();
 
-        _pushToBeatRing({
+        ringEv = {
           ts:          Date.now(),
           color:       projNode?.color || '#334466',
           label:       event === 'tool_call' ? (data.tool || 'tool') : event,
@@ -620,53 +650,67 @@
           where:       data.where     || null,
           category:    data.category  || null,
           preview:     data.preview   || null,
-          key:         sonic.key,
-          family:      sonic.fam,
+          relMs:       data.relMs     != null ? data.relMs : null,
+          key:         r.key,
+          family:      r.fam,
           output:      data.output    || 0,
           input:       data.input     || 0,
           cache_read:  data.cache_read || 0,
           word_count:  data.word_count || 0,
           cache_ratio: cacheRatio,
-          pan:         sonic.pan,
-          brightness:  sonic.brightness,
-        });
+          pan:         r.pan,
+          brightness:  r.brightness,
+        };
+        // Muted (or no audio): show the pulse immediately. When audio is on,
+        // the ring entry is stamped to the scheduled voice time in schedVoice
+        // so the playhead sits on the note you hear, not the enqueue.
+        if (muted) _pushToBeatRing(ringEv);
       }
     } catch {}
 
     if (muted) return;
     try {
       const S = window.AUDIO_SETTINGS;
-      const r = resolveSonic(event, data);
+      if (!r) r = resolveSonic(event, data);
+      const meta = {
+        ringEv,
+        label: ringEv?.label,
+        relMs: data.relMs,
+        event,
+      };
+      const pushNow = () => { if (ringEv && !ringEv._onRing) { ringEv._onRing = true; _pushToBeatRing(ringEv); } };
 
       if (event === 'tool_call') {
-        if (!passesFilter(r.key, data.project)) return;
-        const name = r.instrument; if (name === 'off') return;
+        if (!passesFilter(r.key, data.project)) { pushNow(); return; }
+        const name = r.instrument; if (name === 'off') { pushNow(); return; }
         const oldMode = S.noteMode;
         if (r.degreeMode && r.degreeMode !== oldMode) S.noteMode = r.degreeMode;
         const hz = noteHz(data.project, getDegree(data.where), r.octave || 0);
         if (r.degreeMode && r.degreeMode !== oldMode) S.noteMode = oldMode;
-        schedVoice(name, hz, r.volMult !== 1 ? 0.42 * r.volMult : undefined, r);
+        schedVoice(name, hz, r.volMult !== 1 ? 0.42 * r.volMult : undefined, r, meta);
 
       } else if (event === 'tokens') {
-        if (!passesFilter('tokens', data.project)) return;
-        const name = r.instrument; if (name === 'off') return;
+        if (!passesFilter('tokens', data.project)) { pushNow(); return; }
+        const name = r.instrument; if (name === 'off') { pushNow(); return; }
         const hz  = noteHz(data.project, 0, r.octave ?? -1);
         const vol = Math.min(0.11, 0.04 + Math.log1p((data.output || 0) / 300) * 0.028);
-        schedVoice(name, hz, vol * r.volMult, r);
+        schedVoice(name, hz, vol * r.volMult, r, meta);
 
       } else if (event === 'words') {
-        if (!passesFilter('words', data.project)) return;
-        const name = r.instrument; if (name === 'off') return;
+        if (!passesFilter('words', data.project)) { pushNow(); return; }
+        const name = r.instrument; if (name === 'off') { pushNow(); return; }
         const iv  = SCALES[r.scale] || activeIv();
         const deg = Math.min(iv.length - 1, Math.floor((data.word_count || 0) / 15));
         const hz  = noteHz(data.project, deg, r.octave ?? 1);
-        schedVoice(name, hz, 0.11 * r.volMult, r);
+        schedVoice(name, hz, 0.11 * r.volMult, r, meta);
 
       } else if (COGNITION_EVENTS.has(event)) {
-        if (!passesFilter(r.key, data.project)) return;
-        const name = r.instrument; if (name === 'off') return;
+        if (!passesFilter(r.key, data.project)) { pushNow(); return; }
+        const name = r.instrument; if (name === 'off') { pushNow(); return; }
         const hz = noteHz(data.project, 0, r.octave || 0);
-        schedVoice(name, hz, 0.12 * r.volMult, r);
+        schedVoice(name, hz, 0.12 * r.volMult, r, meta);
+      } else {
+        pushNow();
       }
     } catch { /* audio must never break UI */ }
   };

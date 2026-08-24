@@ -75,6 +75,8 @@
     const now = nowMs();
     const PX_PER_SEC = W / (S.windowMs / 1000);
     const ring = (window._beatRing || []).slice();
+    const audioT = window._getAudioNow ? window._getAudioNow() : 0;
+    const sounding = voicesSoundingAt(window._scheduledVoices || [], audioT);
 
     // bg
     ctx.fillStyle = '#01010a'; ctx.fillRect(0, 0, W, H);
@@ -116,8 +118,9 @@
         const age = now - ev.ts;
         const fade = Math.max(0.12, 1 - age / (S.windowMs * 2));
         const hot  = ev === S.hovered;
+        const heard = ev.heardAt != null && audioT >= ev.heardAt && audioT < ev.heardAt + 0.55;
 
-        ctx.globalAlpha = hot ? 1 : 0.18 + 0.67 * fade;
+        ctx.globalAlpha = hot || heard ? 1 : 0.18 + 0.67 * fade;
         ctx.fillStyle   = col;
         ctx.fillRect(Math.round(x), by, bw, bh);
 
@@ -132,7 +135,11 @@
           ctx.fillStyle = col;
         }
 
-        if (hot) {
+        if (heard) {
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 1;
+          ctx.strokeRect(Math.round(x) - 0.5, by - 0.5, bw + 1, bh + 1);
+        } else if (hot) {
           ctx.globalAlpha = 1;
           ctx.strokeStyle = '#e0e8ff'; ctx.lineWidth = 1;
           ctx.strokeRect(Math.round(x) - 0.5, by - 0.5, bw + 1, bh + 1);
@@ -152,8 +159,32 @@
       ctx.fillStyle = lg; ctx.fillRect(W - 44, 20, 44, H - 20);
     }
 
+    // Playhead at audio-now (right edge in live). Amber = currently sounding.
+    const playX = Math.round(W - 1) + 0.5;
+    ctx.strokeStyle = sounding.length ? '#ffaa00' : '#554e22';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(playX, 12); ctx.lineTo(playX, H); ctx.stroke();
+    ctx.fillStyle = sounding.length ? '#ffaa00' : '#665f33';
+    ctx.beginPath();
+    ctx.moveTo(playX - 4, 12); ctx.lineTo(playX + 4, 12); ctx.lineTo(playX, 18);
+    ctx.closePath(); ctx.fill();
+
+    updateNowplay(sounding);
+
     // hover tooltip
     drawTooltip(ctx, W, H, now, PX_PER_SEC, ring);
+  }
+
+  let _lastNowplay = '\0';
+  function updateNowplay(sounding) {
+    let text = '—';
+    if (sounding && sounding.length) {
+      text = fmtSoundingLine(sounding) || '—';
+    }
+    if (text === _lastNowplay) return;
+    _lastNowplay = text;
+    const el = document.getElementById('daw-nowplay');
+    if (el) el.textContent = text;
   }
 
   function drawRuler(ctx, W, now, PX_PER_SEC) {

@@ -39,3 +39,9 @@ raw JSONL → adapters/*.mjs → NormalizedRecord[]
 **Keep pulse-adapters.mjs alongside adapters/*.mjs** — rejected: perpetuates duplication; every new harness is double work.
 
 **Central TOOL_ALIASES table in audio-sim.mjs** — rejected: normalization still happened in the audio layer, just in a table rather than if/else. Adapters still wouldn't own their own translation.
+
+## Later refinement (2026-08)
+
+The decision stands: pulses consume `NormalizedRecord[]`, never raw JSONL.
+
+Where the Canonical Action Key is derived does **not**. This ADR said the adapter stamps `key` and `resolveSonic` never sees raw tool names. The code that landed puts key derivation in `hooks/action-keys.mjs`, called by the Pulse Transformer. Adapters emit `nr.tool` + `nr.category` only and stay sonic-unaware. That is the better separation: adapters do the harness hop; the transformer produces Stream vocabulary; the Sonic Encoder must not grow a third alias ladder.

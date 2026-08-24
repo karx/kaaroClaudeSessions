@@ -182,6 +182,8 @@
     const ctx  = canvas.getContext('2d');
     const now  = _nowMs();
     const ring = window._beatRing || [];
+    const audioT = window._getAudioNow ? window._getAudioNow() : 0;
+    const sounding = voicesSoundingAt(window._scheduledVoices || [], audioT);
 
     // hover update
     const hov = findHovered(now);
@@ -225,9 +227,10 @@
       const g    = blockGeom(ev, H_TRACK);
       const ty   = H_HEADER + g.yOff;
       const hot  = ev === _hovered;
+      const heard = ev.heardAt != null && audioT >= ev.heardAt && audioT < ev.heardAt + 0.55;
       const fade = Math.max(0.12, 1 - age / MAX_HIST_MS);
 
-      ctx.globalAlpha = hot ? 1 : (0.18 + 0.62 * fade);
+      ctx.globalAlpha = hot || heard ? 1 : (0.18 + 0.62 * fade);
       ctx.fillStyle   = ev.color || '#2a3a8a';
       ctx.fillRect(Math.round(x), ty, BLOCK_W, g.h);
 
@@ -239,7 +242,12 @@
         ctx.fillRect(Math.round(x), ty, BLOCK_W, 2);
       }
 
-      if (hot) {
+      if (heard) {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#ffaa00';
+        ctx.lineWidth   = 1;
+        ctx.strokeRect(Math.round(x) - 0.5, ty - 0.5, BLOCK_W + 1, g.h + 1);
+      } else if (hot) {
         ctx.globalAlpha = 1;
         ctx.strokeStyle = '#e0e8ff';
         ctx.lineWidth   = 1;
@@ -248,22 +256,33 @@
     }
     ctx.globalAlpha = 1;
 
-    // live edge glow
+    // Playhead at audio-now (right edge in live). Amber = a tone is sounding.
     if (_isLive) {
-      const lg = ctx.createLinearGradient(W - 36, 0, W, 0);
-      lg.addColorStop(0, 'rgba(16,36,100,0)');
-      lg.addColorStop(1, 'rgba(16,36,100,0.22)');
-      ctx.fillStyle = lg;
-      ctx.fillRect(W - 36, H_HEADER, 36, H_TRACK);
-      ctx.strokeStyle = '#182868';
+      const playX = Math.round(W - 1) + 0.5;
+      ctx.strokeStyle = sounding.length ? '#ffaa00' : '#554e22';
       ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(W - 1, H_HEADER); ctx.lineTo(W - 1, H_TOTAL); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(playX, H_HEADER); ctx.lineTo(playX, H_TOTAL); ctx.stroke();
+      ctx.fillStyle = sounding.length ? '#ffaa00' : '#665f33';
+      ctx.beginPath();
+      ctx.moveTo(playX - 4, H_HEADER); ctx.lineTo(playX + 4, H_HEADER); ctx.lineTo(playX, H_HEADER + 6);
+      ctx.closePath(); ctx.fill();
     }
 
-    // ◆ FEED label
-    ctx.fillStyle = '#1a2a48';
+    // ◆ FEED + currently sounding voice (same grammar as DAW #daw-nowplay)
+    ctx.fillStyle = '#887744';
     ctx.font = "bold 8px 'IBM Plex Mono',monospace";
     ctx.fillText('◆ FEED', 8, 12);
+    const nowLine = fmtSoundingLine(sounding, 2);
+    if (nowLine) {
+      ctx.fillStyle = '#ffaa00';
+      ctx.font = "8px 'IBM Plex Mono',monospace";
+      const maxW = W - 80 - 56;
+      let label = nowLine;
+      while (ctx.measureText(label).width > maxW && label.length > 8)
+        label = label.slice(0, -2);
+      if (label !== nowLine) label = label.slice(0, -1) + '…';
+      ctx.fillText(label, 56, 12);
+    }
 
     // scroll position readout
     if (!_isLive) {

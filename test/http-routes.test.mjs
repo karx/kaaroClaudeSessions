@@ -176,6 +176,25 @@ test('GET /api/trace/:id — 400 empty, 404 unresolved, 404 trace-incapable, 200
   });
 });
 
+test('GET /api/trace/:id — passes the resolved full session id (not the URL slug) to buildTrace', async () => {
+  // Regression: a caller pasting the 8-char slug shown by the graph/Mission
+  // Control must reconstruct the trace for the *resolved* session, not the slug.
+  let receivedSessionId = null;
+  const deps = makeDeps({
+    resolveSessionFile: (id) => ({ filePath: 'f', projectId: 'p', sessionId: 'full-session-id-0123456789', harness: 'claude-code' }),
+    buildTrace: (filePath, projectId, sessionId) => {
+      receivedSessionId = sessionId;
+      return { session_id: sessionId, ai_title: 'T', segments: [] };
+    },
+  });
+  await withServer(deps, async (base) => {
+    const r = await fetch(`${base}/api/trace/01a03426`);
+    assert.equal(r.status, 200);
+    assert.equal(receivedSessionId, 'full-session-id-0123456789');
+    assert.equal((await r.json()).session_id, 'full-session-id-0123456789');
+  });
+});
+
 test('GET /events — SSE handshake delivers connected event', async () => {
   await withServer(makeDeps(), async (base) => {
     const ac = new AbortController();
@@ -231,6 +250,20 @@ test('GET / — falls back to the graph while home is not built yet', async () =
     deps.paths.html = join(dir, 'graph.html');
     await withServer(deps, async (base) => {
       assert.ok((await (await fetch(`${base}/`)).text()).includes('GRAPH PAGE'));
+    });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('GET /daw — serves DAW page; query string does not 404', async () => {
+  const dir = join(tmpdir(), 'kaaro-daw-' + Date.now());
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'daw-builder.html'), '<html>DAW PAGE</html>', 'utf8');
+  try {
+    const deps = makeDeps();
+    deps.paths.daw = join(dir, 'daw-builder.html');
+    await withServer(deps, async (base) => {
+      assert.ok((await (await fetch(`${base}/daw`)).text()).includes('DAW PAGE'));
+      assert.ok((await (await fetch(`${base}/daw?x=1`)).text()).includes('DAW PAGE'));
     });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

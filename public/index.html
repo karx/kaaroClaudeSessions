@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kaaroSessions — the JSONL is not permanent</title>
+<meta name="title" content="kaaroSessions — the JSONL is not permanent">
+<meta name="description" content="A live observability surface for your AI coding agent sessions. Seven harnesses, one record vocabulary, nothing leaves the machine. What you see is what's still on disk.">
+<meta name="keywords" content="claude code, ai sessions, observability surface, session graph, multi-harness, developer analytics, kaaro">
+<meta name="author" content="karx">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://karx.github.io/kaaroSessions/">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://karx.github.io/kaaroSessions/">
+<meta property="og:title" content="kaaroSessions — the JSONL is not permanent">
+<meta property="og:description" content="A live observability surface for your AI coding agent sessions. Seven harnesses, one record vocabulary, nothing leaves the machine. What you see is what's still on disk.">
+<meta property="og:image" content="https://karx.github.io/kaaroSessions/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="kaaroSessions">
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="kaaroSessions — the JSONL is not permanent">
+<meta name="twitter:description" content="A live observability surface for your AI coding agent sessions. Seven harnesses, one record vocabulary, nothing leaves the machine. What you see is what's still on disk.">
+<meta name="twitter:image" content="https://karx.github.io/kaaroSessions/og-image.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  html, body {
+    margin: 0;
+    background: #000000;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    color: #ccccaa;
+  }
+  body { padding-bottom: 18px; }
+  a { color: #ff6600; text-decoration: none; }
+  a:hover { color: #ffaa00; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 32px; }
+  section { scroll-margin-top: 12px; }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #ffaa00;
+    font-weight: 600;
+  }
+  code, .mono { font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border: 1px solid #ff6600;
+    color: #ff6600;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 600;
+    background: transparent;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn:hover { background: #ff6600; color: #000000; }
+  #help-btn {
+    background: transparent; border: 1px solid #1e1e00; color: #ffaa00;
+    font: 11px 'IBM Plex Mono', monospace; padding: 2px 8px; cursor: pointer;
+    letter-spacing: 0.08em;
+  }
+  #help-btn:hover { border-color: #ff6600; color: #ff6600; }
+
+  .nr-pipe {
+    display: grid; grid-template-columns: repeat(5, minmax(0,1fr));
+    gap: 1px; background: #1e1e00; margin: 0 0 22px;
+  }
+  .nr-stage {
+    background: #101008; padding: 12px 10px; cursor: pointer;
+    border: 1px solid transparent; transition: border-color 0.15s ease;
+  }
+  .nr-stage:hover, .nr-stage.on { border-color: #ff6600; }
+  .nr-pipe.held .nr-stage { opacity: 0.4; }
+  .nr-pipe.held .nr-stage.on { opacity: 1; }
+  .nr-stage .n { color: #ff6600; font-size: 10px; letter-spacing: 0.08em; }
+  .nr-stage .l { color: #e8e000; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 4px; }
+  .nr-stage .d { color: #445544; font-size: 10px; margin-top: 6px; min-height: 28px; line-height: 1.4; }
+  .nr-split { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; align-items: start; }
+  .nr-table-wrap { overflow-x: auto; border: 1px solid #1e1e00; }
+  .nr-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .nr-table th {
+    color: #ffaa00; text-align: left; padding: 6px 6px; border-bottom: 2px solid #1e1e00;
+    font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+  }
+  .nr-table td { padding: 5px 6px; border-bottom: 1px solid #1e1e00; white-space: nowrap; }
+  .nr-table tr { cursor: pointer; }
+  .nr-table tr:hover td { background: #101008; }
+  .nr-table tr.on td { outline: 1px solid #00cccc; outline-offset: -1px; }
+  .nr-dot { color: #00ff88; }
+  .nr-miss { color: #445544; }
+  .nr-kind { color: #ccccaa; }
+  .nr-inspect { background: #101008; border: 1px solid #1e1e00; padding: 14px 16px; min-height: 280px; }
+  .nr-k { color: #ffaa00; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; }
+  .nr-pulse { color: #e8e000; }
+  .nr-json {
+    background: #000; border: 1px solid #1e1e00; padding: 8px 10px;
+    color: #00cccc; font-size: 11px; line-height: 1.5; overflow-x: auto;
+    white-space: pre; margin-top: 8px;
+  }
+  .nr-chip {
+    display: inline-block; border: 1px solid #1e1e00; color: #445544;
+    padding: 2px 7px; font-size: 10px; letter-spacing: 0.04em; cursor: pointer;
+    margin: 2px 4px 2px 0; background: transparent;
+    font-family: inherit; transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .nr-chip:hover { border-color: #ff6600; color: #ff6600; }
+  .nr-chip.on { border-color: #00cccc; color: #00cccc; }
+  .nr-chip.has-sample { color: #ccccaa; }
+  .nr-chip.play { border-color: #ff6600; color: #ff6600; margin-right: 10px; }
+  .nr-chip.play.on { border-color: #00ff88; color: #00ff88; }
+  .nr-chip.audio { border-color: #445544; color: #445544; }
+  .nr-chip.audio.on { border-color: #00ff88; color: #00ff88; }
+  .nr-tape { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .nr-beat {
+    border: 1px solid #1e1e00; padding: 6px 8px; font-size: 10px;
+    color: #445544; letter-spacing: 0.04em; cursor: pointer;
+    background: transparent; font-family: inherit;
+  }
+  .nr-beat.on { border-color: #ff6600; color: #ff6600; }
+  .nr-meta { font-size: 10px; color: #445544; margin-top: 10px; line-height: 1.5; }
+  .nr-legend {
+    margin-top: 12px; font-size: 10px; color: #445544; line-height: 1.5;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .nr-legend-row { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; }
+  .nr-leg { display: inline-flex; align-items: center; gap: 6px; }
+  .nr-leg b { color: #ccccaa; font-weight: 400; }
+  #hop-guide {
+    position: fixed; inset: 0; background: #000000; z-index: 8998;
+    display: none; align-items: center; justify-content: center;
+  }
+  #hop-guide.open { display: flex; }
+  .hop-guide-box {
+    border: 1px solid #1e1e00; background: #080800; padding: 28px 32px;
+    max-width: 560px; width: 92%; max-height: 86vh; overflow-y: auto;
+  }
+  .hop-guide-box .g-h {
+    color: #ffaa00; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; margin: 14px 0 6px;
+  }
+  .hop-guide-box .g-h:first-child { margin-top: 0; }
+  .hop-guide-box p { font-size: 12px; color: #ccccaa; line-height: 1.55; margin: 0; }
+
+  #statusbar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 18px;
+    display: flex; align-items: center; gap: 12px; padding: 0 12px;
+    background: #080800; border-top: 1px solid #1e1e00;
+    color: #445544; font-size: 10px; letter-spacing: 0.05em;
+    z-index: 999; user-select: none; white-space: nowrap; overflow: hidden;
+  }
+  #help-panel {
+    position: fixed; inset: 0; background: #000000; z-index: 8999;
+    display: none; align-items: center; justify-content: center;
+  }
+  #help-panel.open { display: flex; }
+  .help-box { border: 1px solid #1e1e00; background: #080800; padding: 28px 36px; max-width: 480px; width: 92%; }
+  .help-h { color: #ff6600; font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 12px; }
+  .help-hint { color: #445544; font-size: 8px; letter-spacing: 1px; margin-left: 8px; text-transform: none; }
+  .help-row { display: flex; align-items: center; gap: 16px; margin: 5px 0; font-size: 10px; padding: 2px 4px; }
+  .help-key { color: #ffaa00; min-width: 56px; font-weight: 700; flex-shrink: 0; }
+  .help-desc { color: #ccccaa; flex: 1; }
+  .help-sep { border-top: 1px solid #1e1e00; margin: 12px 0; }
+  .help-footer { color: #445544; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; margin-top: 18px; }
+  .help-footer:hover { color: #ffaa00; }
+  @keyframes hflash { 0% { background: #1e1e00; } 100% { background: transparent; } }
+  .help-row.flashing { animation: hflash 0.15s ease-out; }
+
+  @media (max-width: 720px) {
+    .three-step { grid-template-columns: 1fr !important; }
+    .privacy-grid { grid-template-columns: 1fr !important; }
+    .hero-h1 { font-size: 30px !important; }
+    .topbar-repo { display: none !important; }
+    .nr-pipe { grid-template-columns: 1fr !important; }
+    .nr-split { grid-template-columns: 1fr !important; }
+    .audio-grid { grid-template-columns: 1fr !important; }
+  }
+</style>
+</head>
+<body>
+
+<div style="width:100%; background:#000000;">
+
+  <!-- TOPBAR -->
+  <div style="border-bottom:1px solid #1e1e00; background:#000000;">
+    <div class="wrap" style="height:56px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="color:#ff6600; font-size:16px; font-weight:700;">&#9672;</span>
+        <span style="font-size:13px; font-weight:700; letter-spacing:0.02em; color:#e8e000;">kaaroSessions</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:20px;">
+        <span style="display:flex; align-items:center; gap:6px; font-size:11px; color:#00ff88;">
+          <span style="width:6px; height:6px; background:#00ff88; display:inline-block;"></span>
+          127.0.0.1 only
+        </span>
+        <a class="topbar-repo" href="https://github.com/karx/kaaroSessions" target="_blank" rel="noopener" style="font-size:11px; color:#ffaa00; letter-spacing:0.03em;">
+          github.com/karx/kaaroSessions &#9656;
+        </a>
+        <button type="button" id="help-btn" title="shortcuts">?</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. INCIDENT -->
+  <section id="s-incident" style="background:#080800; border-bottom:1px solid #1e1e00;">
+    <div class="wrap" style="padding:40px 32px 44px;">
+      <div class="eyebrow" style="margin-bottom:16px;">Incident log &middot; 2026-08-24</div>
+
+      <div style="border:1px solid #1e1e00; background:#101008; padding:22px 24px; font-size:13px; line-height:1.7;">
+        <div style="color:#00cccc;">$ npx kaaro-sessions</div>
+        <div style="color:#ccccaa;">&#9656; snapshot: <span style="color:#e8e000;">12 sessions</span> &middot; 2026-07-16 &rarr; 2026-08-23 <span style="color:#6b6b6b;">(~5 weeks)</span></div>
+        <div style="color:#ccccaa; margin-bottom:14px;">&#9656; expected: <span style="color:#e8e000;">~5 months</span> of actual usage</div>
+
+        <div style="color:#ffaa00; font-weight:700; letter-spacing:0.06em; margin-top:10px;">ROOT CAUSE</div>
+        <div style="color:#ccccaa; margin-top:4px;">
+          Claude Code ships a background retention sweep &mdash; <span style="color:#e8e000;">cleanupPeriodDays</span> in
+          <span style="color:#e8e000;">~/.claude/settings.json</span>. Default 30 days, quietly on since v0.2.117.
+          Any transcript untouched 30+ days: deleted. Not a bug &mdash; a shipped default nobody reads
+          until they lose something.
+        </div>
+
+        <div style="display:flex; gap:32px; margin-top:18px; flex-wrap:wrap;">
+          <div>
+            <div style="color:#ffaa00; font-weight:700; letter-spacing:0.06em; font-size:11px;">RECOVERED</div>
+            <div style="color:#00ff88; margin-top:4px;">~5 months &mdash; by luck, a forgotten manual git backup</div>
+          </div>
+          <div>
+            <div style="color:#ffaa00; font-weight:700; letter-spacing:0.06em; font-size:11px;">LOST</div>
+            <div style="color:#ff5555; margin-top:4px;">2026-05-07 &rarr; 07-16 &mdash; permanently. No evidence anywhere.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:12px; color:#6b6b6b; margin-top:14px;">
+        Raise <span class="mono" style="color:#6b6b6b;">cleanupPeriodDays</span> if you want Claude Code to keep more.
+        Other harnesses' retention is unverified. kaaroSessions reads what's still on disk &mdash; it does not archive.
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. SURFACE -->
+  <section id="s-surface" class="wrap" style="padding:64px 32px 56px; text-align:center;">
+    <div class="eyebrow" style="margin-bottom:18px;">&#9656; the surface</div>
+    <h1 class="hero-h1" style="font-size:36px; line-height:1.2; color:#ccccaa; margin:0 0 22px; letter-spacing:-0.01em;">
+      See the sessions while they still exist.
+    </h1>
+    <p style="max-width:720px; margin:0 auto; font-size:15px; line-height:1.7; color:#ccccaa;">
+      kaaroSessions is a <span style="color:#ff6600; font-weight:600;">live observability surface</span> for your
+      AI coding agents. It normalizes whatever transcripts are still on disk &mdash; seven harnesses, one record
+      vocabulary, nothing leaves the machine. It does not outlive a retention sweep.
+      The JSONL was never the tool. Now it isn't even permanent.
+    </p>
+    <div style="margin-top:26px; font-size:12px; color:#6b6b6b; max-width:600px; margin-left:auto; margin-right:auto;">
+      History, Live, and Sonic &mdash; seven harnesses, one picture, local only.
+    </div>
+  </section>
+
+  <!-- 3. HOP (harnesses live here) -->
+  <section id="s-hop" style="background:#080800; border-top:1px solid #1e1e00; border-bottom:1px solid #1e1e00;">
+    <div class="wrap" style="padding:52px 32px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:6px;">
+        <div class="eyebrow">the hop &middot; seven harnesses &middot; one record vocabulary</div>
+        <button class="nr-chip" id="hop-guide-btn" type="button" title="what you're looking at">&#9432; looking at</button>
+      </div>
+      <div style="font-size:13px; color:#6b6b6b; margin-bottom:22px; max-width:720px;">
+        Every adapter normalizes into the same sixteen kind vocabulary.
+        Raw JSONL never reaches History, Live, or Sonic.
+      </div>
+
+      <div class="nr-pipe" id="nr-pipe"></div>
+
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+        <button class="nr-chip play" id="nr-play" type="button">&#9656; play a turn</button>
+        <button class="nr-chip audio" id="nr-audio" type="button">♪ enable audio</button>
+        <span style="font-size:11px; color:#445544;" id="nr-play-lab">walks the kinds of one turn &middot; pipeline stays put</span>
+      </div>
+      <div class="nr-tape" id="nr-tape"></div>
+
+      <div class="nr-split" style="margin-top:22px;">
+        <div>
+          <div class="nr-table-wrap">
+            <table class="nr-table" id="nr-table"></table>
+          </div>
+          <div class="nr-legend" id="nr-legend">
+            <div class="nr-legend-row">
+              <span class="nr-leg"><span class="nr-dot">&#9679;</span> <b>emit</b> this adapter writes the kind</span>
+              <span class="nr-leg"><span class="nr-miss">·</span> <b>absent</b> not in that harness format</span>
+              <span class="nr-leg"><span style="color:#00cccc">&#9633;</span> <b>selected</b> kind in the inspector</span>
+            </div>
+            <div class="nr-legend-row">
+              <span class="nr-leg"><b>stream</b> live pulse</span>
+              <span class="nr-leg"><b>snapshot</b> session bundle</span>
+              <span class="nr-leg"><b>pulse</b> what the stream emits, or &mdash;</span>
+            </div>
+            <div class="nr-legend-row">
+              <span class="nr-leg">cc claude-code</span>
+              <span class="nr-leg">pi</span>
+              <span class="nr-leg">ag antigravity</span>
+              <span class="nr-leg">gk grok</span>
+              <span class="nr-leg">oc opencode</span>
+              <span class="nr-leg">cp copilot</span>
+              <span class="nr-leg">cd command-code</span>
+            </div>
+            <div class="nr-legend-row">
+              <span><span class="mono">api_error</span> is in the contract; no adapter emits it yet.
+              Eighth harness = one adapter · <span class="mono">docs/harnesses.md</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="nr-inspect" id="nr-inspect"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. SONIC MAPPING (opt-in) -->
+  <section id="s-audio" style="border-bottom:1px solid #1e1e00;">
+    <div class="wrap" style="padding:52px 32px;">
+      <div class="eyebrow" style="margin-bottom:6px;">sonic &middot; event registry</div>
+      <div style="font-size:13px; color:#6b6b6b; margin-bottom:16px; max-width:720px;">
+        Pulse keys become notes. Silent until you enable audio &mdash; the first click creates an
+        AudioContext on this machine, nothing is uploaded. Registry names without a synth
+        (pad, click, chime, sweep, tick, woodblock) fall back to harp, matching the live engine.
+      </div>
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
+        <button class="nr-chip audio" id="audio-enable" type="button">♪ enable audio</button>
+        <span style="font-size:11px; color:#445544;" id="audio-lab">opt-in &middot; A to toggle &middot; click a row to hear</span>
+      </div>
+      <div class="nr-table-wrap">
+        <table class="nr-table" id="audio-table"></table>
+      </div>
+      <div class="nr-meta">
+        SRC: experience/audio/event-registry.mjs EVENT_TYPES &middot; oscillators from experience/client/14-pulse-audio.js INSTS
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. THREE VIEWS -->
+  <section id="s-views" style="border-bottom:1px solid #1e1e00;">
+    <div class="wrap" style="padding:52px 32px;">
+      <div class="eyebrow" style="margin-bottom:22px;">three views</div>
+      <div class="three-step" style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1px; background:#1e1e00;">
+        <div style="background:#101008; padding:22px;">
+          <div style="color:#ff6600; font-size:20px; font-weight:700;">01</div>
+          <div style="color:#e8e000; font-size:12px; letter-spacing:0.06em; margin:10px 0 8px; text-transform:uppercase;">History · Graph</div>
+          <div style="font-size:12px; background:#000; border:1px solid #1e1e00; padding:8px 10px; color:#00cccc; margin-bottom:10px;">npx kaaro-sessions</div>
+          <div style="font-size:13px; color:#ccccaa; line-height:1.6;">Sessions, projects, files &mdash; what was worked on, laid out in time.</div>
+        </div>
+        <div style="background:#101008; padding:22px;">
+          <div style="color:#ff6600; font-size:20px; font-weight:700;">02</div>
+          <div style="color:#e8e000; font-size:12px; letter-spacing:0.06em; margin:10px 0 8px; text-transform:uppercase;">Live · Mission Control</div>
+          <div style="font-size:13px; color:#ccccaa; line-height:1.6;">What's running right now &mdash; last actions, token burn, errors as they happen.</div>
+        </div>
+        <div style="background:#101008; padding:22px;">
+          <div style="color:#ff6600; font-size:20px; font-weight:700;">03</div>
+          <div style="color:#e8e000; font-size:12px; letter-spacing:0.06em; margin:10px 0 8px; text-transform:uppercase;">Sonic · DAW</div>
+          <div style="font-size:13px; color:#ccccaa; line-height:1.6;">Hear writes, tests, agents, failures &mdash; then shape the mix.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. PRIVACY -->
+  <section id="s-privacy" style="background:#080800; border-bottom:1px solid #1e1e00;">
+    <div class="wrap" style="padding:52px 32px;">
+      <div class="eyebrow" style="margin-bottom:22px;">privacy is the claim, not a footnote</div>
+      <div class="privacy-grid" style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px 40px;">
+        <div style="display:flex; justify-content:space-between; border-bottom:1px solid #1e1e00; padding-bottom:10px;">
+          <span style="font-size:12px; color:#ffaa00; letter-spacing:0.05em;">BIND</span>
+          <span style="font-size:12px; color:#ccccaa;">127.0.0.1 <span style="color:#6b6b6b;">(default)</span></span>
+        </div>
+        <div style="display:flex; justify-content:space-between; border-bottom:1px solid #1e1e00; padding-bottom:10px;">
+          <span style="font-size:12px; color:#ffaa00; letter-spacing:0.05em;">UPLOAD</span>
+          <span style="font-size:12px; color:#00ff88;">none</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; border-bottom:1px solid #1e1e00; padding-bottom:10px;">
+          <span style="font-size:12px; color:#ffaa00; letter-spacing:0.05em;">ACCOUNT</span>
+          <span style="font-size:12px; color:#00ff88;">none</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; border-bottom:1px solid #1e1e00; padding-bottom:10px;">
+          <span style="font-size:12px; color:#ffaa00; letter-spacing:0.05em;">DEPENDENCIES</span>
+          <span style="font-size:12px; color:#00ff88;">zero npm packages</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; border-bottom:1px solid #1e1e00; padding-bottom:10px;">
+          <span style="font-size:12px; color:#ffaa00; letter-spacing:0.05em;">LICENSE</span>
+          <span style="font-size:12px; color:#ccccaa;">AGPL-3.0</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; border-bottom:1px solid #1e1e00; padding-bottom:10px;">
+          <span style="font-size:12px; color:#ffaa00; letter-spacing:0.05em;">HOSTING</span>
+          <span style="font-size:12px; color:#ccccaa;">none &mdash; the app runs on your machine</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. INSTALL -->
+  <section id="s-install" class="wrap" style="padding:56px 32px;">
+    <div class="eyebrow" style="margin-bottom:22px;">install</div>
+    <div style="border:1px solid #1e1e00; background:#101008; padding:22px 24px; max-width:600px;">
+      <div style="font-size:13px; line-height:2;">
+        <div><span style="color:#6b6b6b;"># published</span></div>
+        <div style="color:#00cccc;">npx kaaro-sessions</div>
+        <div style="margin-top:8px;"><span style="color:#6b6b6b;"># from a clone</span></div>
+        <div style="color:#00cccc;">npm start</div>
+      </div>
+    </div>
+    <div style="font-size:12px; color:#6b6b6b; margin-top:12px;">
+      Node 18+. Zero npm dependencies. Published on npm as <span class="mono">kaaro-sessions</span>.
+    </div>
+    <div style="font-size:11px; color:#445544; margin-top:16px;">
+      Clone: <span class="mono">git clone https://github.com/karx/kaaroSessions &amp;&amp; cd kaaroSessions</span>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <div style="border-top:1px solid #1e1e00;">
+    <div class="wrap" style="padding:52px 32px 48px; text-align:center;">
+      <div style="font-size:15px; color:#ccccaa; margin-bottom:22px; max-width:520px; margin-left:auto; margin-right:auto; line-height:1.6;">
+        Clone it. Run it on your own transcripts. Tell me what it got wrong.
+      </div>
+      <a class="btn" href="https://github.com/karx/kaaroSessions" target="_blank" rel="noopener">
+        &#9656; github.com/karx/kaaroSessions
+      </a>
+      <div style="font-size:11px; color:#445544; margin-top:26px;">
+        AGPL-3.0 licensed &middot; zero dependencies &middot; kaaroSessions
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="statusbar"><span id="sys">? help · 1–7 jump · J/K kind · space play · A audio</span></div>
+<div id="help-panel"><div class="help-box" id="help-content"></div></div>
+<div id="hop-guide">
+  <div class="hop-guide-box" id="hop-guide-box">
+    <div class="g-h">&#9432; what you're looking at</div>
+    <p>This is the hop: raw harness transcripts become one sixteen-kind vocabulary, then a pulse, then History / Live / Sonic. Nothing in the views reads JSONL.</p>
+    <div class="g-h">pipeline</div>
+    <p>Five stages, left to right. Click one (or [ ]) to see the selected kind at that stage in the inspector: raw transcript, adapter, NormalizedRecord, pulse, or the three views.</p>
+    <div class="g-h">matrix</div>
+    <p>Rows are the sixteen kinds. Columns are harnesses. Green &#9679; means that adapter emits the kind; · means the format has no such record. A cyan outline is the kind in the inspector. stream rows feed the live pulse; snapshot rows feed the session bundle.</p>
+    <div class="g-h">inspector</div>
+    <p>The selected kind at the selected stage, for one harness. Chips with body-colored labels have a sample hop. H cycles harnesses. Empty hop = no sample for that pair, not a missing kind.</p>
+    <div class="g-h">tape</div>
+    <p>A canned turn. Space or &#9656; play a turn walks kinds only: user_turn → tool_use → tool_result → content_block → tokens → context_reset. The pipeline stage stays where you left it. Click a chip to jump. Audio is opt-in (A).</p>
+    <div class="help-footer" id="hop-guide-close">[ CLOSE ]</div>
+  </div>
+</div>
+
+<script type="application/json" id="nr-seed">
+{
+  "harnesses": [
+    {"id":"claude-code","short":"cc"},
+    {"id":"pi","short":"pi"},
+    {"id":"antigravity","short":"ag"},
+    {"id":"grok","short":"gk"},
+    {"id":"opencode","short":"oc"},
+    {"id":"copilot","short":"cp"},
+    {"id":"command-code","short":"cd"}
+  ],
+  "stages": [
+    {"id":"raw","label":"Raw JSONL","desc":"Harness transcript. Experience never reads this."},
+    {"id":"adapter","label":"Adapter","desc":"hooks/adapters/<harness>.mjs. Sonic-unaware. Localized hop."},
+    {"id":"nr","label":"NormalizedRecord","desc":"16 kinds. kind + harness + ts on every record."},
+    {"id":"pulse","label":"Pulse","desc":"transformer stamps the stream. Unknown kinds never go silent."},
+    {"id":"views","label":"History · Live · Sonic","desc":"Graph, Mission Control, DAW consume only the surface."}
+  ],
+  "kinds": [
+    {"id":"user_turn","blurb":"A human prompt entering the session.","lane":"stream","pulse":"human_turn","required":[],"optional":["text","display_text","cwd","branch"],"emit":[1,1,1,1,1,1,1]},
+    {"id":"assistant_turn","blurb":"One assistant message envelope. Tokenless harnesses may emit a synthetic tokens pulse.","lane":"snapshot","pulse":"—","required":[],"optional":["model","stop_reason","content_length","text"],"emit":[1,1,1,1,1,1,1]},
+    {"id":"tool_use","blurb":"One tool invocation. Key (read/write/bash_git/…) is derived later — adapters stay sonic-unaware.","lane":"stream","pulse":"tool_call","required":["tool"],"optional":["category","input","tool_id"],"emit":[1,1,1,1,1,1,1]},
+    {"id":"tool_result","blurb":"Outcome of a tool invocation. error=true becomes a tool_error pulse.","lane":"stream","pulse":"tool_result","required":[],"optional":["tool","error","tool_id","error_text"],"emit":[1,0,1,1,1,0,1]},
+    {"id":"tokens","blurb":"Token usage for one assistant turn. Four counters: input, output, cache_create, cache_read.","lane":"stream","pulse":"tokens","required":["tokens"],"optional":[],"emit":[1,1,0,0,1,1,0]},
+    {"id":"skill_invoke","blurb":"A skill / slash-command detected in a user turn. Feeds the session bundle, not the live stream.","lane":"snapshot","pulse":"—","required":["skill"],"optional":[],"emit":[1,0,0,0,0,0,0]},
+    {"id":"context_reset","blurb":"Compaction boundary — segments the session's context tree.","lane":"stream","pulse":"compact","required":[],"optional":[],"emit":[1,0,0,1,0,0,0]},
+    {"id":"session_meta","blurb":"Session-level metadata drops (title, model, cwd, duration…).","lane":"snapshot","pulse":"—","required":[],"optional":["ai_title","model","cwd","slug","title"],"emit":[1,1,1,1,1,1,0]},
+    {"id":"permission_mode","blurb":"Permission mode change (plan / acceptEdits / bypassPermissions).","lane":"stream","pulse":"permission","required":[],"optional":["mode"],"emit":[1,0,0,0,0,0,0]},
+    {"id":"branch_change","blurb":"Git branch observed to change mid-session.","lane":"snapshot","pulse":"—","required":["branch"],"optional":[],"emit":[1,0,0,0,0,0,1]},
+    {"id":"content_block","blurb":"One assistant content block. Text ≥3 words → words pulse; shorter → chirp; thinking stays thinking.","lane":"stream","pulse":"words","required":["block_type"],"optional":["text","chunk"],"emit":[1,1,0,1,1,1,1]},
+    {"id":"mode_shift","blurb":"Agent operating-mode shift.","lane":"stream","pulse":"mode_shift","required":[],"optional":["mode"],"emit":[1,1,0,0,0,0,0]},
+    {"id":"attachment","blurb":"User-attached context (files, images) entering the conversation.","lane":"stream","pulse":"attachment","required":[],"optional":["subtype"],"emit":[1,0,0,0,0,0,0]},
+    {"id":"scaffold","blurb":"System-injected scaffolding — harness loading guardrails into the context window.","lane":"stream","pulse":"scaffold","required":[],"optional":["content_preview"],"emit":[0,0,1,0,0,0,0]},
+    {"id":"api_error","blurb":"Harness/API-level failure (quota, rate limit, auth). Distinct from a tool failing.","lane":"stream","pulse":"api_error","required":["message"],"optional":["code"],"emit":[0,0,0,0,0,0,0]},
+    {"id":"unknown_record","blurb":"Catch-all: a raw record type the adapter does not recognise. Nothing is silently dropped.","lane":"stream","pulse":"unknown","required":[],"optional":["raw_type"],"emit":[1,1,1,1,1,1,0]}
+  ],
+  "tape": [
+    {"kind":"user_turn","preview":"fix the landing copy"},
+    {"kind":"tool_use","preview":"Read · public/index.html"},
+    {"kind":"tool_result","preview":"ok"},
+    {"kind":"content_block","preview":"the JSONL was never the tool"},
+    {"kind":"tokens","preview":"in 1200 · out 340"},
+    {"kind":"context_reset","preview":"context window reset"}
+  ],
+  "samples": {
+    "user_turn": {
+      "claude-code": {
+        "raw": "{\"type\":\"user\",\"message\":{\"content\":\"fix the landing copy\"}}",
+        "nr": "{\"kind\":\"user_turn\",\"harness\":\"claude-code\",\"text\":\"fix the landing copy\"}",
+        "pulse": "human_turn { text }"
+      }
+    },
+    "assistant_turn": {
+      "claude-code": {
+        "raw": "{\"type\":\"assistant\",\"message\":{\"model\":\"sonnet\"}}",
+        "nr": "{\"kind\":\"assistant_turn\",\"harness\":\"claude-code\",\"model\":\"sonnet\"}",
+        "pulse": "envelope — tokenless harnesses emit synthetic tokens"
+      }
+    },
+    "tool_use": {
+      "claude-code": {
+        "raw": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"public/index.html\"}}]}}",
+        "nr": "{\"kind\":\"tool_use\",\"harness\":\"claude-code\",\"tool\":\"Read\",\"input\":{\"file_path\":\"public/index.html\"}}",
+        "pulse": "tool_call { key:\"read\", where:\"public/index.html\" }"
+      },
+      "antigravity": {
+        "raw": "{\"source\":\"MODEL\",\"tool_calls\":[{\"name\":\"view_file\",\"args\":{\"AbsolutePath\":\"public/index.html\"}}]}",
+        "nr": "{\"kind\":\"tool_use\",\"harness\":\"antigravity\",\"tool\":\"view_file\",\"input\":{\"file_path\":\"public/index.html\"}}",
+        "pulse": "tool_call { key:\"read\", where:\"public/index.html\" }"
+      }
+    },
+    "tool_result": {
+      "claude-code": {
+        "raw": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"is_error\":false}]}}",
+        "nr": "{\"kind\":\"tool_result\",\"harness\":\"claude-code\",\"tool\":\"Read\",\"error\":false}",
+        "pulse": "tool_result"
+      }
+    },
+    "tokens": {
+      "claude-code": {
+        "raw": "{\"message\":{\"usage\":{\"input_tokens\":1200,\"output_tokens\":340,\"cache_read_input_tokens\":8000}}}",
+        "nr": "{\"kind\":\"tokens\",\"harness\":\"claude-code\",\"tokens\":{\"input\":1200,\"output\":340,\"cache_create\":0,\"cache_read\":8000}}",
+        "pulse": "tokens { input, output, cache_read }"
+      }
+    },
+    "skill_invoke": {
+      "claude-code": {
+        "raw": "{\"type\":\"user\",\"message\":{\"content\":\"<command-name>code-review</command-name>\"}}",
+        "nr": "{\"kind\":\"skill_invoke\",\"harness\":\"claude-code\",\"skill\":\"code-review\"}",
+        "pulse": "— session bundle"
+      }
+    },
+    "context_reset": {
+      "claude-code": {
+        "raw": "{\"type\":\"compact_boundary\"}",
+        "nr": "{\"kind\":\"context_reset\",\"harness\":\"claude-code\"}",
+        "pulse": "compact"
+      }
+    },
+    "session_meta": {
+      "claude-code": {
+        "raw": "{\"type\":\"file-history-snapshot\"}",
+        "nr": "{\"kind\":\"session_meta\",\"harness\":\"claude-code\",\"ai_title\":\"Landing copy\"}",
+        "pulse": "— session bundle"
+      }
+    },
+    "permission_mode": {
+      "claude-code": {
+        "raw": "{\"type\":\"system\",\"subtype\":\"permissionMode\",\"permissionMode\":\"acceptEdits\"}",
+        "nr": "{\"kind\":\"permission_mode\",\"harness\":\"claude-code\",\"mode\":\"acceptEdits\"}",
+        "pulse": "permission { mode:\"acceptEdits\" }"
+      }
+    },
+    "branch_change": {
+      "claude-code": {
+        "raw": "{\"gitBranch\":\"feat/pages-landing\"}",
+        "nr": "{\"kind\":\"branch_change\",\"harness\":\"claude-code\",\"branch\":\"feat/pages-landing\"}",
+        "pulse": "— session bundle"
+      }
+    },
+    "content_block": {
+      "grok": {
+        "raw": "{\"content\":{\"text\":\"the JSONL was never the tool\"}}",
+        "nr": "{\"kind\":\"content_block\",\"harness\":\"grok\",\"block_type\":\"text\",\"text\":\"the JSONL was never the tool\",\"chunk\":true}",
+        "pulse": "words { word_count: 7 }"
+      }
+    },
+    "mode_shift": {
+      "claude-code": {
+        "raw": "{\"type\":\"system\",\"subtype\":\"mode\",\"mode\":\"plan\"}",
+        "nr": "{\"kind\":\"mode_shift\",\"harness\":\"claude-code\",\"mode\":\"plan\"}",
+        "pulse": "mode_shift { mode:\"plan\" }"
+      }
+    },
+    "attachment": {
+      "claude-code": {
+        "raw": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"image\"}]}}",
+        "nr": "{\"kind\":\"attachment\",\"harness\":\"claude-code\",\"subtype\":\"image\"}",
+        "pulse": "attachment { subtype:\"image\" }"
+      }
+    },
+    "scaffold": {
+      "antigravity": {
+        "raw": "{\"type\":\"EPHEMERAL_MESSAGE\",\"content\":\"workspace reminder\"}",
+        "nr": "{\"kind\":\"scaffold\",\"harness\":\"antigravity\",\"content_preview\":\"workspace reminder\"}",
+        "pulse": "scaffold { content_preview }"
+      }
+    },
+    "unknown_record": {
+      "claude-code": {
+        "raw": "{\"type\":\"mystery_v3\"}",
+        "nr": "{\"kind\":\"unknown_record\",\"harness\":\"claude-code\",\"raw_type\":\"mystery_v3\"}",
+        "pulse": "unknown { raw_type:\"mystery_v3\" }"
+      }
+    }
+  }
+}
+</script>
+<script type="application/json" id="audio-seed">
+{
+  "kindSonic": {
+    "user_turn": "human_turn",
+    "assistant_turn": null,
+    "tool_use": "read",
+    "tool_result": "tool_result",
+    "tokens": "tokens",
+    "skill_invoke": null,
+    "context_reset": "compact",
+    "session_meta": null,
+    "permission_mode": "permission",
+    "branch_change": null,
+    "content_block": "words",
+    "mode_shift": "mode_shift",
+    "attachment": "attachment",
+    "scaffold": "scaffold",
+    "api_error": "api_error",
+    "unknown_record": "unknown"
+  },
+  "fallbackInst": {
+    "pad": "harp", "woodblock": "pling", "click": "hat",
+    "chime": "bell", "sweep": "kick", "tick": "hat"
+  },
+  "events": [
+    {"key":"read","family":"file","instrument":"harp","pan":0.05,"sendAmt":0.05,"brightness":6500,"volMult":0.65,"octave":0,"desc":"File read — observing existing state"},
+    {"key":"write","family":"file","instrument":"bass","pan":-0.15,"sendAmt":0.05,"brightness":10000,"volMult":1.3,"octave":0,"desc":"File write — creating new state"},
+    {"key":"edit","family":"file","instrument":"pling","pan":-0.1,"sendAmt":0.05,"brightness":8500,"volMult":1,"octave":0,"desc":"File edit — mutating existing state"},
+    {"key":"grep_glob","family":"file","instrument":"bit","pan":0.1,"sendAmt":0.03,"brightness":5000,"volMult":0.55,"octave":0,"desc":"Search / glob — scanning the codebase"},
+    {"key":"agent","family":"ai","instrument":"bell","pan":0.35,"sendAmt":0.4,"brightness":4500,"volMult":1.2,"octave":1,"desc":"Subagent delegation — spawning a cognitive branch"},
+    {"key":"bash_git","family":"system","instrument":"snare","pan":-0.3,"sendAmt":0.03,"brightness":3500,"volMult":1.1,"octave":0,"desc":"Git command — version control operation"},
+    {"key":"bash_run","family":"system","instrument":"kick","pan":-0.3,"sendAmt":0.03,"brightness":2800,"volMult":1,"octave":0,"desc":"Process execution — running tests, builds, scripts"},
+    {"key":"bash_other","family":"system","instrument":"hat","pan":-0.3,"sendAmt":0.02,"brightness":4000,"volMult":0.55,"octave":0,"desc":"Shell command — miscellaneous system operation"},
+    {"key":"web","family":"ai","instrument":"bell","pan":0.45,"sendAmt":0.28,"brightness":5500,"volMult":0.8,"octave":1,"desc":"Web fetch / search — reaching outside the local codebase"},
+    {"key":"other","family":"ai","instrument":"harp","pan":0,"sendAmt":0.06,"brightness":6500,"volMult":0.6,"octave":0,"desc":"Unmapped tool call — catch-all for unclassified tools"},
+    {"key":"tokens","family":"context","instrument":"flute","pan":0,"sendAmt":0.02,"brightness":5000,"volMult":0.5,"octave":-1,"desc":"Token usage — cognitive cost of a model turn"},
+    {"key":"words","family":"context","instrument":"bell","pan":0.2,"sendAmt":0.15,"brightness":9000,"volMult":0.9,"octave":1,"desc":"Assistant text ≥3 words"},
+    {"key":"chirp","family":"context","instrument":"woodblock","pan":0.15,"sendAmt":0.01,"brightness":7000,"volMult":0.3,"octave":0,"desc":"Assistant text <3 words"},
+    {"key":"human_turn","family":"human","instrument":"pad","pan":0,"sendAmt":0.08,"brightness":7000,"volMult":0.7,"octave":0,"desc":"User prompt — human intent"},
+    {"key":"attachment","family":"human","instrument":"click","pan":0.05,"sendAmt":0.02,"brightness":8000,"volMult":0.4,"octave":0,"desc":"Context attachment"},
+    {"key":"mode_shift","family":"context","instrument":"chime","pan":0,"sendAmt":0.1,"brightness":6000,"volMult":0.5,"octave":0,"desc":"Mode or agent change"},
+    {"key":"compact","family":"system","instrument":"sweep","pan":0,"sendAmt":0,"brightness":1000,"volMult":0.8,"octave":-1,"desc":"Context compaction — window reset"},
+    {"key":"permission","family":"system","instrument":"tick","pan":0,"sendAmt":0,"brightness":3000,"volMult":0.4,"octave":0,"desc":"Permission pause — waiting for approval"},
+    {"key":"scaffold","family":"system","instrument":"woodblock","pan":0,"sendAmt":0.01,"brightness":2500,"volMult":0.35,"octave":-1,"desc":"System scaffold — harness guardrails"},
+    {"key":"tool_error","family":"system","instrument":"buzz","pan":-0.1,"sendAmt":0.05,"brightness":1500,"volMult":0.9,"octave":-1,"desc":"Tool failure"},
+    {"key":"tool_result","family":"system","instrument":"harp","pan":0.05,"sendAmt":0.03,"brightness":5000,"volMult":0.4,"octave":0,"desc":"Tool result — success"},
+    {"key":"api_error","family":"system","instrument":"buzz","pan":0,"sendAmt":0.1,"brightness":900,"volMult":1.3,"octave":-2,"desc":"Harness/API failure"},
+    {"key":"thinking","family":"context","instrument":"pad","pan":-0.1,"sendAmt":0.06,"brightness":4000,"volMult":0.25,"octave":-1,"desc":"Extended thinking"},
+    {"key":"unknown","family":"meta","instrument":"tick","pan":0,"sendAmt":0,"brightness":3000,"volMult":0.25,"octave":0,"desc":"Unknown event — coverage gap"}
+  ]
+}
+</script>
+<script>
+(function () {
+  'use strict';
+  const seed = JSON.parse(document.getElementById('nr-seed').textContent);
+  const audioSeed = JSON.parse(document.getElementById('audio-seed').textContent);
+  const SECTIONS = [
+    { key: '1', id: 's-incident', desc: 'Incident' },
+    { key: '2', id: 's-surface',  desc: 'Surface' },
+    { key: '3', id: 's-hop',      desc: 'Hop' },
+    { key: '4', id: 's-audio',    desc: 'Sonic' },
+    { key: '5', id: 's-views',    desc: 'Views' },
+    { key: '6', id: 's-privacy',  desc: 'Privacy' },
+    { key: '7', id: 's-install',  desc: 'Install' },
+  ];
+  const $pipe    = document.getElementById('nr-pipe');
+  const $table   = document.getElementById('nr-table');
+  const $inspect = document.getElementById('nr-inspect');
+  const $tape    = document.getElementById('nr-tape');
+  const $play    = document.getElementById('nr-play');
+  const $audioBtns = [document.getElementById('nr-audio'), document.getElementById('audio-enable')];
+  const $audioTable = document.getElementById('audio-table');
+  const $audioLab = document.getElementById('audio-lab');
+  const $sys     = document.getElementById('sys');
+  const $help    = document.getElementById('help-panel');
+  const $helpBox = document.getElementById('help-content');
+
+  let kindIdx = 2;
+  let stageIdx = 2;
+  let harnessId = 'claude-code';
+  let tapeIdx = -1;
+  let playing = false;
+  let playTimer = null;
+  let audioOn = false;
+  let audioKey = null;
+  let _ac = null;
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function pretty(s) {
+    try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
+  }
+  function hidIndex(id) {
+    return seed.harnesses.findIndex(h => h.id === id);
+  }
+  function sampleRec(kind, hid) {
+    const bag = seed.samples[kind.id];
+    if (!bag || !bag[hid]) return null;
+    return bag[hid];
+  }
+  function emitHarnesses(kind) {
+    return seed.harnesses.filter((_, i) => kind.emit[i]);
+  }
+
+  const SCALE = [0, 2, 4, 7, 9];
+  const PERC = { snare: 1, kick: 1, hat: 1 };
+  function midiToHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function envTo(out, c, at, vol, dur) {
+    const g = c.createGain();
+    g.gain.setValueAtTime(Math.max(0.0001, vol), at);
+    g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+    g.connect(out);
+    return g;
+  }
+  const INSTS = {
+    harp(c, at, hz, vol, out) {
+      const env = envTo(out, c, at, vol ?? 0.42, 0.9);
+      [[1, 'triangle', 0.72], [2, 'sine', 0.28]].forEach(([m, t, w]) => {
+        const o = c.createOscillator(); o.type = t; o.frequency.value = hz * m;
+        const g = c.createGain(); g.gain.value = w; o.connect(g); g.connect(env); o.start(at); o.stop(at + 0.9);
+      });
+    },
+    bass(c, at, hz, vol, out) {
+      const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = hz / 2;
+      o.connect(envTo(out, c, at, vol ?? 0.48, 1.4)); o.start(at); o.stop(at + 1.4);
+    },
+    bell(c, at, hz, vol, out) {
+      const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = hz * 2;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol ?? 0.32, at + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 2.5);
+      o.connect(g); g.connect(out); o.start(at); o.stop(at + 2.5);
+    },
+    flute(c, at, hz, vol, out) {
+      const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = hz;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol ?? 0.18, at + 0.07);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.65);
+      o.connect(g); g.connect(out); o.start(at); o.stop(at + 0.65);
+    },
+    bit(c, at, hz, vol, out) {
+      const o = c.createOscillator(); o.type = 'square'; o.frequency.value = hz;
+      o.connect(envTo(out, c, at, vol ?? 0.14, 0.22)); o.start(at); o.stop(at + 0.22);
+    },
+    pling(c, at, hz, vol, out) {
+      const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = hz;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol ?? 0.30, at + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.48);
+      o.connect(g); g.connect(out); o.start(at); o.stop(at + 0.48);
+    },
+    snare(c, at, vol, out) {
+      const buf = c.createBuffer(1, Math.floor(c.sampleRate * 0.12), c.sampleRate);
+      const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource(); src.buffer = buf;
+      const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1200;
+      src.connect(f); f.connect(envTo(out, c, at, vol ?? 0.32, 0.12)); src.start(at); src.stop(at + 0.12);
+    },
+    kick(c, at, vol, out) {
+      const o = c.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(120, at); o.frequency.exponentialRampToValueAtTime(40, at + 0.15);
+      o.connect(envTo(out, c, at, vol ?? 0.46, 0.25)); o.start(at); o.stop(at + 0.25);
+    },
+    hat(c, at, vol, out) {
+      const buf = c.createBuffer(1, Math.floor(c.sampleRate * 0.04), c.sampleRate);
+      const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource(); src.buffer = buf;
+      const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 8000;
+      src.connect(f); f.connect(envTo(out, c, at, vol ?? 0.18, 0.04)); src.start(at); src.stop(at + 0.04);
+    },
+    buzz(c, at, hz, vol, out) {
+      const o = c.createOscillator(); o.type = 'sawtooth';
+      const f0 = Math.max(60, hz || 160);
+      o.frequency.setValueAtTime(f0, at);
+      o.frequency.exponentialRampToValueAtTime(Math.max(36, f0 * 0.35), at + 0.22);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(Math.min(0.6, (vol ?? 0.4) * 1.1), at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.26);
+      o.connect(g); g.connect(out); o.start(at); o.stop(at + 0.27);
+    }
+  };
+
+  function ac() {
+    if (!_ac) {
+      try { _ac = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch { return null; }
+    }
+    if (_ac.state === 'suspended') _ac.resume().catch(() => {});
+    return _ac;
+  }
+  function eventByKey(key) {
+    return audioSeed.events.find(e => e.key === key) || null;
+  }
+  function playEvent(ev) {
+    if (!audioOn || !ev) return;
+    const c = ac(); if (!c) return;
+    const at = c.currentTime + 0.02;
+    const instName = audioSeed.fallbackInst[ev.instrument] || ev.instrument;
+    const name = INSTS[instName] ? instName : 'harp';
+    const hz = midiToHz(60 + SCALE[0] + (ev.octave || 0) * 12);
+    const vol = 0.26 * (ev.volMult || 1);
+    const filt = c.createBiquadFilter(); filt.type = 'lowpass';
+    filt.frequency.value = ev.brightness || 7000; filt.Q.value = 0.8;
+    let panner = null;
+    try { panner = c.createStereoPanner(); panner.pan.value = ev.pan || 0; } catch {}
+    const endpoint = panner || c.destination;
+    filt.connect(endpoint);
+    if (panner) panner.connect(c.destination);
+    const fn = INSTS[name] || INSTS.harp;
+    PERC[name] ? fn(c, at, vol, filt) : fn(c, at, hz, vol, filt);
+  }
+  function playKind(kindId) {
+    const key = audioSeed.kindSonic[kindId];
+    if (!key) return;
+    audioKey = key;
+    playEvent(eventByKey(key));
+  }
+  function setAudioOn(on) {
+    if (on) {
+      if (!ac()) return;
+      audioOn = true;
+    } else {
+      audioOn = false;
+    }
+    $audioBtns.forEach(btn => {
+      if (!btn) return;
+      btn.classList.toggle('on', audioOn);
+      btn.textContent = audioOn ? '\u266A audio on' : '\u266A enable audio';
+    });
+    if ($audioLab) {
+      $audioLab.textContent = audioOn
+        ? 'on this machine · click a row to hear · A to mute'
+        : 'opt-in · A to toggle · click a row to hear';
+    }
+    sysLine();
+  }
+  function toggleAudio() { setAudioOn(!audioOn); }
+
+  function sysLine() {
+    const k = seed.kinds[kindIdx];
+    const st = seed.stages[stageIdx];
+    const aud = audioOn ? '♪ on' : '♪ off';
+    if (playing) {
+      $sys.textContent = 'playing kinds · pipeline held · space stop · ' + aud + ' · ' + k.id;
+      return;
+    }
+    $sys.textContent = '? help · 1–7 jump · J/K kind · [ ] stage · space play · A audio · ' + aud + ' · ' + k.id + ' · ' + st.id;
+  }
+
+  function renderPipe() {
+    $pipe.innerHTML = seed.stages.map((s, i) =>
+      '<div class="nr-stage' + (i === stageIdx ? ' on' : '') + '" data-i="' + i + '">' +
+        '<div class="n">0' + i + '</div>' +
+        '<div class="l">' + esc(s.label) + '</div>' +
+        '<div class="d">' + esc(s.desc) + '</div>' +
+      '</div>'
+    ).join('');
+  }
+
+  function renderTape() {
+    $tape.innerHTML = seed.tape.map((t, i) =>
+      '<button type="button" class="nr-beat' + (i === tapeIdx ? ' on' : '') + '" data-i="' + i + '">' +
+        esc(t.kind) +
+      '</button>'
+    ).join('');
+  }
+
+  function renderTable() {
+    const head = '<tr><th>kind</th>' +
+      seed.harnesses.map(h => '<th title="' + h.id + '">' + h.short + '</th>').join('') +
+      '<th>lane</th><th>pulse</th></tr>';
+    const body = seed.kinds.map((k, i) => {
+      const cells = k.emit.map(v => v
+        ? '<td class="nr-dot">&#9679;</td>'
+        : '<td class="nr-miss">·</td>').join('');
+      return '<tr class="' + (i === kindIdx ? 'on' : '') + '" data-i="' + i + '">' +
+        '<td class="nr-kind">' + k.id + '</td>' + cells +
+        '<td style="color:#6b6b6b">' + k.lane + '</td>' +
+        '<td class="nr-pulse">' + esc(k.pulse) + '</td></tr>';
+    }).join('');
+    $table.innerHTML = '<thead>' + head + '</thead><tbody>' + body + '</tbody>';
+  }
+
+  function renderAudioTable() {
+    if (!$audioTable) return;
+    const cur = audioSeed.kindSonic[seed.kinds[kindIdx].id];
+    const head = '<tr><th>key</th><th>family</th><th>inst</th><th>pan</th><th>bri</th><th>vol</th><th>oct</th><th>desc</th></tr>';
+    const body = audioSeed.events.map(e => {
+      const heard = audioSeed.fallbackInst[e.instrument] || e.instrument;
+      const inst = INSTS[heard] ? heard : 'harp';
+      const instNote = inst !== e.instrument ? e.instrument + '→' + inst : e.instrument;
+      const on = (audioKey || cur) === e.key;
+      return '<tr class="' + (on ? 'on' : '') + '" data-key="' + e.key + '">' +
+        '<td class="nr-kind">' + e.key + '</td>' +
+        '<td style="color:#6b6b6b">' + e.family + '</td>' +
+        '<td class="nr-pulse">' + instNote + '</td>' +
+        '<td>' + Number(e.pan).toFixed(2) + '</td>' +
+        '<td>' + e.brightness + '</td>' +
+        '<td>' + Number(e.volMult).toFixed(2) + '</td>' +
+        '<td>' + e.octave + '</td>' +
+        '<td style="color:#6b6b6b;white-space:normal">' + esc(e.desc) + '</td></tr>';
+    }).join('');
+    $audioTable.innerHTML = '<thead>' + head + '</thead><tbody>' + body + '</tbody>';
+  }
+
+  function stageBody(kind, hid, rec, step) {
+    const st = seed.stages[stageIdx];
+    const emits = kind.emit[hidIndex(hid)] === 1;
+    const empty = '<div class="nr-json">no sample hop for ' + kind.id + ' · ' + hid + '</div>';
+    let inner = '';
+    if (stageIdx === 0) {
+      inner = rec ? '<div class="nr-json">' + esc(pretty(rec.raw)) + '</div>' : empty;
+    } else if (stageIdx === 1) {
+      inner = '<div class="nr-json">hooks/adapters/' + hid + '.mjs\n' +
+        (emits ? 'emits ' + kind.id : 'data-absent for ' + hid) + '</div>';
+    } else if (stageIdx === 2) {
+      inner = rec ? '<div class="nr-json">' + esc(pretty(rec.nr)) + '</div>' : empty;
+    } else if (stageIdx === 3) {
+      inner = rec
+        ? '<div class="nr-json">' + esc(rec.pulse) + '</div>'
+        : '<div class="nr-json">' + esc(kind.pulse) + '</div>';
+    } else {
+      inner = kind.lane === 'stream'
+        ? '<div class="nr-json">Live · Mission Control\nSonic · DAW\nHistory on next snapshot</div>'
+        : '<div class="nr-json">History · Graph\nsession bundle — not a live pulse</div>';
+    }
+    let tape = '';
+    if (step && step.preview) {
+      tape = '<div class="nr-meta">TAPE ' + esc(step.kind) + ' — ' + esc(step.preview) + '</div>';
+    }
+    return '<div style="font-size:10px;color:#ffaa00;letter-spacing:0.06em;margin-top:12px">STAGE · ' +
+      esc(st.label.toUpperCase()) + '</div>' + inner + tape;
+  }
+
+  function renderInspect() {
+    const k = seed.kinds[kindIdx];
+    const emitH = emitHarnesses(k);
+    if (emitH.length && !emitH.some(h => h.id === harnessId)) harnessId = emitH[0].id;
+    if (!emitH.length) harnessId = seed.harnesses[0].id;
+    const chips = emitH.length
+      ? emitH.map(h => {
+          const has = !!(seed.samples[k.id] && seed.samples[k.id][h.id]);
+          return '<button class="nr-chip' + (h.id === harnessId ? ' on' : '') +
+            (has ? ' has-sample' : '') + '" data-h="' + h.id + '" type="button">' + h.id + '</button>';
+        }).join('')
+      : '<span style="color:#445544;font-size:11px">no adapter emits this kind yet</span>';
+    const req = k.required.length ? k.required.join(' · ') : '—';
+    const opt = k.optional.length ? k.optional.join(' · ') : '—';
+    const rec = sampleRec(k, harnessId);
+    const step = tapeIdx >= 0 ? seed.tape[tapeIdx] : null;
+    $inspect.innerHTML =
+      '<div class="nr-k">' + k.id + '</div>' +
+      '<div style="font-size:12px;color:#ccccaa;margin-top:8px;line-height:1.5">' + esc(k.blurb) + '</div>' +
+      '<div class="nr-meta">LANE ' + k.lane + ' &nbsp;·&nbsp; PULSE <span class="nr-pulse">' + esc(k.pulse) + '</span></div>' +
+      '<div class="nr-meta">REQUIRED ' + esc(req) + '<br>OPTIONAL ' + esc(opt) + '</div>' +
+      '<div style="margin-top:10px">' + chips + '</div>' +
+      stageBody(k, harnessId, rec, step && step.kind === k.id ? step : null);
+  }
+
+  function paint() {
+    renderPipe();
+    renderTable();
+    renderTape();
+    renderInspect();
+    renderAudioTable();
+    sysLine();
+  }
+
+  function selectKind(i, opts) {
+    kindIdx = (i + seed.kinds.length) % seed.kinds.length;
+    if (!opts || !opts.keepTape) tapeIdx = -1;
+    paint();
+  }
+  function selectStage(i) {
+    stageIdx = (i + seed.stages.length) % seed.stages.length;
+    paint();
+  }
+  function cycleHarness() {
+    const emitH = emitHarnesses(seed.kinds[kindIdx]);
+    if (!emitH.length) return;
+    const i = emitH.findIndex(h => h.id === harnessId);
+    harnessId = emitH[(i + 1) % emitH.length].id;
+    paint();
+  }
+  function selectTape(i) {
+    tapeIdx = i;
+    const step = seed.tape[i];
+    const idx = seed.kinds.findIndex(k => k.id === step.kind);
+    if (idx >= 0) kindIdx = idx;
+    paint();
+  }
+
+  function ensureHopVisible() {
+    const el = document.getElementById('s-hop');
+    const r = el.getBoundingClientRect();
+    const floor = window.innerHeight - 24;
+    if (r.top < 0 || r.bottom > floor || r.top > floor * 0.65) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function jump(id) {
+    closeHelp();
+    closeHopGuide();
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderHelp() {
+    $helpBox.innerHTML = [
+      '<div class="help-h">◆ SHORTCUTS <span class="help-hint">press a key to live-test</span></div>',
+      ...SECTIONS.map(s =>
+        '<div class="help-row" id="hrow-' + s.key + '"><span class="help-key">' + s.key +
+        '</span><span class="help-desc">' + s.desc + '</span></div>'),
+      '<div class="help-sep"></div>',
+      '<div class="help-row" id="hrow-j"><span class="help-key">J / K</span><span class="help-desc">Next · previous kind</span></div>',
+      '<div class="help-row" id="hrow-brack"><span class="help-key">[ / ]</span><span class="help-desc">Previous · next pipeline stage</span></div>',
+      '<div class="help-row" id="hrow-h"><span class="help-key">H</span><span class="help-desc">Cycle harness on current kind</span></div>',
+      '<div class="help-row" id="hrow-space"><span class="help-key">SPACE</span><span class="help-desc">Play / stop a turn (kinds only)</span></div>',
+      '<div class="help-row" id="hrow-a"><span class="help-key">A</span><span class="help-desc">Enable / mute audio (opt-in)</span></div>',
+      '<div class="help-sep"></div>',
+      '<div class="help-row" id="hrow-?"><span class="help-key">?</span><span class="help-desc">Toggle this panel</span></div>',
+      '<div class="help-row" id="hrow-i"><span class="help-key">I</span><span class="help-desc">Hop: what you\'re looking at</span></div>',
+      '<div class="help-row"><span class="help-key">ESC</span><span class="help-desc">Close panel</span></div>',
+      '<div class="help-footer" id="help-close">[ CLOSE ]</div>',
+    ].join('');
+    document.getElementById('help-close').addEventListener('click', closeHelp);
+  }
+  function flash(id) {
+    const row = document.getElementById(id);
+    if (!row) return;
+    row.classList.remove('flashing');
+    void row.offsetWidth;
+    row.classList.add('flashing');
+  }
+  function openHelp() {
+    closeHopGuide();
+    $help.classList.add('open');
+    renderHelp();
+  }
+  function closeHelp() { $help.classList.remove('open'); }
+  function toggleHelp() {
+    if ($help.classList.contains('open')) closeHelp(); else openHelp();
+  }
+
+  const $hopGuide = document.getElementById('hop-guide');
+  function openHopGuide() {
+    closeHelp();
+    $hopGuide.classList.add('open');
+    ensureHopVisible();
+  }
+  function closeHopGuide() { $hopGuide.classList.remove('open'); }
+  function toggleHopGuide() {
+    if ($hopGuide.classList.contains('open')) closeHopGuide(); else openHopGuide();
+  }
+
+  function stopPlay() {
+    playing = false;
+    if (playTimer) { clearInterval(playTimer); playTimer = null; }
+    $play.classList.remove('on');
+    $play.textContent = '\u25B6 play a turn';
+    $pipe.classList.remove('held');
+    sysLine();
+  }
+  function revealKindRow() {
+    const tr = $table.querySelector('tr.on');
+    if (tr) tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  function playTurn() {
+    if (playing) { stopPlay(); tapeIdx = -1; paint(); return; }
+    playing = true;
+    $play.classList.add('on');
+    $play.textContent = '\u25A0 stop';
+    $pipe.classList.add('held');
+    let i = 0;
+    function tick() {
+      if (i >= seed.tape.length) {
+        stopPlay();
+        paint();
+        return;
+      }
+      tapeIdx = i;
+      const step = seed.tape[i];
+      const idx = seed.kinds.findIndex(k => k.id === step.kind);
+      if (idx >= 0) kindIdx = idx;
+      paint();
+      revealKindRow();
+      playKind(step.kind);
+      i++;
+    }
+    tick();
+    playTimer = setInterval(tick, 900);
+  }
+
+  $pipe.addEventListener('click', e => {
+    const el = e.target.closest('.nr-stage');
+    if (el) selectStage(+el.dataset.i);
+  });
+  $table.addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-i]');
+    if (tr) selectKind(+tr.dataset.i);
+  });
+  $inspect.addEventListener('click', e => {
+    const chip = e.target.closest('.nr-chip[data-h]');
+    if (!chip) return;
+    harnessId = chip.dataset.h;
+    paint();
+  });
+  $tape.addEventListener('click', e => {
+    const beat = e.target.closest('.nr-beat');
+    if (beat) selectTape(+beat.dataset.i);
+  });
+  $play.addEventListener('click', playTurn);
+  $audioBtns.forEach(btn => { if (btn) btn.addEventListener('click', toggleAudio); });
+  if ($audioTable) {
+    $audioTable.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-key]');
+      if (!tr) return;
+      audioKey = tr.dataset.key;
+      if (!audioOn) setAudioOn(true);
+      playEvent(eventByKey(audioKey));
+      renderAudioTable();
+    });
+  }
+  document.getElementById('help-btn').addEventListener('click', toggleHelp);
+  $help.addEventListener('click', e => { if (e.target === $help) closeHelp(); });
+  document.getElementById('hop-guide-btn').addEventListener('click', toggleHopGuide);
+  document.getElementById('hop-guide-close').addEventListener('click', closeHopGuide);
+  $hopGuide.addEventListener('click', e => { if (e.target === $hopGuide) closeHopGuide(); });
+
+  document.addEventListener('keydown', ev => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    const key = ev.key;
+
+    if (key === '?' || (key === '/' && ev.shiftKey)) {
+      ev.preventDefault();
+      closeHopGuide();
+      toggleHelp();
+      flash('hrow-?');
+      return;
+    }
+    if (key === 'i' || key === 'I') {
+      ev.preventDefault();
+      flash('hrow-i');
+      toggleHopGuide();
+      return;
+    }
+    if (key === 'Escape') {
+      if ($help.classList.contains('open')) { closeHelp(); return; }
+      if ($hopGuide.classList.contains('open')) { closeHopGuide(); return; }
+      if (playing) { stopPlay(); return; }
+      return;
+    }
+
+    const sec = SECTIONS.find(s => s.key === key);
+    if (sec) {
+      ev.preventDefault();
+      flash('hrow-' + sec.key);
+      jump(sec.id);
+      return;
+    }
+
+    if (key === 'j' || key === 'ArrowDown') {
+      ev.preventDefault();
+      flash('hrow-j');
+      selectKind(kindIdx + 1);
+      ensureHopVisible();
+    } else if (key === 'k' || key === 'ArrowUp') {
+      ev.preventDefault();
+      flash('hrow-j');
+      selectKind(kindIdx - 1);
+      ensureHopVisible();
+    } else if (key === '[') {
+      ev.preventDefault();
+      flash('hrow-brack');
+      selectStage(stageIdx - 1);
+      ensureHopVisible();
+    } else if (key === ']') {
+      ev.preventDefault();
+      flash('hrow-brack');
+      selectStage(stageIdx + 1);
+      ensureHopVisible();
+    } else if (key.toLowerCase() === 'h' && !ev.ctrlKey && !ev.metaKey) {
+      ev.preventDefault();
+      flash('hrow-h');
+      cycleHarness();
+      ensureHopVisible();
+    } else if (key.toLowerCase() === 'a' && !ev.ctrlKey && !ev.metaKey) {
+      ev.preventDefault();
+      flash('hrow-a');
+      toggleAudio();
+    } else if (key === ' ') {
+      ev.preventDefault();
+      flash('hrow-space');
+      ensureHopVisible();
+      playTurn();
+    }
+  });
+
+  paint();
+}());
+</script>
+</body>
+</html>

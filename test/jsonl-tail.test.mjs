@@ -4,6 +4,7 @@ import { writeFileSync, mkdirSync, rmSync, appendFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { tailRead } from '../hooks/jsonl-tail.mjs';
+import { MAX_JSONL_BYTES } from '../hooks/jsonl-io.mjs';
 
 // ── Temp file helpers ─────────────────────────────────────────────────────────
 
@@ -202,5 +203,53 @@ test('tailRead — offset beyond file size returns empty records and same offset
     const { records, newOffset } = tailRead(fp, 9999);
     await t.test('no records', () => assert.equal(records.length, 0));
     await t.test('offset unchanged', () => assert.equal(newOffset, 9999));
+  } finally { teardown(); }
+});
+
+// ── Size cap (OOM guard) ─────────────────────────────────────────────────────
+// A runaway transcript (observed: 3.15GB Grok updates.jsonl) must never be
+// bulk-allocated by the live tail path — same class of bug parseJsonlFile
+// guards against, on the "first sight after restart" delta instead of a
+// one-shot full parse. Refuse the read; never reach Buffer.allocUnsafe.
+
+test('tailRead — delta larger than maxBytes is refused: no alloc, offset jumps to EOF', async t => {
+  const p = setup();
+  try {
+    const fp = p('huge.jsonl');
+    const content = '{"a":1}\n{"b":2}\n{"c":3}\n';
+    write(fp, content);
+    const { records, newOffset, skippedBytes } = tailRead(fp, 0, { maxBytes: 4 });
+    await t.test('no records parsed', () => assert.equal(records.length, 0));
+    await t.test('offset jumps straight to EOF (never retried)', () => {
+      assert.equal(newOffset, Buffer.byteLength(content, 'utf8'));
+    });
+    await t.test('reports how much was skipped', () => {
+      assert.equal(skippedBytes, Buffer.byteLength(content, 'utf8'));
+    });
+  } finally { teardown(); }
+});
+
+test('tailRead — delta at or under maxBytes reads normally (cap does not affect legitimate tails)', async t => {
+  const p = setup();
+  try {
+    const fp = p('normal.jsonl');
+    write(fp, '{"a":1}\n');
+    const { records, skippedBytes } = tailRead(fp, 0, { maxBytes: 4096 });
+    await t.test('record parsed', () => assert.deepEqual(records, [{ a: 1 }]));
+    await t.test('no skip reported', () => assert.equal(skippedBytes, undefined));
+  } finally { teardown(); }
+});
+
+test('tailRead — default maxBytes is MAX_JSONL_BYTES (shares the one cap with parseJsonlFile)', async t => {
+  const p = setup();
+  try {
+    const fp = p('default-cap.jsonl');
+    write(fp, '{"a":1}\n');
+    const { records, skippedBytes } = tailRead(fp, 0);
+    await t.test('well under the real cap, reads normally', () => assert.equal(records.length, 1));
+    await t.test('no skip', () => assert.equal(skippedBytes, undefined));
+    await t.test('sanity: MAX_JSONL_BYTES is the shared 512MB policy number', () => {
+      assert.equal(MAX_JSONL_BYTES, 512 * 1024 * 1024);
+    });
   } finally { teardown(); }
 });

@@ -14,15 +14,18 @@ import { tailRead } from '../hooks/jsonl-tail.mjs';
 import { normRecordsToPulses } from '../hooks/pulse-transformer.mjs';
 import { getHarness } from '../hooks/registry.mjs';
 import { applyPulse, snapshotActive } from './active-state.mjs';
+import { MAX_JSONL_BYTES } from '../hooks/jsonl-io.mjs';
 
 /**
  * @param {object} deps
  * @param {{ notify: (event: string, data?: string) => void }} deps.hub
  * @param {object} deps.activeState — store from createActiveState()
  * @param {number} [deps.nowThrottleMs] — trailing-edge `now` broadcast window
+ * @param {number} [deps.maxBytes] — shared OOM-guard cap for tail/whole-file
+ *   reads (default MAX_JSONL_BYTES) + test seam
  * @returns {{ tailAndPulse: (filePath: string, ctx: object) => void }}
  */
-export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000 }) {
+export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000, maxBytes = MAX_JSONL_BYTES }) {
   const offsetMap = new Map(); // filePath → byte offset (jsonl) or size:mtime sig (json)
   let nowTimer = null;
 
@@ -59,6 +62,14 @@ export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000 }) {
     if (offsetMap.get(filePath) === sig) return;
     offsetMap.set(filePath, sig);
 
+    // Same OOM guard as the jsonl tail path — a whole-file JSON harness
+    // (opencode) rewrites its file on every change, so this read is
+    // unconditional; refuse rather than bulk-allocate an unbounded file.
+    if (stat.size > maxBytes) {
+      console.warn(`[pulse] json read skipped ${(stat.size / 1024 / 1024).toFixed(1)}MB (over ${(maxBytes / 1024 / 1024).toFixed(1)}MB cap) — ${filePath}`);
+      return;
+    }
+
     const obj = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     const sessionId = ctx.session_id || obj.sessionID || null;
     if (!sessionId) return;
@@ -79,8 +90,11 @@ export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000 }) {
         ctx = { ...ctx, project_label: resolveLabel(ctx, filePath) };
       }
       const offset = offsetMap.get(filePath) ?? 0;
-      const { records, newOffset } = tailRead(filePath, offset);
+      const { records, newOffset, skippedBytes } = tailRead(filePath, offset, { maxBytes });
       offsetMap.set(filePath, newOffset);
+      if (skippedBytes) {
+        console.warn(`[pulse] tail skipped ${(skippedBytes / 1024 / 1024).toFixed(1)}MB (over ${(maxBytes / 1024 / 1024).toFixed(1)}MB cap) — ${filePath}`);
+      }
       if (!records.length) return;
       emitPulses(records, ctx);
     } catch { /* tail errors must not affect the main rebuild flow */ }

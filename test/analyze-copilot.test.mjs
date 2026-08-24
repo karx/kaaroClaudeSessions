@@ -88,6 +88,11 @@ test('readCopilotSession — jsonl op-log → ops; json dump → wrapped', () =>
   assert.equal(old.records[0].customTitle, 'Old chat');
 });
 
+test('readCopilotSession — throws (not crashes) on a file over the size cap, instead of reading it into memory', () => {
+  const fp = path.join(root, WS, 'chatSessions', `${SES_LIVE}.jsonl`);
+  assert.throws(() => readCopilotSession(fp, { maxBytes: 4 }), /too large/i);
+});
+
 // ── analyzeCopilotSession ─────────────────────────────────────────────────────
 
 test('analyzeCopilotSession — canonical session shape', () => {

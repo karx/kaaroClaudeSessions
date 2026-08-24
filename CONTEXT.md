@@ -84,6 +84,19 @@ kaaroSessions' model of a single session as a tree of segments (delimited by con
 **Pulse**:
 See Normalized Event.
 
+**Pulse Source**:
+The Stream. One producer: `surface/pulse-emitter.mjs` (adapter → NormalizedRecord → Pulse Transformer → SSE). Raw JSONL is not a source for visualization or audio. Lifecycle SSE (`status`, `updated`, `error`, `now`) is a different source.
+
+**Pulse Sink**:
+A consumer of a processed pulse. Sinks do not feed each other. Current sinks: Mission Control (`applyPulse`), the ticker, the beat ring (visualization), and the audio scheduler. The beat ring is independent of mute and of `AudioContext`. The scheduler may stamp `heardAt` onto a ring entry that already exists; it must not be the first push.
+
+_Avoid_: gating the beat ring on Web Audio, treating `_flushBatch` as the viz enqueue, a second parse of JSONL in the browser
+
+**Client Dispatcher** (`playPulse`):
+Encodes one Stream pulse (`resolveSonic`) then fans out to the viz sink and the audio sink. Encoding is not a sink.
+
+See `docs/PULSE-SOURCE-SINK.md` for the current-record trace (NR kind → pulse event → which sinks fire).
+
 ## Audio / Sonic Layer
 
 **Event Registry** (`experience/audio/event-registry.mjs`):

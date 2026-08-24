@@ -375,16 +375,10 @@
     _beatAt += bd;
 
     const stagger = Math.min(0.012, 0.04 / Math.max(1, audible.length - 1));
-    // Every original pulse still draws; only `audible` gets an oscillator.
-    const delayMs = Math.max(0, (at - now) * 1000);
-    const wallTs = Date.now() + delayMs;
+    // Audio sink only: heardAt is the oscillator clock. The viz sink already
+    // owns the ring entry (arrival ts). Do not rewrite ts — that jumps the block.
     for (const v of buf) {
-      if (v.meta?.ringEv && !v.meta.ringEv._onRing) {
-        v.meta.ringEv.ts = wallTs;
-        v.meta.ringEv.heardAt = at;
-        v.meta.ringEv._onRing = true;
-        _pushToBeatRing(v.meta.ringEv);
-      }
+      if (v.meta?.ringEv) v.meta.ringEv.heardAt = at;
     }
     audible.forEach((v, i) => startVoice(c, at + i * stagger, v));
   }
@@ -398,7 +392,7 @@
     const mixerGain = (window.MIXER_GAINS && sonic.fam) ? (window.MIXER_GAINS[sonic.fam] ?? 1) : 1;
     const finalVol  = (vol != null ? vol : 0.42) * mixerGain;
     _batchBuf.push({ name, hz, vol: finalVol, sonic, meta });
-    if (!ac()) return;
+    if (!ac()) return; // viz already has the pulse; no oscillator to arm
     if (!_batchTimer) _batchTimer = setTimeout(_flushBatch, BATCH_MS);
   }
 
@@ -606,7 +600,7 @@
     if (_pressureTickCount % 10 === 0) _updatePressure();
   }
 
-  // ── Main pulse dispatcher ─────────────────────────────────────────────────────
+  // ── Client dispatcher: encode once, fan out to independent sinks ───────────
   // Cognition events ride the same ring + audio path: structural/human signals
   // with registry-defined sonic profiles (W-COG surfacing).
   const COGNITION_EVENTS = new Set([
@@ -618,6 +612,8 @@
   window.playPulse = function (event, data) {
     let ringEv = null;
     let r = null;
+
+    // PROCESS: encode. Viz and audio both read this object; neither produces the other.
     try {
       if (event === 'tool_call' || event === 'words' || event === 'tokens' || COGNITION_EVENTS.has(event)) {
         r = resolveSonic(event, data);
@@ -661,10 +657,8 @@
           pan:         r.pan,
           brightness:  r.brightness,
         };
-        // Muted (or no audio): show the pulse immediately. When audio is on,
-        // the ring entry is stamped to the scheduled voice time in schedVoice
-        // so the playhead sits on the note you hear, not the enqueue.
-        if (muted) _pushToBeatRing(ringEv);
+        // VIZ SINK — arrival clock. Independent of mute and AudioContext.
+        _pushToBeatRing(ringEv);
       }
     } catch {}
 
@@ -678,11 +672,10 @@
         relMs: data.relMs,
         event,
       };
-      const pushNow = () => { if (ringEv && !ringEv._onRing) { ringEv._onRing = true; _pushToBeatRing(ringEv); } };
 
       if (event === 'tool_call') {
-        if (!passesFilter(r.key, data.project)) { pushNow(); return; }
-        const name = r.instrument; if (name === 'off') { pushNow(); return; }
+        if (!passesFilter(r.key, data.project)) return;
+        const name = r.instrument; if (name === 'off') return;
         const oldMode = S.noteMode;
         if (r.degreeMode && r.degreeMode !== oldMode) S.noteMode = r.degreeMode;
         const hz = noteHz(data.project, getDegree(data.where), r.octave || 0);
@@ -690,27 +683,25 @@
         schedVoice(name, hz, r.volMult !== 1 ? 0.42 * r.volMult : undefined, r, meta);
 
       } else if (event === 'tokens') {
-        if (!passesFilter('tokens', data.project)) { pushNow(); return; }
-        const name = r.instrument; if (name === 'off') { pushNow(); return; }
+        if (!passesFilter('tokens', data.project)) return;
+        const name = r.instrument; if (name === 'off') return;
         const hz  = noteHz(data.project, 0, r.octave ?? -1);
         const vol = Math.min(0.11, 0.04 + Math.log1p((data.output || 0) / 300) * 0.028);
         schedVoice(name, hz, vol * r.volMult, r, meta);
 
       } else if (event === 'words') {
-        if (!passesFilter('words', data.project)) { pushNow(); return; }
-        const name = r.instrument; if (name === 'off') { pushNow(); return; }
+        if (!passesFilter('words', data.project)) return;
+        const name = r.instrument; if (name === 'off') return;
         const iv  = SCALES[r.scale] || activeIv();
         const deg = Math.min(iv.length - 1, Math.floor((data.word_count || 0) / 15));
         const hz  = noteHz(data.project, deg, r.octave ?? 1);
         schedVoice(name, hz, 0.11 * r.volMult, r, meta);
 
       } else if (COGNITION_EVENTS.has(event)) {
-        if (!passesFilter(r.key, data.project)) { pushNow(); return; }
-        const name = r.instrument; if (name === 'off') { pushNow(); return; }
+        if (!passesFilter(r.key, data.project)) return;
+        const name = r.instrument; if (name === 'off') return;
         const hz = noteHz(data.project, 0, r.octave || 0);
         schedVoice(name, hz, 0.12 * r.volMult, r, meta);
-      } else {
-        pushNow();
       }
     } catch { /* audio must never break UI */ }
   };

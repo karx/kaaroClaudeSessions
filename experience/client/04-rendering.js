@@ -49,10 +49,17 @@ function renderNodeContent(el, d) {
         .style('animation-duration',spd).style('animation-delay','-0.7s').style('--po',opa);
   }
   if (d.type === 'project') {
-    el.append('path').attr('d',hexPath(r)).attr('fill',KAARO_TOKENS.bg).attr('stroke',d.color).attr('stroke-width',2.5);
-    el.append('path').attr('d',hexPath(r-7)).attr('fill',d.color).attr('fill-opacity',.12);
-    for (const m of harnessMarks(d.harnesses, r))
-      el.append('circle').attr('cx',m.x).attr('cy',m.y).attr('r',2.5).attr('fill',HARNESS_MARK[m.harness]||'#888').attr('stroke','none');
+    const wedges = harnessWedges(d.harnesses, r);
+    if (!wedges.length) {
+      el.append('path').attr('d',hexPath(r)).attr('fill',KAARO_TOKENS.bg).attr('stroke',d.color).attr('stroke-width',2.5);
+    } else {
+      for (const w of wedges)
+        el.append('path').attr('d',w.d)
+          .attr('fill',HARNESS_MARK[w.harness]||d.color).attr('fill-opacity',.83)
+          .attr('stroke', wedges.length>1 ? KAARO_TOKENS.bg : 'none')
+          .attr('stroke-width', wedges.length>1 ? 1 : 0);
+      el.append('path').attr('d',hexPath(r)).attr('fill','none').attr('stroke',d.color).attr('stroke-width',2.5);
+    }
   } else if (d.type === 'session') {
     if (d.inFlight) el.append('circle').attr('class','pring').attr('r',r+8).attr('stroke',IN_FLIGHT_COLOR).attr('stroke-width',2).attr('stroke-opacity',.9).style('animation-duration','0.8s');
     if (d.errorLevel===2) el.append('circle').attr('r',r+6).attr('fill','none').attr('stroke','#ff2244').attr('stroke-width',1.5).attr('stroke-opacity',.7);

@@ -57,6 +57,31 @@ export const EDGE_WIDTH   = { membership: 1.4, write: 1, edit: 1, read: .7, bran
 
 export const NODE_RADII = { PR_MIN: 18, PR_MAX: 34, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13, CL_MIN: 12, CL_MAX: 24 };
 
+/** Pointy-top regular hexagon path, vertex 0 at (0,-r) — the project glyph silhouette. */
+export function hexPath(r) {
+  const pts = [];
+  for (let k = 0; k < 6; k++) {
+    const a = k * Math.PI / 3;
+    pts.push([r * Math.sin(a), -r * Math.cos(a)]);
+  }
+  return 'M' + pts.map(([x, y]) => `${x},${y}`).join('L') + 'Z';
+}
+
+// Harness tick color on the project hex stroke — data, not chrome (mirrors TOOL_COLORS).
+export const HARNESS_MARK = {
+  'claude-code': '#4a9eff', pi: '#ff9944', antigravity: '#44cc88',
+  grok: '#cc4488', opencode: '#aacc44', copilot: '#8866ee', 'command-code': '#ffcc44',
+};
+
+/** Tick positions on a project hex's stroke, one per distinct harness — vertices first (6), then mid-edges (6 more) for a 7th+. */
+export function harnessMarks(harnesses, r) {
+  return (harnesses || []).map((h, i) => {
+    const slot = i % 12;
+    const a = slot < 6 ? slot * Math.PI / 3 : ((slot - 6) * Math.PI / 3 + Math.PI / 6);
+    return { x: r * Math.sin(a), y: -r * Math.cos(a), harness: h };
+  });
+}
+
 export function nodeRadius(d, r = NODE_RADII) {
   if (d.type === 'project') return r.PR_MIN + (r.PR_MAX - r.PR_MIN) * (d.sizeNorm || 0);
   if (d.type === 'session') return r.SR_MIN + (r.SR_MAX - r.SR_MIN) * (d.sizeNorm || 0);

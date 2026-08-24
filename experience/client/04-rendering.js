@@ -41,7 +41,7 @@ function renderNodeContent(el, d) {
   if (d.recencyLevel > 0) {
     const spd=['','4s','2.4s','1.4s'][d.recencyLevel];
     const opa=['','0.2','0.45','0.75'][d.recencyLevel];
-    const pr=d.type==='project'?PROJ_R+6:r+5;
+    const pr=r+(d.type==='project'?6:5);
     el.append('circle').attr('class','pring').attr('r',pr).attr('stroke',d.color)
       .style('animation-duration',spd).style('--po',opa);
     if (d.recencyLevel===3)
@@ -49,8 +49,10 @@ function renderNodeContent(el, d) {
         .style('animation-duration',spd).style('animation-delay','-0.7s').style('--po',opa);
   }
   if (d.type === 'project') {
-    el.append('circle').attr('r',PROJ_R).attr('fill',KAARO_TOKENS.bg).attr('stroke',d.color).attr('stroke-width',2.5);
-    el.append('circle').attr('r',PROJ_R-7).attr('fill',d.color).attr('fill-opacity',.1);
+    el.append('path').attr('d',hexPath(r)).attr('fill',KAARO_TOKENS.bg).attr('stroke',d.color).attr('stroke-width',2.5);
+    el.append('path').attr('d',hexPath(r-7)).attr('fill',d.color).attr('fill-opacity',.12);
+    for (const m of harnessMarks(d.harnesses, r))
+      el.append('circle').attr('cx',m.x).attr('cy',m.y).attr('r',2.5).attr('fill',HARNESS_MARK[m.harness]||'#888').attr('stroke','none');
   } else if (d.type === 'session') {
     if (d.inFlight) el.append('circle').attr('class','pring').attr('r',r+8).attr('stroke',IN_FLIGHT_COLOR).attr('stroke-width',2).attr('stroke-opacity',.9).style('animation-duration','0.8s');
     if (d.errorLevel===2) el.append('circle').attr('r',r+6).attr('fill','none').attr('stroke','#ff2244').attr('stroke-width',1.5).attr('stroke-opacity',.7);
@@ -88,5 +90,5 @@ let projLabelSel = labelLayer.selectAll('text.pl').data(GRAPH.nodes.filter(n=>n.
 simulation.on('tick', () => {
   edgeSel.attr('d', edgePathD);
   nodeSel.attr('transform', d=>`translate(${d.x},${d.y})`);
-  projLabelSel.attr('x',d=>d.x).attr('y',d=>d.y+PROJ_R+13);
+  projLabelSel.attr('x',d=>d.x).attr('y',d=>d.y+nodeRadius(d)+13);
 });

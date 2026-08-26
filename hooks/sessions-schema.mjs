@@ -120,6 +120,10 @@ export function validateSession(s) {
  *                                  arithmetic). Consumers (graph-pipeline, timeline)
  *                                  pass it through and must never recompute it.
  *                                  Project summaries carry the same field via enrichProject.
+ * tokens_total     : number      — input + cache_create + cache_read + output;
+ *                                  overall consumption. DERIVED by enrichSession
+ *                                  (also sess.tokens.total). Graph session sizeNorm
+ *                                  uses this, same as project hexes.
  * skill_timeline   : {skill,ts}[] — chronological real-skill invocations (W-OBS-01).
  *                                  BUILTIN_COMMANDS excluded. Built by session-reducer
  *                                  from skill_invoke NRs (invoked_skills + command-name).
@@ -135,5 +139,20 @@ export const OPTIONAL_SESSION_FIELDS = [
   'skills', 'bash_categories', 'content_blocks', 'stop_reasons',
   'first_user_message', 'file_ops', 'harness', 'source',
   'context_resets', 'ai_title', 'subagent_count', 'branches',
-  'tokens_work', 'skill_timeline', 'skill_attribution',
+  'tokens_work', 'tokens_total', 'skill_timeline', 'skill_attribution',
+];
+
+/**
+ * OPTIONAL PROJECT FIELDS — not validated (extra keys are allowed) but this
+ * is the contract graph-pipeline / the project glyph consume when present.
+ *
+ * tokens_work  : number     — output + cache_create; enrichProject
+ * tokens_total : number     — overall consumption; sizes the project hex
+ * raw_ids      : string[]   — sorted unique harness-native project_id values
+ *                             merged into this canonical bucket
+ * harnesses    : string[]   — sorted unique session.harness values; hex fill
+ * tool_calls   : number     — member sum; sizeNorm fallback when tokens_total is 0
+ */
+export const OPTIONAL_PROJECT_FIELDS = [
+  'tokens_work', 'tokens_total', 'raw_ids', 'harnesses', 'tool_calls',
 ];

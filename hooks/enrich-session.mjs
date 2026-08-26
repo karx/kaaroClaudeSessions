@@ -14,7 +14,8 @@ export function tokensWork(t) {
 export function enrichSession(sess) {
   const t = sess.tokens;
   t.total = t.input + t.cache_create + t.cache_read + t.output;
-  sess.tokens_work = tokensWork(t);
+  sess.tokens_work  = tokensWork(t);
+  sess.tokens_total = t.total;
   const inputSide = t.input + t.cache_create + t.cache_read;
   sess.cache_hit_rate = inputSide > 0 ? +(t.cache_read / inputSide * 100).toFixed(1) : 0;
   sess.duration_min   = sess.duration_ms != null ? +(sess.duration_ms / 60000).toFixed(1) : null;

@@ -69,6 +69,33 @@ test('buildSessionsOutput — project summaries carry enriched tokens_work/token
   assert.equal(p.tokens_total, 200);  // 35 + 165
 });
 
+test('buildSessionsOutput — unifies Pi wrapped id into canonical project (G2)', () => {
+  const output = buildSessionsOutput([
+    {
+      harness: 'claude-code',
+      source_dir: '/claude',
+      sessions: [makeSession('cc-1', 'claude-code', 'D--src-ebrain')],
+    },
+    {
+      harness: 'pi',
+      source_dir: '/pi',
+      sessions: [makeSession('pi-1', 'pi', '--D--src-ebrain--')],
+    },
+  ]);
+
+  assert.equal(output.projects.length, 1);
+  assert.equal(output.projects[0].id, 'D--src-ebrain');
+  assert.equal(output.projects[0].session_count, 2);
+  assert.deepEqual(output.projects[0].raw_ids, ['--D--src-ebrain--', 'D--src-ebrain']);
+  assert.deepEqual(output.projects[0].harnesses, ['claude-code', 'pi']);
+
+  // decision: session records keep their native, harness-spelled project_id
+  assert.equal(output.sessions.find(s => s.session_id === 'pi-1').project_id, '--D--src-ebrain--');
+
+  const v = validateSessionsData(output);
+  assert.equal(v.ok, true, v.errors?.join('; '));
+});
+
 test('buildSessionsOutput — sorts sessions by first_timestamp', () => {
   const output = buildSessionsOutput([{
     harness: 'claude-code',

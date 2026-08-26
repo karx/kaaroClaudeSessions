@@ -93,6 +93,10 @@ body { background: var(--k-bg); color: var(--k-body); font-family: 'IBM Plex Mon
 .pring { fill:none; stroke-width:1.5; pointer-events:none;
   animation:pulse-ring linear infinite;
   transform-box:fill-box; transform-origin:center; }
+@media (prefers-reduced-motion: reduce) {
+  .pring { animation: none; }
+}
+html.k-hidden .pring { animation-play-state: paused; }
 #controls { position: fixed; top: 48px; right: 16px; background: rgba(8,8,16,.9);
   border: 1px solid #34321c; padding: 12px 16px; min-width: 230px; z-index: 200;
   max-height: calc(100vh - 130px); overflow-y: auto; }

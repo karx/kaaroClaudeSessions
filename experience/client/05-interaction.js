@@ -11,15 +11,17 @@ function attachTooltip(sel) {
   sel.on('mouseover',(ev,d)=>{
     tip.style.display='block';
     if (d.type==='project') {
+      const hs = d.harnesses || [];
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
-        <div class="meta">${d.session_count} sessions · AI work: ${fmtTok(d.tokens_work)}</div>
+        <div class="meta">${d.session_count} sessions · consumption: ${fmtTok(d.tokens_total)} · AI work: ${fmtTok(d.tokens_work)}</div>
+        ${hs.length?`<div class="meta">${hs.length} harness${hs.length===1?'':'es'} · ${hs.join(' · ')}</div>`:''}
         ${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;
     } else if (d.type==='session') {
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
         <div class="meta">${d.date_str||'?'} · ${d.duration_min!=null?d.duration_min+'min':'?'} · ${d.model||'?'}</div>
         ${d.recencyLevel>0?'<div class="meta" style="color:'+(['','#446','#88a','#adf'][d.recencyLevel])+'">● '+(['','< 2 days','< 15 min','< 5 min'][d.recencyLevel])+'</div>':''}
         <div class="meta">branch: ${d.git_branch||'?'}</div>
-        <div class="meta">AI work: ${fmtTok(d.tokens_work)} · cache: ${fmtTok(d.tokens_cached)} (${d.cache_hit_rate}%)</div>
+        <div class="meta">consumption: ${fmtTok(d.tokens_total)} · AI work: ${fmtTok(d.tokens_work)} · cache: ${fmtTok(d.tokens_cached)} (${d.cache_hit_rate}%)</div>
         <div class="meta">${d.tool_calls} calls · ${d.tool_errors} errors · ${d.tool_diversity} tool types</div>
         ${d.thinking_count?'<div class="meta">thinking: '+d.thinking_count+'</div>':''}
         ${d.hit_max_tokens?'<div class="meta" style="color:#ff4444">⚠ hit max_tokens</div>':''}
@@ -244,10 +246,15 @@ function showPanel(d) {
   const nb=neighbours(d.id); let html='';
   if (d.type==='project') {
     const ss=[...nb].filter(id=>id!==d.id).map(id=>nodeById[id]).filter(n=>n?.type==='session');
+    const hRows = harnessBreakdown(d.harnesses, ss).map(h =>
+      `<div class="prow"><span class="pk" style="color:${h.color}">● ${esc(h.harness)}</span><span class="pv">${h.count}</span></div>`
+    ).join('');
     html=`<h3 style="color:${d.color}">${d.label}</h3>
       <div class="prow"><span class="pk">Sessions</span><span class="pv">${d.session_count}</span></div>
+      <div class="prow"><span class="pk">Consumption</span><span class="pv">${fmtTok(d.tokens_total)}</span></div>
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtTok(d.tokens_work)}</span></div>
       <div class="prow"><span class="pk">Skills</span><span class="pv">${d.skills.map(s=>'<span class="ptag">/'+s+'</span>').join('')||'none'}</span></div>
+      ${hRows?`<div class="psep"></div><div class="p-section-hd">◆ HARNESSES</div>${hRows}`:''}
       <div class="psep"></div>
       ${ss.map(s=>_nodeRow(s.id,`<span class="pk">${s.date_str||'?'}</span><span class="pv" style="color:${d.color}">${s.label}</span>`)).join('')}`;
   } else if (d.type==='session') {
@@ -267,6 +274,7 @@ function showPanel(d) {
       ${d.context_resets?`<div class="prow"><span class="pk">Context resets</span><span class="pv">${d.context_resets}</span></div>`:''}
       ${d.subagent_count?`<div class="prow"><span class="pk">Subagents</span><span class="pv">${d.subagent_count}</span></div>`:''}
       <div class="psep"></div>
+      <div class="prow"><span class="pk">Consumption</span><span class="pv">${fmtTok(d.tokens_total)}</span></div>
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtTok(d.tokens_work)}</span></div>
       <div class="prow"><span class="pk">Cache read</span><span class="pv">${fmtTok(d.tokens_cached)} (${d.cache_hit_rate}%)</span></div>
       <div class="prow"><span class="pk">Output</span><span class="pv">${fmtTok(d.tokens_output)}</span></div>

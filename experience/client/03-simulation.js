@@ -56,4 +56,4 @@ const simulation = d3.forceSimulation(GRAPH.nodes)
   .force('link',      makeForceLink())
   .force('charge',    d3.forceManyBody().strength(d=>d.type==='project'?-700:d.type==='cluster'?-300:d.type==='session'?-130:-55))
   .force('collision', d3.forceCollide(d=>nodeRadius(d)+4).strength(0.85))
-  .alphaDecay(0.006).velocityDecay(0.38);
+  .alphaDecay(SIM_ALPHA_DECAY).velocityDecay(0.38);

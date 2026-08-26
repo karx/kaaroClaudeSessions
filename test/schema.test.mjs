@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateSessionsData, validateProject, validateSession } from '../hooks/sessions-schema.mjs';
+import {
+  validateSessionsData, validateProject, validateSession,
+  OPTIONAL_PROJECT_FIELDS, OPTIONAL_SESSION_FIELDS,
+} from '../hooks/sessions-schema.mjs';
 
 // ── validateProject ───────────────────────────────────────────────────────────
 test('validateProject', async t => {
@@ -31,6 +34,15 @@ test('validateProject', async t => {
   await t.test('rejects missing tokens', () => {
     const e = validateProject({ ...valid, tokens: null });
     assert.ok(e.some(s => s.includes('tokens')));
+  });
+
+  await t.test('extra glyph fields do not fail validation', () => {
+    assert.deepEqual(validateProject({
+      ...valid,
+      raw_ids: ['D--src-x', '--D--src-x--'],
+      harnesses: ['claude-code', 'pi'],
+      tokens_total: 380, tokens_work: 250, tool_calls: 12,
+    }), []);
   });
 
   await t.test('rejects non-numeric tokens fields', () => {
@@ -74,6 +86,12 @@ test('validateSession', async t => {
     const minimal = { session_id: 'x', project_id: 'p', tokens: { input: 0, output: 0, cache_create: 0, cache_read: 0 } };
     assert.deepEqual(validateSession(minimal), []);
   });
+});
+
+test('OPTIONAL_PROJECT_FIELDS documents glyph identity and consumption', () => {
+  for (const k of ['raw_ids', 'harnesses', 'tokens_total', 'tokens_work', 'tool_calls'])
+    assert.ok(OPTIONAL_PROJECT_FIELDS.includes(k), k);
+  assert.ok(OPTIONAL_SESSION_FIELDS.includes('tokens_total'));
 });
 
 // ── validateSessionsData ──────────────────────────────────────────────────────

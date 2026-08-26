@@ -55,10 +55,129 @@ export const EDGE_WIDTH   = { membership: 1.4, write: 1, edit: 1, read: .7, bran
 
 // ── Geometry ──────────────────────────────────────────────────────────────────
 
-export const NODE_RADII = { PROJ_R: 26, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13, CL_MIN: 12, CL_MAX: 24 };
+export const NODE_RADII = { PR_MIN: 18, PR_MAX: 34, SR_MIN: 5, SR_MAX: 20, FR_MIN: 3, FR_MAX: 13, CL_MIN: 12, CL_MAX: 24 };
+
+// d3 default is 0.0228 (~5s settle). 0.006 ran ~19s of manyBody on 700+ nodes.
+export const SIM_ALPHA_DECAY = 0.02;
+
+function hexVertices(r) {
+  const pts = [];
+  for (let k = 0; k < 6; k++) {
+    const a = k * Math.PI / 3;
+    pts.push([r * Math.sin(a), -r * Math.cos(a)]);
+  }
+  return pts;
+}
+
+function pathFromPts(pts) {
+  return 'M' + pts.map(([x, y]) => `${x},${y}`).join('L') + 'Z';
+}
+
+/** Pointy-top regular hexagon path, vertex 0 at (0,-r) — the project glyph silhouette. */
+export function hexPath(r) {
+  return pathFromPts(hexVertices(r));
+}
+
+// Harness fill on the project hex — data, not chrome (mirrors TOOL_COLORS).
+// No blue-family hues: Register A retired navy chrome; ticks/fills still encode identity.
+export const HARNESS_MARK = {
+  'claude-code': '#2a9d8f', pi: '#ff9944', antigravity: '#44cc88',
+  grok: '#cc4488', opencode: '#aacc44', copilot: '#c070b0', 'command-code': '#ffcc44',
+};
+export const HARNESS_FILL_OPACITY = 0.35;
+
+function uniqHarnesses(harnesses) {
+  const list = [];
+  const seen = new Set();
+  for (const h of harnesses || []) {
+    if (!h || seen.has(h)) continue;
+    seen.add(h);
+    list.push(h);
+  }
+  return list;
+}
+
+function rayHexIntersect(angle, verts) {
+  const dx = Math.sin(angle);
+  const dy = -Math.cos(angle);
+  let bestT = Infinity;
+  let hit = [dx, dy];
+  for (let i = 0; i < 6; i++) {
+    const [x1, y1] = verts[i];
+    const [x2, y2] = verts[(i + 1) % 6];
+    const ex = x2 - x1, ey = y2 - y1;
+    const D = dx * (-ey) - dy * (-ex);
+    if (Math.abs(D) < 1e-12) continue;
+    const t = (x1 * (-ey) - (-ex) * y1) / D;
+    const u = (dx * y1 - dy * x1) / D;
+    if (t > 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 && t < bestT) {
+      bestT = t;
+      hit = [t * dx, t * dy];
+    }
+  }
+  return hit;
+}
+
+function angleInOpenWedge(a, a0, a1) {
+  const tau = Math.PI * 2;
+  const norm = x => ((x % tau) + tau) % tau;
+  a = norm(a); a0 = norm(a0); a1 = norm(a1);
+  const eps = 1e-9;
+  if (a1 > a0 + eps) return a > a0 + eps && a < a1 - eps;
+  return a > a0 + eps || a < a1 - eps;
+}
+
+function ptsNear(a, b) {
+  return Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-8;
+}
+
+/**
+ * Interior fill of a project hex, one polygon per distinct harness.
+ * 1 → solid hex; 2 → half-split through top–bottom vertices; 3 → 120°
+ * center fan (vertex-aligned); 4+ → equal-angle polygons from the center
+ * to each side/corner the ray hits.
+ */
+export function harnessWedges(harnesses, r) {
+  const list = uniqHarnesses(harnesses);
+  if (!list.length) return [];
+  const verts = hexVertices(r);
+  if (list.length === 1) return [{ harness: list[0], d: pathFromPts(verts) }];
+  const n = list.length;
+  const tau = Math.PI * 2;
+  return list.map((h, i) => {
+    const a0 = i * tau / n;
+    const a1 = (i + 1) * tau / n;
+    const p0 = rayHexIntersect(a0, verts);
+    const p1 = rayHexIntersect(a1, verts);
+    const mid = verts.filter((_, k) => angleInOpenWedge(k * Math.PI / 3, a0, a1));
+    const pts = [[0, 0], p0];
+    for (const v of mid) {
+      if (!ptsNear(v, p0) && !ptsNear(v, p1)) pts.push(v);
+    }
+    if (!ptsNear(p1, pts[pts.length - 1])) pts.push(p1);
+    return { harness: h, d: pathFromPts(pts) };
+  });
+}
+
+/** Panel rows for a project: glyph order, session counts, mark colors. */
+export function harnessBreakdown(harnesses, sessions = []) {
+  const order = uniqHarnesses(harnesses);
+  const counts = new Map(order.map(h => [h, 0]));
+  for (const s of sessions) {
+    const h = s?.harness || s?.source;
+    if (!h) continue;
+    if (!counts.has(h)) order.push(h);
+    counts.set(h, (counts.get(h) || 0) + 1);
+  }
+  return order.map(harness => ({
+    harness,
+    count: counts.get(harness) || 0,
+    color: HARNESS_MARK[harness] || '#888888',
+  }));
+}
 
 export function nodeRadius(d, r = NODE_RADII) {
-  if (d.type === 'project') return r.PROJ_R;
+  if (d.type === 'project') return r.PR_MIN + (r.PR_MAX - r.PR_MIN) * (d.sizeNorm || 0);
   if (d.type === 'session') return r.SR_MIN + (r.SR_MAX - r.SR_MIN) * (d.sizeNorm || 0);
   if (d.type === 'cluster') return r.CL_MIN + (r.CL_MAX - r.CL_MIN) * (d.sizeNorm || 0);
   return r.FR_MIN + (r.FR_MAX - r.FR_MIN) * (d.sizeNorm || 0);

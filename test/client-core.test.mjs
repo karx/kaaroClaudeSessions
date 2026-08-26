@@ -11,6 +11,8 @@ import {
   fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
   connectEvents, resolveControlVisibility,
+  hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
+  SIM_ALPHA_DECAY,
 } from '../experience/client-core.mjs';
 
 test('fmtTok — M/k/plain formatting', () => {
@@ -48,11 +50,130 @@ test('blockGeom — ambient floor strips vs top-anchored activity spikes', () =>
   assert.deepEqual(blockGeom({ type: 'tool_call', tool: 'Mystery' }, trackH), { h: 20, yOff: 2 });
 });
 
-test('nodeRadius — project fixed, session/file scale by sizeNorm', () => {
-  assert.equal(nodeRadius({ type: 'project' }), 26);
+test('nodeRadius — project scales by sizeNorm (PR_MIN..PR_MAX), session/file/cluster too', () => {
+  assert.equal(nodeRadius({ type: 'project', sizeNorm: 0 }), 18);
+  assert.equal(nodeRadius({ type: 'project', sizeNorm: 1 }), 34);
+  assert.equal(nodeRadius({ type: 'project' }), 18, 'missing sizeNorm defaults to 0');
   assert.equal(nodeRadius({ type: 'session', sizeNorm: 0 }), 5);
   assert.equal(nodeRadius({ type: 'session', sizeNorm: 1 }), 20);
   assert.equal(nodeRadius({ type: 'file', sizeNorm: 0.5 }), 8);
+});
+
+test('hexPath — pointy-top regular hexagon, 6 vertices at radius r', async () => {
+  const { hexPath } = await import('../experience/client-core.mjs');
+  const d = hexPath(20);
+  assert.ok(d.startsWith('M'));
+  assert.ok(d.endsWith('Z'));
+  const verts = d.slice(1, -1).split('L').map(p => p.split(',').map(Number));
+  assert.equal(verts.length, 6);
+  assert.ok(Math.abs(verts[0][0] - 0) < 1e-9, 'first vertex is pointy-top: x≈0');
+  assert.ok(Math.abs(verts[0][1] - -20) < 1e-9, 'first vertex is pointy-top: y≈-r');
+  for (const [x, y] of verts)
+    assert.ok(Math.abs(Math.hypot(x, y) - 20) < 1e-9, 'every vertex sits at distance r from origin');
+});
+
+test('SIM_ALPHA_DECAY settles the force layout in a few seconds, not twenty', () => {
+  assert.ok(SIM_ALPHA_DECAY >= 0.018 && SIM_ALPHA_DECAY <= 0.023);
+});
+
+test('HARNESS_FILL_OPACITY is a quiet cell fill, not a solid neon disk', () => {
+  assert.equal(HARNESS_FILL_OPACITY, 0.35);
+});
+
+test('HARNESS_MARK has seven distinct non-blue data hues', () => {
+  const ids = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
+  const hexes = ids.map(id => HARNESS_MARK[id]);
+  assert.equal(new Set(hexes).size, 7);
+  for (const hex of hexes) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    if (max === min) continue;
+    const d = max - min;
+    const l = (max + min) / 2;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    h *= 360;
+    assert.ok(!(s >= 0.06 && h >= 190 && h <= 268), `${hex} is blue-family chrome (h=${h.toFixed(0)})`);
+  }
+});
+
+function pathPts(d) {
+  return d.replace(/Z$/i, '').slice(1).split('L').map(p => p.split(',').map(Number));
+}
+
+function near(a, b, eps = 1e-6) {
+  return Math.abs(a - b) < eps;
+}
+
+test('harnessWedges — empty / one / two / three / four+', () => {
+  assert.deepEqual(harnessWedges([], 20), []);
+  assert.deepEqual(harnessWedges(null, 20), []);
+
+  const solid = harnessWedges(['claude-code'], 20);
+  assert.equal(solid.length, 1);
+  assert.equal(solid[0].harness, 'claude-code');
+  assert.equal(solid[0].d, hexPath(20), 'single harness is a solid hex, not a fan');
+
+  const split = harnessWedges(['claude-code', 'pi'], 20);
+  assert.equal(split.length, 2);
+  assert.equal(split[0].harness, 'claude-code');
+  assert.equal(split[1].harness, 'pi');
+  const left = pathPts(split[0].d);
+  const right = pathPts(split[1].d);
+  assert.ok(left.length >= 3 && right.length >= 3);
+  assert.ok(near(left[0][0], 0) && near(left[0][1], 0), 'n=2 wedges start at the center');
+  // Vertical split through top and bottom vertices of a pointy-top hex.
+  const hasTop = p => p.some(([x, y]) => near(x, 0) && near(y, -20));
+  const hasBot = p => p.some(([x, y]) => near(x, 0) && near(y, 20));
+  assert.ok(hasTop(left) && hasBot(left), 'first half includes the top–bottom diagonal');
+  assert.ok(hasTop(right) && hasBot(right), 'second half shares the same diagonal');
+
+  const tri = harnessWedges(['claude-code', 'pi', 'grok'], 20);
+  assert.equal(tri.length, 3);
+  // 120° rays hit vertices 0, 2, 4 (top, lower-right, lower-left).
+  const tri0 = pathPts(tri[0].d);
+  assert.ok(near(tri0[0][0], 0) && near(tri0[0][1], 0));
+  assert.ok(tri0.some(([x, y]) => near(x, 0) && near(y, -20)), 'first 120° wedge includes the top vertex');
+
+  const quad = harnessWedges(['claude-code', 'pi', 'grok', 'opencode'], 20);
+  assert.equal(quad.length, 4);
+  const q0 = pathPts(quad[0].d);
+  assert.ok(near(q0[0][0], 0) && near(q0[0][1], 0), 'n=4 is a fan from the center');
+  // 90° ray from top hits the right flat (side midpoint), not a vertex.
+  const sideHit = q0.find(([x, y]) => near(x, 20 * Math.sqrt(3) / 2, 1e-4) && near(y, 0, 1e-4));
+  assert.ok(sideHit, 'n=4 first wedge lands on a hex side, not only corners');
+
+  const seven = harnessWedges(
+    ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'], 20);
+  assert.equal(seven.length, 7);
+  for (const w of seven) {
+    const pts = pathPts(w.d);
+    assert.ok(near(pts[0][0], 0) && near(pts[0][1], 0));
+    assert.ok(pts.length >= 3);
+  }
+});
+
+test('harnessBreakdown — preserves glyph order, counts sessions, carries mark color', () => {
+  assert.deepEqual(harnessBreakdown([]), []);
+  const rows = harnessBreakdown(
+    ['claude-code', 'pi'],
+    [
+      { harness: 'pi' },
+      { harness: 'claude-code' },
+      { harness: 'claude-code' },
+      { source: 'pi' },
+    ],
+  );
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].harness, 'claude-code');
+  assert.equal(rows[0].count, 2);
+  assert.equal(rows[0].color, HARNESS_MARK['claude-code']);
+  assert.equal(rows[1].harness, 'pi');
+  assert.equal(rows[1].count, 2);
 });
 
 test('edge opacity/width — weighted edges scale with sqrt(weight/max)', () => {

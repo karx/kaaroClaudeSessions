@@ -97,36 +97,130 @@ export function isProjectGlyphActive(d) {
  * Pointy-top hex packing. Odd rows shift by half a column so neighbours
  * tessellate. Origin defaults to (r, r) so the first hex is not clipped.
  */
-export function glyphGrid(n, { cols, r = 16, originX, originY } = {}) {
-  const count = Math.max(0, n | 0);
-  const c = Math.max(1, cols || Math.ceil(Math.sqrt(count || 1)));
-  const dx = r * Math.sqrt(3);
-  const dy = r * 1.5;
+export function glyphCellPitch(r = 16) {
+  return { dx: r * Math.sqrt(3), dy: r * 1.5 };
+}
+
+export function glyphCellPosition(col, row, { r = 16, originX, originY } = {}) {
+  const { dx, dy } = glyphCellPitch(r);
   const ox = originX != null ? originX : r;
   const oy = originY != null ? originY : r;
+  return {
+    x: ox + col * dx + (row % 2 ? dx / 2 : 0),
+    y: oy + row * dy,
+  };
+}
+
+export function glyphGrid(n, opts = {}) {
+  const count = Math.max(0, n | 0);
+  const c = Math.max(1, opts.cols || Math.ceil(Math.sqrt(count || 1)));
   const cells = [];
   for (let i = 0; i < count; i++) {
     const col = i % c;
     const row = (i - col) / c;
-    cells.push({
-      i, col, row,
-      x: ox + col * dx + (row % 2 ? dx / 2 : 0),
-      y: oy + row * dy,
-    });
+    cells.push({ i, col, row, ...glyphCellPosition(col, row, opts) });
   }
   return cells;
 }
 
-export function glyphGridExtent(n, opts = {}) {
-  const r = opts.r || 16;
-  const cells = glyphGrid(n, opts);
-  if (!cells.length) return { width: 0, height: 0 };
-  let maxX = 0, maxY = 0;
-  for (const cell of cells) {
-    if (cell.x + r > maxX) maxX = cell.x + r;
-    if (cell.y + r > maxY) maxY = cell.y + r;
+export function glyphLatticeCells({ cols = 12, rows = 10, r = 16, originX, originY } = {}) {
+  const cells = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      cells.push({ col, row, ...glyphCellPosition(col, row, { r, originX, originY }) });
+    }
   }
-  return { width: Math.ceil(maxX + 1), height: Math.ceil(maxY + 1) };
+  return cells;
+}
+
+export function glyphWorldExtent({ cols = 1, rows = 1, r = 16, originX, originY } = {}) {
+  const c = Math.max(1, cols);
+  const rr = Math.max(1, rows);
+  const even = glyphCellPosition(c - 1, 0, { r, originX, originY });
+  const odd = rr > 1 ? glyphCellPosition(c - 1, 1, { r, originX, originY }) : even;
+  const last = glyphCellPosition(c - 1, rr - 1, { r, originX, originY });
+  return {
+    width: Math.ceil(Math.max(even.x, odd.x) + r + 1),
+    height: Math.ceil(last.y + r + 1),
+  };
+}
+
+export function glyphGridExtent(n, opts = {}) {
+  const count = Math.max(0, n | 0);
+  const c = Math.max(1, opts.cols || Math.ceil(Math.sqrt(count || 1)));
+  const rows = Math.max(1, Math.ceil((count || 1) / c));
+  return glyphWorldExtent({ ...opts, cols: c, rows });
+}
+
+export function snapToGlyphCell(x, y, { r = 16, cols, rows, originX, originY } = {}) {
+  const { dx, dy } = glyphCellPitch(r);
+  const ox = originX != null ? originX : r;
+  const oy = originY != null ? originY : r;
+  let row = Math.round((y - oy) / dy);
+  if (rows != null) row = Math.max(0, Math.min(rows - 1, row));
+  const xOff = row % 2 ? dx / 2 : 0;
+  let col = Math.round((x - ox - xOff) / dx);
+  if (cols != null) col = Math.max(0, Math.min(cols - 1, col));
+  if (row < 0) row = 0;
+  if (col < 0) col = 0;
+  return { col, row, ...glyphCellPosition(col, row, { r, originX, originY }) };
+}
+
+/** Extra empty cells so the board is a placeable canvas, not a tight pack. */
+export function glyphBoardConfig(n) {
+  const count = Math.max(0, n | 0);
+  const cols = Math.max(8, Math.ceil(Math.sqrt(count || 1)) + 2);
+  const rows = Math.max(6, Math.ceil((count || 1) / cols) + 2);
+  return { cols, rows, r: 22 };
+}
+
+export function mergeGlyphPlacements(ids, saved, { cols, rows } = {}) {
+  const list = ids || [];
+  const c = Math.max(1, cols || Math.ceil(Math.sqrt(list.length || 1)));
+  const rmax = Math.max(1, rows || Math.ceil((list.length || 1) / c));
+  const occupied = new Set();
+  const result = {};
+  const key = (col, row) => col + ',' + row;
+  const inBounds = (p) => p && Number.isFinite(+p.col) && Number.isFinite(+p.row)
+    && p.col >= 0 && p.row >= 0
+    && p.col < c && p.row < rmax;
+  for (const id of list) {
+    const p = saved && saved[id];
+    if (!inBounds(p) || occupied.has(key(p.col, p.row))) continue;
+    result[id] = { col: p.col | 0, row: p.row | 0 };
+    occupied.add(key(result[id].col, result[id].row));
+  }
+  let i = 0;
+  const cap = c * rmax;
+  for (const id of list) {
+    if (result[id]) continue;
+    while (i < cap && occupied.has(key(i % c, Math.floor(i / c)))) i++;
+    const col = i % c;
+    const row = Math.floor(i / c);
+    result[id] = { col, row };
+    occupied.add(key(col, row));
+    i++;
+  }
+  return result;
+}
+
+export function moveGlyphPlacement(placements, id, col, row) {
+  const next = { ...(placements || {}) };
+  const occupant = Object.keys(next).find(k => k !== id && next[k].col === col && next[k].row === row);
+  const prev = next[id] || { col: 0, row: 0 };
+  if (occupant) next[occupant] = { col: prev.col, row: prev.row };
+  next[id] = { col, row };
+  return next;
+}
+
+export function minimapViewportRect({ worldX, worldY, worldW, worldH, boardW, boardH, miniW, miniH }) {
+  if (!boardW || !boardH || !miniW || !miniH) return { x: 0, y: 0, w: 0, h: 0 };
+  return {
+    x: worldX * miniW / boardW,
+    y: worldY * miniH / boardH,
+    w: worldW * miniW / boardW,
+    h: worldH * miniH / boardH,
+  };
 }
 
 /** Inner SVG paths for one project hex. Idle = hollow; active = solid wedges. */
@@ -154,15 +248,23 @@ export function projectGlyphSvg(d, opts = {}) {
 }
 
 /** One svg with every project hex parked on a hex grid — brand field. */
-export function projectGlyphFieldSvg(projects, { r = 12, cols, bg = '#000000' } = {}) {
+export function projectGlyphFieldSvg(projects, { r = 12, cols, rows, bg = '#000000', placements, lattice } = {}) {
   const list = projects || [];
-  const cells = glyphGrid(list.length, { r, cols });
-  const extent = glyphGridExtent(list.length, { r, cols });
-  const groups = cells.map((cell, i) => {
-    const p = list[i];
-    return `<g class="pglyph-cell" data-pid="${esc(p.id)}" transform="translate(${cell.x},${cell.y})">${projectGlyphMarkup(p, { r, bg })}<title>${esc(p.label || p.id)}</title></g>`;
+  const c = cols || Math.max(1, Math.ceil(Math.sqrt(list.length || 1)));
+  const rr = rows || Math.max(1, Math.ceil((list.length || 1) / c));
+  const merged = mergeGlyphPlacements(list.map(p => p.id), placements, { cols: c, rows: rr });
+  const extent = glyphWorldExtent({ cols: c, rows: rr, r });
+  const latticeMarks = lattice
+    ? glyphLatticeCells({ cols: c, rows: rr, r }).map(cell =>
+        `<path class="pglyph-lattice" d="${hexPath(r)}" transform="translate(${cell.x},${cell.y})" fill="none"/>`
+      ).join('')
+    : '';
+  const groups = list.map(p => {
+    const slot = merged[p.id] || { col: 0, row: 0 };
+    const pos = glyphCellPosition(slot.col, slot.row, { r });
+    return `<g class="pglyph-cell" data-pid="${esc(p.id)}" data-col="${slot.col}" data-row="${slot.row}" transform="translate(${pos.x},${pos.y})">${projectGlyphMarkup(p, { r, bg })}<title>${esc(p.label || p.id)}</title></g>`;
   }).join('');
-  return `<svg class="pglyph-field" width="${extent.width}" height="${extent.height}" viewBox="0 0 ${extent.width} ${extent.height}">${groups}</svg>`;
+  return `<svg class="pglyph-field" width="${extent.width}" height="${extent.height}" viewBox="0 0 ${extent.width} ${extent.height}">${latticeMarks}${groups}</svg>`;
 }
 
 function uniqHarnesses(harnesses) {

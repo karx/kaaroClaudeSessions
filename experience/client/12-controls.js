@@ -280,6 +280,7 @@ const SHORTCUTS_DEF = [
   { key:'a', label:'A',      desc:'Arc coupling map',     action:()=>setLayout('arc') },
   { key:'m', label:'M',      desc:'Matrix view',          action:()=>setLayout('matrix') },
   { key:'g', label:'G',      desc:'3D force graph',       action:()=>setLayout('3d') },
+  { key:'p', label:'P',      desc:'Project glyph grid',   action:()=>window.toggleGlyphBoard?.() },
 ];
 
 function _loadSCPrefs() {

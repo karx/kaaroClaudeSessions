@@ -329,30 +329,3 @@ function showPanel(d) {
 }
 function closePanel() { document.getElementById('panel').classList.remove('open'); }
 window.closePanel = closePanel;
-
-function projectGlyphList() {
-  return GRAPH.nodes.filter(n => n.type === 'project').slice().sort((a, b) => a.id < b.id ? -1 : 1);
-}
-
-function renderGlyphDock() {
-  const el = document.getElementById('glyph-dock-body');
-  if (!el) return;
-  const projects = projectGlyphList();
-  const live = projects.filter(isProjectGlyphActive).length;
-  const count = document.getElementById('glyph-dock-count');
-  if (count) count.textContent = live + '/' + projects.length;
-  el.innerHTML = projectGlyphFieldSvg(projects, { r: 11, cols: 3, bg: KAARO_TOKENS.bg });
-}
-window.refreshGlyphDock = renderGlyphDock;
-
-document.getElementById('glyph-dock')?.addEventListener('click', ev => {
-  const g = ev.target.closest('[data-pid]');
-  if (!g) return;
-  ev.stopPropagation();
-  const node = nodeById[g.dataset.pid];
-  if (!node) return;
-  selectedId = node.id;
-  highlight(node.id);
-  showPanel(node);
-});
-renderGlyphDock();

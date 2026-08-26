@@ -207,7 +207,7 @@
   $sys.textContent = NAV;
 
   document.getElementById('glyph-field')?.addEventListener('click', ev => {
-    if (ev.target.closest('[data-pid]')) location.href = '/graph';
+    if (ev.target.closest('[data-pid]')) location.href = '/graph#grid';
   });
 
   document.addEventListener('keydown', ev => {

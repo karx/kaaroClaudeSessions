@@ -14,6 +14,9 @@ import {
   hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
   SIM_ALPHA_DECAY,
   isProjectGlyphActive, glyphGrid, glyphGridExtent,
+  glyphCellPosition, glyphLatticeCells, snapToGlyphCell,
+  mergeGlyphPlacements, moveGlyphPlacement, minimapViewportRect,
+  glyphWorldExtent, glyphBoardConfig,
   projectGlyphMarkup, projectGlyphSvg, projectGlyphFieldSvg,
 } from '../experience/client-core.mjs';
 
@@ -131,6 +134,93 @@ test('projectGlyphMarkup — inactive is hollow; active is solid harness fill', 
   const svg = projectGlyphSvg({ color: '#ff8800', recencyLevel: 0, id: 'p1' }, { r: 8 });
   assert.ok(svg.startsWith('<svg'));
   assert.ok(svg.includes('viewBox'));
+});
+
+test('glyphCellPosition / snapToGlyphCell — inverse on the hex lattice', () => {
+  const opts = { r: 12, cols: 8, rows: 6 };
+  for (const [col, row] of [[0, 0], [3, 0], [0, 1], [2, 3], [7, 5]]) {
+    const pos = glyphCellPosition(col, row, opts);
+    const snap = snapToGlyphCell(pos.x, pos.y, opts);
+    assert.equal(snap.col, col, `col ${col},${row}`);
+    assert.equal(snap.row, row, `row ${col},${row}`);
+  }
+  const clamped = snapToGlyphCell(-40, -40, { r: 12, cols: 8, rows: 6 });
+  assert.equal(clamped.col, 0);
+  assert.equal(clamped.row, 0);
+  const hi = snapToGlyphCell(4000, 4000, { r: 12, cols: 8, rows: 6 });
+  assert.equal(hi.col, 7);
+  assert.equal(hi.row, 5);
+});
+
+test('glyphLatticeCells — full configurable board, not just packed n', () => {
+  const cells = glyphLatticeCells({ cols: 4, rows: 3, r: 10 });
+  assert.equal(cells.length, 12);
+  assert.equal(cells[0].col, 0);
+  assert.equal(cells[0].row, 0);
+  assert.equal(cells[11].col, 3);
+  assert.equal(cells[11].row, 2);
+  const world = glyphWorldExtent({ cols: 4, rows: 3, r: 10 });
+  assert.ok(world.width > 10);
+  assert.ok(world.height > 10);
+});
+
+test('mergeGlyphPlacements — saved cells win, the rest pack around them', () => {
+  const ids = ['a', 'b', 'c'];
+  const packed = mergeGlyphPlacements(ids, null, { cols: 3, rows: 3 });
+  assert.deepEqual(packed.a, { col: 0, row: 0 });
+  assert.deepEqual(packed.b, { col: 1, row: 0 });
+  assert.deepEqual(packed.c, { col: 2, row: 0 });
+
+  const saved = { b: { col: 2, row: 1 } };
+  const merged = mergeGlyphPlacements(ids, saved, { cols: 3, rows: 3 });
+  assert.deepEqual(merged.b, { col: 2, row: 1 }, 'manual place is kept');
+  assert.deepEqual(merged.a, { col: 0, row: 0 });
+  assert.notDeepEqual(merged.c, { col: 2, row: 1 }, 'auto pack skips occupied');
+});
+
+test('moveGlyphPlacement — empty cell moves, occupied cell swaps', () => {
+  const start = { a: { col: 0, row: 0 }, b: { col: 1, row: 0 } };
+  const moved = moveGlyphPlacement(start, 'a', 2, 1);
+  assert.deepEqual(moved.a, { col: 2, row: 1 });
+  assert.deepEqual(moved.b, { col: 1, row: 0 });
+  const swapped = moveGlyphPlacement(start, 'a', 1, 0);
+  assert.deepEqual(swapped.a, { col: 1, row: 0 });
+  assert.deepEqual(swapped.b, { col: 0, row: 0 });
+});
+
+test('minimapViewportRect — world camera maps onto the mini field', () => {
+  const rect = minimapViewportRect({
+    worldX: 100, worldY: 50, worldW: 200, worldH: 100,
+    boardW: 400, boardH: 200, miniW: 80, miniH: 40,
+  });
+  assert.equal(rect.x, 20);
+  assert.equal(rect.y, 10);
+  assert.equal(rect.w, 40);
+  assert.equal(rect.h, 20);
+  const empty = minimapViewportRect({ worldX: 0, worldY: 0, worldW: 10, worldH: 10, boardW: 0, boardH: 0, miniW: 80, miniH: 40 });
+  assert.deepEqual(empty, { x: 0, y: 0, w: 0, h: 0 });
+});
+
+test('glyphBoardConfig — extra empty cells so the board is placeable', () => {
+  const cfg = glyphBoardConfig(4);
+  assert.ok(cfg.cols >= 4);
+  assert.ok(cfg.rows >= 3);
+  assert.ok(cfg.cols * cfg.rows > 4, 'room to drag into empty cells');
+  assert.ok(cfg.r > 0);
+});
+
+test('projectGlyphFieldSvg — placements override default pack', () => {
+  const projects = [
+    { id: 'a', label: 'a', color: '#ff8800', harnesses: [], recencyLevel: 0 },
+    { id: 'b', label: 'b', color: '#00ff88', harnesses: [], recencyLevel: 0 },
+  ];
+  const svg = projectGlyphFieldSvg(projects, {
+    r: 10, cols: 4, rows: 3, bg: '#000000',
+    placements: { b: { col: 3, row: 2 } },
+  });
+  assert.ok(svg.includes('data-pid="b"'));
+  const pos = glyphCellPosition(3, 2, { r: 10 });
+  assert.ok(svg.includes(`translate(${pos.x},${pos.y})`));
 });
 
 test('projectGlyphFieldSvg — one svg, glyphs at grid cells, data-pid for click', () => {

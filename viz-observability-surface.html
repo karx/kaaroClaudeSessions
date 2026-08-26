@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Observability Surface — isometric system map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --k-bg:     #000000;
+  --k-panel:  #080800;
+  --k-card:   #101008;
+  --k-border: #1e1e00;
+  --k-accent: #ff6600;
+  --k-label:  #ffaa00;
+  --k-data:   #e8e000;
+  --k-select: #00cccc;
+  --k-geo:    #00ff88;
+  --k-dim:    #445544;
+  --k-body:   #ccccaa;
+  --k-err:    #ff5555;
+  --k-font:   'IBM Plex Mono', 'Courier New', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--k-bg); color: var(--k-body); font: 12px/1.35 var(--k-font); }
+button {
+  font: inherit; color: var(--k-dim); background: var(--k-card);
+  border: 1px solid var(--k-border); cursor: pointer;
+  letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px;
+}
+button:hover { color: var(--k-body); }
+button[data-path="pulse"].on { color: var(--k-accent); border-color: var(--k-accent); }
+button[data-path="now"].on   { color: var(--k-geo);    border-color: var(--k-geo); }
+button[data-path="snap"].on  { color: var(--k-data);   border-color: var(--k-data); }
+button[data-path="dep"].on   { color: var(--k-label);  border-color: var(--k-label); }
+kbd { background: var(--k-card); border: 1px solid var(--k-border); padding: 0 4px; font: 10px var(--k-font); color: var(--k-label); }
+
+#boot {
+  position: fixed; inset: 0; background: var(--k-bg); z-index: 20;
+  display: flex; flex-direction: column; justify-content: center; padding: 40px 48px;
+  letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; color: var(--k-dim);
+}
+#boot .hi { color: var(--k-accent); margin-bottom: 10px; }
+#boot.gone { display: none; }
+
+.shell { height: 100%; display: grid; grid-template-rows: 28px 1fr 18px; }
+.k-topbar {
+  display: flex; align-items: center; gap: 10px; padding: 0 10px;
+  background: var(--k-panel); border-bottom: 1px solid var(--k-border);
+  font-size: 11px; letter-spacing: 0.08em;
+}
+.k-topbar .k-title { color: var(--k-accent); font-weight: 700; text-transform: uppercase; }
+.k-topbar .crumb { color: var(--k-dim); }
+.k-topbar .crumb b { color: var(--k-select); font-weight: 400; }
+.k-topbar .role-chip { letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; }
+.k-topbar .sp { flex: 1; }
+.badge { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--k-geo); }
+
+.work { display: grid; grid-template-columns: 1fr 440px; min-height: 0; }
+#city-wrap { position: relative; overflow: hidden; background: var(--k-bg); }
+#city { width: 100%; height: 100%; display: block; }
+#city text { font-family: var(--k-font); }
+.name-plate { pointer-events: none; }
+.name-plate.hit { pointer-events: auto; cursor: pointer; }
+.d-lab { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; }
+.b-lab { font-size: 11px; letter-spacing: 0.04em; }
+.bldg { cursor: pointer; }
+.bldg .hit { fill: transparent; }
+.bldg.sel .top, .bldg.sel .left, .bldg.sel .right { stroke: var(--k-select); stroke-width: 1.8; }
+.bldg.hov .top { stroke: var(--k-body); stroke-width: 1.2; }
+.trace { fill: none; stroke-width: 1.1; pointer-events: none; stroke-linecap: round; stroke-linejoin: round; }
+.trace.hi { stroke-width: 2.6; }
+.trace.pulse { stroke: var(--k-accent); }
+.trace.now   { stroke: var(--k-geo); stroke-dasharray: 6 3; }
+.trace.snap  { stroke: var(--k-data); stroke-dasharray: 2 3; }
+.trace.dep   { stroke: var(--k-label); stroke-dasharray: 1 4; stroke-width: 0.9; }
+.trace.idle  { stroke: var(--k-dim); stroke-width: 0.8; }
+.pkt { fill: var(--k-accent); }
+.pkt.now { fill: var(--k-geo); }
+.pkt.snap { fill: var(--k-data); }
+.pkt.dep { fill: var(--k-label); }
+.tr-lab { font-size: 10px; letter-spacing: 0.06em; }
+.edge-cap { font-size: 9px; letter-spacing: 0.05em; }
+.pave-name { font-size: 15px; font-weight: 700; letter-spacing: 0.16em; }
+
+#role-key {
+  position: absolute; left: 10px; bottom: 10px;
+  background: var(--k-panel); border: 1px solid var(--k-border);
+  padding: 8px 10px; font-size: 10px; letter-spacing: 0.06em;
+}
+#role-key h2 { margin-bottom: 6px; }
+.rk { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
+.rk i { width: 10px; height: 10px; border: 1px solid var(--k-border); flex-shrink: 0; }
+
+.side {
+  display: grid; grid-template-rows: auto 1fr auto;
+  border-left: 1px solid var(--k-border); background: var(--k-panel); min-height: 0;
+}
+.panel-h {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  border-bottom: 1px solid var(--k-border); font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--k-label);
+}
+.panel-h span.meta { margin-left: auto; color: var(--k-dim); font-size: 10px; letter-spacing: 0; text-transform: none; }
+.filters { display: flex; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--k-border); flex-wrap: wrap; }
+.scroll { overflow: auto; padding: 10px; display: flex; flex-direction: column; gap: 12px; }
+h2 { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--k-label); font-weight: 400; }
+.term { color: var(--k-accent); }
+.cite { color: var(--k-dim); font-size: 10px; }
+p { max-width: 52ch; }
+.kv { display: grid; grid-template-columns: 108px 1fr; gap: 3px 8px; font-size: 11px; }
+.kv .k { color: var(--k-label); }
+.kv .v { color: var(--k-data); }
+.io { border: 1px solid var(--k-border); background: var(--k-card); padding: 8px; }
+.io h3 { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--k-label); margin-bottom: 6px; }
+.pill { display: inline-block; border: 1px solid var(--k-border); padding: 1px 6px; margin: 0 4px 4px 0; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-body); }
+.edge { display: grid; grid-template-columns: 52px 1fr; gap: 2px 8px; padding: 4px 0; border-bottom: 1px solid var(--k-border); font-size: 11px; }
+.edge:last-child { border-bottom: 0; }
+.kv .k.path-pulse { color: var(--k-accent); }
+.kv .k.path-now   { color: var(--k-geo); }
+.kv .k.path-snap  { color: var(--k-data); }
+.kv .k.path-dep   { color: var(--k-label); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--k-border); }
+.split > div { background: var(--k-card); padding: 8px; }
+.split h3 { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+.split h3.pulse { color: var(--k-accent); }
+.split h3.now { color: var(--k-geo); }
+pre {
+  font: 10px/1.4 var(--k-font); color: var(--k-body); white-space: pre-wrap;
+  background: var(--k-bg); border: 1px solid var(--k-border); padding: 6px; margin-top: 6px;
+}
+.legend { padding: 8px 10px; border-top: 1px solid var(--k-border); font-size: 10px; }
+.leg-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--k-body); }
+.sw { width: 22px; height: 2px; flex-shrink: 0; }
+.sw.pulse { background: var(--k-accent); }
+.sw.now { background: var(--k-geo); }
+.sw.snap { background: var(--k-data); }
+.sw.dep { background: var(--k-label); }
+.avoid { color: var(--k-dim); font-size: 10px; }
+
+.k-statusbar {
+  height: 18px; padding: 0 10px; display: flex; align-items: center; gap: 14px;
+  background: var(--k-panel); border-top: 1px solid var(--k-border);
+  font-size: 10px; color: var(--k-dim);
+}
+</style>
+</head>
+<body>
+<div id="boot">
+  <div class="hi">◈ handshake</div>
+  <div>observability surface · snapshot + stream</div>
+  <div>role = roof · path = stroke · select = cyan</div>
+</div>
+<div class="shell">
+  <header class="k-topbar">
+    <span class="k-title">◈ kaaroSessions</span>
+    <span class="crumb">hooks › surface › <b id="crumb">pulse emitter</b></span>
+    <span class="role-chip" id="rolechip">stream</span>
+    <span class="sp"></span>
+    <span class="badge" id="live">◌ boot</span>
+  </header>
+  <div class="work">
+    <div id="city-wrap">
+      <svg id="city" viewBox="-360 -140 1880 1020" role="img" aria-label="Isometric system map"></svg>
+      <div id="role-key">
+        <h2>roof = role</h2>
+        <div class="rk"><i style="background:#445544"></i> source · harness</div>
+        <div class="rk"><i style="background:#ccccaa"></i> hop · NormalizedRecord</div>
+        <div class="rk"><i style="background:#ffaa00"></i> table · registry / KIND_PULSE</div>
+        <div class="rk"><i style="background:#ff6600"></i> stream · pulse plant + sinks</div>
+        <div class="rk"><i style="background:#00ff88"></i> live · Active State / now</div>
+        <div class="rk"><i style="background:#e8e000"></i> history · sessions-data Snapshot</div>
+        <div class="rk"><i style="background:#ff5555"></i> rest · wire-only</div>
+        <div class="rk"><i style="background:#000000;border-color:#00cccc"></i> select · cyan only</div>
+      </div>
+    </div>
+    <aside class="side">
+      <div>
+        <div class="panel-h">explainer <span class="meta" id="mod">module</span></div>
+        <div class="filters">
+          <button class="on" data-path="pulse" title="Stream pulses">P pulse</button>
+          <button class="on" data-path="now" title="Live now snapshot">N now</button>
+          <button class="on" data-path="snap" title="History snapshot">S snap</button>
+          <button class="on" data-path="dep" title="Compose / registry">D dep</button>
+        </div>
+      </div>
+      <div class="scroll" id="explain"></div>
+      <div class="legend">
+        <h2>legend · stroke = path</h2>
+        <div class="leg-row"><i class="sw pulse"></i> Stream · Normalized Event · event = pulse.event · payload = pulse.data</div>
+        <div class="leg-row"><i class="sw now"></i> Live Snapshot · Active State · event = now · green is live, not selection</div>
+        <div class="leg-row"><i class="sw snap"></i> History Snapshot · sessions-data → graph-data · SSE updated</div>
+        <div class="leg-row"><i class="sw dep"></i> Dependency · registry / KIND_PULSE · compose, not payload</div>
+        <div class="avoid">SRC: CONTEXT.md · color is grammar · one meaning per hue</div>
+      </div>
+    </aside>
+  </div>
+  <footer class="k-statusbar">
+    <span><kbd>J</kbd><kbd>K</kbd> building</span>
+    <span><kbd>1</kbd>–<kbd>4</kbd> district</span>
+    <span><kbd>P</kbd><kbd>N</kbd><kbd>S</kbd><kbd>D</kbd> paths</span>
+    <span class="sp"></span>
+    <span>idle roofs go dim · related keep role · select is cyan</span>
+  </footer>
+</div>
+<script type="application/json" id="seed-data">
+{ "cite": "CONTEXT.md", "grammar": "roof=role path=stroke select=cyan" }
+</script>
+<script>
+const T = {
+  bg:'#000000', panel:'#080800', card:'#101008', border:'#1e1e00',
+  accent:'#ff6600', label:'#ffaa00', data:'#e8e000', select:'#00cccc',
+  geo:'#00ff88', dim:'#445544', body:'#ccccaa', err:'#ff5555'
+};
+const ROLE = {
+  source:  T.dim,
+  hop:     T.body,
+  table:   T.label,
+  stream:  T.accent,
+  live:    T.geo,
+  history: T.data,
+  rest:    T.err
+};
+const PATH_LIFT = { pulse: 48, now: 72, snap: 96, dep: 24 };
+const PATH_SIDE = { pulse: -36, now: 40, snap: 10, dep: -14 };
+const KIND_COL = { pulse: T.accent, now: T.geo, snap: T.data, dep: T.label };
+const TILE = 30, ELEV = 15;
+const OX = 560, OY = 56;
+
+function iso(x, y, z) {
+  return { x: OX + (x - y) * TILE, y: OY + (x + y) * (TILE * 0.5) - z * ELEV };
+}
+function poly(pts) { return pts.map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' '); }
+function boxFaces(x, y, z, w, d, h) {
+  const P = (dx, dy, dz) => iso(x + dx, y + dy, z + dz);
+  const a = P(0,0,h), b = P(w,0,h), c = P(w,d,h), d0 = P(0,d,h);
+  const e = P(w,0,0), f = P(w,d,0), g = P(0,d,0);
+  return { top:[a,b,c,d0], right:[b,e,f,c], left:[d0,c,f,g], roof: iso(x+w/2, y+d/2, z+h) };
+}
+function ctrlOf(tr) {
+  const a = roofOf(tr.from), b = roofOf(tr.to);
+  const ha = byId[tr.from].h, hb = byId[tr.to].h;
+  const clear = Math.max(ha, hb) * ELEV * 0.35 + PATH_LIFT[tr.kind];
+  return {
+    a, b,
+    mx: (a.x + b.x) / 2 + PATH_SIDE[tr.kind],
+    my: Math.min(a.y, b.y) - clear
+  };
+}
+
+const DISTRICTS = [
+  { id:'harness',    label:'HARNESS ROOTS',         tag:'HARNESS',    vocab:'Harness',              ink:T.dim,    x:-0.8, y:-0.5, w:17.4, d:3.6,  h:0.18 },
+  { id:'hooks',      label:'HARNESS HOOKS',         tag:'HOOKS',      vocab:'NormalizedRecord',     ink:T.label,  x:-0.2, y: 4.6, w:16.8, d:4.4,  h:0.18 },
+  { id:'surface',    label:'OBSERVABILITY SURFACE', tag:'SURFACE',    vocab:'Stream + Snapshot',    ink:T.accent, x: 0.6, y:10.4, w:18.4, d:4.6,  h:0.18 },
+  { id:'experience', label:'COGNITIVE EXPERIENCE',  tag:'EXPERIENCE', vocab:'Personal Live Mirror', ink:T.data,   x:-0.8, y:16.6, w:20.0, d:5.8,  h:0.18 },
+];
+
+const SHORT = {
+  cc:'CLAUDE', pi:'PI', grok:'GROK', ag:'AG', oc:'OPENCODE', copilot:'COPILOT', cmd:'CMD',
+  registry:'REGISTRY', adapters:'ADAPTERS', nr:'NR', pmap:'PULSE MAP',
+  xform:'XFORM', reducer:'REDUCER',
+  emitter:'EMITTER', hub:'HUB', active:'ACTIVE', http:'HTTP',
+  rebuild:'REBUILD', kmstore:'KIND-MAP',
+  graph:'/GRAPH', ticker:'TICKER', ring:'RING', audio:'AUDIO',
+  nowpg:'/NOW', daw:'/DAW', map:'/MAP', wire:'WIRE'
+};
+
+const B = [
+  { id:'cc',      d:'harness', role:'source', x:0.0,  y:0.25, w:1.6, dp:1.5, h:4.4, shape:'wh',   label:'CLAUDE CODE',  mod:'~/.claude/projects/*.jsonl',
+    vocab:'Harness', blurb:'Append-only JSONL. kaaroSessions does not run this agent; the Harness Hook reads its transcript.', avoid:'agent, AI backend' },
+  { id:'pi',      d:'harness', role:'source', x:2.4,  y:0.55, w:1.3, dp:1.3, h:2.3, shape:'box',  label:'PI',           mod:'PI_SESSIONS_ROOT',
+    vocab:'Harness', blurb:'Pi transcript root. Tokenless optional fields are data-absent, not adapter holes.' },
+  { id:'grok',    d:'harness', role:'source', x:4.6,  y:0.15, w:1.5, dp:1.6, h:5.4, shape:'twr',  label:'GROK',         mod:'~/.grok/sessions/updates.jsonl',
+    vocab:'Harness', blurb:'Grok Build. Tokenless (size_proxy: tool_calls). Synthetic tokens from content_length/4.' },
+  { id:'ag',      d:'harness', role:'source', x:7.0,  y:0.45, w:1.7, dp:1.4, h:3.0, shape:'hang', label:'ANTIGRAVITY',  mod:'~/.gemini/antigravity/brain',
+    vocab:'Harness', blurb:'transcript.jsonl or overview.txt. trace:false — NRs carry no assistant prose.' },
+  { id:'oc',      d:'harness', role:'source', x:9.4,  y:0.2,  w:1.6, dp:1.7, h:3.9, shape:'stk',  label:'OPENCODE',     mod:'storage/{session,message,part}',
+    vocab:'Harness', blurb:'Whole-file JSON (read_mode: json), not JSONL tail.' },
+  { id:'copilot', d:'harness', role:'source', x:11.8, y:0.5,  w:1.5, dp:1.3, h:2.7, shape:'box',  label:'COPILOT',      mod:'chatSessions/*.jsonl',
+    vocab:'Harness', blurb:'VS Code op-log (kind 0/1/2) plus optional state.vscdb titles.' },
+  { id:'cmd',     d:'harness', role:'source', x:14.2, y:0.2,  w:1.6, dp:1.5, h:3.5, shape:'wh',   label:'COMMAND CODE', mod:'~/.commandcode/projects',
+    vocab:'Harness', blurb:'One JSONL per session. reasoning blocks → content_block thinking.' },
+
+  { id:'registry', d:'hooks', role:'table',  x:0.2,  y:5.0, w:1.5, dp:1.5, h:7.8, shape:'twr',   label:'REGISTRY',    mod:'hooks/registry.mjs',
+    vocab:'Harness Hook', blurb:'Single source of truth: adapter, scan, locateSession, capabilities. Adding a harness is one descriptor here.', avoid:'adapter-as-the-product' },
+  { id:'adapters', d:'hooks', role:'hop',    x:2.5,  y:5.2, w:2.6, dp:1.7, h:2.5, shape:'wh',    label:'ADAPTERS ×7', mod:'hooks/adapters/*',
+    vocab:'Harness Hook', blurb:'recordsToNormalized() → NormalizedRecord[]. Adapters are sonic-unaware. Raw JSONL is parsed exactly once.' },
+  { id:'nr',       d:'hooks', role:'hop',    x:5.7,  y:5.4, w:1.9, dp:1.9, h:2.1, shape:'plaza', label:'NR HOP',      mod:'hooks/normalized-record.mjs',
+    vocab:'NormalizedRecord', blurb:'The harness hop. 16 RECORD_KINDS. Internal — never persisted in sessions-data.json. Every downstream consumer reads this vocabulary.', avoid:'raw JSONL as a viz source' },
+  { id:'pmap',     d:'hooks', role:'table',  x:8.2,  y:5.1, w:1.6, dp:1.6, h:2.3, shape:'plaza', label:'PULSE MAP',   mod:'hooks/pulse-map.mjs',
+    vocab:'KIND_PULSE', blurb:'1:1 with RECORD_KINDS. Disposition is sonic / silent / unknown / route. Transformer does not invent events.' },
+  { id:'xform',    d:'hooks', role:'stream', x:10.4, y:4.95,w:2.1, dp:1.9, h:5.2, shape:'mill',  label:'TRANSFORMER', mod:'hooks/pulse-transformer.mjs',
+    vocab:'Pulse Transformer', blurb:'NR[] → Pulse { event, data }. Stamps Recorded Time. Derives Canonical Action Key on tool_call. Every NR emits ≥1 pulse.' },
+  { id:'reducer',  d:'hooks', role:'history',x:13.3, y:5.15,w:1.7, dp:1.7, h:3.7, shape:'box',   label:'REDUCER',     mod:'hooks/session-reducer.mjs',
+    vocab:'Snapshot', blurb:'NR[] → canonical session object for the History Snapshot (sessions-data.json). Different clock from the Stream.' },
+
+  { id:'emitter', d:'surface', role:'stream',  x:1.2,  y:10.9, w:1.7, dp:1.7, h:6.6, shape:'mast',  label:'PULSE EMITTER', mod:'surface/pulse-emitter.mjs',
+    vocab:'Pulse Source', blurb:'THE fork. For each pulse: applyPulse(Active State) then hub.notify(pulse.event, pulse.data). Then a trailing-edge now broadcast ≤1/s. Raw JSONL is not a source for viz or audio.' },
+  { id:'hub',     d:'surface', role:'stream',  x:4.4,  y:11.15,w:2.8, dp:2.1, h:2.6, shape:'sw',    label:'SSE HUB',       mod:'surface/sse-hub.mjs',
+    vocab:'Stream', blurb:'GET /events. One channel. Pulse names and lifecycle names share the socket. Event field is the name; data field is the payload.' },
+  { id:'active',  d:'surface', role:'live',    x:8.2,  y:10.8, w:1.7, dp:1.7, h:7.4, shape:'silo',  label:'ACTIVE STATE',  mod:'surface/active-state.mjs',
+    vocab:'Snapshot', blurb:'Live per-session store fed by pulses. snapshotActive() is the now payload. Clock is server now (caller-supplied). Evicts idle >60 min.' },
+  { id:'http',    d:'surface', role:'history', x:11.2, y:11.2, w:1.9, dp:1.6, h:3.3, shape:'gate',  label:'HTTP ROUTES',   mod:'surface/http-routes.mjs',
+    vocab:'Snapshot Endpoint', blurb:'GET /api/active is the pull of the same object SSE now pushes. GET /graph-data.json is the History Snapshot. GET /mapping is the kind-map census.' },
+  { id:'rebuild', d:'surface', role:'history', x:13.8, y:10.95,w:1.8, dp:1.7, h:4.5, shape:'crane', label:'REBUILD',       mod:'surface/rebuild-orchestrator.mjs',
+    vocab:'Snapshot', blurb:'analyze + build. Emits lifecycle status / updated / error. Not a pulse. Graph fetches graph-data.json on updated.' },
+  { id:'kmstore', d:'surface', role:'table',   x:16.4, y:11.35,w:1.3, dp:1.3, h:2.5, shape:'box',   label:'KIND-MAP',      mod:'surface/kind-map-store.mjs',
+    vocab:'Normalized Event', blurb:'Same pulses as the hub. Census overlay — not a sink of playPulse.' },
+
+  { id:'graph',  d:'experience', role:'stream',  x:0.0,  y:17.1, w:2.6, dp:2.1, h:5.2, shape:'wh',    label:'/GRAPH',   mod:'experience/ · history view',
+    vocab:'Personal Live Mirror', blurb:'History view. Subscribes LIVE_PLAYPULSE_EVENTS + lifecycle updated. Client Dispatcher playPulse fans to ticker, beat ring, audio.' },
+  { id:'ticker', d:'experience', role:'stream',  x:0.15, y:19.7, w:1.3, dp:1.0, h:1.2, shape:'box',   label:'TICKER',   mod:'13-live-updates.js',
+    vocab:'Pulse Sink', blurb:'Arrival clock. pulseTickerEntry may return null (chirp, thinking, attachment). Sinks do not feed each other.' },
+  { id:'ring',   d:'experience', role:'stream',  x:1.7,  y:19.65,w:1.5, dp:1.1, h:1.8, shape:'box',   label:'BEAT RING', mod:'14-pulse-audio.js',
+    vocab:'Pulse Sink', blurb:'Visualization. Independent of mute and of AudioContext. Mutate in place — never reassign window._beatRing.' },
+  { id:'audio',  d:'experience', role:'stream',  x:3.5,  y:19.55,w:1.5, dp:1.1, h:2.5, shape:'mill',  label:'AUDIO',    mod:'schedVoice / INSTS',
+    vocab:'Sonic Encoder', blurb:'Playable Instruments only. Gated by unmute AND AudioContext. May stamp heardAt onto a ring entry that already exists.' },
+  { id:'nowpg',  d:'experience', role:'live',    x:6.4,  y:17.2, w:2.5, dp:2.0, h:4.3, shape:'box',   label:'/NOW',     mod:'experience/pages/now.html',
+    vocab:'Snapshot', blurb:'Mission Control. Subscribes now (and status/updated/error). Does not call playPulse. Pull safety-sync: GET /api/active every 30s.' },
+  { id:'daw',    d:'experience', role:'stream',  x:9.8,  y:17.05,w:3.0, dp:2.1, h:3.1, shape:'wh',    label:'/DAW',     mod:'experience/pages/daw-template.html',
+    vocab:'Stream', blurb:'Same 13-live-updates.js as /graph. Same subscribe set. Same bursts. There is no DAW-only SSE channel.' },
+  { id:'map',    d:'experience', role:'table',   x:13.8, y:17.25,w:1.9, dp:1.9, h:3.3, shape:'plaza', label:'/MAPPING', mod:'experience/kind-map-widget.mjs',
+    vocab:'Catch-all Event', blurb:'Listens to the full stream including silent and unknown so the census can count wire-only pulses. Not the mix.' },
+  { id:'wire',   d:'experience', role:'rest',    x:16.8, y:19.3, w:1.7, dp:1.5, h:1.0, shape:'pit',   label:'WIRE-ONLY', mod:'silent · unknown · tool_result',
+    vocab:'Silent Pulse', blurb:'Emitted on the Stream, no Graph/DAW subscriber. silent is a rest. unknown is the alarm. tool_result success is P3.' },
+];
+
+const TRACES = [
+  ...['cc','pi','grok','ag','oc','copilot','cmd'].map(id => ({ from:id, to:'adapters', kind:'dep', label:'raw transcript' })),
+  { from:'registry', to:'adapters', kind:'dep',   label:'descriptor' },
+  { from:'registry', to:'emitter',  kind:'dep',   label:'capabilities + adapter' },
+  { from:'adapters', to:'nr',       kind:'pulse', label:'NormalizedRecord[]' },
+  { from:'nr',       to:'pmap',     kind:'dep',   label:'kind' },
+  { from:'pmap',     to:'xform',    kind:'dep',   label:'KIND_PULSE' },
+  { from:'nr',       to:'xform',    kind:'pulse', label:'every NR ≥1 pulse' },
+  { from:'nr',       to:'reducer',  kind:'snap',  label:'session object' },
+  { from:'xform',    to:'emitter',  kind:'pulse', label:'Pulse {event, data}' },
+  { from:'emitter',  to:'hub',      kind:'pulse', label:'hub.notify(pulse.event, data)' },
+  { from:'emitter',  to:'active',   kind:'now',   label:'applyPulse(state, pulse, now)' },
+  { from:'emitter',  to:'kmstore',  kind:'pulse', label:'kindMap.applyPulse' },
+  { from:'active',   to:'hub',      kind:'now',   label:'snapshotActive ≤1/s' },
+  { from:'hub',      to:'graph',    kind:'pulse', label:'LIVE_PLAYPULSE_EVENTS' },
+  { from:'hub',      to:'daw',      kind:'pulse', label:'same subscribe set' },
+  { from:'hub',      to:'map',      kind:'pulse', label:'full STREAM incl. silent' },
+  { from:'hub',      to:'nowpg',    kind:'now',   label:'event: now' },
+  { from:'hub',      to:'wire',     kind:'pulse', label:'silent / unknown / tool_result' },
+  { from:'http',     to:'nowpg',    kind:'now',   label:'GET /api/active pull' },
+  { from:'reducer',  to:'rebuild',  kind:'snap',  label:'sessions-data.json' },
+  { from:'rebuild',  to:'http',     kind:'snap',  label:'graph-data.json' },
+  { from:'rebuild',  to:'hub',      kind:'snap',  label:'status / updated / error' },
+  { from:'hub',      to:'graph',    kind:'snap',  label:'updated → fetch graph-data' },
+  { from:'graph',    to:'ticker',   kind:'pulse', label:'pulseTickerEntry' },
+  { from:'graph',    to:'ring',     kind:'pulse', label:'playPulse viz' },
+  { from:'graph',    to:'audio',    kind:'pulse', label:'playPulse audio' },
+  { from:'daw',      to:'ring',     kind:'pulse', label:'shared _beatRing' },
+  { from:'daw',      to:'audio',    kind:'pulse', label:'same Client Dispatcher' },
+];
+
+const VOCAB = {
+  Harness: 'An external AI coding agent that writes append-only transcripts. kaaroSessions does not implement harnesses.',
+  'Harness Hook': 'Adapter + registry descriptor + scanner + pulse path for one harness. The unit of harness support.',
+  NormalizedRecord: 'The small common vocabulary every hook emits. The harness hop. Internal.',
+  'Observability Surface': 'Snapshot of all observed state up till now, plus a realtime Stream of incremental updates.',
+  Snapshot: 'Point-in-time complete representation. Two clocks: History (sessions-data) and live Active State (now).',
+  Stream: 'Lightweight Normalized Events the moment new transcript bytes are seen. Sub-second. Not a Snapshot.',
+  'Normalized Event': 'One Stream item. SSE event name = pulse.event. Payload = pulse.data. Also called Pulse.',
+  'Pulse Source': 'The Stream. Producer: surface/pulse-emitter.mjs. Lifecycle SSE is a different source.',
+  'Pulse Sink': 'A consumer of a processed pulse. Sinks do not feed each other. MC / ticker / beat ring / audio.',
+  'Client Dispatcher': 'playPulse: encode once (resolveSonic), fan out to viz and audio. Encoding is not a sink.',
+  'Personal Live Mirror': 'node serve.mjs — graph, now, DAW, kind-map. The Copilot Interface Extension.',
+  'Canonical Action Key': 'read write edit grep_glob agent bash_* web other on tool_call.data.key. Derived in the transformer.',
+  'Recorded Time': 'Harness timestamp on pulse.data.ts. Burst clock. Not arrival Date.now(), not heardAt.',
+  'Silent Pulse': 'Known NR, no live sonic. reason envelope | snapshot | duplicate. instrument off. Not a hole.',
+  'Catch-all Event': 'unknown. Coverage hole only (unknown_record or unclassified block_type).',
+  'KIND_PULSE': 'Table 1:1 with RECORD_KINDS. Disposition lives here, not in preset off-rules.',
+  'Sonic Encoder': 'Pulse → sounding parameters. Playable Instruments only. Does not parse JSONL.',
+  'Snapshot Endpoint': 'HTTP read of a Snapshot. GET /api/active is the pull twin of SSE now.',
+};
+
+const DISTRICT_INFO = {
+  harness: {
+    title: 'HARNESS ROOTS',
+    term: 'Harness',
+    layer: 'source — outside kaaroSessions',
+    blurb: 'External agent systems that write append-only transcripts. This district is watched, never implemented. Each building is one Harness Hook root.',
+    produces: 'raw JSONL / JSON records',
+    consumes: 'nothing in this map',
+    modules: 'hooks/harness-paths.mjs · hooks/registry.mjs roots[]',
+  },
+  hooks: {
+    title: 'HARNESS HOOKS',
+    term: 'NormalizedRecord',
+    layer: 'normalization — the harness hop',
+    blurb: 'Raw records become NormalizedRecords once. Adapters are sonic-unaware. KIND_PULSE decides disposition. Transformer builds Pulse {event, data}. Reducer builds the History Snapshot session object.',
+    produces: 'NR[] · Pulse {event,data} · session objects',
+    consumes: 'raw transcript records',
+    modules: 'hooks/adapters/* · normalized-record.mjs · pulse-map.mjs · pulse-transformer.mjs · session-reducer.mjs',
+  },
+  surface: {
+    title: 'OBSERVABILITY SURFACE',
+    term: 'Stream + Snapshot',
+    layer: 'exposure — HTTP + SSE',
+    blurb: 'The fork lives here. Pulse Emitter applyPulse’s Active State and hub.notify’s each pulse, then trailing-edge now ≤1/s. Rebuild emits lifecycle status/updated/error. HTTP is the Snapshot Endpoint (pull).',
+    produces: 'SSE /events · GET /api/active · GET /graph-data.json',
+    consumes: 'Pulses from the transformer · sessions-data from the reducer',
+    modules: 'surface/pulse-emitter.mjs · sse-hub.mjs · active-state.mjs · http-routes.mjs · rebuild-orchestrator.mjs',
+  },
+  experience: {
+    title: 'COGNITIVE EXPERIENCE',
+    term: 'Personal Live Mirror',
+    layer: 'UI — consumes the surface only',
+    blurb: 'Must not import hooks/. /graph and /daw share 13-live-updates.js (LIVE_PLAYPULSE_EVENTS). /now subscribes lifecycle now. /mapping counts the full stream including silent. Sinks do not feed each other.',
+    produces: 'beat ring · ticker · audio · Mission Control cards',
+    consumes: 'SSE pulses + now + updated',
+    modules: 'experience/client/13-live-updates.js · 14-pulse-audio.js · pages/now.html · kind-map-widget.mjs',
+  },
+};
+
+const MORE = {
+  cc:      { inn:'~/.claude/projects/<id>/*.jsonl', out:'raw CC records', sse:'—', next:'adapters', extra:'Watch match: .jsonl. One file = one session.' },
+  pi:      { inn:'PI_SESSIONS_ROOT', out:'raw Pi records', sse:'—', next:'adapters', extra:'thinking_level_change → mode_shift NR. Optional fields data-absent.' },
+  grok:    { inn:'~/.grok/sessions/<cwd>/<uuid>/updates.jsonl', out:'raw Grok records', sse:'—', next:'adapters', extra:'Tokenless. Synthetic tokens from content_length/4.' },
+  ag:      { inn:'~/.gemini/antigravity/brain/<id>/logs', out:'raw AG records', sse:'—', next:'adapters', extra:'transcript.jsonl or overview.txt. trace:false.' },
+  oc:      { inn:'storage/{session,message,part} JSON', out:'raw opencode records', sse:'—', next:'adapters', extra:'read_mode json — whole-file, not JSONL tail.' },
+  copilot: { inn:'chatSessions/*.jsonl op-log', out:'raw Copilot records', sse:'—', next:'adapters', extra:'kind 0 snapshot / 1 set / 2 append. Optional state.vscdb titles.' },
+  cmd:     { inn:'~/.commandcode/projects/<p>/<s>.jsonl', out:'raw Command Code records', sse:'—', next:'adapters', extra:'reasoning blocks → content_block thinking.' },
+  registry:{ inn:'harness descriptors', out:'adapter · capabilities · roots · locateSession', sse:'GET /api/harnesses', next:'adapters, emitter', extra:'THE unit of harness support. Adding a harness is one row here.' },
+  adapters:{ inn:'raw records (all 7 harnesses)', out:'NormalizedRecord[]', sse:'—', next:'nr', extra:'Parsed exactly once. Sonic-unaware. tool+category only, no Canonical Action Key.' },
+  nr:      { inn:'adapter output', out:'RECORD_KINDS (16)', sse:'—', next:'pmap, xform, reducer', extra:'Internal hop. Never persisted in sessions-data.json.' },
+  pmap:    { inn:'nr.kind + block_type + capabilities', out:'disposition sonic | silent | unknown | route', sse:'—', next:'xform', extra:'1:1 with RECORD_KINDS. Transformer does not invent events.' },
+  xform:   { inn:'NR[] + KIND_PULSE + action-keys', out:'Pulse { event, data }', sse:'—', next:'emitter', extra:'Stamps Recorded Time. Derives data.key on tool_call. Every NR ≥1 pulse.' },
+  reducer: { inn:'NR[]', out:'canonical session object', sse:'—', next:'rebuild', extra:'History Snapshot clock. Distinct from the Stream.' },
+  emitter: { inn:'NR[] via transformer', out:'hub.notify(pulse.event, data) + applyPulse + now', sse:'all pulse names + now', next:'hub, active', extra:'scheduleNowBroadcast trailing-edge 1000 ms. Raw JSONL is not a viz source.' },
+  hub:     { inn:'notify(event, json)', out:'GET /events EventSource', sse:'pulse.* + status + updated + error + now + connected', next:'graph, daw, nowpg, map', extra:'One socket. Event field = name. Data field = payload. Two sources share it.' },
+  active:  { inn:'applyPulse(state, pulse, now)', out:'snapshotActive → now payload', sse:'event: now', next:'hub, nowpg', extra:'Evict >60 min. Burn rate = 60s window. Caller supplies now — no Date.now() inside.' },
+  http:    { inn:'active snapshot + graph-data + kind-map', out:'GET /api/active · /graph-data.json · /mapping · /api/harnesses', sse:'— (pull)', next:'nowpg, graph', extra:'Snapshot Endpoint. Pull twin of SSE now is /api/active.' },
+  rebuild: { inn:'sessions-data.json from analyze', out:'graph.html + graph-data.json', sse:'status · updated · error', next:'http, hub, graph', extra:'Lifecycle, not a pulse. Graph fetches graph-data.json on updated.' },
+  kmstore: { inn:'same pulses as hub', out:'kind-map overlay', sse:'full STREAM incl. silent/unknown', next:'map', extra:'Census, not a playPulse sink.' },
+  graph:   { inn:'LIVE_PLAYPULSE_EVENTS + updated', out:'ticker + beat ring + audio via playPulse', sse:'tool_call tokens words + cognition + updated', next:'ticker, ring, audio', extra:'History view. Subscribe ≠ encoder. thinking is subscribed (P2). unknown is not.' },
+  ticker:  { inn:'pulseTickerEntry(event, data)', out:'DOM ticker lines', sse:'subset of pulses', next:'—', extra:'Returns null for chirp, thinking, attachment. Arrival clock.' },
+  ring:    { inn:'playPulse → _pushToBeatRing', out:'window._beatRing', sse:'subscribed pulses', next:'16-beat-overlay · 19-daw-builder', extra:'Mutate in place. Independent of mute and AudioContext.' },
+  audio:   { inn:'resolveSonic → schedVoice', out:'INSTS oscillators', sse:'subscribed pulses (unmuted)', next:'—', extra:'Playable Instruments only. Gated by unmute AND AudioContext. heardAt is a stamp, not the first push.' },
+  nowpg:   { inn:'event: now + GET /api/active', out:'Mission Control cards', sse:'now · status · updated · error', next:'—', extra:'Does not call playPulse. 30s pull safety-sync.' },
+  daw:     { inn:'same subscribe set as /graph', out:'DAW lanes + mixer + same sinks', sse:'LIVE_PLAYPULSE_EVENTS', next:'ring, audio', extra:'No DAW-only channel. Same 13-live-updates.js. Same bursts.' },
+  map:     { inn:'full STREAM names', out:'kind-map census HTML', sse:'thinking silent unknown tool_result + pulses', next:'—', extra:'Listens so it can count wire-only. Not the mix.' },
+  wire:    { inn:'hub.notify silent | unknown | tool_result', out:'none on Graph/DAW', sse:'silent · unknown · tool_result', next:'map (census only)', extra:'silent = rest. unknown = hole. tool_result success = P3. No playPulse.' },
+};
+
+const PAYLOADS = {
+  pulse: {
+    title: 'STREAM PULSE',
+    sse: 'event: tool_call\\ndata: {…pulse.data}',
+    json: `{
+  "session_id": "56e8fd50-…",
+  "slug": "56e8fd50",
+  "harness": "claude-code",
+  "project": "kaaroSessions",
+  "ts": "2026-08-26T12:04:01.102Z",
+  "nr_kind": "tool_use",
+  "tool": "Read",
+  "key": "read",
+  "where": "hooks/pulse-transformer.mjs"
+}`
+  },
+  thinking: {
+    title: 'STREAM PULSE · thinking',
+    sse: 'event: thinking\\ndata: {…}',
+    json: `{
+  "session_id": "56e8fd50-…",
+  "slug": "56e8fd50",
+  "harness": "claude-code",
+  "project": "kaaroSessions",
+  "ts": "2026-08-26T12:04:00.440Z",
+  "nr_kind": "content_block",
+  "block_type": "thinking"
+}`
+  },
+  now: {
+    title: 'LIFECYCLE now',
+    sse: 'event: now\\ndata: {generated_at, sessions, …}',
+    json: `{
+  "generated_at": 1756209841120,
+  "sessions": [{
+    "session_id": "56e8fd50-…",
+    "status": "active",
+    "last_event": "thinking",
+    "tool_calls": 12,
+    "tokens_work": 400,
+    "burn_rate_per_min": 210
+  }],
+  "by_harness": { "claude-code": { "active": 1 } },
+  "totals": { "sessions": 1, "active": 1, "idle": 0 }
+}`
+  }
+};
+
+const byId = Object.fromEntries(B.map(b => [b.id, b]));
+const svg = document.getElementById('city');
+const NS = 'http://www.w3.org/2000/svg';
+function el(name, attrs, text) {
+  const n = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+const pathOn = { pulse: true, now: true, snap: true, dep: true };
+let selected = 'emitter';
+let pktT = 0;
+
+function roofOf(id) {
+  const b = byId[id];
+  return iso(b.x + b.w / 2, b.y + b.dp / 2, b.h + 0.4);
+}
+function tracePath(tr) {
+  const c = ctrlOf(tr);
+  return `M${c.a.x.toFixed(1)},${c.a.y.toFixed(1)} Q${c.mx.toFixed(1)},${c.my.toFixed(1)} ${c.b.x.toFixed(1)},${c.b.y.toFixed(1)}`;
+}
+function relatedIds(id) {
+  const s = new Set([id]);
+  for (const t of TRACES) {
+    if (!pathOn[t.kind]) continue;
+    if (t.from === id || t.to === id) { s.add(t.from); s.add(t.to); }
+  }
+  return s;
+}
+
+const gGround = el('g', { id: 'ground' });
+const gHi     = el('g', { id: 'hi' });
+const gTraces = el('g', { id: 'traces' });
+const gLabs   = el('g', { id: 'tlabs' });
+const gBldgs  = el('g', { id: 'bldgs' });
+const gPkt    = el('g', { id: 'pkt' });
+const gPave   = el('g', { id: 'pave' });
+const gNames  = el('g', { id: 'names' });
+svg.appendChild(gGround);
+svg.appendChild(gHi);
+svg.appendChild(gBldgs);
+svg.appendChild(gPave);
+svg.appendChild(gTraces);
+svg.appendChild(gLabs);
+svg.appendChild(gPkt);
+svg.appendChild(gNames);
+
+DISTRICTS.forEach(d => {
+  const f = boxFaces(d.x, d.y, 0, d.w, d.d, d.h);
+  const g = el('g', { class: 'district', 'data-id': d.id });
+  g.appendChild(el('polygon', { points: poly(f.left),  fill: T.bg, stroke: T.border, 'stroke-width': 1 }));
+  g.appendChild(el('polygon', { points: poly(f.right), fill: T.bg, stroke: T.border, 'stroke-width': 1 }));
+  g.appendChild(el('polygon', { points: poly(f.top),   fill: T.bg, stroke: T.dim,    'stroke-width': 1.2 }));
+  gGround.appendChild(g);
+});
+
+function drawPavedLane(d) {
+  const z0 = d.h;
+  const ph = 0.26;
+  const extra = 8.5;
+  const px = d.x + d.w;
+  const py = d.y;
+  const pw = extra;
+  const pd = d.d;
+  const g = el('g', { class: 'pave', 'data-id': d.id });
+  const faces = boxFaces(px, py, z0, pw, pd, ph);
+  g.appendChild(el('polygon', { points: poly(faces.left),  fill: T.panel,  stroke: T.border, 'stroke-width': 0.9 }));
+  g.appendChild(el('polygon', { points: poly(faces.right), fill: T.border, stroke: T.border, 'stroke-width': 0.9 }));
+  g.appendChild(el('polygon', { points: poly(faces.top),   fill: T.border, stroke: d.ink,    'stroke-width': 1.1 }));
+  for (let t = 1.1; t < pw - 0.15; t += 1.1) {
+    const a = iso(px + t, py, z0 + ph);
+    const b = iso(px + t, py + pd, z0 + ph);
+    g.appendChild(el('line', {
+      x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+      stroke: T.panel, 'stroke-width': 0.8, 'pointer-events': 'none'
+    }));
+  }
+  const cut = d.label.lastIndexOf(' ');
+  const line1 = cut > 0 ? d.label.slice(0, cut) : d.label;
+  const line2 = cut > 0 ? d.label.slice(cut + 1) : '';
+  const origin = iso(px + 0.45, py + pd * 0.42, z0 + ph + 0.06);
+  const t1 = el('text', {
+    class: 'pave-name', x: origin.x, y: origin.y,
+    fill: d.ink, 'pointer-events': 'none',
+    transform: `rotate(26.565 ${origin.x} ${origin.y})`
+  }, line1);
+  g.appendChild(t1);
+  if (line2) {
+    const o2 = iso(px + 0.45, py + pd * 0.62, z0 + ph + 0.06);
+    g.appendChild(el('text', {
+      class: 'pave-name', x: o2.x, y: o2.y,
+      fill: d.ink, 'pointer-events': 'none',
+      transform: `rotate(26.565 ${o2.x} ${o2.y})`
+    }, line2));
+  }
+  g.style.cursor = 'pointer';
+  g.addEventListener('click', () => explainDistrict(d.id));
+  gPave.appendChild(g);
+}
+DISTRICTS.forEach(drawPavedLane);
+
+function drawBoxGroup(b) {
+  const g = el('g', { class: 'bldg', id: 'b-' + b.id, 'data-id': b.id, 'data-role': b.role });
+  const faces = boxFaces(b.x, b.y, 0.18, b.w, b.dp, b.h);
+  const topC = ROLE[b.role];
+  g.appendChild(el('polygon', { class:'left',  points: poly(faces.left),  fill: T.panel, stroke: T.border, 'stroke-width': 0.8 }));
+  g.appendChild(el('polygon', { class:'right', points: poly(faces.right), fill: T.card,  stroke: T.border, 'stroke-width': 0.8 }));
+  g.appendChild(el('polygon', { class:'top',   points: poly(faces.top),   fill: topC,    stroke: T.border, 'stroke-width': 0.8, 'data-roof': topC }));
+
+  if (b.shape === 'mill' || b.shape === 'mast') {
+    const ch = boxFaces(b.x + b.w * 0.72, b.y + b.dp * 0.16, b.h + 0.18, 0.22, 0.22, b.shape === 'mast' ? 2.3 : 1.4);
+    g.appendChild(el('polygon', { points: poly(ch.left),  fill: T.panel, stroke: T.border, 'stroke-width': 0.6 }));
+    g.appendChild(el('polygon', { points: poly(ch.right), fill: T.card,  stroke: T.border, 'stroke-width': 0.6 }));
+    g.appendChild(el('polygon', { points: poly(ch.top),   fill: T.body,  stroke: T.border, 'stroke-width': 0.6 }));
+  }
+  if (b.shape === 'silo') {
+    const cap = boxFaces(b.x + 0.18, b.y + 0.18, b.h + 0.18, b.w - 0.36, b.dp - 0.36, 0.5);
+    g.appendChild(el('polygon', { points: poly(cap.top), fill: T.geo, stroke: T.border, 'stroke-width': 0.7 }));
+  }
+  if (b.shape === 'stk') {
+    for (let i = 0; i < 3; i++) {
+      const sl = boxFaces(b.x + 0.18 + i * 0.44, b.y + 0.22, b.h + 0.18, 0.36, 0.95, 0.65 + i * 0.35);
+      g.appendChild(el('polygon', { points: poly(sl.left),  fill: T.panel, stroke: T.border, 'stroke-width': 0.5 }));
+      g.appendChild(el('polygon', { points: poly(sl.right), fill: T.card,  stroke: T.border, 'stroke-width': 0.5 }));
+      g.appendChild(el('polygon', { points: poly(sl.top),   fill: topC,    stroke: T.border, 'stroke-width': 0.5 }));
+    }
+  }
+
+  g.appendChild(el('polygon', { class:'hit', points: poly(faces.top) }));
+  g.addEventListener('click', () => select(b.id));
+  g.addEventListener('mouseenter', () => { if (selected !== b.id) g.classList.add('hov'); });
+  g.addEventListener('mouseleave', () => g.classList.remove('hov'));
+  return g;
+}
+
+B.slice().sort((a, c) => (a.x + a.y) - (c.x + c.y)).forEach(b => gBldgs.appendChild(drawBoxGroup(b)));
+
+const pkt = el('polygon', { class: 'pkt', points: '0,-4 4,0 0,4 -4,0' });
+gPkt.appendChild(pkt);
+
+function pointOnQuad(tr, t) {
+  const c = ctrlOf(tr);
+  const u = 1 - t;
+  return {
+    x: u*u*c.a.x + 2*u*t*c.mx + t*t*c.b.x,
+    y: u*u*c.a.y + 2*u*t*c.my + t*t*c.b.y
+  };
+}
+
+function liveTraces() {
+  return TRACES.filter(t => pathOn[t.kind] && (t.from === selected || t.to === selected));
+}
+
+function tickPkt() {
+  pktT += 0.01;
+  const live = liveTraces();
+  if (!live.length) {
+    pkt.setAttribute('display', 'none');
+  } else {
+    const tr = live[Math.floor(pktT) % live.length];
+    const t = pktT % 1;
+    const p = pointOnQuad(tr, t);
+    pkt.setAttribute('display', 'block');
+    pkt.setAttribute('class', 'pkt' + (tr.kind === 'pulse' ? '' : ' ' + tr.kind));
+    pkt.setAttribute('transform', `translate(${p.x},${p.y})`);
+  }
+  requestAnimationFrame(tickPkt);
+}
+
+function paintFootprint(b) {
+  gHi.replaceChildren();
+  if (!b) return;
+  const pad = 0.18;
+  const f = boxFaces(b.x - pad, b.y - pad, 0.02, b.w + pad * 2, b.dp + pad * 2, 0.12);
+  gHi.appendChild(el('polygon', {
+    points: poly(f.top), fill: T.bg, stroke: T.select, 'stroke-width': 1.6
+  }));
+}
+
+function plateSize(text, size) {
+  const padX = 7, padY = 5, barW = 4;
+  return {
+    w: Math.ceil(String(text).length * size * 0.63) + padX * 2 + barW,
+    h: size + padY * 2
+  };
+}
+
+function plate(parent, x, y, text, opts) {
+  const size = opts.size || 11;
+  const padX = 7, padY = 5;
+  const barW = 4;
+  const { w, h } = plateSize(text, size);
+  const gx = opts.anchor === 'start' ? x : x - w / 2;
+  const gy = y - h;
+  const grp = el('g', { class: 'name-plate' + (opts.onClick ? ' hit' : '') });
+  grp.appendChild(el('rect', {
+    x: gx, y: gy, width: w, height: h,
+    fill: T.panel, stroke: opts.sel ? T.select : T.border,
+    'stroke-width': opts.sel ? 1.8 : 1
+  }));
+  grp.appendChild(el('rect', { x: gx, y: gy, width: barW, height: h, fill: opts.bar || T.label }));
+  grp.appendChild(el('text', {
+    class: opts.cls || 'b-lab',
+    x: gx + barW + padX, y: gy + h - padY - 1,
+    fill: opts.fill || T.body,
+    'font-size': size,
+    'font-weight': opts.bold ? 700 : 400
+  }, text));
+  if (opts.onClick) grp.addEventListener('click', opts.onClick);
+  parent.appendChild(grp);
+  return { gx, gy, w, h, cx: gx + w / 2, y: gy + h };
+}
+
+let nameBoxes = [];
+
+function paintNames() {
+  gNames.replaceChildren();
+  nameBoxes = [];
+  const rel = selected ? relatedIds(selected) : new Set();
+  DISTRICTS.forEach(d => {
+    const jobs = B.filter(b => b.d === d.id).map(b => {
+      const attach = iso(b.x + b.w * 0.5, b.y, b.h + 0.3);
+      const isSel = b.id === selected;
+      const text = SHORT[b.id] || b.label;
+      const size = isSel ? 12 : 10;
+      const dim = plateSize(text, size);
+      return { b, text, size, dim, attach, x: attach.x - dim.w / 2, y: attach.y - 10 };
+    });
+    jobs.sort((a, c) => a.x - c.x);
+    for (let i = 0; i < jobs.length; i++) {
+      let g = 0;
+      while (g++ < 24) {
+        const hit = jobs.find((q, j) => j < i &&
+          jobs[i].x < q.x + q.dim.w + 6 && jobs[i].x + jobs[i].dim.w + 6 > q.x &&
+          Math.abs(jobs[i].y - q.y) < jobs[i].dim.h + 4);
+        if (!hit) break;
+        jobs[i].x = hit.x + hit.dim.w + 6;
+      }
+    }
+    jobs.forEach(j => {
+      const isSel = j.b.id === selected;
+      const isRel = rel.has(j.b.id);
+      gNames.appendChild(el('line', {
+        x1: j.attach.x, y1: j.attach.y,
+        x2: j.x + j.dim.w / 2, y2: j.y - j.dim.h,
+        stroke: isSel ? T.select : (isRel ? T.body : T.dim),
+        'stroke-width': isSel ? 1.2 : 0.8,
+        'pointer-events': 'none'
+      }));
+      plate(gNames, j.x, j.y, j.text, {
+        size: j.size, bold: isSel, anchor: 'start',
+        fill: isSel ? T.select : T.body,
+        bar: ROLE[j.b.role],
+        sel: isSel,
+        onClick: () => select(j.b.id)
+      });
+      nameBoxes.push({ x: j.x, y: j.y - j.dim.h, w: j.dim.w, h: j.dim.h });
+    });
+  });
+}
+
+function paintTraces(focusId) {
+  gTraces.replaceChildren();
+  const shown = TRACES.filter(t => pathOn[t.kind]);
+  const relevant = focusId
+    ? shown.filter(t => t.from === focusId || t.to === focusId)
+    : shown;
+  relevant.forEach(tr => {
+    const d = tracePath(tr);
+    const hi = !!focusId;
+    if (hi) {
+      gTraces.appendChild(el('path', {
+        d, fill: 'none', stroke: T.bg, 'stroke-width': 6,
+        'stroke-linecap': 'round', 'pointer-events': 'none'
+      }));
+    }
+    gTraces.appendChild(el('path', {
+      d, fill: 'none',
+      class: 'trace ' + tr.kind + (hi ? ' hi' : ''),
+      'pointer-events': 'none'
+    }));
+  });
+}
+
+function hitsBox(x, y, w, h, boxes, pad) {
+  return boxes.some(q =>
+    x < q.x + q.w + pad && x + w + pad > q.x &&
+    y < q.y + q.h + pad && y + h + pad > q.y);
+}
+
+function paintTraceLabels(id) {
+  gLabs.replaceChildren();
+  if (!id) return;
+  const KIND_TAG = { pulse: 'PULSE', now: 'NOW', snap: 'SNAP', dep: 'DEP' };
+  const jobs = [];
+  TRACES.forEach(tr => {
+    if (!pathOn[tr.kind] || (tr.from !== id && tr.to !== id)) return;
+    const outbound = tr.from === id;
+    const other = outbound ? tr.to : tr.from;
+    const pt = pointOnQuad(tr, 0.5);
+    const text = KIND_TAG[tr.kind] + (outbound ? ' → ' : ' ← ') + (SHORT[other] || nameOf(other));
+    const w = text.length * 9 * 0.62;
+    const h = 12;
+    jobs.push({ pt, text, w, h, fill: KIND_COL[tr.kind] });
+  });
+  const placed = [];
+  jobs.forEach(j => {
+    let x = j.pt.x - j.w / 2;
+    let y = j.pt.y - 10;
+    let guard = 0;
+    while (guard++ < 28) {
+      if (!hitsBox(x, y - j.h, j.w, j.h, placed, 8) &&
+          !hitsBox(x, y - j.h, j.w, j.h, nameBoxes, 10)) break;
+      y += 13;
+    }
+    placed.push({ x, y: y - j.h, w: j.w, h: j.h });
+    gLabs.appendChild(el('line', {
+      x1: j.pt.x, y1: j.pt.y, x2: j.pt.x, y2: y + 2,
+      stroke: j.fill, 'stroke-width': 1, 'pointer-events': 'none'
+    }));
+    gLabs.appendChild(el('text', {
+      class: 'edge-cap', x: j.pt.x, y: y,
+      fill: j.fill, 'text-anchor': 'middle', 'pointer-events': 'none'
+    }, j.text));
+    gLabs.appendChild(el('line', {
+      x1: j.pt.x - j.w / 2, y1: y + 3, x2: j.pt.x + j.w / 2, y2: y + 3,
+      stroke: j.fill, 'stroke-width': 1, 'pointer-events': 'none'
+    }));
+  });
+}
+
+function select(id) {
+  selected = id;
+  const b = byId[id];
+  const rel = relatedIds(id);
+  document.getElementById('crumb').textContent = b.label.toLowerCase();
+  document.getElementById('mod').textContent = b.mod;
+  const chip = document.getElementById('rolechip');
+  chip.textContent = b.role;
+  chip.style.color = ROLE[b.role];
+
+  document.querySelectorAll('.bldg').forEach(g => {
+    const bid = g.dataset.id;
+    const roof = g.querySelector('.top');
+    const native = ROLE[byId[bid].role];
+    const isSel = bid === id;
+    const isRel = rel.has(bid);
+    g.classList.toggle('sel', isSel);
+    g.classList.remove('hov');
+    roof.setAttribute('fill', isRel ? native : T.dim);
+  });
+
+  paintTraces(id);
+  paintFootprint(b);
+  paintNames();
+  paintTraceLabels(id);
+  renderExplain(b);
+}
+
+function nameOf(id) { return byId[id] ? byId[id].label : id; }
+
+function explainDistrict(id) {
+  selected = '';
+  document.querySelectorAll('.bldg').forEach(g => {
+    g.classList.remove('sel');
+    g.querySelector('.top').setAttribute('fill', ROLE[byId[g.dataset.id].role]);
+  });
+  paintTraces(null);
+  gHi.replaceChildren();
+  gLabs.replaceChildren();
+  paintNames();
+  const d = DISTRICT_INFO[id];
+  const dist = DISTRICTS.find(x => x.id === id);
+  const members = B.filter(b => b.d === id);
+  document.getElementById('crumb').textContent = dist.label.toLowerCase();
+  document.getElementById('mod').textContent = 'district · ' + id;
+  const chip = document.getElementById('rolechip');
+  chip.textContent = 'layer';
+  chip.style.color = dist.ink;
+  document.getElementById('explain').innerHTML = `
+    <h2>${d.title}</h2>
+    <div class="kv">
+      <span class="k">term</span><span class="v">${d.term}</span>
+      <span class="k">layer</span><span class="v">${d.layer}</span>
+      <span class="k">consumes</span><span class="v">${d.consumes}</span>
+      <span class="k">produces</span><span class="v">${d.produces}</span>
+      <span class="k">modules</span><span class="v">${d.modules}</span>
+    </div>
+    <p>${d.blurb}</p>
+    <p class="cite">“${VOCAB[d.term] || ''}” <span class="term">CONTEXT.md</span></p>
+    <h2>buildings on this plate</h2>
+    <div>${members.map(b => `<span class="pill" style="border-color:${ROLE[b.role]};color:${ROLE[b.role]}">${b.label}</span>`).join('')}</div>
+    <p class="cite">Click a nameplate on the map. Color is the roof role.</p>
+  `;
+}
+
+function renderExplain(b) {
+  const vdef = VOCAB[b.vocab] || '';
+  const more = MORE[b.id] || {};
+  const showFork = b.id === 'emitter' || b.id === 'hub' || b.id === 'active' || b.id === 'nowpg';
+  const pulsePay = (b.id === 'graph' || b.id === 'daw' || b.id === 'audio' || b.id === 'ring') ? PAYLOADS.thinking : PAYLOADS.pulse;
+  const edges = TRACES.filter(t => t.from === b.id || t.to === b.id);
+  const inbound = edges.filter(e => e.to === b.id);
+  const outbound = edges.filter(e => e.from === b.id);
+  const dist = DISTRICTS.find(x => x.id === b.d);
+  const dinfo = DISTRICT_INFO[b.d];
+  document.getElementById('explain').innerHTML = `
+    <h2>${b.label}</h2>
+    <div class="kv">
+      <span class="k">module</span><span class="v">${b.mod}</span>
+      <span class="k">district</span><span class="v">${dist.label}</span>
+      <span class="k">role</span><span class="v" style="color:${ROLE[b.role]}">${b.role} · roof</span>
+      <span class="k">term</span><span class="v">${b.vocab}</span>
+      <span class="k">consumes</span><span class="v">${more.inn || '—'}</span>
+      <span class="k">produces</span><span class="v">${more.out || '—'}</span>
+      <span class="k">SSE</span><span class="v">${more.sse || '—'}</span>
+      <span class="k">next</span><span class="v">${(more.next || '—').split(', ').map(id => nameOf(id.trim()) || id).join(' · ')}</span>
+    </div>
+    <p>${b.blurb}</p>
+    ${more.extra ? `<p>${more.extra}</p>` : ''}
+    <p class="cite">“${vdef}” <span class="term">CONTEXT.md</span></p>
+    ${b.avoid ? `<p class="avoid">Avoid: ${b.avoid}</p>` : ''}
+    <div class="io">
+      <h3>district · ${dinfo.title}</h3>
+      <p>${dinfo.blurb}</p>
+    </div>
+    <h2>inbound</h2>
+    ${inbound.length ? inbound.map(e => `<div class="edge"><span class="k path-${e.kind}">${e.kind}</span><span class="v">${nameOf(e.from)} → ${b.label} · ${e.label}</span></div>`).join('') : '<p class="cite">none</p>'}
+    <h2>outbound</h2>
+    ${outbound.length ? outbound.map(e => `<div class="edge"><span class="k path-${e.kind}">${e.kind}</span><span class="v">${b.label} → ${nameOf(e.to)} · ${e.label}</span></div>`).join('') : '<p class="cite">none</p>'}
+    ${showFork ? payloadSplit(pulsePay) : payloadHint(b, pulsePay)}
+  `;
+}
+
+function payloadSplit(pulsePay) {
+  return `
+    <h2>the fork — two payloads on one socket</h2>
+    <p>SSE <span class="term">event</span> is the name. SSE <span class="term">data</span> is the payload. <span class="term">now</span> is not a Pulse. CONTEXT.md: “Lifecycle SSE (status, updated, error, now) is a different source.”</p>
+    <div class="split">
+      <div>
+        <h3 class="pulse">${pulsePay.title}</h3>
+        <div class="kv"><span class="k">kind</span><span class="v">Normalized Event</span>
+        <span class="k">clock</span><span class="v">Recorded Time (data.ts)</span>
+        <span class="k">scope</span><span class="v">one session, one NR</span>
+        <span class="k">SSE</span><span class="v">event = pulse.event</span></div>
+        <pre>${pulsePay.sse}\n${pulsePay.json}</pre>
+      </div>
+      <div>
+        <h3 class="now">${PAYLOADS.now.title}</h3>
+        <div class="kv"><span class="k">kind</span><span class="v">Snapshot of Active State</span>
+        <span class="k">clock</span><span class="v">server now · generated_at</span>
+        <span class="k">scope</span><span class="v">all live sessions</span>
+        <span class="k">SSE</span><span class="v">event = now (lifecycle)</span></div>
+        <pre>${PAYLOADS.now.sse}\n${PAYLOADS.now.json}</pre>
+      </div>
+    </div>
+    <p class="cite">emitter: applyPulse(activeState, pulse) then hub.notify(pulse.event, JSON.stringify(pulse.data)); scheduleNowBroadcast() trailing-edge 1000 ms. Pull twin: GET /api/active.</p>
+  `;
+}
+
+function payloadHint(b, pulsePay) {
+  if (b.d === 'experience' && b.id !== 'nowpg' && b.id !== 'wire') {
+    return `<h2>payload this sink sees</h2><pre>${pulsePay.sse}\n${pulsePay.json}</pre><p class="cite">Subscribe is addEventListener(name). DAW and Graph share LIVE_PLAYPULSE_EVENTS. now is not in that set.</p>`;
+  }
+  if (b.id === 'wire') {
+    return `<h2>on the wire, no subscriber</h2><p>silent · unknown · tool_result leave the hub and never call playPulse on Graph/DAW. /mapping still counts them.</p>`;
+  }
+  return '';
+}
+
+document.querySelectorAll('.filters button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const k = btn.dataset.path;
+    pathOn[k] = !pathOn[k];
+    btn.classList.toggle('on', pathOn[k]);
+    if (selected) select(selected);
+    else paintTraces(null);
+  });
+});
+
+const order = B.map(b => b.id);
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const i = order.indexOf(selected);
+  if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') select(order[Math.min(i + 1, order.length - 1)]);
+  else if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp') select(order[Math.max(i - 1, 0)]);
+  else if (e.key === '1') select('cc');
+  else if (e.key === '2') select('nr');
+  else if (e.key === '3') select('emitter');
+  else if (e.key === '4') select('graph');
+  else if (e.key === 'p' || e.key === 'P') document.querySelector('[data-path=pulse]').click();
+  else if (e.key === 'n' || e.key === 'N') document.querySelector('[data-path=now]').click();
+  else if (e.key === 's' || e.key === 'S') document.querySelector('[data-path=snap]').click();
+  else if (e.key === 'd' || e.key === 'D') document.querySelector('[data-path=dep]').click();
+});
+
+select('emitter');
+requestAnimationFrame(tickPkt);
+setTimeout(() => {
+  document.getElementById('boot').classList.add('gone');
+  document.getElementById('live').textContent = '⬤ surface';
+}, 420);
+</script>
+</body>
+</html>

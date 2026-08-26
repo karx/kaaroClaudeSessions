@@ -80,7 +80,7 @@ document.getElementById('cb-branch').addEventListener('change',   applyFilters);
 document.getElementById('cb-reads').addEventListener('change',    applyFilters);
 document.getElementById('cb-bundle')?.addEventListener('change',  applyFilters);
 document.getElementById('cb-group').addEventListener('change', () => {
-  if (currentLayout==='force') { restoreForceLayout(); simulation.alpha(0.3).restart(); }
+  if (isSimLayout()) { restoreForceLayout(); simulation.alpha(0.3).restart(); }
 });
 document.getElementById('sl-min').addEventListener('input', function() {
   document.getElementById('sl-min-val').textContent = this.value; applyFilters();
@@ -153,16 +153,16 @@ document.getElementById('fp-free')?.addEventListener('change', () => {
     const pin = document.getElementById('cb-pin-grid');
     if (pin) pin.checked = false;
   }
-  if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.5).restart(); }
+  if (isSimLayout()) { restoreForceLayout(); simulation.alpha(0.5).restart(); }
 });
 document.getElementById('cb-pin-grid')?.addEventListener('change', () => {
   if (document.getElementById('cb-pin-grid').checked) {
     const free = document.getElementById('fp-free');
     if (free) free.checked = false;
   }
-  if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.45).restart(); }
+  if (isSimLayout()) { restoreForceLayout(); simulation.alpha(0.45).restart(); }
 });
-document.getElementById('btn-shake').addEventListener('click', ()=>{ if(currentLayout==='force') simulation.alpha(.4).restart(); });
+document.getElementById('btn-shake').addEventListener('click', ()=>{ if(isSimLayout()) simulation.alpha(.4).restart(); });
 document.getElementById('btn-reset').addEventListener('click', ()=>svg.transition().duration(600).call(zoom.transform, initialTransform));
 
 // ── Force physics controls ────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ const FP_DEFAULTS = { 'fp-charge-s': -130, 'fp-charge-f': -55, 'fp-link-m': 125,
   document.getElementById(id)?.addEventListener('input', function() {
     const display = id === 'fp-vdecay' ? (this.value / 100).toFixed(2) : this.value;
     document.getElementById(id + '-val').textContent = display;
-    if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.3).restart(); }
+    if (isSimLayout()) { restoreForceLayout(); simulation.alpha(0.3).restart(); }
   });
 });
 
@@ -184,7 +184,7 @@ document.getElementById('btn-reset-physics')?.addEventListener('click', () => {
     document.getElementById(id + '-val').textContent =
       id === 'fp-vdecay' ? (val / 100).toFixed(2) : val;
   }
-  if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.5).restart(); }
+  if (isSimLayout()) { restoreForceLayout(); simulation.alpha(0.5).restart(); }
 });
 document.getElementById('btn-fit').addEventListener('click', () => {
   if (currentLayout==='swimlane'||currentLayout==='matrix') return;
@@ -251,7 +251,7 @@ function buildTimeline() {
         } else {
           ensureSessionVisible(d.id);
           highlight(d.id); showPanel(node);
-          if(currentLayout==='force'||currentLayout==='arc'){const t=d3.zoomTransform(svg.node()),nx=node.x*t.k+t.x,ny=node.y*t.k+t.y;svg.transition().duration(500).call(zoom.translateBy,(W/2-nx)/t.k,(H/2-ny)/t.k);}
+          if(isSimLayout()||currentLayout==='arc'){const t=d3.zoomTransform(svg.node()),nx=node.x*t.k+t.x,ny=node.y*t.k+t.y;svg.transition().duration(500).call(zoom.translateBy,(W/2-nx)/t.k,(H/2-ny)/t.k);}
         }
       }
     });
@@ -291,7 +291,7 @@ const SHORTCUTS_DEF = [
   { key:'a', label:'A',      desc:'Arc coupling map',     action:()=>setLayout('arc') },
   { key:'m', label:'M',      desc:'Matrix view',          action:()=>setLayout('matrix') },
   { key:'g', label:'G',      desc:'3D force graph',       action:()=>setLayout('3d') },
-  { key:'p', label:'P',      desc:'Project glyph grid',   action:()=>window.toggleGlyphBoard?.() },
+  { key:'p', label:'P',      desc:'Hex lattice layout',   action:()=>setLayout(currentLayout==='grid'?'force':'grid') },
 ];
 
 function _loadSCPrefs() {
@@ -318,7 +318,7 @@ function renderHelpPanel() {
     '<div class="help-row"><span class="help-key">ESC</span><span class="help-desc">Close panel · deselect</span><span class="help-fixed">—</span></div>',
     '<div class="help-sep"></div>',
     '<div class="help-h">◆ MOUSE</div>',
-    '<div class="help-row"><span class="help-key">Drag</span><span class="help-desc">Pan · reposition node (force)</span></div>',
+    '<div class="help-row"><span class="help-key">Drag</span><span class="help-desc">Pan · reposition node (force/lattice snap)</span></div>',
     '<div class="help-row"><span class="help-key">Scroll</span><span class="help-desc">Zoom in / out</span></div>',
     '<div class="help-row"><span class="help-key">Click</span><span class="help-desc">Select and inspect</span></div>',
     '<div class="help-footer" id="help-close">[ CLOSE ]</div>',

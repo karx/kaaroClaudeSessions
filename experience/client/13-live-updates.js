@@ -151,4 +151,8 @@ window.addEventListener('resize',()=>{
   if(currentLayout==='swimlane') renderSwimlane();
   if(currentLayout==='arc')      {computeArcPositions();drawArcDecor();applyStaticPositions();}
   if(currentLayout==='matrix')   renderMatrix();
+  if(isSimLayout()) {
+    restoreForceLayout();
+    if (currentLayout==='grid') window.drawGridDecor?.();
+  }
 });

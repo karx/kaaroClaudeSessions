@@ -1,8 +1,26 @@
 // ── Drag ──────────────────────────────────────────────────────────────────────
 const drag = d3.drag()
-  .on('start',(ev,d)=>{ if(!ev.active && currentLayout==='force') simulation.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; })
-  .on('drag', (ev,d)=>{ d.fx=ev.x; d.fy=ev.y; })
-  .on('end',  (ev,d)=>{ if(!ev.active && currentLayout==='force') simulation.alphaTarget(0); if(d.type!=='project'&&currentLayout==='force'){d.fx=null;d.fy=null;} });
+  .on('start',(ev,d)=>{
+    if(!ev.active && isSimLayout()) simulation.alphaTarget(.3).restart();
+    d.fx=d.x; d.fy=d.y; d._dragged=false;
+  })
+  .on('drag', (ev,d)=>{
+    d._dragged=true;
+    d.fx=ev.x; d.fy=ev.y;
+    if (d.type==='project') {
+      projPos[d.id]={ x:ev.x, y:ev.y };
+      if (currentLayout==='grid') window.drawGridDecor?.();
+    }
+  })
+  .on('end',  (ev,d)=>{
+    if(!ev.active && isSimLayout()) simulation.alphaTarget(0);
+    if (d.type==='project' && currentLayout==='grid' && d._dragged) {
+      window.seatGlyphAt?.(d.id, d.x, d.y);
+    } else if (d.type!=='project' && isSimLayout()) {
+      d.fx=null; d.fy=null;
+    }
+    d._dragged=false;
+  });
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
 const tip = document.getElementById('tip');
@@ -92,7 +110,7 @@ function slHighlight(id) {
 function attachClick(sel) {
   sel.on('click',(ev,d)=>{
     ev.stopPropagation();
-    if (d.type==='cluster' && currentLayout==='force') {
+    if (d.type==='cluster' && isSimLayout()) {
       selectedId=d.id; highlight(d.id); showPanel(d); toggleCluster(d.id); return;
     }
     if(selectedId===d.id){selectedId=null;highlight(null);closePanel();}else{selectedId=d.id;highlight(d.id);showPanel(d);}
@@ -142,7 +160,7 @@ function focusNode(id) {
   selectedId = id;
   highlight(id);
   showPanel(node);
-  if (currentLayout === 'force' && node.x != null && node.y != null) {
+  if (isSimLayout() && node.x != null && node.y != null) {
     const k = d3.zoomTransform(svg.node()).k;
     svg.transition().duration(420).call(
       zoom.transform,

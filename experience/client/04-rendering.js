@@ -1,5 +1,6 @@
 // ── Edge rendering ────────────────────────────────────────────────────────────
 let currentLayout = 'force';
+function isSimLayout() { return currentLayout === 'force' || currentLayout === 'grid'; }
 
 function edgePathD(d) {
   const sx = d.source.x ?? 0, sy = d.source.y ?? 0;

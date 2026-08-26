@@ -76,7 +76,7 @@ body { background: var(--k-bg); color: var(--k-body); font-family: 'IBM Plex Mon
 #legend { position: fixed; top: 48px; left: 16px; background: rgba(8,8,16,.9);
   border: 1px solid #34321c; padding: 12px 16px; min-width: 200px; z-index: 200; }
 #glyph-dock {
-  position: fixed; left: 16px; bottom: 168px; z-index: 720;
+  position: fixed; left: 16px; bottom: 168px; z-index: 200;
   background: rgba(8,8,16,.9); border: 1px solid #34321c;
   padding: 10px 12px; max-width: 220px; max-height: calc(100vh - 280px);
   overflow-y: auto;
@@ -91,21 +91,11 @@ body { background: var(--k-bg); color: var(--k-body); font-family: 'IBM Plex Mon
 .pglyph-label { fill: var(--k-dim); font-size: 8px; letter-spacing: 0.06em; pointer-events: none; }
 .pglyph-hero { text-align: center; margin: 4px 0 14px; }
 .pglyph-hero .pglyph { display: inline-block; vertical-align: middle; }
-#glyph-board {
-  display: none; position: fixed; inset: 0; z-index: 700;
-  background: var(--k-bg); flex-direction: column;
+#decor .grid-hex {
+  fill: none; stroke: var(--k-border); stroke-width: 1;
+  vector-effect: non-scaling-stroke; pointer-events: none;
 }
-#glyph-board.open { display: flex; }
-#glyph-board-chrome {
-  display: flex; align-items: center; gap: 12px; height: 32px;
-  padding: 0 14px; border-bottom: 1px solid var(--k-border);
-  background: var(--k-panel); flex-shrink: 0;
-}
-#glyph-board-chrome .title { color: var(--k-accent); letter-spacing: 0.14em; font-size: 9px; }
-#glyph-board-chrome .hint { color: var(--k-dim); font-size: 9px; flex: 1; }
-#glyph-board-close { background: none; border: none; color: #443d33; font-size: 16px; cursor: pointer; font-family: inherit; }
-#glyph-board-close:hover { color: var(--k-body); }
-#glyph-board-svg { flex: 1; width: 100%; display: block; }
+#decor .grid-hex.occ { stroke: var(--k-dim); }
 #legend h3 { color: var(--k-accent); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
 .leg { display: flex; align-items: center; gap: 8px; margin: 5px 0; color: #777066; }
 .dot  { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
@@ -649,6 +639,7 @@ button.btn:hover { background:#403d1e; }
 <div id="layout-bar">
   <a href="/" title="kaaro-sessions home" style="color:var(--k-accent);text-decoration:none;margin-right:6px;letter-spacing:0.08em">◈</a>
   <button class="lay-btn active" data-layout="force">Force</button>
+  <button class="lay-btn" data-layout="grid">Lattice</button>
   <button class="lay-btn" data-layout="swimlane">Swimlane</button>
   <button class="lay-btn" data-layout="arc">Arc</button>
   <button class="lay-btn" data-layout="matrix">Matrix</button>
@@ -681,16 +672,8 @@ button.btn:hover { background:#403d1e; }
   </div>
 </div>
 <div id="glyph-dock" class="widget">
-  <h3>◆ GRID <span id="glyph-dock-count"></span> <span id="glyph-dock-expand" title="Open grid">⤢</span> <span class="widget-toggle" onclick="toggleWidget('glyph-dock')">−</span></h3>
+  <h3>◆ GRID <span id="glyph-dock-count"></span> <span id="glyph-dock-expand" title="Hex lattice layout">⤢</span> <span class="widget-toggle" onclick="toggleWidget('glyph-dock')">−</span></h3>
   <div class="widget-body" id="glyph-dock-body"></div>
-</div>
-<div id="glyph-board">
-  <div id="glyph-board-chrome">
-    <span class="title">◆ PROJECT GRID</span>
-    <span class="hint">drag to place · scroll to zoom · click minimap to pan · esc to close</span>
-    <button id="glyph-board-close" type="button" aria-label="Close grid">✕</button>
-  </div>
-  <svg id="glyph-board-svg"><g id="glyph-board-world"></g></svg>
 </div>
 <div id="controls" class="widget">
   <h3>◆ DISPLAY <span class="widget-toggle" onclick="toggleWidget('controls')">−</span></h3>
@@ -719,7 +702,7 @@ button.btn:hover { background:#403d1e; }
     <div class="sep"></div>
     <div class="sl-section-hd">◆ FORCE PHYSICS</div>
     <div class="ctrl"><input type="checkbox" id="fp-free"><label for="fp-free" title="Unpin projects — sessions and files cluster purely by co-access (best after filtering)">Free layout (no project anchor)</label></div>
-    <div class="ctrl"><input type="checkbox" id="cb-pin-grid"><label for="cb-pin-grid" title="Pin project nodes to the glyph-grid relative seats (P). Sessions still orbit.">Pin to glyph grid</label></div>
+    <div class="ctrl"><input type="checkbox" id="cb-pin-grid"><label for="cb-pin-grid" title="Pin project nodes to hex-lattice seats. Lattice layout (P) turns this on so Force↔Lattice is a morph. Sessions still orbit.">Pin to lattice</label></div>
     <div class="ctrl">
       <label for="fp-charge-s">Session charge</label>
       <input type="range" id="fp-charge-s" min="-400" max="-20" step="10" value="-130">

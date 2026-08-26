@@ -1,18 +1,10 @@
-// Project glyph board — unbounded hex canvas. The left dock is its minimap.
+// Hex lattice on the same #canvas as the force graph. Left dock is the minimap.
 (function () {
   const STORE = 'kaaro-glyph-board';
   const MINI_R = 7;
-  const ORIGIN = { originX: 0, originY: 0 };
-  const boardEl = document.getElementById('glyph-board');
-  const svgEl = document.getElementById('glyph-board-svg');
+  const MAX_LATTICE_CELLS = 1800;
   const dockBody = document.getElementById('glyph-dock-body');
-  if (!boardEl || !svgEl || typeof GRAPH === 'undefined') return;
-
-  let open = false;
-  let transform = d3.zoomIdentity;
-  let zoomBeh = null;
-  const svg = d3.select(svgEl);
-  const world = svg.select('#glyph-board-world');
+  if (typeof GRAPH === 'undefined' || typeof decorLayer === 'undefined') return;
 
   function projectList() {
     return GRAPH.nodes.filter(n => n.type === 'project').slice().sort((a, b) => a.id < b.id ? -1 : 1);
@@ -25,36 +17,72 @@
     try { localStorage.setItem(STORE, JSON.stringify(payload)); } catch {}
   }
 
+  function graphCfg() {
+    return glyphGraphConfig(W, H);
+  }
+
   function boardState() {
     const list = projectList();
     const raw = loadStore();
-    const cfg = { ...glyphBoardConfig(list.length), ...ORIGIN };
     const placements = mergeGlyphPlacements(list.map(p => p.id), raw.placements);
-    return { list, cfg, placements };
+    return { list, placements, cfg: graphCfg() };
   }
 
   function persist(placements) {
     saveStore({ placements });
   }
 
-  function visibleWorld() {
-    const w = svgEl.clientWidth || 1;
-    const h = svgEl.clientHeight || 1;
-    const k = transform.k || 1;
+  function canvasWorldRect() {
+    const t = d3.zoomTransform(svg.node());
+    const k = t.k || 1;
     return {
-      worldX: -transform.x / k,
-      worldY: -transform.y / k,
-      worldW: w / k,
-      worldH: h / k,
+      worldX: -t.x / k,
+      worldY: -t.y / k,
+      worldW: W / k,
+      worldH: H / k,
     };
   }
 
-  function applyForcePins() {
-    if (!document.getElementById('cb-pin-grid')?.checked) return;
+  function applySeats() {
     if (typeof restoreForceLayout === 'function') {
       restoreForceLayout();
-      if (typeof simulation !== 'undefined') simulation.alpha(0.4).restart();
+      if (typeof simulation !== 'undefined') simulation.alpha(0.35).restart();
     }
+  }
+
+  function drawGridDecor() {
+    if (currentLayout !== 'grid') {
+      clearGridDecor();
+      return;
+    }
+    const st = boardState();
+    const vis = canvasWorldRect();
+    const pad = st.cfg.r * 2;
+    let cells = glyphLatticeWindow({
+      x0: vis.worldX - pad,
+      y0: vis.worldY - pad,
+      x1: vis.worldX + vis.worldW + pad,
+      y1: vis.worldY + vis.worldH + pad,
+      ...st.cfg,
+      pad: 1,
+    });
+    const occupied = new Set(Object.values(st.placements).map(p => p.col + ',' + p.row));
+    if (cells.length > MAX_LATTICE_CELLS) {
+      cells = Object.keys(st.placements).map(id => {
+        const p = st.placements[id];
+        return { col: p.col, row: p.row, ...glyphCellPosition(p.col, p.row, st.cfg) };
+      });
+    }
+    decorLayer.selectAll('path.grid-hex')
+      .data(cells, d => d.col + ',' + d.row)
+      .join('path')
+      .attr('class', d => occupied.has(d.col + ',' + d.row) ? 'grid-hex occ' : 'grid-hex')
+      .attr('d', hexPath(st.cfg.r))
+      .attr('transform', d => `translate(${d.x},${d.y})`);
+  }
+
+  function clearGridDecor() {
+    decorLayer.selectAll('path.grid-hex').remove();
   }
 
   function renderMinimap() {
@@ -64,84 +92,31 @@
     const count = document.getElementById('glyph-dock-count');
     if (count) count.textContent = live + '/' + st.list.length;
     dockBody.innerHTML = projectGlyphFieldSvg(st.list, {
-      r: MINI_R, ...ORIGIN, bg: KAARO_TOKENS.bg, placements: st.placements, lattice: true,
+      r: MINI_R, originX: 0, originY: 0, bg: KAARO_TOKENS.bg,
+      placements: st.placements, lattice: true,
     });
     const mini = dockBody.querySelector('svg');
     if (!mini) return;
-    if (!open) return;
-    const vis = visibleWorld();
-    const s = MINI_R / st.cfg.r;
+    const vis = canvasWorldRect();
+    const rect = graphRectToMinimap(vis, {
+      graphR: st.cfg.r, miniR: MINI_R,
+      originX: st.cfg.originX, originY: st.cfg.originY,
+    });
     const ns = 'http://www.w3.org/2000/svg';
     const v = document.createElementNS(ns, 'rect');
     v.setAttribute('class', 'pglyph-view');
-    v.setAttribute('x', vis.worldX * s);
-    v.setAttribute('y', vis.worldY * s);
-    v.setAttribute('width', Math.max(2, vis.worldW * s));
-    v.setAttribute('height', Math.max(2, vis.worldH * s));
+    v.setAttribute('x', rect.x);
+    v.setAttribute('y', rect.y);
+    v.setAttribute('width', Math.max(2, rect.w));
+    v.setAttribute('height', Math.max(2, rect.h));
     mini.appendChild(v);
   }
 
-  function updateLattice(st) {
-    const vis = visibleWorld();
-    const pad = st.cfg.r * 6;
-    const lattice = glyphLatticeWindow({
-      x0: vis.worldX - pad,
-      y0: vis.worldY - pad,
-      x1: vis.worldX + vis.worldW + pad,
-      y1: vis.worldY + vis.worldH + pad,
-      r: st.cfg.r,
-      ...ORIGIN,
-      pad: 1,
-    });
-    world.selectAll('path.pglyph-lattice').data(lattice, d => d.col + ',' + d.row)
-      .join('path')
-      .attr('class', 'pglyph-lattice')
-      .attr('d', hexPath(st.cfg.r))
-      .attr('transform', d => `translate(${d.x},${d.y})`)
-      .attr('fill', 'none');
-  }
-
-  function renderBoard() {
-    const st = boardState();
-    updateLattice(st);
-    const items = st.list.map(p => {
-      const slot = st.placements[p.id] || { col: 0, row: 0 };
-      return { ...p, ...slot, ...glyphCellPosition(slot.col, slot.row, st.cfg) };
-    });
-    const cell = world.selectAll('g.pglyph-cell').data(items, d => d.id)
-      .join('g')
-      .attr('class', 'pglyph-cell')
-      .attr('data-pid', d => d.id)
-      .attr('transform', d => `translate(${d.x},${d.y})`);
-    cell.each(function (d) {
-      const el = d3.select(this);
-      el.selectAll('*').remove();
-      el.html(projectGlyphMarkup(d, { r: st.cfg.r, bg: KAARO_TOKENS.bg })
-        + `<text class="pglyph-label" text-anchor="middle" y="${st.cfg.r + 10}">${esc((d.label || '').slice(0, 14))}</text>`);
-    });
-    cell.call(d3.drag()
-      .on('start', function (ev) { ev.sourceEvent.stopPropagation(); d3.select(this).raise(); })
-      .on('drag', function (ev, d) {
-        d._dragged = true;
-        const [x, y] = d3.pointer(ev, world.node());
-        d3.select(this).attr('transform', `translate(${x},${y})`);
-        updateLattice(st);
-      })
-      .on('end', function (ev, d) {
-        const [x, y] = d3.pointer(ev, world.node());
-        if (!d._dragged) {
-          focusProject(d.id);
-          return;
-        }
-        d._dragged = false;
-        const snap = snapToGlyphCell(x, y, st.cfg);
-        const next = moveGlyphPlacement(st.placements, d.id, snap.col, snap.row);
-        persist(next);
-        renderBoard();
-        renderMinimap();
-        applyForcePins();
-        focusProject(d.id);
-      }));
+  function panCanvasTo(wx, wy) {
+    const t = d3.zoomTransform(svg.node());
+    const k = t.k || 1;
+    const nx = wx * k + t.x, ny = wy * k + t.y;
+    svg.transition().duration(280).call(zoom.translateBy, (W / 2 - nx) / k, (H / 2 - ny) / k);
   }
 
   function focusProject(id) {
@@ -152,36 +127,36 @@
     if (typeof showPanel === 'function') showPanel(node);
   }
 
-  function panTo(wx, wy) {
-    const w = svgEl.clientWidth || 1;
-    const h = svgEl.clientHeight || 1;
-    const k = transform.k || 1;
-    const t = d3.zoomIdentity.translate(w / 2 - wx * k, h / 2 - wy * k).scale(k);
-    svg.transition().duration(280).call(zoomBeh.transform, t);
-  }
-
-  function openBoard(pid) {
-    open = true;
-    boardEl.classList.add('open');
-    renderBoard();
+  function openLattice(pid) {
+    if (currentLayout !== 'grid') setLayout('grid');
     const st = boardState();
     if (pid && st.placements[pid]) {
       const pos = glyphCellPosition(st.placements[pid].col, st.placements[pid].row, st.cfg);
-      panTo(pos.x, pos.y);
+      panCanvasTo(pos.x, pos.y);
       focusProject(pid);
-    } else {
-      panTo(0, 0);
     }
     renderMinimap();
   }
 
-  function closeBoard() {
-    open = false;
-    boardEl.classList.remove('open');
-    renderMinimap();
+  function closeLattice() {
+    if (currentLayout === 'grid') setLayout('force');
   }
 
-  function toggleBoard() { if (open) closeBoard(); else openBoard(); }
+  function toggleLattice() {
+    if (currentLayout === 'grid') closeLattice();
+    else openLattice();
+  }
+
+  function seatGlyphAt(id, x, y) {
+    const st = boardState();
+    const snap = snapToGlyphCell(x, y, st.cfg);
+    const next = moveGlyphPlacement(st.placements, id, snap.col, snap.row);
+    persist(next);
+    applySeats();
+    drawGridDecor();
+    renderMinimap();
+    focusProject(id);
+  }
 
   function svgUserPoint(el, clientX, clientY) {
     const pt = el.createSVGPoint();
@@ -193,58 +168,40 @@
     return [p.x, p.y];
   }
 
-  zoomBeh = d3.zoom()
-    .scaleExtent([0.15, 6])
-    .filter(ev => !ev.target.closest?.('.pglyph-cell'))
-    .on('zoom', ev => {
-      transform = ev.transform;
-      world.attr('transform', transform);
-      if (open) {
-        updateLattice(boardState());
-        renderMinimap();
-      }
-    });
-  svg.call(zoomBeh);
-
   dockBody?.addEventListener('click', ev => {
     const g = ev.target.closest('[data-pid]');
     const mini = dockBody.querySelector('svg');
     ev.stopPropagation();
     if (g) {
-      openBoard(g.getAttribute('data-pid'));
+      openLattice(g.getAttribute('data-pid'));
       return;
     }
-    if (!mini) { openBoard(); return; }
+    if (!mini) { openLattice(); return; }
     const [mx, my] = svgUserPoint(mini, ev.clientX, ev.clientY);
-    const snap = snapToGlyphCell(mx, my, { r: MINI_R, ...ORIGIN });
+    const snap = snapToGlyphCell(mx, my, { r: MINI_R, originX: 0, originY: 0 });
     const pos = glyphCellPosition(snap.col, snap.row, boardState().cfg);
-    openBoard();
-    panTo(pos.x, pos.y);
+    openLattice();
+    panCanvasTo(pos.x, pos.y);
   });
 
   document.getElementById('glyph-dock-expand')?.addEventListener('click', ev => {
     ev.stopPropagation();
-    toggleBoard();
+    toggleLattice();
   });
-  document.getElementById('glyph-board-close')?.addEventListener('click', closeBoard);
 
-  document.addEventListener('keydown', ev => {
-    if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT' || ev.target.tagName === 'TEXTAREA') return;
-    if (ev.key === 'Escape' && open) {
-      closeBoard();
-      ev.stopImmediatePropagation();
-    }
-  }, true);
+  zoom.on('zoom.minimap', () => renderMinimap());
 
-  window.openGlyphBoard = openBoard;
-  window.closeGlyphBoard = closeBoard;
-  window.toggleGlyphBoard = toggleBoard;
+  window.openGlyphBoard = openLattice;
+  window.closeGlyphBoard = closeLattice;
+  window.toggleGlyphBoard = toggleLattice;
   window.refreshGlyphDock = renderMinimap;
+  window.drawGridDecor = drawGridDecor;
+  window.clearGridDecor = clearGridDecor;
+  window.seatGlyphAt = seatGlyphAt;
   window.glyphBoardPins = function (width, height) {
-    const st = boardState();
-    return scaleGlyphPins(st.placements, { width, height, r: st.cfg.r, ...ORIGIN });
+    return glyphGraphPins(boardState().placements, { width, height });
   };
 
   renderMinimap();
-  if (location.hash === '#grid') setTimeout(() => openBoard(), 0);
+  if (location.hash === '#grid') setTimeout(() => openLattice(), 0);
 })();

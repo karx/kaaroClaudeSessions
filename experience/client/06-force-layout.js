@@ -1,7 +1,8 @@
 // ── Force layout ──────────────────────────────────────────────────────────────
 function restoreForceLayout() {
   const p = getForceParams();
-  const pinGrid = document.getElementById('cb-pin-grid')?.checked && typeof window.glyphBoardPins === 'function';
+  const pinGrid = (currentLayout === 'grid' || document.getElementById('cb-pin-grid')?.checked)
+    && typeof window.glyphBoardPins === 'function';
   const prof = forceProfile(pinGrid ? false : (document.getElementById('fp-free')?.checked || false));
   GRAPH.nodes.forEach(n => { if (n.type !== 'project') { n.fx = null; n.fy = null; } });
   const gridPins = pinGrid ? window.glyphBoardPins(W, H) : null;

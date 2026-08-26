@@ -18,6 +18,8 @@ import {
   mergeGlyphPlacements, moveGlyphPlacement, minimapViewportRect,
   glyphWorldExtent, glyphBoardConfig, glyphSpiralCell,
   firstAvailableRadial, glyphLatticeWindow, scaleGlyphPins,
+  GLYPH_GRAPH_R, glyphGraphConfig, glyphGraphPins, graphRectToMinimap,
+  NODE_RADII,
   projectGlyphMarkup, projectGlyphSvg, projectGlyphFieldSvg,
 } from '../experience/client-core.mjs';
 
@@ -255,6 +257,35 @@ test('scaleGlyphPins — hex relatives mapped into a force viewport, centroid at
   assert.ok(Math.abs(one.a.y - 300) < 1);
 });
 
+test('glyphGraphPins — identity mapping, origin hex at canvas centre', () => {
+  assert.equal(GLYPH_GRAPH_R, NODE_RADII.PR_MAX * 2);
+  const cfg = glyphGraphConfig(800, 600);
+  assert.equal(cfg.originX, 400);
+  assert.equal(cfg.originY, 300);
+  assert.equal(cfg.r, GLYPH_GRAPH_R);
+  const pins = glyphGraphPins(
+    { a: { col: 0, row: 0 }, b: { col: 1, row: 0 } },
+    { width: 800, height: 600 },
+  );
+  assert.equal(pins.a.x, 400);
+  assert.equal(pins.a.y, 300);
+  const east = glyphCellPosition(1, 0, cfg);
+  assert.equal(pins.b.x, east.x);
+  assert.equal(pins.b.y, east.y);
+  const snap = snapToGlyphCell(pins.b.x, pins.b.y, cfg);
+  assert.equal(snap.col, 1);
+  assert.equal(snap.row, 0);
+});
+
+test('graphRectToMinimap — graph camera maps onto the dock field', () => {
+  const vis = { worldX: 400, worldY: 300, worldW: 136, worldH: 136 };
+  const rect = graphRectToMinimap(vis, { graphR: 68, miniR: 7, originX: 400, originY: 300 });
+  assert.equal(rect.x, 0);
+  assert.equal(rect.y, 0);
+  assert.ok(Math.abs(rect.w - 14) < 1e-9);
+  assert.ok(Math.abs(rect.h - 14) < 1e-9);
+});
+
 test('projectGlyphFieldSvg — placements override default pack', () => {
   const projects = [
     { id: 'a', label: 'a', color: '#ff8800', harnesses: [], recencyLevel: 0 },
@@ -441,6 +472,7 @@ test('resolveControlVisibility — only the active layout’s control panels sho
     force:    { controls: ['force-options'] },
     swimlane: { controls: ['sl-options', 'sl-extra'] },
     matrix:   {},
+    grid:     { controls: ['force-options'] },
   };
   assert.deepEqual(resolveControlVisibility(handlers, 'swimlane'), {
     'force-options': false, 'sl-options': true, 'sl-extra': true,
@@ -448,6 +480,12 @@ test('resolveControlVisibility — only the active layout’s control panels sho
   assert.deepEqual(resolveControlVisibility(handlers, 'matrix'), {
     'force-options': false, 'sl-options': false, 'sl-extra': false,
   });
+  assert.deepEqual(resolveControlVisibility(handlers, 'force'), {
+    'force-options': true, 'sl-options': false, 'sl-extra': false,
+  });
+  assert.deepEqual(resolveControlVisibility(handlers, 'grid'), {
+    'force-options': true, 'sl-options': false, 'sl-extra': false,
+  }, 'shared force-options stays visible on lattice');
 });
 
 // ── DAW lane geometry (extracted from 19-daw-builder) ─────────────────────────

@@ -1025,3 +1025,18 @@ export function resolveControlVisibility(layoutHandlers, active) {
   for (const id of (layoutHandlers[active]?.controls || [])) vis[id] = true;
   return vis;
 }
+
+/** Collapse chrome unless every widget is already collapsed (then expand). */
+export function nextChromeCollapsed(states) {
+  const list = states || [];
+  if (!list.length) return true;
+  return !list.every(Boolean);
+}
+
+const LAYOUT_RESET_PROMPT = 'Reset layout options to defaults? Are you sure?';
+
+/** Are-you-sure gate for restoring DISPLAY / physics / camera defaults. */
+export function confirmLayoutReset(ask) {
+  const fn = ask || (typeof confirm === 'function' ? confirm : () => false);
+  return !!fn(LAYOUT_RESET_PROMPT);
+}

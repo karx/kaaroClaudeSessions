@@ -1,45 +1,61 @@
-# RFC: Project Glyph Grid
+# RFC: Project Glyph Lattice
 
 **Project:** kaaroSessions
-**Status:** In progress (PR #13, after G1–G6 hex identity)
+**Status:** In progress (PR #13, canvas-layout rethink)
 **Date:** 2026-08-27
 **Relates to:** [RFC-project-glyphs.md](./RFC-project-glyphs.md) · brand identity · `/graph` history view · landing `/`
-**Grounding:** live graph after canonical project unify; 24-ish project nodes; left dock was a packed 3-col field with no camera
+**Grounding:** overlay board covered the canvas and killed live chrome (DAW, timeline, pulses, ticker). Lattice is a layout on the same SVG.
 
 ---
 
 ## 1. Problem
 
-RFC-project-glyphs gave each workspace a **hex mark** (silhouette ≠ session disk, harness fill, consumption size). That mark still lived only on the force graph.
+RFC-project-glyphs gave each workspace a hex mark. The first grid pass put that mark on a **second camera**: `#glyph-board` overlay, z 700, full-viewport, its own `d3.zoom`. Switching Force → Grid was a hard cut. The overlay hid:
 
-Three things were missing for it to become identity, not decoration:
+- the session/file graph
+- live SSE pulses on nodes
+- the DAW widget, timeline, ticker, stats
 
-1. **The fill was a quiet 0.35 cell.** Edges showed through. Solid colour is the language we want — but only while the project is live. Stale hexes stay hollow so the grid can sit in the chrome without screaming.
-2. **Placement was an auto-pack.** `glyphGrid(n)` packed `n` hexes into a tight lattice. There was no empty canvas, no user arrangement, no zoom.
-3. **The left dock was a second copy of the pack**, not a camera onto a larger board. Click opened the project panel on the force graph; it did not take you to a place on a grid.
+Pin-to-location then *rescaled* hex relatives into the force viewport (`scaleGlyphPins`), so seats jumped when a project was added.
 
-The grid is the brand surface. The force graph stays the history view. They share the mark; they do not share the layout.
+The lattice has to be the same world as the force graph.
 
 ---
 
-## 2. Goals
+## 2. Outcome
 
-1. **One mark language everywhere.** Same `hexPath` + harness wedges. Solid fill iff `isProjectGlyphActive` (`recencyLevel ≥ 1` or `inFlight`). Idle = hollow (canvas fill + stroke).
-2. **An unbounded lattice.** The board is infinite in every direction (negative col/row). Lattice cells are drawn for the current camera, not a finite `cols × rows` sheet.
-3. **Default seats are radial.** Origin first, then hex rings (first available). Saved placements win; new projects take the next empty ring cell.
-4. **A large board that zooms and pans.** Expandable overlay. Drag a glyph; it snaps to a cell (no edge). Occupied cell → swap.
-5. **Pin to location.** Optional: force-view project nodes use the hex relatives (scaled into the viewport). Sessions still orbit.
-6. **The left dock is the minimap.** Same lattice at `r = 7`, viewport rectangle, click-through (glyph → open board on that project + panel; empty cell → pan the board there).
-7. **The mark also appears** on the project detail panel (hero) and the landing page (field → `/graph#grid`).
+**The hex lattice is a layout (`LAYOUT_HANDLERS.grid`), not an overlay.**
+
+| Before | After |
+|---|---|
+| Full-screen `#glyph-board` SVG | Same `#canvas` / `gRoot` / named `zoom.canvas` |
+| Second camera, second pan/zoom | Same d3-zoom; lattice drawn on `decorLayer` |
+| Live chrome covered | DAW, timeline, ticker, SSE pulses stay |
+| Hard cut Force ↔ Grid | Morph: project `fx`/`fy` already at hex seats |
+| `scaleGlyphPins` fit-to-view | `glyphGraphPins` identity — cell (0,0) = canvas centre |
+
+Sessions keep simulating. They orbit their project. Files and edges stay. The lattice is decoration under the live graph.
+
+---
+
+## 3. Goals
+
+1. **One mark language everywhere.** Same `hexPath` + harness wedges. Solid fill iff `isProjectGlyphActive`. Idle = hollow.
+2. **Unbounded lattice in graph space.** Negative col/row. Cells drawn for the current canvas camera (`glyphLatticeWindow`). Zoomed far out → occupied seats only (cap ~1800 paths).
+3. **Default seats are radial.** Origin first, then hex rings. Saved placements win.
+4. **Place/move on the canvas.** Drag a project in Lattice layout; snap to nearest hex; occupied cell swaps.
+5. **Pin to location.** Lattice seats *are* the force pins (`glyphGraphPins`). Entering Lattice checks `#cb-pin-grid` so Force ↔ Lattice is a morph, not a jump.
+6. **Left dock is the minimap of the same world.** Viewport rect tracks canvas zoom. Click-through pans `#canvas`, not a second board.
+7. **Mark also appears** on the project panel (hero) and landing field (`/graph#grid` → `setLayout('grid')`).
 
 Non-goals (this pass):
 
-- Opaque `KAARO_TOKENS.bg` underfill under solid wedges (let the silhouette breathe; solid fill already stops see-through).
+- Opaque `KAARO_TOKENS.bg` underfill under solid wedges.
 - Multi-device sync of placements (local only).
 
 ---
 
-## 3. Mark
+## 4. Mark
 
 | State | Fill | When |
 |---|---|---|
@@ -47,11 +63,11 @@ Non-goals (this pass):
 | Idle | Hollow hex, canvas fill + project-colour stroke | else |
 | No harness list | Hollow even if active | `harnesses` empty |
 
-Wedge geometry is unchanged (`harnessWedges`: 1 = solid hex, 2 = split, 3 = 120° fan, 4+ = equal-angle). Size on the **force graph** still follows `sizeNorm` (`tokens_total`). Size on the **board / minimap / landing** is the lattice radius (`r`), not consumption — identity marks are equal citizens on the grid.
+Wedge geometry is unchanged. Size on the **graph** still follows `sizeNorm`. Size on the **minimap / landing** is the lattice radius (`r`), not consumption.
 
 ---
 
-## 4. Lattice
+## 5. Lattice (graph space)
 
 Pointy-top hex packing. Odd rows shift by half a column.
 
@@ -62,132 +78,136 @@ x  = originX + col·dx + (row odd ? dx/2 : 0)
 y  = originY + row·dy
 ```
 
-Origin defaults to `(r, r)` so cell `(0,0)` is not clipped.
+On `#canvas`, origin is **canvas centre** and `r = GLYPH_GRAPH_R` (`NODE_RADII.PR_MAX * 2`, so a project glyph sits inside its cell). Cell `(0,0)` does not move when other projects are placed.
 
 | Function | Role |
 |---|---|
 | `glyphCellPosition(col, row, opts)` | cell → pixels (col/row may be negative) |
 | `snapToGlyphCell(x, y, opts)` | pixels → nearest cell; unbounded unless `cols`/`rows` passed |
 | `glyphSpiralCell(i)` / `firstAvailableRadial` | origin, then hex rings — default seats |
-| `glyphLatticeWindow({ x0,y0,x1,y1, r })` | cells covering the camera (infinite impression) |
+| `glyphLatticeWindow({ x0,y0,x1,y1, r })` | cells covering the camera |
 | `mergeGlyphPlacements(ids, saved)` | saved cells win; the rest take the next empty spiral cell |
 | `moveGlyphPlacement(placements, id, col, row)` | move, or **swap** if occupied |
-| `scaleGlyphPins(placements, { width, height })` | hex relatives → force-view `fx`/`fy` |
+| `glyphGraphConfig(W, H)` | `{ r, originX: W/2, originY: H/2 }` |
+| `glyphGraphPins(placements, { width, height })` | identity seats for `fx`/`fy` |
+| `graphRectToMinimap(rect, …)` | canvas camera → dock viewport rect |
+| `scaleGlyphPins` | kept (centroid-fit); **not** used for canvas pins |
 
-`glyphGrid(n)` remains the tight pack helper for tests. The board does **not** use it as the world.
+`glyphGrid(n)` remains the tight pack helper for tests.
 
 ---
 
-## 5. Board and minimap
+## 6. Layout and minimap
 
 ```
-┌─ #glyph-board (overlay, z 700) ──────────────────────────┐
-│ chrome: PROJECT GRID · drag/zoom/esc                     │
-│ SVG world: lattice (dim) + glyphs (solid/hollow) + labels│
-│ d3.zoom 0.25–4 · drag glyph → snap → persist             │
-└──────────────────────────────────────────────────────────┘
-        ▲ click-through / viewport
-┌─ #glyph-dock (minimap, z 720) ─┐
-│ GRID live/total  ⤢             │
-│ tiny lattice + glyphs          │
-│ orange viewport rect           │
-└────────────────────────────────┘
-        │
-        ▼ click glyph also opens #panel (z 740)
+#canvas  (same SVG, zoom.canvas + zoom.grid + zoom.minimap)
+  decorLayer   lattice hairlines (vector-effect: non-scaling-stroke)
+  edgeLayer    membership / file edges — live
+  nodeLayer    project hexes + sessions + files — live, simulating
+  labelLayer   project labels
+#timeline / #daw-widget / #pulse-ticker / #stats  unchanged
+┌─ #glyph-dock (minimap) ─┐
+│ GRID live/total  ⤢      │
+│ tiny lattice + glyphs   │
+│ orange viewport rect    │
+└─────────────────────────┘
 ```
 
-**Open:** `P`, dock `⤢`, landing hex → `/graph#grid`, `window.openGlyphBoard(pid?)`.
-**Close:** Esc, chrome ✕.
+**Enter Lattice:** `P`, layout bar **Lattice**, dock `⤢`, landing hex → `/graph#grid`. Checks pin-to-lattice, unchecks free layout, pins projects, draws hexes, keeps the simulation.
+
+**Leave:** `P` again, **Force**, or another layout. Lattice paths come off `decorLayer`. Pins stay if `#cb-pin-grid` is on.
+
 **Persist:** `localStorage['kaaro-glyph-board']` =
 
 ```json
 {
-  "placements": { "<canonical project id>": { "col": 2, "row": 1 } },
-  "config": { "cols": 12, "rows": 8 }
+  "placements": { "<canonical project id>": { "col": 2, "row": 1 } }
 }
 ```
 
-Config in the store overrides `glyphBoardConfig(n)` for cols/rows so a user's stretched board survives a reload. `r` on the board stays 22; the minimap always uses `MINI_R = 7` with the **same** cols/rows so click maps 1:1.
-
 **Click-through**
 
-| Minimap target | Board | Panel / graph |
+| Minimap target | Canvas | Panel |
 |---|---|---|
-| A project hex | Open (if needed) and pan to that cell | `showPanel` + `highlight` |
-| Empty lattice | Open and pan to that cell | — |
-| `⤢` / `P` | Toggle overlay | — |
-
-The dock stays above the overlay so the minimap remains usable while the board is expanded.
+| A project hex | Lattice layout + pan to that seat | `showPanel` + `highlight` |
+| Empty lattice | Lattice layout + pan to that cell | — |
+| `⤢` / `P` | Toggle Lattice ↔ Force | — |
 
 ---
 
-## 6. Other surfaces
+## 7. Other surfaces
 
 | Surface | Behaviour |
 |---|---|
-| Force graph nodes | Same active/idle fill; size still `sizeNorm`; layout unchanged |
+| Force graph nodes | Same active/idle fill; size still `sizeNorm`; optional pin-to-lattice |
+| Lattice layout | Same nodes, lattice under them, drag-snap projects |
 | Project panel | Hero glyph (`r = 28`) above the title |
-| Landing `/` | Field of all projects (sorted by id); click → `/graph#grid` |
-| DAW page | Dock + board hidden (`display: none !important`) |
+| Landing `/` | Field of all projects; click → `/graph#grid` |
+| DAW page | Dock hidden (`display: none !important`) |
 
 ---
 
-## 7. Files
+## 8. Files
 
 | File | Role |
 |---|---|
 | `experience/client-core.mjs` | Mark + lattice math (Node-tested). No DOM. |
-| `experience/client/20-glyph-board.js` | Board overlay, zoom, drag-place, minimap, hash `#grid` |
-| `experience/client/04-rendering.js` | Force-graph hex uses `isProjectGlyphActive` |
-| `experience/client/05-interaction.js` | Panel hero |
-| `experience/client/12-controls.js` | Shortcut `P` |
-| `experience/client/13-live-updates.js` | `refreshGlyphDock` after `updateGraph` |
-| `experience/pages/template.html` | `#glyph-board`, `#glyph-dock`, z-index |
+| `experience/client/20-glyph-board.js` | Lattice on `decorLayer`, minimap, persist, `glyphBoardPins` |
+| `experience/client/11-layout-manager.js` | `LAYOUT_HANDLERS.grid` |
+| `experience/client/02-canvas.js` | Named `zoom.canvas` so `zoom.grid` can coexist |
+| `experience/client/04-rendering.js` | `isSimLayout()` (force + grid) |
+| `experience/client/05-interaction.js` | Drag-snap in lattice; cluster toggle on sim layouts |
+| `experience/client/06-force-layout.js` | Pins when lattice *or* `#cb-pin-grid` |
+| `experience/client/12-controls.js` | Shortcut `P` = toggle lattice |
+| `experience/pages/template.html` | Lattice button, dock, no overlay |
 | `experience/pages/home.html` | Landing field |
-| `test/client-core.test.mjs` | snap/inverse, lattice, merge/swap, viewport, config, SVG |
+| `test/client-core.test.mjs` | snap/inverse, graph pins, minimap rect, shared controls |
 
-No `experience/` → `hooks/` imports. Placements key on **canonical project id** (the graph node id after RFC-project-glyphs unify).
+No `experience/` → `hooks/` imports. Placements key on **canonical project id**.
 
 ---
 
-## 8. Decisions
+## 9. Decisions
 
-1. **Grid ≠ force layout.** The board is an overlay identity canvas. Project nodes on `/graph` keep d3-force.
-2. **Solid only when active.** Idle hexes are the grid; live ones light up.
-3. **Spare cells are the feature.** `glyphBoardConfig` over-provisions so placement has somewhere to go.
+1. **Lattice is a layout.** Same canvas as Force. Overlay is gone.
+2. **Identity pins, not scale-to-fit.** Adding a project must not slide the others.
+3. **Solid only when active.** Idle hexes are the grid; live ones light up.
 4. **Swap, don't stack.** Two projects do not share a cell.
-5. **Minimap is the camera, not a second pack.** Same `placements` and `cols`/`rows`.
-6. **No underfill this pass.** Solid wedges at opacity 1; no extra `KAARO_TOKENS.bg` disk under them.
+5. **Minimap is the camera, not a second pack.** Same `placements`; viewport is the canvas zoom.
+6. **Simulation stays on.** Sessions, pulses, DAW, timeline are the live view.
+7. **No underfill this pass.** Solid wedges at opacity 1.
 
 ---
 
-## 9. Shipped vs next
+## 10. Shipped vs next
 
 **Shipped (this RFC, on `kaaro/fix/incremental-raw-ids-parity`):**
 
 - [x] Solid / hollow mark
-- [x] Configurable lattice math + tests
-- [x] Zoomable board, drag-to-place, localStorage
-- [x] Dock as minimap + click-through
+- [x] Unbounded lattice math + radial default seats
+- [x] Lattice as `LAYOUT_HANDLERS.grid` on `#canvas`
+- [x] Drag-to-place on the graph, localStorage
+- [x] Dock as minimap of the same world
+- [x] Pin-to-lattice = identity seats (Force ↔ Lattice morph)
 - [x] Panel hero, landing field, `P` / `#grid`
 
 **Next (not this PR):**
 
-1. **Board chrome for cols/rows/r.** The lattice is already `{ cols, rows, r }`; only the defaults auto-size. A small DISPLAY control (or board chrome sliders) would make “really configurable” visible.
-2. **Underfill.** If solid wedges still feel see-through at seams, paint `KAARO_TOKENS.bg` `hexPath(r)` under the wedges. Deferred on purpose.
-3. **Tighter “active”.** Today `recencyLevel ≥ 1` is two days. Mission Control “active” is ~60s. Could require `recencyLevel ≥ 2` or live pulses.
-4. **Deep-link a cell.** `/graph#grid&pid=…` already pans if `openGlyphBoard(pid)` runs; landing could pass the id.
-5. **Force pin is opt-in** (`#cb-pin-grid`). Relatives from the hex board scale into `/graph`; it does not replace d3-force for sessions/files.
+1. Underfill `KAARO_TOKENS.bg` if solid wedges still feel see-through at seams.
+2. Tighter “active” (Mission Control ~60s vs recencyLevel ≥ 1).
+3. Deep-link `/graph#grid&pid=…`.
+4. Coarser lattice when zoomed far out (draw rings instead of dropping to occupied-only).
 
 ---
 
-## 10. Success
+## 11. Success
 
 On a live `/graph` after `node serve.mjs`:
 
-- Left dock shows a **lattice** (empty cells visible), not a 3-wide strip, with `live/total`.
-- `P` or `⤢` opens a full hex canvas; scroll zooms; drag a project; reload keeps the seat.
-- Click a hex on the dock while the board is open pans the board; the right panel still opens.
-- Idle projects are hollow; a project touched in the last two days is solid harness colour.
+- Force → Lattice: projects slide onto hex seats (or stay, if already pinned); sessions keep orbiting; DAW / timeline / ticker still visible.
+- Lattice → Force with pin on: lattice hairlines leave; seats do not jump.
+- Drag a project on the lattice; it snaps; reload keeps the seat; Force pin uses the same seat.
+- Left dock shows a lattice with `live/total`; click pans the **canvas**.
+- Idle projects hollow; last-two-days solid harness colour.
 - Landing hexes go to `/graph#grid`.
 - `node --test` green.

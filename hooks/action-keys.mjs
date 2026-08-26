@@ -15,6 +15,18 @@ export const TOOL_ACTION_KEYS = new Set([
   'bash_git', 'bash_run', 'bash_other', 'web', 'other',
 ]);
 
+const BASH_ALIASES = new Set([
+  'bash', 'powershell', 'shell', 'run_command',
+  'runinterminal', 'run_in_terminal',
+  'run_terminal_command', // grok
+  'shell_command',        // command-code
+]);
+
+/** Case-insensitive: is this raw tool name a shell? Single list for keys + reducers. */
+export function isBashToolName(name) {
+  return BASH_ALIASES.has((name || '').toLowerCase().trim());
+}
+
 /**
  * Translate a raw harness tool name + optional bash category into a canonical
  * TOOL_ACTION_KEYS value. Case-insensitive. Returns 'other' for unknowns.
@@ -29,13 +41,13 @@ export function toolNameToKey(name, category = null) {
   if (['edit', 'replace_file_content', 'search_replace',
        'strreplace', 'editnotebook', 'editfile', 'replacestring',
        'applypatch', 'insert_edit_into_file',
-       'replace_string_in_file', 'apply_patch'].includes(t))                  return 'edit';
+       'replace_string_in_file', 'apply_patch',
+       'multi_replace_file_content'].includes(t))                             return 'edit';
   if (['grep', 'glob', 'grep_search', 'list_dir', 'findtextinfiles',
        'filesearch', 'listdirectory', 'codebase', 'file_search',
-       'semantic_search'].includes(t))                                        return 'grep_glob';
-  if (['agent', 'task'].includes(t))                                          return 'agent';
-  if (['bash', 'powershell', 'shell', 'run_command', 'runinterminal',
-       'run_in_terminal'].includes(t)) {
+       'semantic_search', 'findfiles', 'searchcodebase'].includes(t))         return 'grep_glob';
+  if (['agent', 'task', 'spawn_subagent'].includes(t))                        return 'agent';
+  if (isBashToolName(t)) {
     if (category === 'git')                                                   return 'bash_git';
     if (['npm', 'npx', 'node', 'python'].includes(category))                 return 'bash_run';
     return 'bash_other';

@@ -1,13 +1,17 @@
 import { toolNameToKey } from './action-keys.mjs';
+import { pulseDisposition } from './pulse-map.mjs';
 
 /**
- * lib/pulse-transformer.mjs — NormalizedRecord[] → SSE pulse objects
+ * hooks/pulse-transformer.mjs — NormalizedRecord[] → SSE pulse objects
  *
- * Replaces lib/pulse-adapters.mjs. Every NR emits ≥1 pulse.
- * Unknown or unmapped kinds fall through to the 'unknown' catch-all.
+ * Every NR emits ≥1 pulse. Disposition (sonic / silent / unknown) comes from
+ * hooks/pulse-map.mjs. This file only builds payload.
  *
  * Key derivation (read/write/bash_git/…) is done HERE via toolNameToKey —
  * never in adapters. Adapters are sonic-unaware; they provide nr.tool + nr.category.
+ *
+ * unknown is a coverage hole (unknown_record, unclassified block_type, or a
+ * string that is not a RECORD_KIND). Known NRs with no live sonic emit silent.
  *
  * @param {object[]} nrRecords     — NormalizedRecord[]
  * @param {object}   ctx           — { session_id, slug, project_label, harness }
@@ -23,119 +27,54 @@ export function normRecordsToPulses(nrRecords, ctx, capabilities = {}) {
   return pulses;
 }
 
-function base(ctx, ts) {
+function base(ctx, ts, nr) {
   return {
     session_id:    ctx.session_id,
     slug:          ctx.slug,
     harness:       ctx.harness,
     project:       ctx.project_label,
     ts,
+    nr_kind:       nr.kind,
   };
 }
 
 function transformRecord(nr, ctx, capabilities) {
   const ts = nr.ts ?? null;
+  const disp = pulseDisposition(nr, capabilities);
+  const env = base(ctx, ts, nr);
 
-  switch (nr.kind) {
+  if (disp.event === 'silent') {
+    const data = { ...env, reason: disp.reason };
+    if (nr.block_type != null) data.block_type = nr.block_type;
+    return { event: 'silent', data };
+  }
 
-    case 'tool_use': {
+  if (disp.event === 'unknown') {
+    const data = { ...env };
+    if (nr.raw_type != null) data.raw_type = nr.raw_type;
+    if (nr.block_type != null) data.block_type = nr.block_type;
+    return { event: 'unknown', data };
+  }
+
+  switch (disp.event) {
+
+    case 'tool_call': {
       const key   = toolNameToKey(nr.tool, nr.category);
       const where = nr.input?.file_path || nr.input?.path || null;
       const why   = nr.input?.command || nr.input?.description || null;
       return {
         event: 'tool_call',
-        data: { ...base(ctx, ts), tool: nr.tool, key, where, why, category: key },
+        data: { ...env, tool: nr.tool, key, where, why, category: key },
       };
     }
 
     case 'tokens': {
-      const t = nr.tokens || {};
-      return {
-        event: 'tokens',
-        data: {
-          ...base(ctx, ts),
-          input:        t.input        || 0,
-          output:       t.output       || 0,
-          cache_create: t.cache_create || 0,
-          cache_read:   t.cache_read   || 0,
-        },
-      };
-    }
-
-    case 'content_block': {
-      if (nr.block_type === 'text' && nr.text) {
-        const trimmed = nr.text.trim();
-        const words   = trimmed ? trimmed.split(/\s+/) : [];
-        if (words.length >= 3) {
-          return {
-            event: 'words',
-            data: { ...base(ctx, ts), preview: trimmed.slice(0, 120), word_count: words.length },
-          };
-        }
-        return {
-          event: 'chirp',
-          data: { ...base(ctx, ts), preview: trimmed.slice(0, 120), word_count: words.length },
-        };
-      }
-      if (nr.block_type === 'thinking') {
-        return { event: 'thinking', data: { ...base(ctx, ts), nr_kind: nr.kind, block_type: 'thinking' } };
-      }
-      return { event: 'unknown', data: { ...base(ctx, ts), nr_kind: nr.kind, block_type: nr.block_type } };
-    }
-
-    case 'user_turn': {
-      return {
-        event: 'human_turn',
-        data: { ...base(ctx, ts), text: nr.text || null },
-      };
-    }
-
-    case 'context_reset': {
-      return { event: 'compact', data: base(ctx, ts) };
-    }
-
-    case 'permission_mode': {
-      return { event: 'permission', data: { ...base(ctx, ts), mode: nr.mode } };
-    }
-
-    case 'mode_shift': {
-      return { event: 'mode_shift', data: { ...base(ctx, ts), mode: nr.mode || null } };
-    }
-
-    case 'attachment': {
-      return { event: 'attachment', data: { ...base(ctx, ts), subtype: nr.subtype || null } };
-    }
-
-    case 'scaffold': {
-      return {
-        event: 'scaffold',
-        data: { ...base(ctx, ts), content_preview: nr.content_preview || null },
-      };
-    }
-
-    case 'tool_result': {
-      const evt = nr.error ? 'tool_error' : 'tool_result';
-      return { event: evt, data: { ...base(ctx, ts), tool: nr.tool } };
-    }
-
-    case 'api_error': {
-      return {
-        event: 'api_error',
-        data: { ...base(ctx, ts), message: nr.message, code: nr.code ?? null },
-      };
-    }
-
-    case 'unknown_record': {
-      return { event: 'unknown', data: { ...base(ctx, ts), raw_type: nr.raw_type } };
-    }
-
-    case 'assistant_turn': {
-      if (capabilities.tokens === false) {
+      if (disp.synthetic) {
         const contentLength = nr.content_length || 0;
         return {
           event: 'tokens',
           data: {
-            ...base(ctx, ts),
+            ...env,
             synthetic: true,
             input: 0,
             output: Math.round(contentLength / 4),
@@ -144,11 +83,88 @@ function transformRecord(nr, ctx, capabilities) {
           },
         };
       }
-      return { event: 'unknown', data: { ...base(ctx, ts), nr_kind: nr.kind } };
+      const t = nr.tokens || {};
+      return {
+        event: 'tokens',
+        data: {
+          ...env,
+          input:        t.input        || 0,
+          output:       t.output       || 0,
+          cache_create: t.cache_create || 0,
+          cache_read:   t.cache_read   || 0,
+        },
+      };
+    }
+
+    case 'words': {
+      const trimmed = nr.text.trim();
+      const words   = trimmed ? trimmed.split(/\s+/) : [];
+      return {
+        event: 'words',
+        data: { ...env, preview: trimmed.slice(0, 120), word_count: words.length },
+      };
+    }
+
+    case 'chirp': {
+      const trimmed = nr.text.trim();
+      const words   = trimmed ? trimmed.split(/\s+/) : [];
+      return {
+        event: 'chirp',
+        data: { ...env, preview: trimmed.slice(0, 120), word_count: words.length },
+      };
+    }
+
+    case 'thinking': {
+      return { event: 'thinking', data: { ...env, block_type: 'thinking' } };
+    }
+
+    case 'human_turn': {
+      return {
+        event: 'human_turn',
+        data: { ...env, text: nr.text || null },
+      };
+    }
+
+    case 'compact': {
+      return { event: 'compact', data: env };
+    }
+
+    case 'permission': {
+      return { event: 'permission', data: { ...env, mode: nr.mode } };
+    }
+
+    case 'mode_shift': {
+      return { event: 'mode_shift', data: { ...env, mode: nr.mode || null } };
+    }
+
+    case 'attachment': {
+      return { event: 'attachment', data: { ...env, subtype: nr.subtype || null } };
+    }
+
+    case 'scaffold': {
+      return {
+        event: 'scaffold',
+        data: { ...env, content_preview: nr.content_preview || null },
+      };
+    }
+
+    case 'tool_result': {
+      return { event: 'tool_result', data: { ...env, tool: nr.tool } };
+    }
+
+    case 'tool_error': {
+      return { event: 'tool_error', data: { ...env, tool: nr.tool } };
+    }
+
+    case 'api_error': {
+      return {
+        event: 'api_error',
+        data: { ...env, message: nr.message, code: nr.code ?? null },
+      };
     }
 
     default: {
-      return { event: 'unknown', data: { ...base(ctx, ts), nr_kind: nr.kind } };
+      return { event: 'unknown', data: env };
     }
   }
 }

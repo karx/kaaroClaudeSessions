@@ -24,6 +24,7 @@ import { buildGraph } from './experience/graph-pipeline.mjs';
 import { validateClusterOverrides } from './experience/session-clusters.mjs';
 import { TOKENS, tokensToCss } from './experience/design-tokens.mjs';
 import { HARNESS_REGISTRY } from './hooks/registry.mjs';
+import { buildKindMapPageHtml } from './surface/kind-map-build.mjs';
 
 const CWD = path.dirname(fileURLToPath(import.meta.url));
 
@@ -91,6 +92,19 @@ function buildStaticPage(templateName, outName, label) {
 
 function buildNow()  { buildStaticPage('now.html',  'now.html',  'Mission Control'); }
 function buildHome() { buildStaticPage('home.html', 'home.html', 'Landing'); }
+
+function buildKindMapPage() {
+  const html = buildKindMapPageHtml({ live: false });
+  const outPath = path.join(CWD, 'kind-map.html');
+  fs.writeFileSync(outPath, html, 'utf8');
+  console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB) — kind map`);
+  const publicDir = path.join(CWD, 'public');
+  if (fs.existsSync(publicDir)) {
+    const pub = path.join(publicDir, 'kind-map.html');
+    fs.writeFileSync(pub, html, 'utf8');
+    console.log(`Written: ${pub}`);
+  }
+}
 
 // ── DAW Builder (dedicated live-pulse pure audio profile builder) ────────────
 function buildDaw() {
@@ -219,6 +233,7 @@ function run() {
   buildDaw();
   buildNow();
   buildHome();
+  buildKindMapPage();
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) run();

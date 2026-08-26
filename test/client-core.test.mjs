@@ -633,6 +633,17 @@ test('laneForEvent — routes by pulse family', async () => {
   const { laneForEvent } = await import('../experience/client-core.mjs');
   assert.equal(laneForEvent({ family: 'ai' }).id, 'ai');
   assert.equal(laneForEvent({ family: 'nope' }), null);
+  assert.equal(laneForEvent({ family: 'context', type: 'thinking' }).id, 'context');
+});
+
+test('DAW context lane — thinking is a visible pad, not a word_count sliver', async () => {
+  const { DAW_FAMILY_LANES } = await import('../experience/client-core.mjs');
+  const ctx = DAW_FAMILY_LANES.find(l => l.id === 'context');
+  assert.ok(ctx.toolColors.thinking, 'thinking has a lane color');
+  assert.ok(ctx.blockH({ type: 'thinking' }) >= 0.4,
+    'thinking pad must be visible on the context lane');
+  assert.ok(ctx.blockH({ type: 'thinking' }) < ctx.blockH({ type: 'words', word_count: 80 }),
+    'thinking stays under a full words block');
 });
 
 test('evTimeX — right-anchored time axis with scroll offset', async () => {
@@ -802,6 +813,20 @@ test('pulseTickerEntry — glyphs, text, and roles per cognition event', async (
   assert.equal(aerr.role, 'err');
 
   assert.equal(pulseTickerEntry('chirp', {}), null, 'chirps stay out of the ticker');
+  assert.equal(pulseTickerEntry('thinking', { slug: 'abc12345' }), null,
+    'thinking is a pad on the ring, not a ticker line');
+});
+
+test('LIVE_COGNITION_EVENTS — thinking is live; unknown/silent/tool_result stay wire-only', async () => {
+  const { LIVE_COGNITION_EVENTS, LIVE_PLAYPULSE_EVENTS } = await import('../experience/client-core.mjs');
+  assert.ok(LIVE_COGNITION_EVENTS.includes('thinking'));
+  for (const skip of ['unknown', 'silent', 'tool_result']) {
+    assert.ok(!LIVE_COGNITION_EVENTS.includes(skip), skip + ' must not be subscribed');
+    assert.ok(!LIVE_PLAYPULSE_EVENTS.includes(skip), skip + ' must not reach playPulse');
+  }
+  for (const ev of ['tool_call', 'tokens', 'words', 'thinking']) {
+    assert.ok(LIVE_PLAYPULSE_EVENTS.includes(ev), ev + ' must reach playPulse');
+  }
 });
 
 test('blockGeom — cognition events get distinct canvas geometry', () => {
@@ -813,6 +838,7 @@ test('blockGeom — cognition events get distinct canvas geometry', () => {
   assert.deepEqual(blockGeom({ type: 'permission' }, trackH), { h: 12, yOff: 2 });
   assert.deepEqual(blockGeom({ type: 'mode_shift' }, trackH), { h: 12, yOff: 2 });
   assert.deepEqual(blockGeom({ type: 'chirp' }, trackH),      { h: 5,  yOff: 40 });
+  assert.deepEqual(blockGeom({ type: 'thinking' }, trackH),   { h: 16, yOff: 20 }, 'thinking = mid-track pad');
 });
 
 // ── E5: DAW session legend + context pressure ─────────────────────────────────

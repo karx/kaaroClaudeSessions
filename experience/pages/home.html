@@ -137,6 +137,13 @@
       <div class="t-desc">Hear writes, tests, agents, failures — then shape the mix.</div>
       <div class="t-stat" id="stat-daw">awaiting first pulse</div>
     </a>
+    <a class="tile" href="/mapping" id="tile-map">
+      <span class="t-key">M</span>
+      <span class="t-sym">▦</span>
+      <div class="t-name">Map · Coverage</div>
+      <div class="t-desc">Which harness emits which kind — a miss is a hole.</div>
+      <div class="t-stat" id="stat-map"></div>
+    </a>
   </div>
   <div id="glyph-field" hidden>
     <div class="hd">projects</div>
@@ -256,7 +263,29 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
 
   fetch('/api/active').then(r => r.json()).then(d => setNowStat(d)).catch(() => {});
 
-  const NAV = 'G history · N live · D sonic';
+  fetch('/api/kind-map').then(r => r.json()).then(d => {
+    const nH = (d.harnesses || []).length;
+    let miss = 0, cells = 0;
+    function walk(row) {
+      if (!row || row.role === 'catchall' || row.role === 'alarm') return;
+      (row.emit || []).forEach((v, i) => {
+        if (row.expect && row.expect[i] === 0) return;
+        cells++;
+        if (!v) miss++;
+      });
+    }
+    for (const k of d.kinds || []) {
+      if (k.routes && k.routes.length) {
+        for (const rt of k.routes) walk(rt);
+      } else {
+        walk(k);
+      }
+    }
+    const el = document.getElementById('stat-map');
+    if (el) el.textContent = nH + ' harnesses · ' + miss + ' hole / ' + cells;
+  }).catch(() => {});
+
+  const NAV = 'G history · N live · D sonic · M map';
   let chromeLive = false;
   function revealChrome() {
     if (chromeLive) return;
@@ -287,6 +316,7 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     if (k === 'g') location.href = '/graph';
     if (k === 'n') location.href = '/now';
     if (k === 'd') location.href = '/daw';
+    if (k === 'm') location.href = '/mapping';
   });
 }());
 </script>

@@ -20,14 +20,14 @@ export const AUDIO_PRESETS = {
         bash_git:'snare', bash_run:'kick', bash_other:'hat',
         grep_glob:'bit', agent:'bell', other:'harp', web:'bell',
         // cognitive / stream
-        tokens:'flute', words:'bell', chirp:'woodblock',
-        human_turn:'pad', attachment:'click', mode_shift:'chime',
-        thinking:'pad',
+        tokens:'flute', words:'bell', chirp:'pling',
+        human_turn:'bell', attachment:'pling', mode_shift:'bell',
+        thinking:'bell',
         // structural
-        compact:'sweep', permission:'tick', scaffold:'woodblock',
+        compact:'kick', permission:'hat', scaffold:'pling',
         tool_error:'buzz', tool_result:'harp', api_error:'buzz',
-        // catch-all
-        unknown:'tick',
+        // rest + catch-all
+        silent:'off', unknown:'hat',
       },
     },
     mappings: [
@@ -75,13 +75,7 @@ export const AUDIO_PRESETS = {
       { match: { key:'tool_result'}, set: { volMult:0.35, pan: 0.05, send:0.03, brightness: 5000 } },
       // Unknown: minimal tick — diagnostic signal, not music; low vol to stay audible without cluttering
       { match: { key:'unknown'    }, set: { volMult:0.20, pan: 0.00, send:0.00, brightness: 3000 } },
-      // Silence structural NR envelope noise — these are JSONL parsing artifacts, not audio signals
-      // assistant_turn: the turn wrapper NR; actual content comes from child tokens/words/tool_call NRs
-      // content_block: pre-tool marker (block_type=tool_use); the tool_call NR that follows is the signal
-      // session_meta: ai-title, last-prompt, file-history-snapshot — metadata, never user-visible events
-      { match: { type:'unknown', nr_kind:'assistant_turn'  }, set: { instrument:'off', volMult:0.00 } },
-      { match: { type:'unknown', nr_kind:'content_block'   }, set: { instrument:'off', volMult:0.00 } },
-      { match: { type:'unknown', nr_kind:'session_meta'    }, set: { instrument:'off', volMult:0.00 } },
+      { match: { key:'silent'     }, set: { instrument:'off', volMult:0.00 } },
     ],
   },
 
@@ -97,14 +91,14 @@ export const AUDIO_PRESETS = {
         bash_git:'snare', bash_run:'kick', bash_other:'hat',
         grep_glob:'bit', agent:'bell', other:'bit', web:'bell',
         // cognitive / stream
-        tokens:'flute', words:'bell', chirp:'woodblock',
-        human_turn:'pad', attachment:'click', mode_shift:'chime',
-        thinking:'pad',
+        tokens:'flute', words:'bell', chirp:'pling',
+        human_turn:'bell', attachment:'pling', mode_shift:'bell',
+        thinking:'bell',
         // structural
-        compact:'sweep', permission:'tick', scaffold:'woodblock',
+        compact:'kick', permission:'hat', scaffold:'pling',
         tool_error:'buzz', tool_result:'harp', api_error:'buzz',
-        // catch-all
-        unknown:'tick',
+        // rest + catch-all
+        silent:'off', unknown:'hat',
       },
     },
     mappings: [
@@ -144,10 +138,7 @@ export const AUDIO_PRESETS = {
       { match: { key:'api_error'  }, set: { volMult:1.50, pan: 0.00, send:0.12, brightness:  800, octave:-2 } },
       { match: { key:'tool_result'}, set: { volMult:0.40, pan: 0.05, send:0.03, brightness: 5000 } },
       { match: { key:'unknown'    }, set: { volMult:0.20, pan: 0.00, send:0.00, brightness: 3000 } },
-      // Silence structural NR envelope noise
-      { match: { type:'unknown', nr_kind:'assistant_turn'  }, set: { instrument:'off', volMult:0.00 } },
-      { match: { type:'unknown', nr_kind:'content_block'   }, set: { instrument:'off', volMult:0.00 } },
-      { match: { type:'unknown', nr_kind:'session_meta'    }, set: { instrument:'off', volMult:0.00 } },
+      { match: { key:'silent'     }, set: { instrument:'off', volMult:0.00 } },
     ],
   },
 
@@ -163,14 +154,14 @@ export const AUDIO_PRESETS = {
         bash_git:'snare', bash_run:'kick', bash_other:'hat',
         grep_glob:'bit', agent:'bell', other:'harp', web:'bell',
         // cognitive / stream
-        tokens:'bass', words:'bell', chirp:'woodblock',
-        human_turn:'pad', attachment:'click', mode_shift:'chime',
-        thinking:'pad',
+        tokens:'bass', words:'bell', chirp:'pling',
+        human_turn:'bell', attachment:'pling', mode_shift:'bell',
+        thinking:'bell',
         // structural
-        compact:'sweep', permission:'tick', scaffold:'woodblock',
+        compact:'kick', permission:'hat', scaffold:'pling',
         tool_error:'buzz', tool_result:'harp', api_error:'buzz',
-        // catch-all
-        unknown:'tick',
+        // rest + catch-all
+        silent:'off', unknown:'hat',
       },
     },
     mappings: [
@@ -209,10 +200,7 @@ export const AUDIO_PRESETS = {
       { match: { key:'api_error'  }, set: { volMult:1.30, pan: 0.00, send:0.10, brightness:  900, octave:-2 } },
       { match: { key:'tool_result'}, set: { volMult:0.35, pan: 0.05, send:0.03, brightness: 5000 } },
       { match: { key:'unknown'    }, set: { volMult:0.15, pan: 0.00, send:0.00, brightness: 3000 } },
-      // Silence structural NR envelope noise
-      { match: { type:'unknown', nr_kind:'assistant_turn'  }, set: { instrument:'off', volMult:0.00 } },
-      { match: { type:'unknown', nr_kind:'content_block'   }, set: { instrument:'off', volMult:0.00 } },
-      { match: { type:'unknown', nr_kind:'session_meta'    }, set: { instrument:'off', volMult:0.00 } },
+      { match: { key:'silent'     }, set: { instrument:'off', volMult:0.00 } },
     ],
   },
 };

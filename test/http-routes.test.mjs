@@ -105,6 +105,54 @@ test('GET /api/signals — empty payload (200) when file absent', async () => {
   });
 });
 
+test('GET /api/kind-map — generated payload, no adapter leak', async () => {
+  await withServer(makeDeps(), async (base) => {
+    const r = await fetch(`${base}/api/kind-map`);
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.ok(Array.isArray(body.harnesses) && body.harnesses.length >= 1);
+    assert.ok(Array.isArray(body.kinds) && body.kinds.length >= 1);
+    assert.equal(body.harnesses[0].adapter, undefined);
+    assert.ok(body.kinds.every(k => Array.isArray(k.emit)));
+    assert.ok(Array.isArray(body.unknowns));
+  });
+});
+
+test('GET /api/kind-map — uses kindMapStore snapshot when provided', async () => {
+  const kindMapStore = {
+    snapshot: () => ({ generated_at: 'live', harnesses: [], kinds: [{ id: 'x', emit: [] }], tools: [] }),
+  };
+  await withServer(makeDeps({ kindMapStore }), async (base) => {
+    const body = await (await fetch(`${base}/api/kind-map`)).json();
+    assert.equal(body.generated_at, 'live');
+    assert.equal(body.kinds[0].id, 'x');
+  });
+});
+
+test('GET /mapping — generated kind-map widget', async () => {
+  await withServer(makeDeps(), async (base) => {
+    const r = await fetch(`${base}/mapping`);
+    assert.equal(r.status, 200);
+    const html = await r.text();
+    assert.ok(html.includes('k-kind-map'));
+    assert.ok(html.includes('Kind × harness') || html.includes('kind'));
+    assert.ok(html.includes('?partial=1'));
+    assert.ok(!html.includes('function paint('));
+    assert.ok(html.includes('EventSource'));
+  });
+});
+
+test('GET /mapping?partial=1 — snippet only, same widget', async () => {
+  await withServer(makeDeps(), async (base) => {
+    const r = await fetch(`${base}/mapping?partial=1`);
+    assert.equal(r.status, 200);
+    const html = await r.text();
+    assert.ok(html.includes('k-kind-map'));
+    assert.ok(!html.includes('<!DOCTYPE html>'));
+    assert.ok(!html.includes('EventSource'));
+  });
+});
+
 test('GET /api/harnesses — registry descriptors as the UI source of truth', async () => {
   await withServer(makeDeps(), async (base) => {
     const r = await fetch(`${base}/api/harnesses`);

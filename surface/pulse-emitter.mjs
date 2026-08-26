@@ -20,12 +20,13 @@ import { MAX_JSONL_BYTES } from '../hooks/jsonl-io.mjs';
  * @param {object} deps
  * @param {{ notify: (event: string, data?: string) => void }} deps.hub
  * @param {object} deps.activeState — store from createActiveState()
+ * @param {{ applyPulse: (pulse: object) => void }} [deps.kindMap] — live kind-map overlay
  * @param {number} [deps.nowThrottleMs] — trailing-edge `now` broadcast window
  * @param {number} [deps.maxBytes] — shared OOM-guard cap for tail/whole-file
  *   reads (default MAX_JSONL_BYTES) + test seam
  * @returns {{ tailAndPulse: (filePath: string, ctx: object) => void }}
  */
-export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000, maxBytes = MAX_JSONL_BYTES }) {
+export function createPulseEmitter({ hub, activeState, kindMap = null, nowThrottleMs = 1000, maxBytes = MAX_JSONL_BYTES }) {
   const offsetMap = new Map(); // filePath → byte offset (jsonl) or size:mtime sig (json)
   let nowTimer = null;
 
@@ -47,6 +48,7 @@ export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000, max
     const nowMs = Date.now();
     for (const pulse of normRecordsToPulses(nrs, ctx, harness.capabilities)) {
       applyPulse(activeState, pulse, nowMs);
+      kindMap?.applyPulse(pulse);
       hub.notify(pulse.event, JSON.stringify(pulse.data));
     }
     scheduleNowBroadcast();

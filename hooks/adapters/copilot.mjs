@@ -74,6 +74,14 @@ function responseItemToNormalized(item) {
     }];
   }
 
+  if (item.kind === 'markdownContent') {
+    const text = item.content?.value ?? item.value ?? '';
+    return [{
+      kind: 'content_block', harness: HARNESS, ts: null,
+      block_type: 'text', text: String(text),
+    }];
+  }
+
   if (item.kind === undefined && typeof item.value === 'string') { // IMarkdownString
     return [{
       kind: 'content_block', harness: HARNESS, ts: null,

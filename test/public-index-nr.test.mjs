@@ -67,6 +67,10 @@ test('nr-seed — dedicated pulse names match the transformer', () => {
   assert.equal(byId.unknown_record, 'unknown');
   assert.equal(byId.tool_result, 'tool_result');
   assert.equal(byId.content_block, 'words');
+  assert.equal(byId.assistant_turn, 'silent');
+  assert.equal(byId.session_meta, 'silent');
+  assert.equal(byId.skill_invoke, 'silent');
+  assert.equal(byId.branch_change, 'silent');
 });
 
 test('nr-seed — tape kinds exist in the contract and labels are the kind id', () => {

@@ -36,7 +36,7 @@ override via `mappings[]` rules.
 | `scaffold` | SYSTEM | woodblock | 0.00 | 0.35 | 2500 | −1 | System injection |
 | `tool_result` | SYSTEM | harp | +0.05 | 0.40 | 5000 | 0 | Tool success |
 | `tool_error` | SYSTEM | buzz | −0.10 | 0.90 | 1500 | −1 | Tool failure |
-| `thinking` | CONTEXT | pad | −0.10 | 0.25 | 4000 | −1 | Extended thinking — deliberation before acting |
+| `thinking` | CONTEXT | bell | −0.10 | 0.25 | 4000 | −1 | Extended thinking — deliberation before acting |
 | `unknown` | META | tick | 0.00 | 0.25 | 3000 | 0 | Catch-all |
 
 ### Brightness encoding (special rule for `tokens`)
@@ -148,20 +148,16 @@ Cap at 1.20. A 500-char prompt = full volume. Single word = 0.50.
 | Source | Count (approx) | Resolution |
 |---|---|---|
 | `branch_change` dedup (was emitting on every user record) | ~400 | CC adapter now deduplicates — only emits on actual change |
-| `assistant_turn` NR (structural wrapper) | ~350 | Silenced via `nr_kind` preset rule |
-| `content_block/tool_use` (pre-tool marker) | ~350 | Silenced via `nr_kind` preset rule |
-| `content_block/thinking` | ~110 | Mapped to new `thinking` event type (soft pad) |
-| `session_meta` (ai-title, last-prompt, etc.) | ~230 | Silenced via `nr_kind` preset rule |
-| Actual `unknown_record` (unrecognized types) | ~4 | Left as tick — diagnostic signal |
+| `assistant_turn` NR (structural wrapper) | ~350 | Pulse `silent` (`reason: envelope`) — 2026-08-26 |
+| `content_block/tool_use` (pre-tool marker) | ~350 | Pulse `silent` (`reason: duplicate`) |
+| `content_block/thinking` | ~110 | Mapped to `thinking` event type (soft pad) |
+| `session_meta` / `branch_change` / `skill_invoke` | ~230 | Pulse `silent` (`reason: snapshot`) |
+| Actual `unknown_record` (unrecognized types) | ~4 | Left as `unknown` tick — diagnostic signal |
 
 The remaining audible unknowns (`unknown_record` from unrecognized JSONL types) are
 intentional — they surface coverage gaps and are useful for debugging.
 
-`ruleMatches()` in `lib/audio-sim.mjs` supports `nr_kind` as a match key:
-
-```js
-{ match: { type: 'unknown', nr_kind: 'assistant_turn' }, set: { instrument: 'off', volMult: 0.00 } },
-```
+Disposition is the table in `hooks/pulse-map.mjs`, not preset `nr_kind` off-rules. `ruleMatches` still supports `nr_kind` for real profile overrides.
 
 ---
 

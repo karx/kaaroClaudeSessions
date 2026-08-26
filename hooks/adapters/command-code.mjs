@@ -96,7 +96,7 @@ export function recordsToNormalized(records) {
       for (const block of rec.content) {
         const bt = block.type || 'unknown';
         // reasoning → thinking so trace-tree counts has_thinking / thinking_count
-        const blockType = bt === 'reasoning' ? 'thinking' : bt;
+        const blockType = bt === 'reasoning' ? 'thinking' : bt === 'tool-call' ? 'tool_use' : bt;
         const cbNR = { kind: 'content_block', harness: HARNESS, ts, block_type: blockType };
         if (bt === 'text') cbNR.text = block.text;
         if (bt === 'reasoning' && block.text) cbNR.text = block.text;

@@ -26,6 +26,8 @@ import { createHub } from './surface/sse-hub.mjs';
 import { createPulseEmitter } from './surface/pulse-emitter.mjs';
 import { createRebuilder } from './surface/rebuild-orchestrator.mjs';
 import { createRequestHandler } from './surface/http-routes.mjs';
+import { createKindMapStore } from './surface/kind-map-store.mjs';
+import { buildKindMap } from './surface/kind-map-build.mjs';
 import { createTraceService } from './surface/trace-service.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
@@ -44,7 +46,10 @@ const hub = createHub();
 // Mission Control active-session state (/api/active + SSE `now`) + pulses.
 
 const activeState = createActiveState();
-const { tailAndPulse } = createPulseEmitter({ hub, activeState });
+const kindMapStore = createKindMapStore({
+  buildBaseline: () => buildKindMap({ local: true }),
+});
+const { tailAndPulse } = createPulseEmitter({ hub, activeState, kindMap: kindMapStore });
 
 // ── Rebuild pipeline ──────────────────────────────────────────────────────────
 
@@ -130,6 +135,7 @@ const server = http.createServer(createRequestHandler({
   },
   resolveSessionFile,
   buildTrace,
+  kindMapStore,
 }));
 
 // ── Start ─────────────────────────────────────────────────────────────────────

@@ -19,6 +19,8 @@ test('reasoning blocks map to content_block thinking (not raw reasoning)', () =>
   const blocks = nrs.filter(r => r.kind === 'content_block');
   assert.ok(blocks.some(b => b.block_type === 'thinking'), 'reasoning → thinking');
   assert.ok(!blocks.some(b => b.block_type === 'reasoning'), 'no raw reasoning block_type');
+  assert.ok(blocks.some(b => b.block_type === 'tool_use'), 'tool-call → tool_use (duplicate of tool_use NR)');
+  assert.ok(!blocks.some(b => b.block_type === 'tool-call'), 'no raw tool-call block_type');
   assert.ok(blocks.some(b => b.block_type === 'text' && b.text.includes('open the file')));
 
   const tree = reconstructTraceFromNRs(nrs);

@@ -406,7 +406,8 @@ test('simulateSession — permission-mode record produces permission event', () 
   const { events, summary } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   assert.ok(events.some(e => e.event === 'permission'), 'permission-mode record must produce permission event');
   assert.equal(summary.tool_call, 1);
-  assert.equal(summary.silent, 0); // all records now produce ≥1 pulse in the NR pipeline
+  assert.equal(summary.unknown, 0);
+  assert.ok(summary.silent >= 1, 'assistant_turn envelope is a silent rest, not unknown');
 });
 
 test('simulateSession — compact_boundary record produces compact event', () => {
@@ -416,7 +417,8 @@ test('simulateSession — compact_boundary record produces compact event', () =>
   ];
   const { events, summary } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   assert.ok(events.some(e => e.event === 'compact'), 'compact_boundary record must produce compact event');
-  assert.equal(summary.silent, 0);
+  assert.equal(summary.unknown, 0);
+  assert.ok(summary.silent >= 1, 'assistant_turn envelope is a silent rest, not unknown');
 });
 
 test('simulateSession — user record produces human_turn event', () => {
@@ -427,7 +429,8 @@ test('simulateSession — user record produces human_turn event', () => {
   const { events, summary } = simulateSession(records, CTX, CF.settings, { mappings: CF.mappings });
   assert.ok(events.some(e => e.event === 'human_turn'), 'user record must produce human_turn event');
   assert.equal(summary.tool_call, 1);
-  assert.equal(summary.silent, 0);
+  assert.equal(summary.unknown, 0);
+  assert.ok(summary.silent >= 1, 'assistant_turn envelope is a silent rest, not unknown');
 });
 
 test('simulateSession — instrument=off excluded from events', () => {
@@ -605,37 +608,42 @@ test('resolveSonic CF — web_fetch uses CF preset mapping', () => {
 
 // ── New event types (Phase 4 — resolveSonic must handle all, never null) ─────
 
-test('resolveSonic — human_turn → pad instrument, family=human', () => {
+test('resolveSonic — human_turn → bell instrument, family=human', () => {
   const s = resolveSonic('human_turn', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'human_turn must return non-null sonic');
-  assert.equal(s.instrument, 'pad');
+  assert.equal(s.instrument, 'bell');
   assert.equal(s.fam, 'human');
 });
 
-test('resolveSonic — compact → sweep instrument, family=system', () => {
+test('resolveSonic — compact → kick instrument, family=system', () => {
   const s = resolveSonic('compact', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'compact must return non-null');
-  assert.equal(s.instrument, 'sweep');
+  assert.equal(s.instrument, 'kick');
   assert.equal(s.fam, 'system');
 });
 
-test('resolveSonic — chirp → woodblock instrument, family=context', () => {
+test('resolveSonic — chirp → pling instrument, family=context', () => {
   const s = resolveSonic('chirp', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'chirp must return non-null');
-  assert.equal(s.instrument, 'woodblock');
+  assert.equal(s.instrument, 'pling');
   assert.equal(s.fam, 'context');
 });
 
-test('resolveSonic — permission → tick instrument, family=system', () => {
+test('resolveSonic — permission → hat instrument, family=system', () => {
   const s = resolveSonic('permission', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'permission must return non-null');
-  assert.equal(s.instrument, 'tick');
+  assert.equal(s.instrument, 'hat');
 });
 
-test('resolveSonic — scaffold → woodblock instrument', () => {
+test('resolveSonic — scaffold → pling instrument', () => {
   const s = resolveSonic('scaffold', {}, DEFAULT_SETTINGS, { mappings: [] });
   assert.ok(s !== null, 'scaffold must return non-null');
-  assert.equal(s.instrument, 'woodblock');
+  assert.equal(s.instrument, 'pling');
+});
+
+test('resolveSonic — aspirational instrument names fall back to playable', () => {
+  const s = resolveSonic('human_turn', {}, { instruments: { human_turn: 'pad' } }, { mappings: [] });
+  assert.equal(s.instrument, 'bell');
 });
 
 test('resolveSonic — unknown event type → catch-all (never null)', () => {
@@ -680,6 +688,14 @@ test('ruleMatches nr_kind: rule does not silence different nr_kind', () => {
   assert.notEqual(s.instrument, 'off');
 });
 
+test('resolveSonic — silent event is instrument off without nr_kind rules', () => {
+  const CF = AUDIO_PRESETS['cognitive-flow'];
+  const s = resolveSonic('silent', { nr_kind: 'assistant_turn', reason: 'envelope' }, CF.settings, CF);
+  assert.equal(s.instrument, 'off');
+  assert.equal(s.volMult, 0);
+  assert.equal(s.fam, 'meta');
+});
+
 test('ruleMatches nr_kind: rule without nr_kind matches all unknowns regardless of nr_kind', () => {
   const profile = {
     mappings: [
@@ -694,7 +710,7 @@ test('ruleMatches nr_kind: rule without nr_kind matches all unknowns regardless 
 
 // ── ALL_KEYS now includes 'web' ───────────────────────────────────────────────
 
-import { EVENT_TYPE_KEYS } from '../experience/audio/event-registry.mjs';
+import { EVENT_TYPE_KEYS, PLAYABLE_INSTRUMENTS } from '../experience/audio/event-registry.mjs';
 
 const ALL_KEYS = [...EVENT_TYPE_KEYS];
 
@@ -703,6 +719,8 @@ for (const [slug, preset] of Object.entries(AUDIO_PRESETS)) {
     const inst = preset.settings.instruments;
     for (const key of ALL_KEYS) {
       assert.ok(inst[key], `instrument missing for key "${key}" in preset "${slug}"`);
+      assert.ok(PLAYABLE_INSTRUMENTS.has(inst[key]),
+        `preset "${slug}" instruments.${key}='${inst[key]}' is not playable`);
     }
   });
 

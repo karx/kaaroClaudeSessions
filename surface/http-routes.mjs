@@ -11,6 +11,7 @@ import path from 'path';
 
 import { HARNESS_REGISTRY, getHarness } from '../hooks/registry.mjs';
 import { snapshotActive } from './active-state.mjs';
+import { buildKindMap, buildKindMapPageHtml, buildKindMapSnippetHtml } from './kind-map-build.mjs';
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
@@ -27,7 +28,7 @@ const JSON_HEADERS = {
  * @param {(filePath: string, projectId: string|null, sessionId: string, harness: string) => object|null} deps.buildTrace
  * @returns {(req: import('http').IncomingMessage, res: import('http').ServerResponse) => void}
  */
-export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace }) {
+export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace, kindMapStore = null }) {
   return (req, res) => {
     const pathOnly = req.url.split('?')[0];
     if (pathOnly === '/events') {
@@ -70,6 +71,25 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
 
     // Registry as the experience layer's source of truth: id, label,
     // capabilities only (watch config / adapters are backend-internal).
+    if (req.url === '/api/kind-map') {
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(kindMapStore ? kindMapStore.snapshot() : buildKindMap()));
+      return;
+    }
+
+    if (pathOnly === '/mapping' || pathOnly === '/kind-map') {
+      const payload = kindMapStore ? kindMapStore.snapshot() : undefined;
+      const partial = /(?:\?|&)partial=1(?:&|$)/.test(req.url);
+      if (partial) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+        res.end(buildKindMapSnippetHtml({ payload }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      res.end(buildKindMapPageHtml({ payload, live: true }));
+      return;
+    }
+
     if (req.url === '/api/harnesses') {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({

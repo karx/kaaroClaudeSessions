@@ -6,6 +6,7 @@
  */
 
 import { normPath, categorizeBash, BUILTIN_COMMANDS } from './helpers/analyze-helpers.mjs';
+import { isBashToolName } from './action-keys.mjs';
 
 export const FILE_OP_TOOLS = {
   Read: 'read', Write: 'write', Edit: 'edit',
@@ -27,7 +28,7 @@ export const FILE_OP_TOOLS = {
   insert_edit_into_file: 'edit',
   replace_string_in_file: 'edit',
 };
-const BASH_TOOLS = new Set(['Bash', 'bash', 'run_command', 'Shell']);
+
 
 function filePathFromInput(input = {}) {
   return input.file_path ?? input.path ?? input.AbsolutePath ?? input.TargetFile ?? null;
@@ -201,7 +202,7 @@ export function reduceSession(records, meta) {
         const name = rec.tool || 'unknown';
         if (!session.tools[name]) session.tools[name] = { calls: 0, errors: 0 };
         session.tools[name].calls++;
-        if (name === 'Agent' || name === 'Task') session.subagent_count++;
+        if (name === 'Agent' || name === 'Task' || name === 'spawn_subagent') session.subagent_count++;
 
         const op = FILE_OP_TOOLS[name];
         const fp = normPath(filePathFromInput(rec.input));
@@ -210,7 +211,7 @@ export function reduceSession(records, meta) {
           session.file_ops[fp][op]++;
         }
 
-        if (BASH_TOOLS.has(name) && rec.input?.command) {
+        if (isBashToolName(name) && rec.input?.command) {
           const cat = categorizeBash(rec.input.command);
           session.bash_categories[cat] = (session.bash_categories[cat] || 0) + 1;
         }

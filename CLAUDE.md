@@ -23,7 +23,7 @@ node --test test/graph-pipeline.test.mjs test/schema.test.mjs  # multiple files
 No `npm install` needed — zero external dependencies. D3 v7 and 3d-force-graph are loaded from CDN inside the generated HTML.
 
 **HTTP endpoints** (routes in `surface/http-routes.mjs`, composed by `serve.mjs`):
-- `GET /` (or `/home`) — **landing page** (`home.html` built artifact): Register A boot ritual + four view tiles (graph/now/daw/map) with live stats and `g`/`n`/`d`/`m` shortcuts. Falls back to the graph until built.
+- `GET /` (or `/home`) — **landing page** (`home.html` built artifact): Register A boot ritual + three view tiles (graph/now/daw) with live stats and `g`/`n`/`d` shortcuts, plus a dim contribute strip to `/mapping` (`m`). Falls back to the graph until built.
 - `GET /graph` (or legacy `/graph.html`) — the **history view** `graph.html` (no-cache)
 - `GET /daw` (or `/builder`, `/audio`) — dedicated **Live Pulse DAW Builder** page (pure event stream, no graph). Full sonic axis mapping, simulator, timbre lab, rule-based audio profiles per event type, session legend with context-pressure bars. Works only when served (needs /events).
 - `GET /now` (or `/mission`, `/active`) — **Mission Control** (`now.html` built artifact, Register A): per-harness rollup with capability badges, expandable session cards (recent-actions feed, on-demand context-window strip, mode/permission chips, api-error line).

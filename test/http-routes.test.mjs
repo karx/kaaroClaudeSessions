@@ -15,6 +15,9 @@ import { join } from 'node:path';
 import { createRequestHandler } from '../surface/http-routes.mjs';
 import { createHub } from '../surface/sse-hub.mjs';
 import { createActiveState, applyPulse } from '../surface/active-state.mjs';
+import { renderKindMapPage, renderKindMapSnippet } from '../experience/kind-map-widget.mjs';
+import { tokensToCss } from '../experience/design-tokens.mjs';
+import { streamEvents } from '../hooks/pulse-map.mjs';
 
 function makeDeps(over = {}) {
   const hub = createHub();
@@ -32,6 +35,12 @@ function makeDeps(over = {}) {
     },
     resolveSessionFile: () => null,
     buildTrace: () => null,
+    renderKindMapPage: (payload) => renderKindMapPage(payload, {
+      tokensCss: tokensToCss(),
+      live: true,
+      streamEvents: [...streamEvents()],
+    }),
+    renderKindMapSnippet,
     ...over,
   };
 }
@@ -126,6 +135,13 @@ test('GET /api/kind-map — uses kindMapStore snapshot when provided', async () 
     const body = await (await fetch(`${base}/api/kind-map`)).json();
     assert.equal(body.generated_at, 'live');
     assert.equal(body.kinds[0].id, 'x');
+  });
+});
+
+test('GET /mapping — 503 when renderer is not injected', async () => {
+  await withServer(makeDeps({ renderKindMapPage: undefined, renderKindMapSnippet: undefined }), async (base) => {
+    const r = await fetch(`${base}/mapping`);
+    assert.equal(r.status, 503);
   });
 });
 

@@ -93,6 +93,30 @@
   #glyph-field .pglyph-field { display: inline-block; vertical-align: top; }
   #glyph-field .pglyph-cell { cursor: pointer; }
 
+  /* Contributor entry — not a fourth view. Dim strip under the product tiles. */
+  #contrib {
+    width: min(718px, 92vw);
+    border-top: 1px solid var(--k-border);
+    padding-top: 12px;
+  }
+  #contrib a {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    text-decoration: none; color: var(--k-dim); font-size: 11px;
+  }
+  #contrib .c-kicker {
+    color: var(--k-label); letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px;
+  }
+  #contrib .c-name { color: var(--k-body); }
+  #contrib .c-desc { color: var(--k-dim); }
+  #contrib .t-stat { color: var(--k-data); letter-spacing: 0.04em; font-size: 10px; }
+  #contrib .t-key {
+    margin-left: auto; color: var(--k-dim); border: 1px solid var(--k-border);
+    padding: 0 5px; font-size: 10px;
+  }
+  #contrib a:hover { color: var(--k-body); }
+  #contrib a:hover .c-name { color: var(--k-accent); }
+  #contrib a:hover .t-key { color: var(--k-accent); border-color: var(--k-accent); }
+
   #statusbar {
     display: flex; align-items: center; gap: 12px; padding: 0 12px;
     background: var(--k-panel); border-top: 1px solid var(--k-border);
@@ -137,12 +161,14 @@
       <div class="t-desc">Hear writes, tests, agents, failures — then shape the mix.</div>
       <div class="t-stat" id="stat-daw">awaiting first pulse</div>
     </a>
-    <a class="tile" href="/mapping" id="tile-map">
+  </div>
+  <div id="contrib">
+    <a href="/mapping" id="tile-map">
+      <span class="c-kicker">contribute</span>
+      <span class="c-name">kind map</span>
+      <span class="c-desc">harness × kind coverage — fill a hole, ship an adapter</span>
+      <span class="t-stat" id="stat-map"></span>
       <span class="t-key">M</span>
-      <span class="t-sym">▦</span>
-      <div class="t-name">Map · Coverage</div>
-      <div class="t-desc">Which harness emits which kind — a miss is a hole.</div>
-      <div class="t-stat" id="stat-map"></div>
     </a>
   </div>
   <div id="glyph-field" hidden>
@@ -282,10 +308,14 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
       }
     }
     const el = document.getElementById('stat-map');
-    if (el) el.textContent = nH + ' harnesses · ' + miss + ' hole / ' + cells;
+    if (el) {
+      el.textContent = miss
+        ? (nH + ' harnesses · ' + miss + ' hole' + (miss === 1 ? '' : 's') + ' to fill')
+        : (nH + ' harnesses · coverage clean');
+    }
   }).catch(() => {});
 
-  const NAV = 'G history · N live · D sonic · M map';
+  const NAV = 'G history · N live · D sonic · M contrib';
   let chromeLive = false;
   function revealChrome() {
     if (chromeLive) return;

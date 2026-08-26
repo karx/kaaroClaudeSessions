@@ -1,7 +1,10 @@
 /**
- * surface/kind-map-build.mjs — compose traces → payload → HTML.
+ * surface/kind-map-build.mjs — compose traces → Kind Map payload.
  *
- * Composition layer (same as build.mjs): may import hooks AND experience.
+ * Snapshot composition only (hooks + goldens + optional sample traces).
+ * HTML projection lives in experience/kind-map-widget.mjs. Composition
+ * roots (serve.mjs, build.mjs) inject EVENT_TYPES and the renderer —
+ * this module must not import experience/.
  */
 
 import fs from 'fs';
@@ -10,13 +13,10 @@ import { fileURLToPath } from 'url';
 
 import { HARNESS_REGISTRY } from '../hooks/registry.mjs';
 import { RECORD_KINDS } from '../hooks/normalized-record.mjs';
-import { KIND_PULSE, streamEvents } from '../hooks/pulse-map.mjs';
+import { KIND_PULSE } from '../hooks/pulse-map.mjs';
 import { toolNameToKey, TOOL_ACTION_KEYS } from '../hooks/action-keys.mjs';
 import { GOLDEN_SESSIONS } from '../hooks/adapters/golden-sessions.mjs';
-import { EVENT_TYPES } from '../experience/audio/event-registry.mjs';
 import { buildKindMapPayload } from '../hooks/kind-map.mjs';
-import { renderKindMapPage, renderKindMapSnippet } from '../experience/kind-map-widget.mjs';
-import { tokensToCss } from '../experience/design-tokens.mjs';
 
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -58,7 +58,7 @@ function adapt(fn, records) {
   }
 }
 
-export function gatherKindMapTraces(registry = HARNESS_REGISTRY, eventTypes = EVENT_TYPES, goldens = GOLDEN_SESSIONS) {
+export function gatherKindMapTraces(registry = HARNESS_REGISTRY, eventTypes, goldens = GOLDEN_SESSIONS) {
   const traces = {};
   for (const h of registry) {
     const golden = [];
@@ -103,18 +103,3 @@ export function buildKindMap(opts = {}) {
   });
 }
 
-export function buildKindMapPageHtml(opts = {}) {
-  const payload = opts.payload || buildKindMap(opts);
-  return renderKindMapPage(payload, {
-    tokensCss: opts.tokensCss ?? tokensToCss(),
-    live: opts.live !== false,
-    streamEvents: opts.streamEvents ?? [...streamEvents()],
-  });
-}
-
-export function buildKindMapSnippetHtml(opts = {}) {
-  const payload = opts.payload || buildKindMap(opts);
-  return renderKindMapSnippet(payload);
-}
-
-export { renderKindMapSnippet, renderKindMapPage };

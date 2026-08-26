@@ -12,6 +12,7 @@ import { buildKindMapPayload, applyKindMapPulse, kindFromPulse, unknownFromPulse
 import { createKindMapStore } from '../surface/kind-map-store.mjs';
 import { renderKindMapSnippet, renderKindMapPage, kindMapPulseHits, unknownFromPulse, addUnknown } from '../experience/kind-map-widget.mjs';
 import { buildKindMap, gatherKindMapTraces, localHarnessFlags } from '../surface/kind-map-build.mjs';
+import { EVENT_TYPES } from '../experience/audio/event-registry.mjs';
 
 const HARNESSES = [
   { id: 'claude-code', label: 'Claude Code', capabilities: { tokens: true } },
@@ -352,7 +353,7 @@ test('renderKindMapPage — static copy has no EventSource', () => {
 });
 
 test('gatherKindMapTraces — every registry harness has golden/sample arrays', () => {
-  const tracesOut = gatherKindMapTraces();
+  const tracesOut = gatherKindMapTraces(undefined, EVENT_TYPES);
   for (const id of HARNESS_IDS) {
     assert.ok(tracesOut[id], `missing traces for ${id}`);
     assert.ok(Array.isArray(tracesOut[id].golden), `${id} golden not an array`);
@@ -365,7 +366,7 @@ test('gatherKindMapTraces — every registry harness has golden/sample arrays', 
 });
 
 test('buildKindMap — live gather: claude-code emits tool_use; kinds match contract', () => {
-  const payload = buildKindMap({ generated_at: 't0' });
+  const payload = buildKindMap({ generated_at: 't0', eventTypes: EVENT_TYPES });
   assert.deepEqual(payload.kinds.map(k => k.id), RECORD_KINDS);
   assert.deepEqual(payload.harnesses.map(h => h.id), HARNESS_IDS);
   const toolUse = payload.kinds.find(k => k.id === 'tool_use');
@@ -408,7 +409,54 @@ test('applyKindMapPulse — live SSE tool_call lights emit, records raw tool, st
   assert.deepEqual(row.emit, [1, 0]);
   assert.deepEqual(row.proof[0], ['pulse']);
   assert.deepEqual(next.tools.find(t => t.key === 'read').by_harness['claude-code'], ['Read']);
+  const again = applyKindMapPulse(next, 'tool_call', {
+    harness: 'claude-code', tool: 'Read', key: 'read', nr_kind: 'tool_use',
+  });
+  assert.equal(again, next, 'repeat pulse is a no-op');
+  assert.equal(again.kinds, next.kinds);
+  assert.equal(again.tools, next.tools);
   assert.equal(applyKindMapPulse(next, 'now', { harness: 'claude-code' }), next);
+});
+
+test('applyKindMapPulse — unknown upsert does not remap kinds/tools', () => {
+  const base = buildKindMapPayload({
+    harnesses: HARNESSES,
+    kinds: ['unknown_record'],
+    kindPulse: KIND_PULSE,
+    traces: traces({
+      'claude-code': [{ kind: 'unknown_record', raw_type: 'x' }],
+      pi: [],
+    }),
+    toolNameToKey,
+    toolKeys: ['read'],
+  });
+  const lit = applyKindMapPulse(base, 'unknown', {
+    harness: 'claude-code', nr_kind: 'unknown_record', raw_type: 'x',
+  });
+  assert.equal(lit.kinds.find(k => k.id === 'unknown_record').emit[0], 1);
+  const kindsRef = lit.kinds;
+  const toolsRef = lit.tools;
+  const next = applyKindMapPulse(lit, 'unknown', {
+    harness: 'claude-code', nr_kind: 'unknown_record', raw_type: 'x', ts: 't2',
+  });
+  assert.notEqual(next, lit, 'count bump yields a new payload');
+  assert.equal(next.unknowns[0].count, 2);
+  assert.equal(next.kinds, kindsRef, 'kinds array not reallocated');
+  assert.equal(next.tools, toolsRef, 'tools array not reallocated');
+});
+
+test('surface kind-map modules do not import experience', () => {
+  for (const rel of [
+    '../surface/kind-map-build.mjs',
+    '../surface/kind-map-store.mjs',
+    '../surface/http-routes.mjs',
+  ]) {
+    const src = fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
+    assert.ok(
+      !/from ['"]\.\.\/experience\//.test(src),
+      `${rel} imports experience — one-way layering is hooks → surface → experience`,
+    );
+  }
 });
 
 test('createKindMapStore — pulses accumulate on the baseline golden', () => {
@@ -476,5 +524,10 @@ test('home tile links to /mapping with M shortcut', () => {
   const html = fs.readFileSync(new URL('../experience/pages/home.html', import.meta.url), 'utf8');
   assert.ok(html.includes('href="/mapping"'));
   assert.ok(html.includes("k === 'm'"));
-  assert.ok(html.includes('Map · Coverage') || html.includes('Coverage'));
+  assert.ok(/contribute/i.test(html));
+  const tilesStart = html.indexOf('id="tiles"');
+  const contribStart = html.indexOf('id="contrib"');
+  assert.ok(tilesStart >= 0 && contribStart > tilesStart);
+  assert.ok(!html.slice(tilesStart, contribStart).includes('href="/mapping"'),
+    'mapping is a contribute strip, not a primary view tile');
 });

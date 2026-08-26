@@ -222,6 +222,7 @@ export function applyKindMapPulse(payload, event, data = {}) {
   if (hi < 0 && !hole) return payload;
 
   const kindId = kindFromPulse(event, data);
+  if (!kindId && !hole) return payload;
   const nH = payload.harnesses.length;
   let changed = false;
   let unknowns = payload.unknowns || [];
@@ -237,39 +238,49 @@ export function applyKindMapPulse(payload, event, data = {}) {
   }
   const routeId = routeIdFromPulse(event, data);
 
-  const kinds = payload.kinds.map(row => {
-    if (!kindId || row.id !== kindId) return row;
-    let next = row;
-    const already = row.emit[hi] === 1 && (row.proof?.[hi] || []).includes('pulse');
-    if (!already) {
-      changed = true;
-      next = withPulseProof(row, hi, nH);
-    }
-    if (routeId && next.routes) {
-      const routes = next.routes.map(rt => {
-        if (rt.id !== routeId) return rt;
-        const rAlready = rt.emit[hi] === 1 && (rt.proof?.[hi] || []).includes('pulse');
-        if (rAlready) return rt;
+  let kinds = payload.kinds;
+  if (kindId) {
+    const ki = kinds.findIndex(row => row.id === kindId);
+    if (ki >= 0) {
+      const row = kinds[ki];
+      let next = row;
+      const already = row.emit[hi] === 1 && (row.proof?.[hi] || []).includes('pulse');
+      if (!already) next = withPulseProof(row, hi, nH);
+      if (routeId && next.routes) {
+        const ri = next.routes.findIndex(rt => rt.id === routeId);
+        if (ri >= 0) {
+          const rt = next.routes[ri];
+          const rAlready = rt.emit[hi] === 1 && (rt.proof?.[hi] || []).includes('pulse');
+          if (!rAlready) {
+            const routes = next.routes.slice();
+            routes[ri] = withPulseProof(rt, hi, nH);
+            next = { ...next, routes };
+          }
+        }
+      }
+      if (next !== row) {
         changed = true;
-        return withPulseProof(rt, hi, nH);
-      });
-      next = { ...next, routes };
+        kinds = kinds.slice();
+        kinds[ki] = next;
+      }
     }
-    return next;
-  });
+  }
 
   let tools = payload.tools;
   if (kindId && event === 'tool_call' && data.tool && data.key) {
-    tools = payload.tools.map(t => {
-      if (t.key !== data.key) return t;
+    const ti = tools.findIndex(t => t.key === data.key);
+    if (ti >= 0) {
+      const t = tools[ti];
       const cur = t.by_harness[data.harness] || [];
-      if (cur.includes(data.tool)) return t;
-      changed = true;
-      return {
-        ...t,
-        by_harness: { ...t.by_harness, [data.harness]: [...cur, data.tool] },
-      };
-    });
+      if (!cur.includes(data.tool)) {
+        changed = true;
+        tools = tools.slice();
+        tools[ti] = {
+          ...t,
+          by_harness: { ...t.by_harness, [data.harness]: [...cur, data.tool] },
+        };
+      }
+    }
   }
 
   if (!changed) return payload;

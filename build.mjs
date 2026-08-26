@@ -24,7 +24,9 @@ import { buildGraph } from './experience/graph-pipeline.mjs';
 import { validateClusterOverrides } from './experience/session-clusters.mjs';
 import { TOKENS, tokensToCss } from './experience/design-tokens.mjs';
 import { HARNESS_REGISTRY } from './hooks/registry.mjs';
-import { buildKindMapPageHtml } from './surface/kind-map-build.mjs';
+import { EVENT_TYPES } from './experience/audio/event-registry.mjs';
+import { renderKindMapPage } from './experience/kind-map-widget.mjs';
+import { buildKindMap } from './surface/kind-map-build.mjs';
 
 const CWD = path.dirname(fileURLToPath(import.meta.url));
 
@@ -94,7 +96,10 @@ function buildNow()  { buildStaticPage('now.html',  'now.html',  'Mission Contro
 function buildHome() { buildStaticPage('home.html', 'home.html', 'Landing'); }
 
 function buildKindMapPage() {
-  const html = buildKindMapPageHtml({ live: false });
+  const html = renderKindMapPage(buildKindMap({ eventTypes: EVENT_TYPES }), {
+    tokensCss: tokensToCss(),
+    live: false,
+  });
   const outPath = path.join(CWD, 'kind-map.html');
   fs.writeFileSync(outPath, html, 'utf8');
   console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB) — kind map`);

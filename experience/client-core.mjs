@@ -223,6 +223,40 @@ export function glyphBoardConfig() {
   return { r: 22, originX: 0, originY: 0 };
 }
 
+/** Graph-canvas hex radius: a project glyph (≤ PR_MAX) sits inside the cell. */
+export const GLYPH_GRAPH_R = NODE_RADII.PR_MAX * 2;
+
+/** Lattice origin = canvas centre. Cell (0,0) is the middle hex; seats do not rescale. */
+export function glyphGraphConfig(width, height, r = GLYPH_GRAPH_R) {
+  return { r, originX: (width || 0) / 2, originY: (height || 0) / 2 };
+}
+
+/** Hex relatives → graph-space pins. Identity mapping — (0,0) stays at centre. */
+export function glyphGraphPins(placements, { width, height, r = GLYPH_GRAPH_R } = {}) {
+  const cfg = glyphGraphConfig(width, height, r);
+  const out = {};
+  for (const id of Object.keys(placements || {})) {
+    const p = placements[id];
+    if (!p || !Number.isFinite(+p.col) || !Number.isFinite(+p.row)) continue;
+    out[id] = glyphCellPosition(p.col, p.row, cfg);
+  }
+  return out;
+}
+
+/**
+ * Map a graph-space camera rect onto minimap user space. Graph origin (canvas
+ * centre) maps to minimap origin (0,0); scale is miniR / graphR.
+ */
+export function graphRectToMinimap(rect, { graphR = GLYPH_GRAPH_R, miniR = 7, originX = 0, originY = 0 } = {}) {
+  const s = graphR ? miniR / graphR : 0;
+  return {
+    x: (rect.worldX - originX) * s,
+    y: (rect.worldY - originY) * s,
+    w: rect.worldW * s,
+    h: rect.worldH * s,
+  };
+}
+
 export function mergeGlyphPlacements(ids, saved) {
   const list = ids || [];
   const occupied = new Set();
@@ -878,8 +912,9 @@ export function connectEvents(opts, ES) {
  */
 export function resolveControlVisibility(layoutHandlers, active) {
   const vis = {};
-  for (const [name, h] of Object.entries(layoutHandlers)) {
-    for (const id of (h.controls || [])) vis[id] = name === active;
+  for (const h of Object.values(layoutHandlers)) {
+    for (const id of (h.controls || [])) vis[id] = false;
   }
+  for (const id of (layoutHandlers[active]?.controls || [])) vis[id] = true;
   return vis;
 }

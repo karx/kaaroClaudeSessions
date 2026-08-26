@@ -52,15 +52,13 @@ function renderNodeContent(el, d) {
       .style('animation-duration',spd).style('--po',opa);
   }
   if (d.type === 'project') {
-    const wedges = harnessWedges(d.harnesses, r);
+    const wedges = isProjectGlyphActive(d) ? harnessWedges(d.harnesses, r) : [];
     if (!wedges.length) {
       el.append('path').attr('d',hexPath(r)).attr('fill',KAARO_TOKENS.bg).attr('stroke',d.color).attr('stroke-width',2.5);
     } else {
       for (const w of wedges)
         el.append('path').attr('d',w.d)
-          .attr('fill',HARNESS_MARK[w.harness]||d.color).attr('fill-opacity',HARNESS_FILL_OPACITY)
-          .attr('stroke', wedges.length>1 ? KAARO_TOKENS.bg : 'none')
-          .attr('stroke-width', wedges.length>1 ? 1 : 0);
+          .attr('fill',HARNESS_MARK[w.harness]||d.color).attr('fill-opacity',HARNESS_FILL_OPACITY);
       el.append('path').attr('d',hexPath(r)).attr('fill','none').attr('stroke',d.color).attr('stroke-width',2.5);
     }
   } else if (d.type === 'session') {

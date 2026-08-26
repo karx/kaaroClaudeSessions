@@ -59,6 +59,14 @@
   .tile .t-desc { color: var(--k-dim); margin-top: 6px; font-size: 11px; min-height: 42px; }
   .tile .t-stat { color: var(--k-data); margin-top: 8px; font-size: 10px; letter-spacing: 0.04em; min-height: 13px; }
 
+  #glyph-field { width: min(640px, 92vw); text-align: center; }
+  #glyph-field .hd {
+    color: var(--k-dim); font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  #glyph-field .pglyph-field { display: inline-block; vertical-align: top; }
+  #glyph-field .pglyph-cell { cursor: pointer; }
+
   #statusbar {
     display: flex; align-items: center; gap: 12px; padding: 0 12px;
     background: var(--k-panel); border-top: 1px solid var(--k-border);
@@ -77,6 +85,10 @@
 
 <div id="main">
   <div id="boot"></div>
+  <div id="glyph-field" hidden>
+    <div class="hd">projects</div>
+    <div id="glyph-field-body"></div>
+  </div>
   <div id="tiles">
     <a class="tile" href="/graph" id="tile-graph">
       <span class="t-key">G</span>
@@ -165,12 +177,21 @@
 
   fetch('/graph-data.json').then(r => { if (!r.ok) throw 0; return r.json(); }).then(d => {
     const sessions = d.nodes.filter(n => n.type === 'session').length;
-    const projects = d.nodes.filter(n => n.type === 'project').length;
-    bootOnce('snapshot', '<span class="ok">✓</span> snapshot: <span class="v">' + sessions + '</span> sessions across <span class="v">' + projects + '</span> projects');
-    let graphStat = sessions + ' sessions · ' + projects + ' projects';
+    const projects = d.nodes.filter(n => n.type === 'project');
+    bootOnce('snapshot', '<span class="ok">✓</span> snapshot: <span class="v">' + sessions + '</span> sessions across <span class="v">' + projects.length + '</span> projects');
+    let graphStat = sessions + ' sessions · ' + projects.length + ' projects';
     const dr = d.meta && d.meta.date_range;
     if (dr && dr.first) graphStat += ' · since ' + String(dr.first).slice(0, 10);
     document.getElementById('stat-graph').textContent = graphStat;
+    const ordered = projects.slice().sort((a, b) => a.id < b.id ? -1 : 1);
+    const live = ordered.filter(isProjectGlyphActive).length;
+    const field = document.getElementById('glyph-field');
+    const body = document.getElementById('glyph-field-body');
+    if (field && body && ordered.length) {
+      field.hidden = false;
+      field.querySelector('.hd').textContent = live + ' live · ' + ordered.length + ' projects';
+      body.innerHTML = projectGlyphFieldSvg(ordered, { r: 14, cols: Math.min(8, ordered.length), bg: KAARO_TOKENS.bg });
+    }
   }).catch(() => {
     bootOnce('snapshot', '… snapshot building — refresh shortly');
     document.getElementById('stat-graph').textContent = 'snapshot building';
@@ -184,6 +205,10 @@
     setDawStat();
   }, 1000);
   $sys.textContent = NAV;
+
+  document.getElementById('glyph-field')?.addEventListener('click', ev => {
+    if (ev.target.closest('[data-pid]')) location.href = '/graph';
+  });
 
   document.addEventListener('keydown', ev => {
     const k = ev.key.toLowerCase();

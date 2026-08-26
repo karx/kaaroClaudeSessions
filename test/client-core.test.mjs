@@ -13,6 +13,8 @@ import {
   connectEvents, resolveControlVisibility,
   hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
   SIM_ALPHA_DECAY,
+  isProjectGlyphActive, glyphGrid, glyphGridExtent,
+  projectGlyphMarkup, projectGlyphSvg, projectGlyphFieldSvg,
 } from '../experience/client-core.mjs';
 
 test('fmtTok — M/k/plain formatting', () => {
@@ -76,8 +78,74 @@ test('SIM_ALPHA_DECAY settles the force layout in a few seconds, not twenty', ()
   assert.ok(SIM_ALPHA_DECAY >= 0.018 && SIM_ALPHA_DECAY <= 0.023);
 });
 
-test('HARNESS_FILL_OPACITY is a quiet cell fill, not a solid neon disk', () => {
-  assert.equal(HARNESS_FILL_OPACITY, 0.35);
+test('HARNESS_FILL_OPACITY is solid — active project glyphs are opaque cells', () => {
+  assert.equal(HARNESS_FILL_OPACITY, 1);
+});
+
+test('isProjectGlyphActive — recencyLevel >= 1 or inFlight', () => {
+  assert.equal(isProjectGlyphActive(null), false);
+  assert.equal(isProjectGlyphActive({}), false);
+  assert.equal(isProjectGlyphActive({ recencyLevel: 0 }), false);
+  assert.equal(isProjectGlyphActive({ recencyLevel: 1 }), true);
+  assert.equal(isProjectGlyphActive({ recencyLevel: 3 }), true);
+  assert.equal(isProjectGlyphActive({ recencyLevel: 0, inFlight: true }), true);
+});
+
+test('glyphGrid — pointy-top hex packing, odd rows offset, stable', () => {
+  assert.deepEqual(glyphGrid(0), []);
+  const r = 10;
+  const one = glyphGrid(1, { r, cols: 3 });
+  assert.equal(one.length, 1);
+  assert.equal(one[0].col, 0);
+  assert.equal(one[0].row, 0);
+  assert.equal(one[0].x, r);
+  assert.equal(one[0].y, r);
+
+  const four = glyphGrid(4, { r, cols: 2 });
+  assert.equal(four.length, 4);
+  const dx = r * Math.sqrt(3);
+  const dy = r * 1.5;
+  assert.equal(four[1].col, 1);
+  assert.equal(four[1].row, 0);
+  assert.ok(Math.abs(four[1].x - (r + dx)) < 1e-9);
+  assert.equal(four[2].row, 1);
+  assert.ok(Math.abs(four[2].x - (r + dx / 2)) < 1e-9, 'odd row is offset by half a hex');
+  assert.ok(Math.abs(four[2].y - (r + dy)) < 1e-9);
+  assert.deepEqual(glyphGrid(4, { r, cols: 2 }), four, 'same inputs → same cells');
+
+  const ext = glyphGridExtent(4, { r, cols: 2 });
+  assert.ok(ext.width >= four[1].x + r);
+  assert.ok(ext.height >= four[2].y + r);
+});
+
+test('projectGlyphMarkup — inactive is hollow; active is solid harness fill', () => {
+  const idle = projectGlyphMarkup({ color: '#ff8800', harnesses: ['claude-code', 'pi'], recencyLevel: 0 }, { r: 16, bg: '#000000' });
+  assert.ok(idle.includes(hexPath(16)));
+  assert.ok(idle.includes('fill="#000000"'), 'idle hex sits on the canvas');
+  assert.ok(!idle.includes(HARNESS_MARK['claude-code']), 'idle has no harness fill');
+
+  const live = projectGlyphMarkup({ color: '#ff8800', harnesses: ['claude-code'], recencyLevel: 1 }, { r: 16, bg: '#000000' });
+  assert.ok(live.includes(HARNESS_MARK['claude-code']));
+  assert.ok(/fill-opacity="1"/.test(live), 'active fill is solid');
+
+  const svg = projectGlyphSvg({ color: '#ff8800', recencyLevel: 0, id: 'p1' }, { r: 8 });
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('viewBox'));
+});
+
+test('projectGlyphFieldSvg — one svg, glyphs at grid cells, data-pid for click', () => {
+  const projects = [
+    { id: 'D--src-a', label: 'a', color: '#ff8800', harnesses: ['pi'], recencyLevel: 1 },
+    { id: 'D--src-b', label: 'b', color: '#00ff88', harnesses: ['grok'], recencyLevel: 0 },
+  ];
+  const svg = projectGlyphFieldSvg(projects, { r: 10, cols: 2, bg: '#000000' });
+  assert.ok(svg.startsWith('<svg'));
+  assert.equal((svg.match(/data-pid="/g) || []).length, 2);
+  assert.ok(svg.includes('data-pid="D--src-a"'));
+  assert.ok(svg.includes('data-pid="D--src-b"'));
+  assert.ok(svg.includes(HARNESS_MARK.pi), 'active cell is solid');
+  assert.ok(!svg.split('data-pid="D--src-b"')[1].split('</g>')[0].includes(HARNESS_MARK.grok),
+    'idle cell stays hollow');
 });
 
 test('HARNESS_MARK has seven distinct non-blue data hues', () => {

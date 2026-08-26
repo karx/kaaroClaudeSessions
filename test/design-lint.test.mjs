@@ -17,6 +17,7 @@ const PAGES = [
   'experience/pages/template.html',
   'experience/pages/daw-template.html',
   'experience/pages/now.html',
+  'experience/pages/home.html',
 ];
 
 function hue(hex) {

@@ -19,6 +19,7 @@ window.updateGraph = function(newData) {
   projLabelSel=labelLayer.selectAll('text.pl').data(GRAPH.nodes.filter(n=>n.type==='project'),d=>d.id).join('text').attr('class','pl').attr('text-anchor','middle').attr('fill',d=>d.color).attr('font-size',9).attr('letter-spacing',1).attr('pointer-events','none').text(d=>d.label.toUpperCase());
   LAYOUT_HANDLERS[currentLayout]?.enter?.();
   buildTimeline(); updateStats(); buildFilterControls(); applyFilters();
+  window.refreshGlyphDock?.();
 };
 
 // ── Live status badge + pulse ticker ─────────────────────────────────────────

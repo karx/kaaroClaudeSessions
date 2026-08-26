@@ -249,7 +249,8 @@ function showPanel(d) {
     const hRows = harnessBreakdown(d.harnesses, ss).map(h =>
       `<div class="prow"><span class="pk" style="color:${h.color}">● ${esc(h.harness)}</span><span class="pv">${h.count}</span></div>`
     ).join('');
-    html=`<h3 style="color:${d.color}">${d.label}</h3>
+    html=`<div class="pglyph-hero">${projectGlyphSvg(d, { r: 28, bg: KAARO_TOKENS.bg })}</div>
+      <h3 style="color:${d.color}">${d.label}</h3>
       <div class="prow"><span class="pk">Sessions</span><span class="pv">${d.session_count}</span></div>
       <div class="prow"><span class="pk">Consumption</span><span class="pv">${fmtTok(d.tokens_total)}</span></div>
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtTok(d.tokens_work)}</span></div>
@@ -328,3 +329,30 @@ function showPanel(d) {
 }
 function closePanel() { document.getElementById('panel').classList.remove('open'); }
 window.closePanel = closePanel;
+
+function projectGlyphList() {
+  return GRAPH.nodes.filter(n => n.type === 'project').slice().sort((a, b) => a.id < b.id ? -1 : 1);
+}
+
+function renderGlyphDock() {
+  const el = document.getElementById('glyph-dock-body');
+  if (!el) return;
+  const projects = projectGlyphList();
+  const live = projects.filter(isProjectGlyphActive).length;
+  const count = document.getElementById('glyph-dock-count');
+  if (count) count.textContent = live + '/' + projects.length;
+  el.innerHTML = projectGlyphFieldSvg(projects, { r: 11, cols: 3, bg: KAARO_TOKENS.bg });
+}
+window.refreshGlyphDock = renderGlyphDock;
+
+document.getElementById('glyph-dock')?.addEventListener('click', ev => {
+  const g = ev.target.closest('[data-pid]');
+  if (!g) return;
+  ev.stopPropagation();
+  const node = nodeById[g.dataset.pid];
+  if (!node) return;
+  selectedId = node.id;
+  highlight(node.id);
+  showPanel(node);
+});
+renderGlyphDock();

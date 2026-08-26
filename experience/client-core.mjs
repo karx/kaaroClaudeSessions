@@ -84,7 +84,86 @@ export const HARNESS_MARK = {
   'claude-code': '#2a9d8f', pi: '#ff9944', antigravity: '#44cc88',
   grok: '#cc4488', opencode: '#aacc44', copilot: '#c070b0', 'command-code': '#ffcc44',
 };
-export const HARNESS_FILL_OPACITY = 0.35;
+export const HARNESS_FILL_OPACITY = 1;
+
+/** Solid harness fill only while the project is live (recencyLevel ≥ 1 or in flight). */
+export function isProjectGlyphActive(d) {
+  if (!d) return false;
+  if (d.inFlight) return true;
+  return (d.recencyLevel || 0) >= 1;
+}
+
+/**
+ * Pointy-top hex packing. Odd rows shift by half a column so neighbours
+ * tessellate. Origin defaults to (r, r) so the first hex is not clipped.
+ */
+export function glyphGrid(n, { cols, r = 16, originX, originY } = {}) {
+  const count = Math.max(0, n | 0);
+  const c = Math.max(1, cols || Math.ceil(Math.sqrt(count || 1)));
+  const dx = r * Math.sqrt(3);
+  const dy = r * 1.5;
+  const ox = originX != null ? originX : r;
+  const oy = originY != null ? originY : r;
+  const cells = [];
+  for (let i = 0; i < count; i++) {
+    const col = i % c;
+    const row = (i - col) / c;
+    cells.push({
+      i, col, row,
+      x: ox + col * dx + (row % 2 ? dx / 2 : 0),
+      y: oy + row * dy,
+    });
+  }
+  return cells;
+}
+
+export function glyphGridExtent(n, opts = {}) {
+  const r = opts.r || 16;
+  const cells = glyphGrid(n, opts);
+  if (!cells.length) return { width: 0, height: 0 };
+  let maxX = 0, maxY = 0;
+  for (const cell of cells) {
+    if (cell.x + r > maxX) maxX = cell.x + r;
+    if (cell.y + r > maxY) maxY = cell.y + r;
+  }
+  return { width: Math.ceil(maxX + 1), height: Math.ceil(maxY + 1) };
+}
+
+/** Inner SVG paths for one project hex. Idle = hollow; active = solid wedges. */
+export function projectGlyphMarkup(d, { r = 16, bg = '#000000' } = {}) {
+  const color = d?.color || '#888888';
+  const stroke = `<path d="${hexPath(r)}" fill="none" stroke="${esc(color)}" stroke-width="2"/>`;
+  if (!isProjectGlyphActive(d)) {
+    return `<path d="${hexPath(r)}" fill="${bg}" stroke="${esc(color)}" stroke-width="2"/>`;
+  }
+  const wedges = harnessWedges(d.harnesses, r);
+  if (!wedges.length) {
+    return `<path d="${hexPath(r)}" fill="${bg}" stroke="${esc(color)}" stroke-width="2"/>`;
+  }
+  const fills = wedges.map(w =>
+    `<path d="${w.d}" fill="${HARNESS_MARK[w.harness] || color}" fill-opacity="${HARNESS_FILL_OPACITY}"/>`
+  ).join('');
+  return fills + stroke;
+}
+
+export function projectGlyphSvg(d, opts = {}) {
+  const r = opts.r || 16;
+  const pad = 1;
+  const size = r * 2 + pad * 2;
+  return `<svg class="pglyph" width="${size}" height="${size}" viewBox="${-r - pad} ${-r - pad} ${size} ${size}" aria-hidden="true">${projectGlyphMarkup(d, opts)}</svg>`;
+}
+
+/** One svg with every project hex parked on a hex grid — brand field. */
+export function projectGlyphFieldSvg(projects, { r = 12, cols, bg = '#000000' } = {}) {
+  const list = projects || [];
+  const cells = glyphGrid(list.length, { r, cols });
+  const extent = glyphGridExtent(list.length, { r, cols });
+  const groups = cells.map((cell, i) => {
+    const p = list[i];
+    return `<g class="pglyph-cell" data-pid="${esc(p.id)}" transform="translate(${cell.x},${cell.y})">${projectGlyphMarkup(p, { r, bg })}<title>${esc(p.label || p.id)}</title></g>`;
+  }).join('');
+  return `<svg class="pglyph-field" width="${extent.width}" height="${extent.height}" viewBox="0 0 ${extent.width} ${extent.height}">${groups}</svg>`;
+}
 
 function uniqHarnesses(harnesses) {
   const list = [];

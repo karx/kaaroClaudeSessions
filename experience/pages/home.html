@@ -44,7 +44,8 @@
   @keyframes blink { 50% { opacity: 0; } }
 
   #me-hero:not(.on),
-  #tiles:not(.on) { display: none; }
+  #tiles:not(.on),
+  #contrib:not(.on) { display: none; }
   #me-hero.on {
     display: block;
     opacity: 1;
@@ -52,6 +53,11 @@
   }
   #tiles.on {
     display: flex;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+  }
+  #contrib.on {
+    display: block;
     opacity: 1;
     transition: opacity 0.25s ease;
   }
@@ -71,6 +77,30 @@
   .tile .t-name { color: var(--k-label); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 6px; font-weight: 700; }
   .tile .t-desc { color: var(--k-dim); margin-top: 6px; font-size: 11px; min-height: 42px; }
   .tile .t-stat { color: var(--k-data); margin-top: 8px; font-size: 10px; letter-spacing: 0.04em; min-height: 13px; }
+
+  /* Contributor entry — not a product view. Low-key strip under the tiles. */
+  #contrib {
+    width: min(718px, 92vw);
+    border-top: 1px solid var(--k-border);
+    padding-top: 12px;
+  }
+  #contrib a {
+    display: block;
+    text-decoration: none; color: var(--k-dim); font-size: 11px;
+  }
+  #contrib .t-key {
+    float: right; margin-left: 10px; color: var(--k-dim); border: 1px solid var(--k-border);
+    padding: 0 5px; font-size: 10px;
+  }
+  #contrib .c-kicker {
+    color: var(--k-label); letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px;
+  }
+  #contrib .c-name { color: var(--k-body); margin-left: 8px; }
+  #contrib .c-desc { display: block; margin-top: 4px; color: var(--k-dim); }
+  #contrib .t-stat { display: block; margin-top: 4px; color: var(--k-data); letter-spacing: 0.04em; font-size: 10px; }
+  #contrib a:hover { color: var(--k-body); }
+  #contrib a:hover .c-name { color: var(--k-accent); }
+  #contrib a:hover .t-key { color: var(--k-accent); border-color: var(--k-accent); }
 
   #me-hero { width: min(640px, 92vw); text-align: center; cursor: pointer; flex-shrink: 0; }
   #me-hero .me-glyph { display: inline-block; }
@@ -137,12 +167,14 @@
       <div class="t-desc">Hear writes, tests, agents, failures — then shape the mix.</div>
       <div class="t-stat" id="stat-daw">awaiting first pulse</div>
     </a>
-    <a class="tile" href="/mapping" id="tile-map">
+  </div>
+  <div id="contrib">
+    <a href="/mapping" id="tile-map">
       <span class="t-key">M</span>
-      <span class="t-sym">▦</span>
-      <div class="t-name">Contribute · Kind Map</div>
-      <div class="t-desc">Harness × kind coverage — fill a hole, ship an adapter.</div>
-      <div class="t-stat" id="stat-map"></div>
+      <span class="c-kicker">for contributors</span>
+      <span class="c-name">Normalized Harness Tool Mapping</span>
+      <span class="c-desc">Harness × kind coverage — fill a hole, ship an adapter.</span>
+      <span class="t-stat" id="stat-map"></span>
     </a>
   </div>
   <div id="glyph-field" hidden>
@@ -297,6 +329,7 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     if (chromeLive) return;
     chromeLive = true;
     document.getElementById('tiles')?.classList.add('on');
+    document.getElementById('contrib')?.classList.add('on');
     const field = document.getElementById('glyph-field');
     if (field && field.dataset.ready) field.hidden = false;
     $sys.textContent = NAV;

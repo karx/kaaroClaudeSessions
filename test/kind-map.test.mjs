@@ -520,14 +520,19 @@ test('localHarnessFlags — detected from root, verified from local sessions', (
   assert.deepEqual(flags.pi, { detected: false, verified: false });
 });
 
-test('home tile links to /mapping with M shortcut', () => {
+test('home tile links to /mapping with M shortcut, kept low-key', () => {
   const html = fs.readFileSync(new URL('../experience/pages/home.html', import.meta.url), 'utf8');
   assert.ok(html.includes('href="/mapping"'));
   assert.ok(html.includes("k === 'm'"));
-  assert.ok(/contribute/i.test(html));
+  assert.ok(html.includes('Normalized Harness Tool Mapping'));
+  assert.ok(/for contributors/i.test(html));
   const tilesStart = html.indexOf('id="tiles"');
-  const tilesEnd = html.indexOf('id="glyph-field"');
-  const mapIdx = html.indexOf('href="/mapping"');
-  assert.ok(tilesStart >= 0 && mapIdx > tilesStart && mapIdx < tilesEnd,
-    'kind map is a fourth tile inside #tiles, revealed alongside graph/now/daw');
+  const contribStart = html.indexOf('id="contrib"');
+  assert.ok(tilesStart >= 0 && contribStart > tilesStart);
+  assert.ok(!html.slice(tilesStart, contribStart).includes('href="/mapping"'),
+    'mapping is a low-key contributor strip below the product tiles, not one of them');
+  assert.ok(/#contrib:not\(\.on\)\s*\{\s*display:\s*none;?\s*\}/.test(html.replace(/\n\s*/g, ' ')),
+    'contrib strip is hidden until revealed, like the tiles');
+  assert.ok(/getElementById\('contrib'\)\?\.classList\.add\('on'\)/.test(html),
+    'contrib strip is revealed by the same revealChrome() call as the tiles, not on page load');
 });

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import {
   fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
-  connectEvents, createBootQueue, resolveControlVisibility,
+  connectEvents, createBootQueue, resolveControlVisibility, fetchRetry,
   nextChromeCollapsed, confirmLayoutReset,
   hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
   meGlyph, meGlyphMarkup, meGlyphSvg, meGlyphCardHtml,
@@ -572,6 +572,37 @@ test('connectEvents — wires handlers with JSON parsing and status callbacks', 
   FakeES.last.onopen();
   FakeES.last.onerror();
   assert.deepEqual(states, ['open', 'reconnecting']);
+});
+
+test('fetchRetry — resolves on first try without retrying', async () => {
+  let calls = 0;
+  const fetchImpl = () => { calls++; return Promise.resolve('ok'); };
+  const delay = () => { throw new Error('should not delay'); };
+  const result = await fetchRetry('/x', { fetchImpl, delay });
+  assert.equal(result, 'ok');
+  assert.equal(calls, 1);
+});
+
+test('fetchRetry — retries once after a delay on transient failure', async () => {
+  let calls = 0;
+  const fetchImpl = () => {
+    calls++;
+    return calls === 1 ? Promise.reject(new Error('NetworkError')) : Promise.resolve('ok');
+  };
+  const delays = [];
+  const delay = (fn, ms) => { delays.push(ms); fn(); };
+  const result = await fetchRetry('/x', { fetchImpl, delay, retryDelay: 400 });
+  assert.equal(result, 'ok');
+  assert.equal(calls, 2);
+  assert.deepEqual(delays, [400]);
+});
+
+test('fetchRetry — rejects if both attempts fail', async () => {
+  let calls = 0;
+  const fetchImpl = () => { calls++; return Promise.reject(new Error('still down')); };
+  const delay = (fn) => fn();
+  await assert.rejects(() => fetchRetry('/x', { fetchImpl, delay }), /still down/);
+  assert.equal(calls, 2);
 });
 
 test('resolveControlVisibility — only the active layout’s control panels show', () => {

@@ -93,30 +93,6 @@
   #glyph-field .pglyph-field { display: inline-block; vertical-align: top; }
   #glyph-field .pglyph-cell { cursor: pointer; }
 
-  /* Contributor entry — not a fourth view. Dim strip under the product tiles. */
-  #contrib {
-    width: min(718px, 92vw);
-    border-top: 1px solid var(--k-border);
-    padding-top: 12px;
-  }
-  #contrib a {
-    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
-    text-decoration: none; color: var(--k-dim); font-size: 11px;
-  }
-  #contrib .c-kicker {
-    color: var(--k-label); letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px;
-  }
-  #contrib .c-name { color: var(--k-body); }
-  #contrib .c-desc { color: var(--k-dim); }
-  #contrib .t-stat { color: var(--k-data); letter-spacing: 0.04em; font-size: 10px; }
-  #contrib .t-key {
-    margin-left: auto; color: var(--k-dim); border: 1px solid var(--k-border);
-    padding: 0 5px; font-size: 10px;
-  }
-  #contrib a:hover { color: var(--k-body); }
-  #contrib a:hover .c-name { color: var(--k-accent); }
-  #contrib a:hover .t-key { color: var(--k-accent); border-color: var(--k-accent); }
-
   #statusbar {
     display: flex; align-items: center; gap: 12px; padding: 0 12px;
     background: var(--k-panel); border-top: 1px solid var(--k-border);
@@ -161,14 +137,12 @@
       <div class="t-desc">Hear writes, tests, agents, failures — then shape the mix.</div>
       <div class="t-stat" id="stat-daw">awaiting first pulse</div>
     </a>
-  </div>
-  <div id="contrib">
-    <a href="/mapping" id="tile-map">
-      <span class="c-kicker">contribute</span>
-      <span class="c-name">kind map</span>
-      <span class="c-desc">harness × kind coverage — fill a hole, ship an adapter</span>
-      <span class="t-stat" id="stat-map"></span>
+    <a class="tile" href="/mapping" id="tile-map">
       <span class="t-key">M</span>
+      <span class="t-sym">▦</span>
+      <div class="t-name">Contribute · Kind Map</div>
+      <div class="t-desc">Harness × kind coverage — fill a hole, ship an adapter.</div>
+      <div class="t-stat" id="stat-map"></div>
     </a>
   </div>
   <div id="glyph-field" hidden>
@@ -246,7 +220,7 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     bootLine(html, onReveal);
   }
 
-  fetch('/api/harnesses').then(r => r.json()).then(d => {
+  fetchRetry('/api/harnesses').then(r => r.json()).then(d => {
     const ids = d.harnesses.map(h => h.id);
     bootOnce('harness', '<span class="ok">✓</span> <span class="v">' + ids.length + '</span> harnesses registered: ' + ids.join(' · '));
     maybeReady();
@@ -256,7 +230,7 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     maybeReady();
   });
 
-  fetch('/graph-data.json').then(r => { if (!r.ok) throw 0; return r.json(); }).then(d => {
+  fetchRetry('/graph-data.json').then(r => { if (!r.ok) throw 0; return r.json(); }).then(d => {
     const sessions = d.nodes.filter(n => n.type === 'session').length;
     const projects = d.nodes.filter(n => n.type === 'project');
     const sessNodes = d.nodes.filter(n => n.type === 'session');
@@ -289,9 +263,9 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     document.getElementById('stat-graph').textContent = 'snapshot building';
   });
 
-  fetch('/api/active').then(r => r.json()).then(d => setNowStat(d)).catch(err => console.error('[home] /api/active failed', err));
+  fetchRetry('/api/active').then(r => r.json()).then(d => setNowStat(d)).catch(err => console.error('[home] /api/active failed', err));
 
-  fetch('/api/kind-map').then(r => r.json()).then(d => {
+  fetchRetry('/api/kind-map').then(r => r.json()).then(d => {
     const nH = (d.harnesses || []).length;
     let miss = 0, cells = 0;
     function walk(row) {
@@ -317,7 +291,7 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     }
   }).catch(err => console.error('[home] /api/kind-map failed', err));
 
-  const NAV = 'G history · N live · D sonic · M contrib';
+  const NAV = 'G history · N live · D sonic · M map';
   let chromeLive = false;
   function revealChrome() {
     if (chromeLive) return;

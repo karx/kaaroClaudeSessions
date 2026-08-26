@@ -526,8 +526,8 @@ test('home tile links to /mapping with M shortcut', () => {
   assert.ok(html.includes("k === 'm'"));
   assert.ok(/contribute/i.test(html));
   const tilesStart = html.indexOf('id="tiles"');
-  const contribStart = html.indexOf('id="contrib"');
-  assert.ok(tilesStart >= 0 && contribStart > tilesStart);
-  assert.ok(!html.slice(tilesStart, contribStart).includes('href="/mapping"'),
-    'mapping is a contribute strip, not a primary view tile');
+  const tilesEnd = html.indexOf('id="glyph-field"');
+  const mapIdx = html.indexOf('href="/mapping"');
+  assert.ok(tilesStart >= 0 && mapIdx > tilesStart && mapIdx < tilesEnd,
+    'kind map is a fourth tile inside #tiles, revealed alongside graph/now/daw');
 });

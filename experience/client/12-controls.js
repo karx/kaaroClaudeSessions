@@ -149,7 +149,18 @@ buildFilterControls();
 
 // Free layout toggle — projects unpin, co-access clustering (force layout)
 document.getElementById('fp-free')?.addEventListener('change', () => {
+  if (document.getElementById('fp-free').checked) {
+    const pin = document.getElementById('cb-pin-grid');
+    if (pin) pin.checked = false;
+  }
   if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.5).restart(); }
+});
+document.getElementById('cb-pin-grid')?.addEventListener('change', () => {
+  if (document.getElementById('cb-pin-grid').checked) {
+    const free = document.getElementById('fp-free');
+    if (free) free.checked = false;
+  }
+  if (currentLayout === 'force') { restoreForceLayout(); simulation.alpha(0.45).restart(); }
 });
 document.getElementById('btn-shake').addEventListener('click', ()=>{ if(currentLayout==='force') simulation.alpha(.4).restart(); });
 document.getElementById('btn-reset').addEventListener('click', ()=>svg.transition().duration(600).call(zoom.transform, initialTransform));

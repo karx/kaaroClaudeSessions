@@ -161,47 +161,112 @@ export function snapToGlyphCell(x, y, { r = 16, cols, rows, originX, originY } =
   const xOff = row % 2 ? dx / 2 : 0;
   let col = Math.round((x - ox - xOff) / dx);
   if (cols != null) col = Math.max(0, Math.min(cols - 1, col));
-  if (row < 0) row = 0;
-  if (col < 0) col = 0;
   return { col, row, ...glyphCellPosition(col, row, { r, originX, originY }) };
 }
 
-/** Extra empty cells so the board is a placeable canvas, not a tight pack. */
-export function glyphBoardConfig(n) {
-  const count = Math.max(0, n | 0);
-  const cols = Math.max(8, Math.ceil(Math.sqrt(count || 1)) + 2);
-  const rows = Math.max(6, Math.ceil((count || 1) / cols) + 2);
-  return { cols, rows, r: 22 };
+const AXIAL_DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+
+export function axialToOddR(q, r) {
+  return { col: q + (r - (r & 1)) / 2, row: r };
 }
 
-export function mergeGlyphPlacements(ids, saved, { cols, rows } = {}) {
+/** i=0 is origin; then hex rings (6, 12, 18, …) — default seat order. */
+export function glyphSpiralCell(index) {
+  const i = Math.max(0, index | 0);
+  if (i === 0) return { col: 0, row: 0 };
+  let ring = 1;
+  let used = 1;
+  while (used + 6 * ring <= i) {
+    used += 6 * ring;
+    ring++;
+  }
+  let step = i - used;
+  let q = AXIAL_DIRS[4][0] * ring;
+  let r = AXIAL_DIRS[4][1] * ring;
+  for (let d = 0; d < 6 && step > 0; d++) {
+    for (let s = 0; s < ring && step > 0; s++) {
+      q += AXIAL_DIRS[d][0];
+      r += AXIAL_DIRS[d][1];
+      step--;
+    }
+  }
+  return axialToOddR(q, r);
+}
+
+export function firstAvailableRadial(occupied) {
+  const occ = occupied instanceof Set ? occupied : new Set(occupied || []);
+  for (let i = 0; i < 100000; i++) {
+    const c = glyphSpiralCell(i);
+    if (!occ.has(c.col + ',' + c.row)) return c;
+  }
+  return { col: 0, row: 0 };
+}
+
+/** Visible hexes for an infinite board — includes negative col/row. */
+export function glyphLatticeWindow({ x0, y0, x1, y1, r = 16, originX = 0, originY = 0, pad = 1 } = {}) {
+  const a = snapToGlyphCell(x0, y0, { r, originX, originY });
+  const b = snapToGlyphCell(x1, y1, { r, originX, originY });
+  const minCol = Math.min(a.col, b.col) - pad;
+  const maxCol = Math.max(a.col, b.col) + pad;
+  const minRow = Math.min(a.row, b.row) - pad;
+  const maxRow = Math.max(a.row, b.row) + pad;
+  const cells = [];
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      cells.push({ col, row, ...glyphCellPosition(col, row, { r, originX, originY }) });
+    }
+  }
+  return cells;
+}
+
+export function glyphBoardConfig() {
+  return { r: 22, originX: 0, originY: 0 };
+}
+
+export function mergeGlyphPlacements(ids, saved) {
   const list = ids || [];
-  const c = Math.max(1, cols || Math.ceil(Math.sqrt(list.length || 1)));
-  const rmax = Math.max(1, rows || Math.ceil((list.length || 1) / c));
   const occupied = new Set();
   const result = {};
   const key = (col, row) => col + ',' + row;
-  const inBounds = (p) => p && Number.isFinite(+p.col) && Number.isFinite(+p.row)
-    && p.col >= 0 && p.row >= 0
-    && p.col < c && p.row < rmax;
   for (const id of list) {
     const p = saved && saved[id];
-    if (!inBounds(p) || occupied.has(key(p.col, p.row))) continue;
-    result[id] = { col: p.col | 0, row: p.row | 0 };
-    occupied.add(key(result[id].col, result[id].row));
-  }
-  let i = 0;
-  const cap = c * rmax;
-  for (const id of list) {
-    if (result[id]) continue;
-    while (i < cap && occupied.has(key(i % c, Math.floor(i / c)))) i++;
-    const col = i % c;
-    const row = Math.floor(i / c);
+    if (!p || !Number.isFinite(+p.col) || !Number.isFinite(+p.row)) continue;
+    const col = p.col | 0, row = p.row | 0;
+    if (occupied.has(key(col, row))) continue;
     result[id] = { col, row };
     occupied.add(key(col, row));
-    i++;
+  }
+  for (const id of list) {
+    if (result[id]) continue;
+    const cell = firstAvailableRadial(occupied);
+    result[id] = cell;
+    occupied.add(key(cell.col, cell.row));
   }
   return result;
+}
+
+/** Map hex-cell relatives into a force viewport. Relative seats stay relative. */
+export function scaleGlyphPins(placements, { width, height, r = 22, margin = 80, originX = 0, originY = 0 } = {}) {
+  const ids = Object.keys(placements || {});
+  if (!ids.length) return {};
+  const pts = ids.map(id => ({
+    id,
+    ...glyphCellPosition(placements[id].col, placements[id].row, { r, originX, originY }),
+  }));
+  if (pts.length === 1) return { [pts[0].id]: { x: width / 2, y: height / 2 } };
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const bw = Math.max(r, maxX - minX);
+  const bh = Math.max(r, maxY - minY);
+  const s = Math.min((width - 2 * margin) / bw, (height - 2 * margin) / bh);
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const out = {};
+  for (const p of pts) {
+    out[p.id] = { x: width / 2 + (p.x - cx) * s, y: height / 2 + (p.y - cy) * s };
+  }
+  return out;
 }
 
 export function moveGlyphPlacement(placements, id, col, row) {
@@ -247,24 +312,55 @@ export function projectGlyphSvg(d, opts = {}) {
   return `<svg class="pglyph" width="${size}" height="${size}" viewBox="${-r - pad} ${-r - pad} ${size} ${size}" aria-hidden="true">${projectGlyphMarkup(d, opts)}</svg>`;
 }
 
+function glyphCellsExtent(cells, r) {
+  if (!cells.length) return { minX: -r, minY: -r, width: r * 2, height: r * 2 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const c of cells) {
+    minX = Math.min(minX, c.x - r);
+    minY = Math.min(minY, c.y - r);
+    maxX = Math.max(maxX, c.x + r);
+    maxY = Math.max(maxY, c.y + r);
+  }
+  return { minX, minY, width: Math.ceil(maxX - minX), height: Math.ceil(maxY - minY) };
+}
+
 /** One svg with every project hex parked on a hex grid — brand field. */
-export function projectGlyphFieldSvg(projects, { r = 12, cols, rows, bg = '#000000', placements, lattice } = {}) {
+export function projectGlyphFieldSvg(projects, { r = 12, cols, rows, bg = '#000000', placements, lattice, originX = 0, originY = 0 } = {}) {
   const list = projects || [];
-  const c = cols || Math.max(1, Math.ceil(Math.sqrt(list.length || 1)));
-  const rr = rows || Math.max(1, Math.ceil((list.length || 1) / c));
-  const merged = mergeGlyphPlacements(list.map(p => p.id), placements, { cols: c, rows: rr });
-  const extent = glyphWorldExtent({ cols: c, rows: rr, r });
+  const merged = mergeGlyphPlacements(list.map(p => p.id), placements);
+  const opts = { r, originX, originY };
+  const placed = list.map(p => {
+    const slot = merged[p.id] || { col: 0, row: 0 };
+    return { ...slot, ...glyphCellPosition(slot.col, slot.row, opts), id: p.id };
+  });
+  const pad = 2;
+  const colsUsed = placed.map(c => c.col);
+  const rowsUsed = placed.map(c => c.row);
+  const minCol = (colsUsed.length ? Math.min(0, ...colsUsed) : 0) - pad;
+  const maxCol = (colsUsed.length ? Math.max(0, ...colsUsed) : 0) + pad;
+  const minRow = (rowsUsed.length ? Math.min(0, ...rowsUsed) : 0) - pad;
+  const maxRow = (rowsUsed.length ? Math.max(0, ...rowsUsed) : 0) + pad;
+  const latticeCells = lattice
+    ? glyphLatticeWindow({
+        x0: glyphCellPosition(minCol, minRow, opts).x,
+        y0: glyphCellPosition(minCol, minRow, opts).y,
+        x1: glyphCellPosition(maxCol, maxRow, opts).x,
+        y1: glyphCellPosition(maxCol, maxRow, opts).y,
+        ...opts, pad: 0,
+      })
+    : placed;
+  const extent = glyphCellsExtent(lattice ? latticeCells : placed, r);
   const latticeMarks = lattice
-    ? glyphLatticeCells({ cols: c, rows: rr, r }).map(cell =>
+    ? latticeCells.map(cell =>
         `<path class="pglyph-lattice" d="${hexPath(r)}" transform="translate(${cell.x},${cell.y})" fill="none"/>`
       ).join('')
     : '';
   const groups = list.map(p => {
     const slot = merged[p.id] || { col: 0, row: 0 };
-    const pos = glyphCellPosition(slot.col, slot.row, { r });
+    const pos = glyphCellPosition(slot.col, slot.row, opts);
     return `<g class="pglyph-cell" data-pid="${esc(p.id)}" data-col="${slot.col}" data-row="${slot.row}" transform="translate(${pos.x},${pos.y})">${projectGlyphMarkup(p, { r, bg })}<title>${esc(p.label || p.id)}</title></g>`;
   }).join('');
-  return `<svg class="pglyph-field" width="${extent.width}" height="${extent.height}" viewBox="0 0 ${extent.width} ${extent.height}">${latticeMarks}${groups}</svg>`;
+  return `<svg class="pglyph-field" width="${extent.width}" height="${extent.height}" viewBox="${extent.minX} ${extent.minY} ${extent.width} ${extent.height}">${latticeMarks}${groups}</svg>`;
 }
 
 function uniqHarnesses(harnesses) {

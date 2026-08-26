@@ -16,7 +16,8 @@ import {
   isProjectGlyphActive, glyphGrid, glyphGridExtent,
   glyphCellPosition, glyphLatticeCells, snapToGlyphCell,
   mergeGlyphPlacements, moveGlyphPlacement, minimapViewportRect,
-  glyphWorldExtent, glyphBoardConfig,
+  glyphWorldExtent, glyphBoardConfig, glyphSpiralCell,
+  firstAvailableRadial, glyphLatticeWindow, scaleGlyphPins,
   projectGlyphMarkup, projectGlyphSvg, projectGlyphFieldSvg,
 } from '../experience/client-core.mjs';
 
@@ -150,6 +151,8 @@ test('glyphCellPosition / snapToGlyphCell — inverse on the hex lattice', () =>
   const hi = snapToGlyphCell(4000, 4000, { r: 12, cols: 8, rows: 6 });
   assert.equal(hi.col, 7);
   assert.equal(hi.row, 5);
+  const west = snapToGlyphCell(-40, 0, { r: 12, originX: 0, originY: 0 });
+  assert.ok(west.col < 0, 'unbounded snap goes negative (infinite in all directions)');
 });
 
 test('glyphLatticeCells — full configurable board, not just packed n', () => {
@@ -164,15 +167,40 @@ test('glyphLatticeCells — full configurable board, not just packed n', () => {
   assert.ok(world.height > 10);
 });
 
-test('mergeGlyphPlacements — saved cells win, the rest pack around them', () => {
+test('glyphSpiralCell — origin then hex rings, first available is radial', () => {
+  assert.deepEqual(glyphSpiralCell(0), { col: 0, row: 0 });
+  const ring1 = new Set();
+  for (let i = 1; i <= 6; i++) {
+    const c = glyphSpiralCell(i);
+    ring1.add(c.col + ',' + c.row);
+    const pos = glyphCellPosition(c.col, c.row, { r: 10, originX: 0, originY: 0 });
+    const origin = glyphCellPosition(0, 0, { r: 10, originX: 0, originY: 0 });
+    const dist = Math.hypot(pos.x - origin.x, pos.y - origin.y);
+    assert.ok(dist > 5 && dist < 25, 'ring 1 sits on the first hex neighbourhood');
+  }
+  assert.equal(ring1.size, 6, 'six unique neighbours');
+  const seen = new Set();
+  for (let i = 0; i < 19; i++) {
+    const c = glyphSpiralCell(i);
+    const k = c.col + ',' + c.row;
+    assert.equal(seen.has(k), false, 'spiral never repeats');
+    seen.add(k);
+  }
+  const occ = new Set(['0,0', ...[...ring1]]);
+  const next = firstAvailableRadial(occ);
+  assert.equal(glyphSpiralCell(7).col, next.col);
+  assert.equal(glyphSpiralCell(7).row, next.row);
+});
+
+test('mergeGlyphPlacements — saved cells win, the rest pack radially', () => {
   const ids = ['a', 'b', 'c'];
-  const packed = mergeGlyphPlacements(ids, null, { cols: 3, rows: 3 });
-  assert.deepEqual(packed.a, { col: 0, row: 0 });
-  assert.deepEqual(packed.b, { col: 1, row: 0 });
-  assert.deepEqual(packed.c, { col: 2, row: 0 });
+  const packed = mergeGlyphPlacements(ids, null);
+  assert.deepEqual(packed.a, glyphSpiralCell(0));
+  assert.deepEqual(packed.b, glyphSpiralCell(1));
+  assert.deepEqual(packed.c, glyphSpiralCell(2));
 
   const saved = { b: { col: 2, row: 1 } };
-  const merged = mergeGlyphPlacements(ids, saved, { cols: 3, rows: 3 });
+  const merged = mergeGlyphPlacements(ids, saved);
   assert.deepEqual(merged.b, { col: 2, row: 1 }, 'manual place is kept');
   assert.deepEqual(merged.a, { col: 0, row: 0 });
   assert.notDeepEqual(merged.c, { col: 2, row: 1 }, 'auto pack skips occupied');
@@ -201,12 +229,30 @@ test('minimapViewportRect — world camera maps onto the mini field', () => {
   assert.deepEqual(empty, { x: 0, y: 0, w: 0, h: 0 });
 });
 
-test('glyphBoardConfig — extra empty cells so the board is placeable', () => {
+test('glyphBoardConfig — board radius only; lattice is unbounded', () => {
   const cfg = glyphBoardConfig(4);
-  assert.ok(cfg.cols >= 4);
-  assert.ok(cfg.rows >= 3);
-  assert.ok(cfg.cols * cfg.rows > 4, 'room to drag into empty cells');
   assert.ok(cfg.r > 0);
+  assert.equal(cfg.cols, undefined);
+  assert.equal(cfg.rows, undefined);
+});
+
+test('glyphLatticeWindow — cells covering a view, including negatives', () => {
+  const cells = glyphLatticeWindow({ x0: -40, y0: -40, x1: 40, y1: 40, r: 10, originX: 0, originY: 0 });
+  assert.ok(cells.some(c => c.col === 0 && c.row === 0));
+  assert.ok(cells.some(c => c.col < 0 || c.row < 0), 'window extends west/north of origin');
+});
+
+test('scaleGlyphPins — hex relatives mapped into a force viewport, centroid at center', () => {
+  const pins = scaleGlyphPins(
+    { a: { col: 0, row: 0 }, b: { col: 2, row: 0 } },
+    { width: 800, height: 600, r: 20 },
+  );
+  assert.ok(pins.a.x < pins.b.x, 'relative east-west preserved');
+  assert.ok(Math.abs((pins.a.x + pins.b.x) / 2 - 400) < 1, 'centroid x → width/2');
+  assert.ok(Math.abs((pins.a.y + pins.b.y) / 2 - 300) < 1, 'centroid y → height/2');
+  const one = scaleGlyphPins({ a: { col: 0, row: 0 } }, { width: 800, height: 600, r: 20 });
+  assert.ok(Math.abs(one.a.x - 400) < 1);
+  assert.ok(Math.abs(one.a.y - 300) < 1);
 });
 
 test('projectGlyphFieldSvg — placements override default pack', () => {
@@ -219,7 +265,7 @@ test('projectGlyphFieldSvg — placements override default pack', () => {
     placements: { b: { col: 3, row: 2 } },
   });
   assert.ok(svg.includes('data-pid="b"'));
-  const pos = glyphCellPosition(3, 2, { r: 10 });
+  const pos = glyphCellPosition(3, 2, { r: 10, originX: 0, originY: 0 });
   assert.ok(svg.includes(`translate(${pos.x},${pos.y})`));
 });
 

@@ -25,16 +25,16 @@ The grid is the brand surface. The force graph stays the history view. They shar
 ## 2. Goals
 
 1. **One mark language everywhere.** Same `hexPath` + harness wedges. Solid fill iff `isProjectGlyphActive` (`recencyLevel ≥ 1` or `inFlight`). Idle = hollow (canvas fill + stroke).
-2. **A configurable lattice, not a packed strip.** `cols` × `rows` with spare empty cells. Projects occupy cells. Users place and move them.
-3. **A large board that zooms and pans.** Expandable overlay. Drag a glyph; it snaps to a cell. Occupied cell → swap.
-4. **The left dock is the minimap.** Same lattice at `r = 7`, viewport rectangle, click-through (glyph → open board on that project + panel; empty cell → pan the board there).
-5. **The mark also appears** on the project detail panel (hero) and the landing page (field → `/graph#grid`).
+2. **An unbounded lattice.** The board is infinite in every direction (negative col/row). Lattice cells are drawn for the current camera, not a finite `cols × rows` sheet.
+3. **Default seats are radial.** Origin first, then hex rings (first available). Saved placements win; new projects take the next empty ring cell.
+4. **A large board that zooms and pans.** Expandable overlay. Drag a glyph; it snaps to a cell (no edge). Occupied cell → swap.
+5. **Pin to location.** Optional: force-view project nodes use the hex relatives (scaled into the viewport). Sessions still orbit.
+6. **The left dock is the minimap.** Same lattice at `r = 7`, viewport rectangle, click-through (glyph → open board on that project + panel; empty cell → pan the board there).
+7. **The mark also appears** on the project detail panel (hero) and the landing page (field → `/graph#grid`).
 
 Non-goals (this pass):
 
-- Pinning force-graph project nodes onto the same lattice.
 - Opaque `KAARO_TOKENS.bg` underfill under solid wedges (let the silhouette breathe; solid fill already stops see-through).
-- A UI to type `cols` / `rows` (config is in `localStorage` + `glyphBoardConfig(n)` defaults).
 - Multi-device sync of placements (local only).
 
 ---
@@ -66,16 +66,15 @@ Origin defaults to `(r, r)` so cell `(0,0)` is not clipped.
 
 | Function | Role |
 |---|---|
-| `glyphCellPosition(col, row, opts)` | cell → pixels |
-| `snapToGlyphCell(x, y, opts)` | pixels → nearest in-bounds cell (inverse) |
-| `glyphLatticeCells({ cols, rows, r })` | every cell on the board |
-| `glyphWorldExtent(...)` | SVG / world size |
-| `glyphBoardConfig(n)` | default `{ cols, rows, r: 22 }` with **spare cells** (`cols ≥ 8`, `rows ≥ 6`, product `> n`) |
-| `mergeGlyphPlacements(ids, saved, { cols, rows })` | saved cells win; the rest pack around occupied |
+| `glyphCellPosition(col, row, opts)` | cell → pixels (col/row may be negative) |
+| `snapToGlyphCell(x, y, opts)` | pixels → nearest cell; unbounded unless `cols`/`rows` passed |
+| `glyphSpiralCell(i)` / `firstAvailableRadial` | origin, then hex rings — default seats |
+| `glyphLatticeWindow({ x0,y0,x1,y1, r })` | cells covering the camera (infinite impression) |
+| `mergeGlyphPlacements(ids, saved)` | saved cells win; the rest take the next empty spiral cell |
 | `moveGlyphPlacement(placements, id, col, row)` | move, or **swap** if occupied |
-| `minimapViewportRect(...)` | board camera → rectangle in mini space |
+| `scaleGlyphPins(placements, { width, height })` | hex relatives → force-view `fx`/`fy` |
 
-`glyphGrid(n)` remains the tight pack helper (tests, landing fallback). The board does **not** use it as the world.
+`glyphGrid(n)` remains the tight pack helper for tests. The board does **not** use it as the world.
 
 ---
 
@@ -178,7 +177,7 @@ No `experience/` → `hooks/` imports. Placements key on **canonical project id*
 2. **Underfill.** If solid wedges still feel see-through at seams, paint `KAARO_TOKENS.bg` `hexPath(r)` under the wedges. Deferred on purpose.
 3. **Tighter “active”.** Today `recencyLevel ≥ 1` is two days. Mission Control “active” is ~60s. Could require `recencyLevel ≥ 2` or live pulses.
 4. **Deep-link a cell.** `/graph#grid&pid=…` already pans if `openGlyphBoard(pid)` runs; landing could pass the id.
-5. **Do not pin the force graph** unless a later RFC says the history view should sit on this lattice.
+5. **Force pin is opt-in** (`#cb-pin-grid`). Relatives from the hex board scale into `/graph`; it does not replace d3-force for sessions/files.
 
 ---
 

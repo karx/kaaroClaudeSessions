@@ -97,6 +97,7 @@ function joinNodes(graphData) {
 }
 let nodeSel = joinNodes(GRAPH);
 
+document.documentElement.classList.toggle('k-hidden', document.hidden);
 document.addEventListener('visibilitychange', () => {
   document.documentElement.classList.toggle('k-hidden', document.hidden);
 });

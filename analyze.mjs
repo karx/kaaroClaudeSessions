@@ -189,13 +189,7 @@ export function mergeSessionIntoData(existingData, updatedSession) {
   const sessions = existingData.sessions.filter(s => s.session_id !== updatedSession.session_id);
   sessions.push(updatedSession);
 
-  // Rebuild project summary for the affected project only. Group by canonical
-  // id (not raw project_id) so sessions from other harness dialects (Pi's
-  // `--D--src-x--`, Command Code's `users-<u>-D--src-x`, ...) stay bucketed
-  // with their canonical project, matching buildSessionsOutput's full-rebuild
-  // grouping — otherwise this incremental path fragments the project and
-  // drops raw_ids/harnesses, leaving graph-pipeline's canon() unable to
-  // resolve the raw id and d3-force throwing "node not found" on the edge.
+  // Group by canonical id so live-tail matches buildSessionsOutput and keeps raw_ids complete.
   const projectSessions = sessions.filter(s => canonicalProjectId(s.project_id) === projectId);
   const newProjectSummary = buildProjectSummary(projectId, projectSessions);
   newProjectSummary.raw_ids   = [...new Set(projectSessions.map(s => s.project_id))].sort();

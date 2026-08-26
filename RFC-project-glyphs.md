@@ -3,7 +3,7 @@
 **Project:** kaaroSessions  
 **Status:** Implemented (PR #11)  
 **Date:** 2026-08-25  
-**Relates to:** multi-harness project identity · force-graph node language · session `sizeNorm` / consumption  
+**Relates to:** multi-harness project identity · force-graph node language · session `sizeNorm` / consumption · [RFC-project-glyph-grid.md](./RFC-project-glyph-grid.md) (board + minimap; solid fill when active)  
 **Grounding:** live `sessions-data.json` on the authoring machine (2026-08-24), 24 project nodes, 3 label collisions
 
 ---
@@ -292,7 +292,7 @@ On `/graph` after analyze+build:
 - One node labelled EBRAIN (and KAAROSESSIONS, ART-OF-INTENT).
 - That node is a **hex**, not a ring.
 - Larger hexes are the high-`tokens_total` repos.
-- Hex fill splits match the harnesses that actually have sessions there (quiet 0.35 opacity).
+- Hex fill splits match the harnesses that actually have sessions there. Fill language after this RFC: **solid when the project is active, hollow when idle** — see [RFC-project-glyph-grid.md](./RFC-project-glyph-grid.md).
 - Session disks use the same consumption definition.
 - `node --test` green; no duplicate project ids in `buildGraph` output for the Pi `--…--` dialect.
 - Performance verification is **REQ-GRAPH-PERF-01** (`docs/GRAPH-PERFORMANCE-REQUIREMENT.md`) — a headed Chrome DevTools run, not claimed by the glyph implementation.

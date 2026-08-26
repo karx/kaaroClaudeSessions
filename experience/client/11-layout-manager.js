@@ -11,13 +11,34 @@ const LAYOUT_HANDLERS = {
       document.getElementById('canvas').style.display='block';
       document.getElementById('matrix-view').style.display='none';
       document.getElementById('three-view').style.display='none';
-      decorLayer.selectAll('*').remove();
+      if (currentLayout !== 'grid') decorLayer.selectAll('*').remove();
       simulation.nodes(GRAPH.nodes);
       restoreForceLayout();
       simulation.alpha(0.25).restart();
       nodeSel.call(drag);
     },
     exit() {}
+  },
+  grid: {
+    controls: ['force-options'],
+    enter() {
+      const pin = document.getElementById('cb-pin-grid');
+      if (pin) pin.checked = true;
+      const free = document.getElementById('fp-free');
+      if (free) free.checked = false;
+      LAYOUT_HANDLERS.force.enter();
+      document.getElementById('canvas')?.classList.add('layout-grid');
+      window.drawGridDecor?.();
+      zoom.on('zoom.grid', () => {
+        window.drawGridDecor?.();
+        window.refreshGlyphDock?.();
+      });
+    },
+    exit() {
+      zoom.on('zoom.grid', null);
+      document.getElementById('canvas')?.classList.remove('layout-grid');
+      window.clearGridDecor?.();
+    }
   },
   swimlane: {
     controls: ['sl-options'],

@@ -75,6 +75,37 @@ body { background: var(--k-bg); color: var(--k-body); font-family: 'IBM Plex Mon
 
 #legend { position: fixed; top: 48px; left: 16px; background: rgba(8,8,16,.9);
   border: 1px solid #34321c; padding: 12px 16px; min-width: 200px; z-index: 200; }
+#glyph-dock {
+  position: fixed; left: 16px; bottom: 168px; z-index: 200;
+  background: rgba(8,8,16,.9); border: 1px solid #34321c;
+  padding: 10px 12px; max-width: 220px; max-height: calc(100vh - 280px);
+  overflow-y: auto;
+}
+#glyph-dock h3 { color: var(--k-accent); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+#glyph-dock-expand { float: right; cursor: pointer; color: #443d33; font-size: 12px; margin-right: 8px; }
+#glyph-dock-expand:hover { color: #ccb088; }
+#glyph-dock .pglyph-field { display: block; }
+#glyph-dock .pglyph-cell { cursor: pointer; }
+#glyph-dock .pglyph-view { fill: none; stroke: var(--k-accent); stroke-width: 1; }
+#me-glyph-body { text-align: center; margin-bottom: 8px; }
+#me-glyph-body .me-glyph { display: inline-block; vertical-align: middle; }
+#me-glyph-body .me-rows { display: block; text-align: left; }
+.me-line { color: var(--k-dim); font-size: 9px; letter-spacing: 0.06em; margin: 6px 0 8px; }
+.me-row { display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--k-body); margin: 2px 0; text-align: left; }
+.me-swatch { width: 6px; height: 6px; flex-shrink: 0; }
+.me-h { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-pct { color: var(--k-data); letter-spacing: 0.04em; }
+.me-n { color: var(--k-dim); }
+#glyph-dock .grid-hd { color: var(--k-accent); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin: 8px 0 6px; }
+.pglyph-lattice { stroke: var(--k-border); stroke-width: 0.7; pointer-events: none; }
+.pglyph-label { fill: var(--k-dim); font-size: 8px; letter-spacing: 0.06em; pointer-events: none; }
+.pglyph-hero { text-align: center; margin: 4px 0 14px; }
+.pglyph-hero .pglyph { display: inline-block; vertical-align: middle; }
+#decor .grid-hex {
+  fill: none; stroke: var(--k-border); stroke-width: 1;
+  vector-effect: non-scaling-stroke; pointer-events: none;
+}
+#decor .grid-hex.occ { stroke: var(--k-dim); }
 #legend h3 { color: var(--k-accent); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
 .leg { display: flex; align-items: center; gap: 8px; margin: 5px 0; color: #777066; }
 .dot  { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
@@ -93,6 +124,10 @@ body { background: var(--k-bg); color: var(--k-body); font-family: 'IBM Plex Mon
 .pring { fill:none; stroke-width:1.5; pointer-events:none;
   animation:pulse-ring linear infinite;
   transform-box:fill-box; transform-origin:center; }
+@media (prefers-reduced-motion: reduce) {
+  .pring { animation: none; }
+}
+html.k-hidden .pring { animation-play-state: paused; }
 #controls { position: fixed; top: 48px; right: 16px; background: rgba(8,8,16,.9);
   border: 1px solid #34321c; padding: 12px 16px; min-width: 230px; z-index: 200;
   max-height: calc(100vh - 130px); overflow-y: auto; }
@@ -112,7 +147,7 @@ button.btn:hover { background:#403d1e; }
 #stats { position: fixed; bottom: 60px; left: 0; right: 0; color: #403e22; font-size: 9px; letter-spacing: 1.5px; pointer-events: none; padding: 0 14px; text-transform: uppercase; height: 14px; line-height: 14px; background: rgba(4,4,10,0.9); border-top: 1px solid #1c1b0a; }
 #panel { position: fixed; top: 0; right: 0; bottom: 154px; width: 0;
   background: rgba(8,8,16,.96); border-left: 1px solid transparent;
-  overflow: hidden; z-index: 250; transition: width 180ms ease, border-color 180ms ease; }
+  overflow: hidden; z-index: 740; transition: width 180ms ease, border-color 180ms ease; }
 #panel.open { width: 300px; border-left-color: #34321c; }
 #panel-inner { width: 300px; height: 100%; padding: 20px 18px; overflow-y: auto; box-sizing: border-box; position: relative; }
 #panel-x { position:absolute; top:12px; right:14px; cursor:pointer; color:#443d33; font-size:18px; }
@@ -614,6 +649,7 @@ button.btn:hover { background:#403d1e; }
 <div id="layout-bar">
   <a href="/" title="kaaro-sessions home" style="color:var(--k-accent);text-decoration:none;margin-right:6px;letter-spacing:0.08em">◈</a>
   <button class="lay-btn active" data-layout="force">Force</button>
+  <button class="lay-btn" data-layout="grid">Lattice</button>
   <button class="lay-btn" data-layout="swimlane">Swimlane</button>
   <button class="lay-btn" data-layout="arc">Arc</button>
   <button class="lay-btn" data-layout="matrix">Matrix</button>
@@ -645,6 +681,15 @@ button.btn:hover { background:#403d1e; }
   <div class="leg" style="color:#556;font-size:10px">edge thickness = visit frequency</div>
   </div>
 </div>
+<div id="glyph-dock" class="widget">
+  <h3>◆ ME <span id="me-glyph-count"></span> <span class="widget-toggle" onclick="toggleWidget('glyph-dock')">−</span></h3>
+  <div class="widget-body">
+    <div id="me-glyph-body"></div>
+    <div class="sep"></div>
+    <div class="grid-hd">◆ GRID <span id="glyph-dock-count"></span> <span id="glyph-dock-expand" title="Hex lattice layout">⤢</span></div>
+    <div id="glyph-dock-body"></div>
+  </div>
+</div>
 <div id="controls" class="widget">
   <h3>◆ DISPLAY <span class="widget-toggle" onclick="toggleWidget('controls')">−</span></h3>
   <div class="widget-body">
@@ -672,6 +717,7 @@ button.btn:hover { background:#403d1e; }
     <div class="sep"></div>
     <div class="sl-section-hd">◆ FORCE PHYSICS</div>
     <div class="ctrl"><input type="checkbox" id="fp-free"><label for="fp-free" title="Unpin projects — sessions and files cluster purely by co-access (best after filtering)">Free layout (no project anchor)</label></div>
+    <div class="ctrl"><input type="checkbox" id="cb-pin-grid"><label for="cb-pin-grid" title="Pin project nodes to hex-lattice seats. Lattice layout (P) turns this on so Force↔Lattice is a morph. Sessions still orbit.">Pin to lattice</label></div>
     <div class="ctrl">
       <label for="fp-charge-s">Session charge</label>
       <input type="range" id="fp-charge-s" min="-400" max="-20" step="10" value="-130">

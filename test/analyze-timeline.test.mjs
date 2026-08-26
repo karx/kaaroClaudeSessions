@@ -314,3 +314,52 @@ test('mergeSessionIntoData — rollup recomputed', async t => {
     assert.equal(readEntry.calls, 5);
   });
 });
+
+// ── mergeSessionIntoData — raw_ids / harnesses parity with buildSessionsOutput ──
+//
+// REQ-GRAPH-PERF-01 repro: the live-tail incremental path rebuilt a project
+// summary without raw_ids/harnesses, so graph-pipeline's canon() couldn't map
+// a Pi-dialect project_id (e.g. `--D--src-x--`) back to the canonical node,
+// and d3-force threw "node not found" on the resulting dangling edge.
+
+test('mergeSessionIntoData — raw_ids/harnesses parity', async t => {
+  await t.test('sets raw_ids on a newly created project summary', () => {
+    const data = makeMinimalData([], []);
+    const sess = { ...makeSession('s1', 'proj-A'), harness: 'claude-code' };
+    const result = mergeSessionIntoData(data, sess);
+    const proj = result.projects.find(p => p.id === 'proj-A');
+    assert.deepEqual(proj.raw_ids, ['proj-A']);
+  });
+
+  await t.test('sets harnesses on a newly created project summary', () => {
+    const data = makeMinimalData([], []);
+    const sess = { ...makeSession('s1', 'proj-A'), harness: 'claude-code' };
+    const result = mergeSessionIntoData(data, sess);
+    const proj = result.projects.find(p => p.id === 'proj-A');
+    assert.deepEqual(proj.harnesses, ['claude-code']);
+  });
+
+  await t.test('merges a Pi-dialect project_id into the canonical bucket and records both raw_ids', () => {
+    const cc = { ...makeSession('s1', 'D--src-x'), harness: 'claude-code' };
+    const data = makeMinimalData([cc], []);
+    const pi = { ...makeSession('s2', '--D--src-x--'), harness: 'pi' };
+    const result = mergeSessionIntoData(data, pi);
+
+    assert.equal(result.projects.length, 1, 'sessions across harness dialects merge into one project bucket');
+    const proj = result.projects[0];
+    assert.equal(proj.id, 'D--src-x');
+    assert.deepEqual(proj.raw_ids, ['--D--src-x--', 'D--src-x']);
+    assert.deepEqual(proj.harnesses, ['claude-code', 'pi']);
+    assert.equal(proj.session_count, 2);
+  });
+
+  await t.test('preserves raw_ids/harnesses for untouched projects', () => {
+    const a = { ...makeSession('s1', 'proj-A'), harness: 'claude-code' };
+    const data = makeMinimalData([a], []);
+    data.projects.push({ id: 'proj-A', raw_ids: ['proj-A'], harnesses: ['claude-code'], session_count: 1 });
+    const b = { ...makeSession('s2', 'proj-B'), harness: 'grok' };
+    const result = mergeSessionIntoData(data, b);
+    const projA = result.projects.find(p => p.id === 'proj-A');
+    assert.deepEqual(projA.raw_ids, ['proj-A']);
+  });
+});

@@ -17,6 +17,7 @@ const PAGES = [
   'experience/pages/template.html',
   'experience/pages/daw-template.html',
   'experience/pages/now.html',
+  'experience/pages/home.html',
 ];
 
 function hue(hex) {
@@ -63,6 +64,19 @@ test('page CSS — no shadows, gradients, large radii, or slow transitions', () 
       .filter(m => parseFloat(m[1]) > 0.25);
     assert.deepEqual(slow.map(m => m[0]), [], `${p}: transition > 250ms`);
   }
+});
+
+test('home.html — ME glyph is in the layout above the three view tiles', () => {
+  const html = fs.readFileSync('experience/pages/home.html', 'utf8');
+  const me = html.indexOf('id="me-hero"');
+  const tiles = html.indexOf('id="tiles"');
+  const field = html.indexOf('id="glyph-field"');
+  assert.ok(me >= 0, 'me-hero mount exists');
+  assert.ok(tiles > me, 'ME sits above the three tiles');
+  assert.ok(field === -1 || field > tiles || field < me,
+    'project field must not sit between ME and the tiles');
+  const tag = html.slice(me, html.indexOf('>', me) + 1);
+  assert.equal(/hidden/.test(tag), false, 'ME is visible on first paint, not hidden until fetch');
 });
 
 test('client JS — retired chrome hexes do not reappear', () => {

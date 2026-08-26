@@ -10,7 +10,18 @@ import assert from 'node:assert/strict';
 import {
   fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
-  connectEvents, resolveControlVisibility,
+  connectEvents, createBootQueue, resolveControlVisibility,
+  hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
+  meGlyph, meGlyphMarkup, meGlyphSvg, meGlyphCardHtml,
+  SIM_ALPHA_DECAY,
+  isProjectGlyphActive, glyphGrid, glyphGridExtent,
+  glyphCellPosition, glyphLatticeCells, snapToGlyphCell,
+  mergeGlyphPlacements, moveGlyphPlacement, minimapViewportRect,
+  glyphWorldExtent, glyphBoardConfig, glyphSpiralCell,
+  firstAvailableRadial, glyphLatticeWindow, scaleGlyphPins,
+  GLYPH_GRAPH_R, glyphGraphConfig, glyphGraphPins, graphRectToMinimap,
+  NODE_RADII,
+  projectGlyphMarkup, projectGlyphSvg, projectGlyphFieldSvg,
 } from '../experience/client-core.mjs';
 
 test('fmtTok — M/k/plain formatting', () => {
@@ -48,11 +59,437 @@ test('blockGeom — ambient floor strips vs top-anchored activity spikes', () =>
   assert.deepEqual(blockGeom({ type: 'tool_call', tool: 'Mystery' }, trackH), { h: 20, yOff: 2 });
 });
 
-test('nodeRadius — project fixed, session/file scale by sizeNorm', () => {
-  assert.equal(nodeRadius({ type: 'project' }), 26);
+test('nodeRadius — project scales by sizeNorm (PR_MIN..PR_MAX), session/file/cluster too', () => {
+  assert.equal(nodeRadius({ type: 'project', sizeNorm: 0 }), 18);
+  assert.equal(nodeRadius({ type: 'project', sizeNorm: 1 }), 34);
+  assert.equal(nodeRadius({ type: 'project' }), 18, 'missing sizeNorm defaults to 0');
   assert.equal(nodeRadius({ type: 'session', sizeNorm: 0 }), 5);
   assert.equal(nodeRadius({ type: 'session', sizeNorm: 1 }), 20);
   assert.equal(nodeRadius({ type: 'file', sizeNorm: 0.5 }), 8);
+});
+
+test('hexPath — pointy-top regular hexagon, 6 vertices at radius r', async () => {
+  const { hexPath } = await import('../experience/client-core.mjs');
+  const d = hexPath(20);
+  assert.ok(d.startsWith('M'));
+  assert.ok(d.endsWith('Z'));
+  const verts = d.slice(1, -1).split('L').map(p => p.split(',').map(Number));
+  assert.equal(verts.length, 6);
+  assert.ok(Math.abs(verts[0][0] - 0) < 1e-9, 'first vertex is pointy-top: x≈0');
+  assert.ok(Math.abs(verts[0][1] - -20) < 1e-9, 'first vertex is pointy-top: y≈-r');
+  for (const [x, y] of verts)
+    assert.ok(Math.abs(Math.hypot(x, y) - 20) < 1e-9, 'every vertex sits at distance r from origin');
+});
+
+test('SIM_ALPHA_DECAY settles the force layout in a few seconds, not twenty', () => {
+  assert.ok(SIM_ALPHA_DECAY >= 0.018 && SIM_ALPHA_DECAY <= 0.023);
+});
+
+test('HARNESS_FILL_OPACITY is solid — active project glyphs are opaque cells', () => {
+  assert.equal(HARNESS_FILL_OPACITY, 1);
+});
+
+test('isProjectGlyphActive — recencyLevel >= 1 or inFlight', () => {
+  assert.equal(isProjectGlyphActive(null), false);
+  assert.equal(isProjectGlyphActive({}), false);
+  assert.equal(isProjectGlyphActive({ recencyLevel: 0 }), false);
+  assert.equal(isProjectGlyphActive({ recencyLevel: 1 }), true);
+  assert.equal(isProjectGlyphActive({ recencyLevel: 3 }), true);
+  assert.equal(isProjectGlyphActive({ recencyLevel: 0, inFlight: true }), true);
+});
+
+test('glyphGrid — pointy-top hex packing, odd rows offset, stable', () => {
+  assert.deepEqual(glyphGrid(0), []);
+  const r = 10;
+  const one = glyphGrid(1, { r, cols: 3 });
+  assert.equal(one.length, 1);
+  assert.equal(one[0].col, 0);
+  assert.equal(one[0].row, 0);
+  assert.equal(one[0].x, r);
+  assert.equal(one[0].y, r);
+
+  const four = glyphGrid(4, { r, cols: 2 });
+  assert.equal(four.length, 4);
+  const dx = r * Math.sqrt(3);
+  const dy = r * 1.5;
+  assert.equal(four[1].col, 1);
+  assert.equal(four[1].row, 0);
+  assert.ok(Math.abs(four[1].x - (r + dx)) < 1e-9);
+  assert.equal(four[2].row, 1);
+  assert.ok(Math.abs(four[2].x - (r + dx / 2)) < 1e-9, 'odd row is offset by half a hex');
+  assert.ok(Math.abs(four[2].y - (r + dy)) < 1e-9);
+  assert.deepEqual(glyphGrid(4, { r, cols: 2 }), four, 'same inputs → same cells');
+
+  const ext = glyphGridExtent(4, { r, cols: 2 });
+  assert.ok(ext.width >= four[1].x + r);
+  assert.ok(ext.height >= four[2].y + r);
+});
+
+test('projectGlyphMarkup — inactive is hollow; active is solid harness fill', () => {
+  const idle = projectGlyphMarkup({ color: '#ff8800', harnesses: ['claude-code', 'pi'], recencyLevel: 0 }, { r: 16, bg: '#000000' });
+  assert.ok(idle.includes(hexPath(16)));
+  assert.ok(idle.includes('fill="#000000"'), 'idle hex sits on the canvas');
+  assert.ok(!idle.includes(HARNESS_MARK['claude-code']), 'idle has no harness fill');
+
+  const live = projectGlyphMarkup({ color: '#ff8800', harnesses: ['claude-code'], recencyLevel: 1 }, { r: 16, bg: '#000000' });
+  assert.ok(live.includes(HARNESS_MARK['claude-code']));
+  assert.ok(/fill-opacity="1"/.test(live), 'active fill is solid');
+
+  const svg = projectGlyphSvg({ color: '#ff8800', recencyLevel: 0, id: 'p1' }, { r: 8 });
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('viewBox'));
+});
+
+test('glyphCellPosition / snapToGlyphCell — inverse on the hex lattice', () => {
+  const opts = { r: 12, cols: 8, rows: 6 };
+  for (const [col, row] of [[0, 0], [3, 0], [0, 1], [2, 3], [7, 5]]) {
+    const pos = glyphCellPosition(col, row, opts);
+    const snap = snapToGlyphCell(pos.x, pos.y, opts);
+    assert.equal(snap.col, col, `col ${col},${row}`);
+    assert.equal(snap.row, row, `row ${col},${row}`);
+  }
+  const clamped = snapToGlyphCell(-40, -40, { r: 12, cols: 8, rows: 6 });
+  assert.equal(clamped.col, 0);
+  assert.equal(clamped.row, 0);
+  const hi = snapToGlyphCell(4000, 4000, { r: 12, cols: 8, rows: 6 });
+  assert.equal(hi.col, 7);
+  assert.equal(hi.row, 5);
+  const west = snapToGlyphCell(-40, 0, { r: 12, originX: 0, originY: 0 });
+  assert.ok(west.col < 0, 'unbounded snap goes negative (infinite in all directions)');
+});
+
+test('glyphLatticeCells — full configurable board, not just packed n', () => {
+  const cells = glyphLatticeCells({ cols: 4, rows: 3, r: 10 });
+  assert.equal(cells.length, 12);
+  assert.equal(cells[0].col, 0);
+  assert.equal(cells[0].row, 0);
+  assert.equal(cells[11].col, 3);
+  assert.equal(cells[11].row, 2);
+  const world = glyphWorldExtent({ cols: 4, rows: 3, r: 10 });
+  assert.ok(world.width > 10);
+  assert.ok(world.height > 10);
+});
+
+test('glyphSpiralCell — origin then hex rings, first available is radial', () => {
+  assert.deepEqual(glyphSpiralCell(0), { col: 0, row: 0 });
+  const ring1 = new Set();
+  for (let i = 1; i <= 6; i++) {
+    const c = glyphSpiralCell(i);
+    ring1.add(c.col + ',' + c.row);
+    const pos = glyphCellPosition(c.col, c.row, { r: 10, originX: 0, originY: 0 });
+    const origin = glyphCellPosition(0, 0, { r: 10, originX: 0, originY: 0 });
+    const dist = Math.hypot(pos.x - origin.x, pos.y - origin.y);
+    assert.ok(dist > 5 && dist < 25, 'ring 1 sits on the first hex neighbourhood');
+  }
+  assert.equal(ring1.size, 6, 'six unique neighbours');
+  const seen = new Set();
+  for (let i = 0; i < 19; i++) {
+    const c = glyphSpiralCell(i);
+    const k = c.col + ',' + c.row;
+    assert.equal(seen.has(k), false, 'spiral never repeats');
+    seen.add(k);
+  }
+  const occ = new Set(['0,0', ...[...ring1]]);
+  const next = firstAvailableRadial(occ);
+  assert.equal(glyphSpiralCell(7).col, next.col);
+  assert.equal(glyphSpiralCell(7).row, next.row);
+});
+
+test('mergeGlyphPlacements — saved cells win, the rest pack radially', () => {
+  const ids = ['a', 'b', 'c'];
+  const packed = mergeGlyphPlacements(ids, null);
+  assert.deepEqual(packed.a, glyphSpiralCell(0));
+  assert.deepEqual(packed.b, glyphSpiralCell(1));
+  assert.deepEqual(packed.c, glyphSpiralCell(2));
+
+  const saved = { b: { col: 2, row: 1 } };
+  const merged = mergeGlyphPlacements(ids, saved);
+  assert.deepEqual(merged.b, { col: 2, row: 1 }, 'manual place is kept');
+  assert.deepEqual(merged.a, { col: 0, row: 0 });
+  assert.notDeepEqual(merged.c, { col: 2, row: 1 }, 'auto pack skips occupied');
+});
+
+test('moveGlyphPlacement — empty cell moves, occupied cell swaps', () => {
+  const start = { a: { col: 0, row: 0 }, b: { col: 1, row: 0 } };
+  const moved = moveGlyphPlacement(start, 'a', 2, 1);
+  assert.deepEqual(moved.a, { col: 2, row: 1 });
+  assert.deepEqual(moved.b, { col: 1, row: 0 });
+  const swapped = moveGlyphPlacement(start, 'a', 1, 0);
+  assert.deepEqual(swapped.a, { col: 1, row: 0 });
+  assert.deepEqual(swapped.b, { col: 0, row: 0 });
+});
+
+test('minimapViewportRect — world camera maps onto the mini field', () => {
+  const rect = minimapViewportRect({
+    worldX: 100, worldY: 50, worldW: 200, worldH: 100,
+    boardW: 400, boardH: 200, miniW: 80, miniH: 40,
+  });
+  assert.equal(rect.x, 20);
+  assert.equal(rect.y, 10);
+  assert.equal(rect.w, 40);
+  assert.equal(rect.h, 20);
+  const empty = minimapViewportRect({ worldX: 0, worldY: 0, worldW: 10, worldH: 10, boardW: 0, boardH: 0, miniW: 80, miniH: 40 });
+  assert.deepEqual(empty, { x: 0, y: 0, w: 0, h: 0 });
+});
+
+test('glyphBoardConfig — board radius only; lattice is unbounded', () => {
+  const cfg = glyphBoardConfig(4);
+  assert.ok(cfg.r > 0);
+  assert.equal(cfg.cols, undefined);
+  assert.equal(cfg.rows, undefined);
+});
+
+test('glyphLatticeWindow — cells covering a view, including negatives', () => {
+  const cells = glyphLatticeWindow({ x0: -40, y0: -40, x1: 40, y1: 40, r: 10, originX: 0, originY: 0 });
+  assert.ok(cells.some(c => c.col === 0 && c.row === 0));
+  assert.ok(cells.some(c => c.col < 0 || c.row < 0), 'window extends west/north of origin');
+});
+
+test('scaleGlyphPins — hex relatives mapped into a force viewport, centroid at center', () => {
+  const pins = scaleGlyphPins(
+    { a: { col: 0, row: 0 }, b: { col: 2, row: 0 } },
+    { width: 800, height: 600, r: 20 },
+  );
+  assert.ok(pins.a.x < pins.b.x, 'relative east-west preserved');
+  assert.ok(Math.abs((pins.a.x + pins.b.x) / 2 - 400) < 1, 'centroid x → width/2');
+  assert.ok(Math.abs((pins.a.y + pins.b.y) / 2 - 300) < 1, 'centroid y → height/2');
+  const one = scaleGlyphPins({ a: { col: 0, row: 0 } }, { width: 800, height: 600, r: 20 });
+  assert.ok(Math.abs(one.a.x - 400) < 1);
+  assert.ok(Math.abs(one.a.y - 300) < 1);
+});
+
+test('glyphGraphPins — identity mapping, origin hex at canvas centre', () => {
+  assert.equal(GLYPH_GRAPH_R, NODE_RADII.PR_MAX * 2);
+  const cfg = glyphGraphConfig(800, 600);
+  assert.equal(cfg.originX, 400);
+  assert.equal(cfg.originY, 300);
+  assert.equal(cfg.r, GLYPH_GRAPH_R);
+  const pins = glyphGraphPins(
+    { a: { col: 0, row: 0 }, b: { col: 1, row: 0 } },
+    { width: 800, height: 600 },
+  );
+  assert.equal(pins.a.x, 400);
+  assert.equal(pins.a.y, 300);
+  const east = glyphCellPosition(1, 0, cfg);
+  assert.equal(pins.b.x, east.x);
+  assert.equal(pins.b.y, east.y);
+  const snap = snapToGlyphCell(pins.b.x, pins.b.y, cfg);
+  assert.equal(snap.col, 1);
+  assert.equal(snap.row, 0);
+});
+
+test('graphRectToMinimap — graph camera maps onto the dock field', () => {
+  const vis = { worldX: 400, worldY: 300, worldW: 136, worldH: 136 };
+  const rect = graphRectToMinimap(vis, { graphR: 68, miniR: 7, originX: 400, originY: 300 });
+  assert.equal(rect.x, 0);
+  assert.equal(rect.y, 0);
+  assert.ok(Math.abs(rect.w - 14) < 1e-9);
+  assert.ok(Math.abs(rect.h - 14) < 1e-9);
+});
+
+test('projectGlyphFieldSvg — placements override default pack', () => {
+  const projects = [
+    { id: 'a', label: 'a', color: '#ff8800', harnesses: [], recencyLevel: 0 },
+    { id: 'b', label: 'b', color: '#00ff88', harnesses: [], recencyLevel: 0 },
+  ];
+  const svg = projectGlyphFieldSvg(projects, {
+    r: 10, cols: 4, rows: 3, bg: '#000000',
+    placements: { b: { col: 3, row: 2 } },
+  });
+  assert.ok(svg.includes('data-pid="b"'));
+  const pos = glyphCellPosition(3, 2, { r: 10, originX: 0, originY: 0 });
+  assert.ok(svg.includes(`translate(${pos.x},${pos.y})`));
+});
+
+test('projectGlyphFieldSvg — one svg, glyphs at grid cells, data-pid for click', () => {
+  const projects = [
+    { id: 'D--src-a', label: 'a', color: '#ff8800', harnesses: ['pi'], recencyLevel: 1 },
+    { id: 'D--src-b', label: 'b', color: '#00ff88', harnesses: ['grok'], recencyLevel: 0 },
+  ];
+  const svg = projectGlyphFieldSvg(projects, { r: 10, cols: 2, bg: '#000000' });
+  assert.ok(svg.startsWith('<svg'));
+  assert.equal((svg.match(/data-pid="/g) || []).length, 2);
+  assert.ok(svg.includes('data-pid="D--src-a"'));
+  assert.ok(svg.includes('data-pid="D--src-b"'));
+  assert.ok(svg.includes(HARNESS_MARK.pi), 'active cell is solid');
+  assert.ok(!svg.split('data-pid="D--src-b"')[1].split('</g>')[0].includes(HARNESS_MARK.grok),
+    'idle cell stays hollow');
+});
+
+test('HARNESS_MARK has seven distinct non-blue data hues', () => {
+  const ids = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
+  const hexes = ids.map(id => HARNESS_MARK[id]);
+  assert.equal(new Set(hexes).size, 7);
+  for (const hex of hexes) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    if (max === min) continue;
+    const d = max - min;
+    const l = (max + min) / 2;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    h *= 360;
+    assert.ok(!(s >= 0.06 && h >= 190 && h <= 268), `${hex} is blue-family chrome (h=${h.toFixed(0)})`);
+  }
+});
+
+function pathPts(d) {
+  return d.replace(/Z$/i, '').slice(1).split('L').map(p => p.split(',').map(Number));
+}
+
+function near(a, b, eps = 1e-6) {
+  return Math.abs(a - b) < eps;
+}
+
+test('harnessWedges — empty / one / two / three / four+', () => {
+  assert.deepEqual(harnessWedges([], 20), []);
+  assert.deepEqual(harnessWedges(null, 20), []);
+
+  const solid = harnessWedges(['claude-code'], 20);
+  assert.equal(solid.length, 1);
+  assert.equal(solid[0].harness, 'claude-code');
+  assert.equal(solid[0].d, hexPath(20), 'single harness is a solid hex, not a fan');
+
+  const split = harnessWedges(['claude-code', 'pi'], 20);
+  assert.equal(split.length, 2);
+  assert.equal(split[0].harness, 'claude-code');
+  assert.equal(split[1].harness, 'pi');
+  const left = pathPts(split[0].d);
+  const right = pathPts(split[1].d);
+  assert.ok(left.length >= 3 && right.length >= 3);
+  assert.ok(near(left[0][0], 0) && near(left[0][1], 0), 'n=2 wedges start at the center');
+  // Vertical split through top and bottom vertices of a pointy-top hex.
+  const hasTop = p => p.some(([x, y]) => near(x, 0) && near(y, -20));
+  const hasBot = p => p.some(([x, y]) => near(x, 0) && near(y, 20));
+  assert.ok(hasTop(left) && hasBot(left), 'first half includes the top–bottom diagonal');
+  assert.ok(hasTop(right) && hasBot(right), 'second half shares the same diagonal');
+
+  const tri = harnessWedges(['claude-code', 'pi', 'grok'], 20);
+  assert.equal(tri.length, 3);
+  // 120° rays hit vertices 0, 2, 4 (top, lower-right, lower-left).
+  const tri0 = pathPts(tri[0].d);
+  assert.ok(near(tri0[0][0], 0) && near(tri0[0][1], 0));
+  assert.ok(tri0.some(([x, y]) => near(x, 0) && near(y, -20)), 'first 120° wedge includes the top vertex');
+
+  const quad = harnessWedges(['claude-code', 'pi', 'grok', 'opencode'], 20);
+  assert.equal(quad.length, 4);
+  const q0 = pathPts(quad[0].d);
+  assert.ok(near(q0[0][0], 0) && near(q0[0][1], 0), 'n=4 is a fan from the center');
+  // 90° ray from top hits the right flat (side midpoint), not a vertex.
+  const sideHit = q0.find(([x, y]) => near(x, 20 * Math.sqrt(3) / 2, 1e-4) && near(y, 0, 1e-4));
+  assert.ok(sideHit, 'n=4 first wedge lands on a hex side, not only corners');
+
+  const seven = harnessWedges(
+    ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'], 20);
+  assert.equal(seven.length, 7);
+  for (const w of seven) {
+    const pts = pathPts(w.d);
+    assert.ok(near(pts[0][0], 0) && near(pts[0][1], 0));
+    assert.ok(pts.length >= 3);
+  }
+});
+
+test('harnessWedges — weighted by session counts', () => {
+  // No weights (or all-equal weights) is unchanged from the equal-angle default.
+  const bare = harnessWedges(['claude-code', 'pi'], 20);
+  assert.deepEqual(harnessWedges(['claude-code', 'pi'], 20, null), bare);
+  assert.deepEqual(harnessWedges(['claude-code', 'pi'], 20, { 'claude-code': 1, pi: 1 }), bare);
+
+  // claude-code: 3 sessions, pi: 1 session → 75%/25% split, boundary at 270°
+  // (the left-side midpoint of a pointy-top hex, not a vertex).
+  const w = harnessWedges(['claude-code', 'pi'], 20, { 'claude-code': 3, pi: 1 });
+  assert.equal(w.length, 2);
+  assert.equal(w[0].harness, 'claude-code');
+  assert.equal(w[1].harness, 'pi');
+  const majority = pathPts(w[0].d);
+  const minority = pathPts(w[1].d);
+  assert.ok(near(majority[0][0], 0) && near(majority[0][1], 0), 'wedges start at center');
+  const hasLeftMid = p => p.some(([x, y]) => near(x, -20 * Math.sqrt(3) / 2, 1e-4) && near(y, 0, 1e-4));
+  assert.ok(hasLeftMid(majority), 'majority wedge reaches the 270° boundary (left side midpoint)');
+  assert.ok(hasLeftMid(minority), 'minority wedge shares the same boundary point');
+});
+
+test('meGlyph — aggregate harness usage across all sessions, split by share', () => {
+  assert.deepEqual(meGlyph(), { harnesses: [], weights: {}, total: 0, rows: [] });
+  assert.equal(meGlyph([]).total, 0);
+
+  const me = meGlyph([
+    { harness: 'pi' },
+    { harness: 'claude-code' },
+    { harness: 'claude-code' },
+    { harness: 'claude-code' },
+    { source: 'pi' },
+    { harness: 'grok' },
+    { label: 'no-harness' },
+  ]);
+  assert.equal(me.total, 6);
+  assert.deepEqual(me.harnesses, ['claude-code', 'pi', 'grok'], 'largest share first');
+  assert.equal(me.weights['claude-code'], 3);
+  assert.equal(me.weights.pi, 2);
+  assert.equal(me.weights.grok, 1);
+  assert.equal(me.rows[0].share, 0.5);
+  assert.equal(me.rows[0].pct, 50);
+  assert.equal(me.rows[0].count, 3);
+  assert.equal(me.rows[0].color, HARNESS_MARK['claude-code']);
+  assert.equal(me.rows[1].share, 2 / 6);
+  assert.equal(me.rows[2].pct, 17);
+
+  const tied = meGlyph([{ harness: 'pi' }, { harness: 'grok' }]);
+  assert.deepEqual(tied.harnesses, ['grok', 'pi'], 'ties break alphabetically');
+});
+
+test('meGlyphMarkup — empty is hollow; usage splits the hex by share', () => {
+  const empty = meGlyphMarkup(meGlyph([]), { r: 20, bg: '#000000', color: '#ccccaa' });
+  assert.ok(empty.includes(hexPath(20)));
+  assert.ok(empty.includes('fill="#000000"'));
+  assert.ok(!empty.includes(HARNESS_MARK['claude-code']));
+
+  const me = meGlyph([
+    { harness: 'claude-code' }, { harness: 'claude-code' }, { harness: 'claude-code' },
+    { harness: 'pi' },
+  ]);
+  const markup = meGlyphMarkup(me, { r: 20, bg: '#000000', color: '#ccccaa' });
+  assert.ok(markup.includes(HARNESS_MARK['claude-code']));
+  assert.ok(markup.includes(HARNESS_MARK.pi));
+  assert.ok(/fill-opacity="1"/.test(markup), 'ME fill is solid');
+  const equal = harnessWedges(me.harnesses, 20);
+  const weighted = harnessWedges(me.harnesses, 20, me.weights);
+  assert.notDeepEqual(weighted, equal, 'share wedges are not equal-angle');
+  assert.ok(markup.includes(weighted[0].d), 'majority wedge path is in the mark');
+
+  const svg = meGlyphSvg(me, { r: 16, bg: '#000000' });
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('class="me-glyph"'));
+  assert.ok(svg.includes('viewBox'));
+
+  const card = meGlyphCardHtml(me, { r: 16, bg: '#000000' });
+  assert.ok(card.includes('class="me-glyph"'));
+  assert.ok(card.includes('75%'));
+  assert.ok(card.includes('claude-code'));
+  assert.ok(card.includes('4 session'));
+});
+
+test('harnessBreakdown — preserves glyph order, counts sessions, carries mark color', () => {
+  assert.deepEqual(harnessBreakdown([]), []);
+  const rows = harnessBreakdown(
+    ['claude-code', 'pi'],
+    [
+      { harness: 'pi' },
+      { harness: 'claude-code' },
+      { harness: 'claude-code' },
+      { source: 'pi' },
+    ],
+  );
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].harness, 'claude-code');
+  assert.equal(rows[0].count, 2);
+  assert.equal(rows[0].color, HARNESS_MARK['claude-code']);
+  assert.equal(rows[1].harness, 'pi');
+  assert.equal(rows[1].count, 2);
 });
 
 test('edge opacity/width — weighted edges scale with sqrt(weight/max)', () => {
@@ -61,6 +498,51 @@ test('edge opacity/width — weighted edges scale with sqrt(weight/max)', () => 
   const heavy = edgeOpacity({ type: 'read', weight: 100 }, 100);
   assert.ok(heavy > base, 'weight raises opacity');
   assert.ok(edgeWidth({ type: 'write', weight: 100 }, 100) > edgeWidth({ type: 'write', weight: 1 }, 100));
+});
+
+test('createBootQueue — first line is immediate, later lines wait minGap', () => {
+  const frames = [];
+  const reveals = [];
+  const scheduled = [];
+  const delay = (fn, ms) => { scheduled.push({ fn, ms }); return scheduled.length; };
+  const q = createBootQueue({
+    minGap: 180,
+    delay,
+    onShow: shown => frames.push(shown.slice()),
+  });
+  q.push('a');
+  assert.deepEqual(frames, [['a']], 'first line paints now');
+  q.push('b', () => reveals.push('b'));
+  q.push('c');
+  assert.equal(frames.length, 1, 'later lines stay queued');
+  assert.deepEqual(reveals, []);
+  assert.equal(scheduled[0].ms, 180);
+  scheduled[0].fn();
+  assert.deepEqual(frames[1], ['a', 'b']);
+  assert.deepEqual(reveals, ['b'], 'onReveal fires when that line is shown');
+  scheduled[1].fn();
+  assert.deepEqual(frames[2], ['a', 'b', 'c']);
+});
+
+test('createBootQueue — firstDelay holds on the cursor before line one', () => {
+  const frames = [];
+  const scheduled = [];
+  const delay = (fn, ms) => { scheduled.push({ fn, ms }); return scheduled.length; };
+  const q = createBootQueue({
+    minGap: 500,
+    firstDelay: 400,
+    delay,
+    onShow: shown => frames.push(shown.slice()),
+  });
+  q.push('a');
+  assert.equal(frames.length, 0, 'hold before the first line');
+  assert.equal(scheduled[0].ms, 400);
+  scheduled[0].fn();
+  assert.deepEqual(frames[0], ['a']);
+  q.push('b');
+  assert.equal(scheduled[1].ms, 500);
+  scheduled[1].fn();
+  assert.deepEqual(frames[1], ['a', 'b']);
 });
 
 test('connectEvents — wires handlers with JSON parsing and status callbacks', () => {
@@ -96,6 +578,7 @@ test('resolveControlVisibility — only the active layout’s control panels sho
     force:    { controls: ['force-options'] },
     swimlane: { controls: ['sl-options', 'sl-extra'] },
     matrix:   {},
+    grid:     { controls: ['force-options'] },
   };
   assert.deepEqual(resolveControlVisibility(handlers, 'swimlane'), {
     'force-options': false, 'sl-options': true, 'sl-extra': true,
@@ -103,6 +586,12 @@ test('resolveControlVisibility — only the active layout’s control panels sho
   assert.deepEqual(resolveControlVisibility(handlers, 'matrix'), {
     'force-options': false, 'sl-options': false, 'sl-extra': false,
   });
+  assert.deepEqual(resolveControlVisibility(handlers, 'force'), {
+    'force-options': true, 'sl-options': false, 'sl-extra': false,
+  });
+  assert.deepEqual(resolveControlVisibility(handlers, 'grid'), {
+    'force-options': true, 'sl-options': false, 'sl-extra': false,
+  }, 'shared force-options stays visible on lattice');
 });
 
 // ── DAW lane geometry (extracted from 19-daw-builder) ─────────────────────────

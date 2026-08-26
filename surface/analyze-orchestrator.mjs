@@ -6,6 +6,7 @@
 
 import { buildProjectSummary, buildGlobalRollup } from '../analyze.mjs';
 import { enrichProject } from '../hooks/enrich-session.mjs';
+import { canonicalProjectId } from '../hooks/helpers/analyze-helpers.mjs';
 
 /**
  * Merge harness scan results into sessions-data.json shape.
@@ -22,8 +23,9 @@ export function buildSessionsOutput(scanResults) {
 
   const projectMap = {};
   for (const sess of allSessions) {
-    if (!projectMap[sess.project_id]) projectMap[sess.project_id] = [];
-    projectMap[sess.project_id].push(sess);
+    const key = canonicalProjectId(sess.project_id);
+    if (!projectMap[key]) projectMap[key] = [];
+    projectMap[key].push(sess);
   }
 
   const projects = Object.entries(projectMap)
@@ -31,8 +33,11 @@ export function buildSessionsOutput(scanResults) {
     .map(([id, sessions]) => buildProjectSummary(id, sessions));
 
   for (const proj of projects) {
-    const sample = projectMap[proj.id]?.[0];
+    const bucket = projectMap[proj.id];
+    const sample = bucket?.[0];
     if (sample?.project_label) proj.label = sample.project_label;
+    proj.raw_ids   = [...new Set(bucket.map(s => s.project_id))].sort();
+    proj.harnesses = [...new Set(bucket.map(s => s.harness))].sort();
     enrichProject(proj);
   }
 

@@ -17,6 +17,25 @@ export function deriveLabel(projectId) {
     .replace(/^[A-Za-z]--Users-[^-]+-/, '');
 }
 
+// Merge key for grouping the same repo across harness id dialects: CC/Grok/
+// opencode/copilot emit `D--src-x`, Pi wraps it `--D--src-x--`, Command Code
+// can prefix it `users-<user>-D--src-x`. Unlike deriveLabel (display-only),
+// this is the key buildSessionsOutput groups projects on.
+export function canonicalProjectId(rawId) {
+  if (typeof rawId !== 'string') return rawId;
+  let id = rawId;
+
+  const ccMatch = id.match(/^users-[^-]+-(.+)$/);
+  if (ccMatch) {
+    if (/^[A-Za-z]--/.test(ccMatch[1])) id = ccMatch[1];
+    else return rawId; // remainder isn't drive-shaped — no false merge
+  }
+
+  id = id.replace(/^-+/, '').replace(/-+$/, '');
+  id = id.replace(/^([a-z])--/, (_, d) => d.toUpperCase() + '--');
+  return id;
+}
+
 export function normPath(raw) {
   if (!raw || typeof raw !== 'string') return null;
   let p = raw.replace(/\\/g, '/').replace(/\/\//g, '/').trim();

@@ -250,7 +250,8 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     const ids = d.harnesses.map(h => h.id);
     bootOnce('harness', '<span class="ok">✓</span> <span class="v">' + ids.length + '</span> harnesses registered: ' + ids.join(' · '));
     maybeReady();
-  }).catch(() => {
+  }).catch(err => {
+    console.error('[home] /api/harnesses failed', err);
     bootOnce('harness', '✗ harness registry unreachable');
     maybeReady();
   });
@@ -282,12 +283,13 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
       field.dataset.ready = '1';
       if (chromeLive) field.hidden = false;
     }
-  }).catch(() => {
+  }).catch(err => {
+    console.error('[home] /graph-data.json failed', err);
     bootOnce('snapshot', '… snapshot building — refresh shortly', maybeReady);
     document.getElementById('stat-graph').textContent = 'snapshot building';
   });
 
-  fetch('/api/active').then(r => r.json()).then(d => setNowStat(d)).catch(() => {});
+  fetch('/api/active').then(r => r.json()).then(d => setNowStat(d)).catch(err => console.error('[home] /api/active failed', err));
 
   fetch('/api/kind-map').then(r => r.json()).then(d => {
     const nH = (d.harnesses || []).length;
@@ -313,7 +315,7 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
         ? (nH + ' harnesses · ' + miss + ' hole' + (miss === 1 ? '' : 's') + ' to fill')
         : (nH + ' harnesses · coverage clean');
     }
-  }).catch(() => {});
+  }).catch(err => console.error('[home] /api/kind-map failed', err));
 
   const NAV = 'G history · N live · D sonic · M contrib';
   let chromeLive = false;

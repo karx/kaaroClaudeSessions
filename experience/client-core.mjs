@@ -1019,7 +1019,7 @@ export function connectEvents(opts, ES) {
     es.addEventListener(event, e => {
       let data = null;
       try { data = JSON.parse(e.data); } catch { /* non-JSON event payload */ }
-      try { fn(data, e); } catch { /* handler errors must not kill the stream */ }
+      try { fn(data, e); } catch (err) { console.error('[connectEvents] handler for "' + event + '" threw', err); }
     });
   }
   if (opts.onStatus) {

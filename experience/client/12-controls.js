@@ -1,20 +1,15 @@
 // ── Filters ───────────────────────────────────────────────────────────────────
+// Every layout owns its own filter-refresh behavior via LAYOUT_HANDLERS[name]
+// .onFilterChange (11-layout-manager.js) — dispatch here is deliberately just
+// a lookup, not another per-layout if-chain, so adding a layout can't forget
+// to wire this the way ontology/signatures initially did (nothing enforced a
+// case here matching a case in the resize handler below).
 function applyFilters() {
-  if (currentLayout === 'matrix')   { renderMatrix();   return; }
-  if (currentLayout === '3d')       { layout3D.exit(); layout3D.enter(); return; }
-  if (currentLayout === 'swimlane') { renderSwimlane(); return; }
-  if (currentLayout === 'arc') {
-    nodeSel.attr('display', d => {
-      if (d.type !== 'session') return 'none';
-      if (!sessionMatchesFilters(d, SESSION_FILTERS)) return 'none';
-      return null;
-    });
-    edgeSel.attr('display', 'none');
-    projLabelSel.attr('display', 'none');
-    if (arcXScale) drawArcArcs();
-    return;
-  }
+  LAYOUT_HANDLERS[currentLayout]?.onFilterChange?.();
+}
 
+// force layout's filter behavior: file/cluster visibility + simulation resync.
+function applyForceFilters() {
   const showFiles   = document.getElementById('cb-files').checked;
   const showRoFiles = document.getElementById('cb-ro-files').checked;
   const showBranch  = document.getElementById('cb-branch').checked;
@@ -273,6 +268,10 @@ document.getElementById('arc-max-span')?.addEventListener('input', function() {
   refreshArc();
 });
 
+// ── Ontology-specific controls ─────────────────────────────────────────────────
+document.getElementById('ont-x-axis')?.addEventListener('change', refreshOntology);
+document.getElementById('ont-y-axis')?.addEventListener('change', refreshOntology);
+
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────
 const SHORTCUTS_DEF = [
   { key:'f', label:'F',      desc:'Force graph layout',   action:()=>setLayout('force') },
@@ -280,6 +279,7 @@ const SHORTCUTS_DEF = [
   { key:'a', label:'A',      desc:'Arc coupling map',     action:()=>setLayout('arc') },
   { key:'m', label:'M',      desc:'Matrix view',          action:()=>setLayout('matrix') },
   { key:'g', label:'G',      desc:'3D force graph',       action:()=>setLayout('3d') },
+  { key:'o', label:'O',      desc:'Ontology view',        action:()=>setLayout('ontology') },
 ];
 
 function _loadSCPrefs() {

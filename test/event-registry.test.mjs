@@ -158,6 +158,7 @@ test('toolNameToKey — Antigravity tool names', () => {
   assert.equal(toolNameToKey('view_file'),          'read');
   assert.equal(toolNameToKey('write_to_file'),      'write');
   assert.equal(toolNameToKey('replace_file_content'),'edit');
+  assert.equal(toolNameToKey('multi_replace_file_content'), 'edit');
   assert.equal(toolNameToKey('run_command', 'git'), 'bash_git');
   assert.equal(toolNameToKey('run_command', 'node'),'bash_run');
   assert.equal(toolNameToKey('run_command', 'other'),'bash_other');
@@ -166,6 +167,17 @@ test('toolNameToKey — Antigravity tool names', () => {
   assert.equal(toolNameToKey('manage_task'),        'other');
   assert.equal(toolNameToKey('web_fetch'),          'web');
   assert.equal(toolNameToKey('web_search'),         'web');
+});
+
+test('toolNameToKey — Grok run_terminal_command (real production name)', () => {
+  assert.equal(toolNameToKey('run_terminal_command', 'git'),  'bash_git');
+  assert.equal(toolNameToKey('run_terminal_command', 'node'), 'bash_run');
+  assert.equal(toolNameToKey('run_terminal_command'),         'bash_other');
+});
+
+test('toolNameToKey — Copilot findFiles / searchCodebase', () => {
+  assert.equal(toolNameToKey('findFiles'),      'grep_glob');
+  assert.equal(toolNameToKey('searchCodebase'), 'grep_glob');
 });
 
 test('toolNameToKey — Grok tool names', () => {

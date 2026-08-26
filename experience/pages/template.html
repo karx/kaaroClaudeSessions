@@ -56,6 +56,7 @@
 body { background: var(--k-bg); color: var(--k-body); font-family: 'IBM Plex Mono','Courier New',monospace; font-size: 11px; overflow: hidden; user-select: none; }
 #canvas { display: block; position: fixed; top: 0; left: 0; }
 #matrix-view { position: fixed; top: 0; left: 0; right: 0; bottom: 154px; overflow: auto; background: var(--k-bg); display: none; }
+#signatures-view { position: fixed; top: 0; left: 0; right: 0; bottom: 154px; display: none; }
 #three-view  { position: fixed; top: 0; left: 0; right: 0; bottom: 154px; display: none; }
 
 #layout-bar { position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
@@ -172,6 +173,11 @@ button.btn:hover { background:#403d1e; }
 .arc-hub-row:hover { opacity: 0.7; }
 .arc-hub-active { font-weight: bold; text-decoration: underline dotted; }
 .arc-hub-cnt { color: #5a462a; display: inline-block; min-width: 22px; }
+.ont-legend-row { display:flex; align-items:center; gap:6px; padding:2px 0; cursor:pointer;
+  font-size:9px; letter-spacing:0.4px; text-transform:uppercase; }
+.ont-legend-row:hover { opacity: 0.7; }
+.ont-legend-active { font-weight: bold; text-decoration: underline dotted; }
+.ont-swatch { width:8px; height:8px; flex-shrink:0; display:inline-block; }
 #boot { position:fixed; inset:0; background:var(--k-bg); z-index:9999; display:flex; align-items:center; justify-content:center; transition:opacity 0.25s ease; }
 #boot.fade { opacity:0; pointer-events:none; }
 .boot-box { line-height:2.1; }
@@ -595,6 +601,19 @@ button.btn:hover { background:#403d1e; }
   }]
 }
 </script>
+<!-- Import map for the Signatures tab's lazy-loaded three.js (dynamic import()
+     inside the classic client bundle) — OrbitControls internally imports the
+     bare specifier "three", which requires this map to resolve without a
+     bundler. Present at load time even though the import itself is deferred
+     until the tab is first opened. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
 <div id="boot">
@@ -610,6 +629,7 @@ button.btn:hover { background:#403d1e; }
 <svg id="canvas"></svg>
 <div id="matrix-view"></div>
 <div id="three-view"></div>
+<div id="signatures-view"></div>
 
 <div id="layout-bar">
   <a href="/" title="kaaro-sessions home" style="color:var(--k-accent);text-decoration:none;margin-right:6px;letter-spacing:0.08em">◈</a>
@@ -618,6 +638,8 @@ button.btn:hover { background:#403d1e; }
   <button class="lay-btn" data-layout="arc">Arc</button>
   <button class="lay-btn" data-layout="matrix">Matrix</button>
   <button class="lay-btn" data-layout="3d">3D</button>
+  <button class="lay-btn" data-layout="ontology">Ontology</button>
+  <button class="lay-btn" data-layout="signatures">Signatures</button>
   <span style="color:var(--k-border);margin:0 4px">|</span>
   <a href="/now" style="color:var(--k-dim);text-decoration:none;font-size:10px;letter-spacing:0.06em">NOW</a>
   <a href="/daw" style="color:var(--k-dim);text-decoration:none;font-size:10px;letter-spacing:0.06em;margin-left:6px">DAW</a>
@@ -786,8 +808,32 @@ button.btn:hover { background:#403d1e; }
       <div id="arc-file-hub-list"></div>
     </div>
   </div>
+
+  <div id="ontology-options" style="display:none">
+    <div class="sep"></div>
+    <div class="sl-section-hd">◆ ONTOLOGY VIEW</div>
+    <div class="ctrl"><label for="ont-x-axis">X axis</label>
+      <select id="ont-x-axis" class="ctrl-sel">
+        <option value="diversity" selected>Tool diversity</option>
+        <option value="scale">Scale (tokens)</option>
+        <option value="structure">Structure</option>
+        <option value="density">Msg density</option>
+      </select>
+    </div>
+    <div class="ctrl"><label for="ont-y-axis">Y axis</label>
+      <select id="ont-y-axis" class="ctrl-sel">
+        <option value="diversity">Tool diversity</option>
+        <option value="scale" selected>Scale (tokens)</option>
+        <option value="structure">Structure</option>
+        <option value="density">Msg density</option>
+      </select>
+    </div>
+    <div class="sl-section-hd" style="margin-top:10px">◆ HARNESSES <span style="color:var(--k-dim);font-size:8px">(click to focus)</span></div>
+    <div id="ontology-legend"></div>
+  </div>
   </div>
 </div>
+
 <div id="stats"></div>
 <div id="panel"><div id="panel-inner"><span id="panel-x" onclick="closePanel()">✕</span><div id="panel-content"></div></div></div>
 <div id="timeline"><svg id="tl-svg"></svg></div>

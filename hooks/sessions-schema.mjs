@@ -135,5 +135,5 @@ export const OPTIONAL_SESSION_FIELDS = [
   'skills', 'bash_categories', 'content_blocks', 'stop_reasons',
   'first_user_message', 'file_ops', 'harness', 'source',
   'context_resets', 'ai_title', 'subagent_count', 'branches',
-  'tokens_work', 'skill_timeline', 'skill_attribution',
+  'tokens_work', 'skill_timeline', 'skill_attribution', 'tool_mix',
 ];

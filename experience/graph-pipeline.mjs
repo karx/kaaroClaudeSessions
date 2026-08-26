@@ -111,6 +111,7 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       subagent_count:   sess.subagent_count  || 0,
       branches:         sess.branches        || [],
       tools_top:        _topTools(sess.tools),
+      tool_mix:         sess.tool_mix || {},
       sizeNorm,
       errorLevel:       sess.tool_errors >= 8 ? 2 : sess.tool_errors >= 3 ? 1 : 0,
       last_activity:    sess.last_timestamp || sess.first_timestamp || null,

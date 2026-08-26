@@ -85,8 +85,9 @@ Four-stage pipeline, each stage independently testable:
 Every page artifact receives `%%TOKENS_CSS%%` (Register A `--k-*` block) and the
 shared client core (`%%CLIENT_CORE%%`, export-stripped from
 `experience/client-core.mjs`); the graph bundle additionally gets graph data and
-`%%TRACE_HARNESSES%%` from the registry. `graph.html` stays a single
-self-contained file.
+`%%TRACE_HARNESSES%%` / `%%HARNESS_CAPS_JSON%%` (harness id → has token telemetry,
+used by the Ontology/Signatures views) from the registry. `graph.html` stays a
+single self-contained file.
 
 **`serve.mjs`** owns the runtime: runs `analyze.mjs` then `build.mjs` as child processes via `execFile`, watches `~/.claude/projects/` for `.jsonl` changes (1500 ms debounce), and pushes `event: updated` over SSE so the browser calls `window.updateGraph(newData)` without a full reload. Also tails new JSONL bytes on every change and emits live pulse SSE events. Also watches `PI_SESSIONS_ROOT` if present.
 
@@ -108,7 +109,7 @@ self-contained file.
 
 **`experience/graph-data.mjs`** — pure functions with no I/O: `calcRecencyScore`, `calcRecencyLevel`, `assignProjectColors`, `buildFileNodesAndEdges`, `isSessionInFlight`, `filterSessionsByDateRange`. Re-exported from `build.mjs` for backward-compat test imports.
 
-**`experience/graph-pipeline.mjs`** — exports `buildGraph(data, opts)`. Pure transform: takes a parsed `sessions-data.json` object, returns `{ nodes, edges, timeline, stats, PROJECT_COLORS, COLOR_TO_INDEX }`. Session nodes include `context_resets`, `ai_title`, `subagent_count`, `branches`, `tools_top` (top-10 tools by call count), and `cluster_id` (null when unbundled). Also emits `type:'cluster'` bundle nodes (aggregate telemetry, own-scale sizeNorm) with a cluster→project `membership` edge and member→cluster `bundle` edges. No file I/O; fully unit-testable.
+**`experience/graph-pipeline.mjs`** — exports `buildGraph(data, opts)`. Pure transform: takes a parsed `sessions-data.json` object, returns `{ nodes, edges, timeline, stats, PROJECT_COLORS, COLOR_TO_INDEX }`. Session nodes include `context_resets`, `ai_title`, `subagent_count`, `branches`, `tools_top` (top-10 tools by call count), `tool_mix` (canonical cross-harness tool-category counts, strict passthrough of `sess.tool_mix`), and `cluster_id` (null when unbundled). Also emits `type:'cluster'` bundle nodes (aggregate telemetry, own-scale sizeNorm) with a cluster→project `membership` edge and member→cluster `bundle` edges. No file I/O; fully unit-testable.
 
 **`experience/session-clusters.mjs`** — deterministic per-project session clustering for the graph view. Weighted Jaccard similarity (0.7 shared file sets + 0.3 text tokens from `ai_title`/`first_user_message`/`skills`; pure text when both file sets are empty), single-linkage union-find, threshold 0.35, min cluster size 2. Cluster ids anchor on the earliest member: `cluster:<project_id>:<session_id>` (stable as later members join). `buildClusters(sessions, overrides)` applies **`cluster-overrides.json`** (repo root, checked in, hand-edited — the pipeline's only user-editable config): `pin` excludes sessions from clustering, `assign` groups sessions into manual clusters by name (`cluster:<pid>:manual:<slug>`), `labels` renames clusters by id. `build.mjs loadClusterOverrides()` reads it with graceful fallback (absent/malformed → warn + null, build never fails). In the browser, bundles render collapsed by default (`#cb-bundle` checkbox disables the feature); expansion state lives in localStorage `kaaro-expanded-clusters`; clusters affect the force layout only.
 
@@ -137,7 +138,7 @@ Layout modules and their responsibilities:
 - `08-arc.js` — temporal coupling map; file co-access arcs; hub list
 - `09-matrix.js` — file × session co-occurrence matrix
 - `10-3d.js` — 3d-force-graph integration
-- `11-layout-manager.js` — switches between layouts, manages active controls panel
+- `11-layout-manager.js` — `LAYOUT_HANDLERS` is the single registry for per-layout behavior: `controls` (panel ids), `enter`/`exit`, and — for any layout with its own rendering surface — `onFilterChange` (called by `applyFilters()` in `12-controls.js`) and `onResize` (called by the resize listener in `13-live-updates.js`, `force` exempt). Both call sites are a bare `LAYOUT_HANDLERS[currentLayout]?.onX?.()` lookup, not a per-layout `if` chain, specifically so a new layout can't wire up `enter`/`exit` here and silently leave filtering or resize unhandled elsewhere — that's how Ontology/Signatures initially shipped. `'3d': layout3D` must stay that exact object reference (never a spread copy) since `layout3D.enter`/`exit`/`onFilterChange`/`onResize` read `this._g` — `test/layout-dispatch.test.mjs` pins all of this via source-text assertions (the browser-JS equivalent of `design-lint.test.mjs`)
 
 Live and audio modules:
 - `13-live-updates.js` — SSE client; consumes `updated/status/tool_call/tokens/words` events; calls `window.playPulse(event, data)` and `window.updateGraph(newData)`
@@ -147,6 +148,8 @@ Live and audio modules:
 - `17-trace-panel.js` — Context Window Trace Panel; a session's context windows (segments between `compact_boundary` events) as proportional strips (width = token weight, color = dominant tool category, badges for subagent/branch/thinking)
 - `18-thread-view.js` — Thread View full-screen overlay; full conversation replay per context window (stacked composition bar + every turn with tool inputs). Entry `window.openThread(sessionId)`, exit Escape/✕
 - `19-daw-builder.js` — Cognitive DAW Builder v2; multi-lane canvas, mixer strips, automation curves. Only activates when `#daw-root` is present (the dedicated `/daw` page — this file loads harmlessly on the graph page too)
+- `20-ontology-layout.js` — Ontology View (⌨ o); per-session scatter on two chosen axes (diversity/scale/structure/density, default diversity×scale), colored by harness, click-to-focus legend (dims, never hides, other harnesses — mirrors `08-arc.js`'s `focusedArcFileId`). Positioning/decor math via `client-core.mjs`'s `computeOntologyMetrics`/`assignHarnessColors`
+- `21-signatures-layout.js` — Signatures tab; full-canvas three.js view (lazy-loaded via dynamic `import()` + the page's `<script type="importmap">` on first open) showing every harness's shape radar + capability radar as translucent polygons stacked at increasing Z-depth (orbit camera separates overlapping harnesses instead of alpha-blending flat), plus a tool-mix donut grid. Scene setup is self-disposing (`disposeSignaturesScene()` + a generation counter the render loop checks) so re-entering the tab while the three.js import is still in flight can never leave two renderer/rAF chains running
 
 `00-core.js` is a placeholder module (kept for numbering/ordering); `00-boot.js` defines `window.bootComplete()`, called once at the end of `13-live-updates.js` init to swap the boot overlay for the live stats readout.
 
@@ -185,7 +188,7 @@ Test files map to modules:
 - `test/session-reducer.test.mjs` → `hooks/session-reducer.mjs` (NormalizedRecord[] → canonical session object)
 - `test/session-resolver.test.mjs` → `surface/session-resolver.mjs`
 - `test/watch-handlers.test.mjs` → `surface/watch-handlers.mjs` (`processWatchFilename` per harness)
-- `test/enrich-session.test.mjs` → `hooks/enrich-session.mjs` (derived fields: totals, cache_hit_rate, duration_min, tool_diversity)
+- `test/enrich-session.test.mjs` → `hooks/enrich-session.mjs` (derived fields: totals, cache_hit_rate, duration_min, tool_diversity, tool_mix)
 - `test/harness-registry.test.mjs` → `hooks/registry.mjs`
 - `test/event-registry.test.mjs` → `experience/audio/event-registry.mjs`
 - `test/build.test.mjs` → `build.mjs`
@@ -214,8 +217,9 @@ Test files map to modules:
 - `test/harness-parity.test.mjs` → sample traces + capability-enforced field parity (registry flags ARE the matrix)
 - `test/scan-walk.test.mjs` / `test/jsonl-io.test.mjs` → the shared scanner skeleton + JSONL reader
 - `test/sse-hub.test.mjs` / `test/pulse-emitter.test.mjs` / `test/rebuild-orchestrator.test.mjs` / `test/http-routes.test.mjs` → the decomposed serve runtime (ephemeral ports, no child processes)
-- `test/client-core.test.mjs` → `experience/client-core.mjs` (formatters, colors, geometry, SSE wiring, filters, force profiles, DAW legend)
+- `test/client-core.test.mjs` → `experience/client-core.mjs` (formatters, colors, geometry, SSE wiring, filters, force profiles, DAW legend, ontology math: `assignHarnessColors`/`computeOntologyMetrics`/`harnessSignature`/`harnessToolMix`)
 - `test/design-tokens.test.mjs` / `test/design-lint.test.mjs` → Register A tokens + the grammar guard (no blue chrome, no shadows/gradients/large radii)
+- `test/layout-dispatch.test.mjs` → source-text guard on the `LAYOUT_HANDLERS[currentLayout]?.onFilterChange/onResize?.()` dispatch contract in `11-layout-manager.js`/`12-controls.js`/`13-live-updates.js`/`10-3d.js` — same technique as design-lint, for code that can't run under `node --test`
 
 ## Known coverage gaps
 

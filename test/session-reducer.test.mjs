@@ -53,6 +53,28 @@ test('reduceSession — tool_use and file_ops', () => {
   assert.equal(s.bash_categories.git, 1);
 });
 
+test('reduceSession — bash_categories recognizes all real harness shell-tool names', () => {
+  const s = reduceSession([
+    { kind: 'tool_use', harness: 'grok', ts: TS1, tool: 'run_terminal_command',
+      input: { command: 'git log' } },
+    { kind: 'tool_use', harness: 'claude-code', ts: TS1, tool: 'PowerShell',
+      input: { command: 'git status' } },
+    { kind: 'tool_use', harness: 'copilot', ts: TS1, tool: 'run_in_terminal',
+      input: { command: 'git diff' } },
+  ], META);
+  assert.equal(s.bash_categories.git, 3);
+});
+
+test('reduceSession — bash_categories recognizes shell-tool names regardless of case (isBashToolName, not a case-sensitive Set)', () => {
+  const s = reduceSession([
+    { kind: 'tool_use', harness: 'grok', ts: TS1, tool: 'powershell',
+      input: { command: 'git log' } },
+    { kind: 'tool_use', harness: 'grok', ts: TS1, tool: 'RUN_IN_TERMINAL',
+      input: { command: 'git status' } },
+  ], META);
+  assert.equal(s.bash_categories.git, 2);
+});
+
 test('reduceSession — tokens accumulation', () => {
   const s = reduceSession([
     { kind: 'tokens', harness: 'claude-code', ts: TS1,

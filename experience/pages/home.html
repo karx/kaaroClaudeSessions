@@ -36,12 +36,25 @@
   }
 
   /* Boot ritual — terminal handshake lines */
-  #boot { width: min(640px, 92vw); color: var(--k-dim); font-size: 11px; min-height: 76px; }
-  #boot .ln { letter-spacing: 0.04em; }
+  #boot { width: min(640px, 92vw); color: var(--k-dim); font-size: 11px; min-height: 88px; }
+  #boot .ln { letter-spacing: 0.04em; line-height: 1.7; }
   #boot .ln .ok { color: var(--k-geo); }
   #boot .ln .v  { color: var(--k-data); }
   #boot .cursor { display: inline-block; width: 7px; height: 12px; background: var(--k-accent); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
+
+  #me-hero:not(.on),
+  #tiles:not(.on) { display: none; }
+  #me-hero.on {
+    display: block;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+  }
+  #tiles.on {
+    display: flex;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+  }
 
   /* View tiles */
   #tiles { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
@@ -59,6 +72,19 @@
   .tile .t-desc { color: var(--k-dim); margin-top: 6px; font-size: 11px; min-height: 42px; }
   .tile .t-stat { color: var(--k-data); margin-top: 8px; font-size: 10px; letter-spacing: 0.04em; min-height: 13px; }
 
+  #me-hero { width: min(640px, 92vw); text-align: center; cursor: pointer; flex-shrink: 0; }
+  #me-hero .me-glyph { display: inline-block; }
+  #me-hero .hd {
+    color: var(--k-dim); font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase; margin: 0 0 8px;
+  }
+  #me-hero .me-line { color: var(--k-dim); font-size: 10px; letter-spacing: 0.06em; margin: 6px 0 8px; }
+  #me-hero .me-rows { display: inline-block; text-align: left; min-width: 180px; }
+  .me-row { display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--k-body); margin: 2px 0; }
+  .me-swatch { width: 6px; height: 6px; flex-shrink: 0; }
+  .me-h { flex: 1; min-width: 0; }
+  .me-pct { color: var(--k-data); letter-spacing: 0.04em; }
+  .me-n { color: var(--k-dim); }
   #glyph-field { width: min(640px, 92vw); text-align: center; }
   #glyph-field .hd {
     color: var(--k-dim); font-size: 9px; letter-spacing: 0.18em;
@@ -85,9 +111,9 @@
 
 <div id="main">
   <div id="boot"></div>
-  <div id="glyph-field" hidden>
-    <div class="hd">projects</div>
-    <div id="glyph-field-body"></div>
+  <div id="me-hero">
+    <div class="hd">me</div>
+    <div id="me-hero-mark"></div>
   </div>
   <div id="tiles">
     <a class="tile" href="/graph" id="tile-graph">
@@ -112,6 +138,10 @@
       <div class="t-stat" id="stat-daw">awaiting first pulse</div>
     </a>
   </div>
+  <div id="glyph-field" hidden>
+    <div class="hd">projects</div>
+    <div id="glyph-field-body"></div>
+  </div>
 </div>
 
 <div id="statusbar">
@@ -120,21 +150,30 @@
 
 <script>
 %%CLIENT_CORE%%
+const KAARO_TOKENS = %%KAARO_TOKENS%%;
 
 (function () {
   'use strict';
   const $boot  = document.getElementById('boot');
   const $badge = document.getElementById('live-badge');
   const $sys   = document.getElementById('sys');
+  const $meMark = document.getElementById('me-hero-mark');
 
-  // ── Boot ritual: a handshake, not a loader — each line is a real probe ──
-  const lines = [];
-  function bootLine(html) {
-    lines.push(html);
-    $boot.innerHTML = lines.map(l => '<div class="ln">' + l + '</div>').join('') +
-      '<div class="ln">&gt; <span class="cursor"></span></div>';
+  function paintMe(sessions) {
+    if (!$meMark) return;
+    const me = meGlyph(sessions || []);
+    $meMark.innerHTML = meGlyphCardHtml(me, { r: 42, bg: KAARO_TOKENS.bg, color: KAARO_TOKENS.accent });
   }
 
+  // ── Boot ritual: a handshake, not a loader — each line is a real probe ──
+  function renderBoot(shown) {
+    $boot.innerHTML = shown.map(l => '<div class="ln">' + l + '</div>').join('') +
+      '<div class="ln">&gt; <span class="cursor"></span></div>';
+  }
+  const bootQ = createBootQueue({ minGap: 520, firstDelay: 480, onShow: renderBoot });
+  function bootLine(html, onReveal) { bootQ.push(html, onReveal); }
+
+  renderBoot([]);
   bootLine('&gt; kaaro-sessions — a live observability surface');
   bootLine('&gt; connecting to the stream…');
 
@@ -160,7 +199,7 @@
     onStatus: s => {
       if (s === 'open') {
         $badge.textContent = '⬤ LIVE'; $badge.className = 'on';
-        bootOnce('events', '<span class="ok">✓</span> stream connected');
+        bootOnce('events', '<span class="ok">✓</span> stream connected', maybeReady);
       } else {
         $badge.textContent = '◌ reconnecting'; $badge.className = '';
       }
@@ -168,17 +207,34 @@
   });
 
   const booted = new Set();
-  function bootOnce(key, html) { if (!booted.has(key)) { booted.add(key); bootLine(html); } }
+  function bootOnce(key, html, onReveal) {
+    if (booted.has(key)) return;
+    booted.add(key);
+    bootLine(html, onReveal);
+  }
 
   fetch('/api/harnesses').then(r => r.json()).then(d => {
     const ids = d.harnesses.map(h => h.id);
     bootOnce('harness', '<span class="ok">✓</span> <span class="v">' + ids.length + '</span> harnesses registered: ' + ids.join(' · '));
-  }).catch(() => bootOnce('harness', '✗ harness registry unreachable'));
+    maybeReady();
+  }).catch(() => {
+    bootOnce('harness', '✗ harness registry unreachable');
+    maybeReady();
+  });
 
   fetch('/graph-data.json').then(r => { if (!r.ok) throw 0; return r.json(); }).then(d => {
     const sessions = d.nodes.filter(n => n.type === 'session').length;
     const projects = d.nodes.filter(n => n.type === 'project');
-    bootOnce('snapshot', '<span class="ok">✓</span> snapshot: <span class="v">' + sessions + '</span> sessions across <span class="v">' + projects.length + '</span> projects');
+    const sessNodes = d.nodes.filter(n => n.type === 'session');
+    bootOnce(
+      'snapshot',
+      '<span class="ok">✓</span> snapshot: <span class="v">' + sessions + '</span> sessions across <span class="v">' + projects.length + '</span> projects',
+      () => {
+        paintMe(sessNodes);
+        document.getElementById('me-hero')?.classList.add('on');
+        maybeReady();
+      },
+    );
     let graphStat = sessions + ' sessions · ' + projects.length + ' projects';
     const dr = d.meta && d.meta.date_range;
     if (dr && dr.first) graphStat += ' · since ' + String(dr.first).slice(0, 10);
@@ -188,24 +244,40 @@
     const field = document.getElementById('glyph-field');
     const body = document.getElementById('glyph-field-body');
     if (field && body && ordered.length) {
-      field.hidden = false;
       field.querySelector('.hd').textContent = live + ' live · ' + ordered.length + ' projects';
       body.innerHTML = projectGlyphFieldSvg(ordered, { r: 14, cols: Math.min(8, ordered.length), bg: KAARO_TOKENS.bg });
+      field.dataset.ready = '1';
+      if (chromeLive) field.hidden = false;
     }
   }).catch(() => {
-    bootOnce('snapshot', '… snapshot building — refresh shortly');
+    bootOnce('snapshot', '… snapshot building — refresh shortly', maybeReady);
     document.getElementById('stat-graph').textContent = 'snapshot building';
   });
 
   fetch('/api/active').then(r => r.json()).then(d => setNowStat(d)).catch(() => {});
 
   const NAV = 'G history · N live · D sonic';
+  let chromeLive = false;
+  function revealChrome() {
+    if (chromeLive) return;
+    chromeLive = true;
+    document.getElementById('tiles')?.classList.add('on');
+    const field = document.getElementById('glyph-field');
+    if (field && field.dataset.ready) field.hidden = false;
+    $sys.textContent = NAV;
+  }
+  function maybeReady() {
+    if (!booted.has('harness') || !booted.has('snapshot')) return;
+    bootOnce('ready', '&gt; ready.', revealChrome);
+  }
+
   setInterval(() => {
+    if (!chromeLive) return;
     $sys.textContent = NAV + ' · ' + (pulses ? pulses + ' pulses this visit' : 'awaiting first pulse');
     setDawStat();
   }, 1000);
-  $sys.textContent = NAV;
 
+  document.getElementById('me-hero')?.addEventListener('click', () => { location.href = '/graph'; });
   document.getElementById('glyph-field')?.addEventListener('click', ev => {
     if (ev.target.closest('[data-pid]')) location.href = '/graph#grid';
   });

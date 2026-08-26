@@ -481,6 +481,77 @@ export function harnessWedges(harnesses, r, weights) {
   });
 }
 
+/**
+ * ME glyph — one hex for the whole graph. Usage is session count so
+ * tokenless harnesses still count. Wedge order is count-desc, then id,
+ * so the largest share starts at the top vertex.
+ */
+export function meGlyph(sessions = []) {
+  const counts = new Map();
+  for (const s of sessions || []) {
+    const h = s?.harness || s?.source;
+    if (!h) continue;
+    counts.set(h, (counts.get(h) || 0) + 1);
+  }
+  const total = [...counts.values()].reduce((a, b) => a + b, 0);
+  const harnesses = [...counts.keys()].sort((a, b) => {
+    const d = counts.get(b) - counts.get(a);
+    if (d) return d;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+  const weights = {};
+  const rows = harnesses.map(harness => {
+    const count = counts.get(harness);
+    weights[harness] = count;
+    return {
+      harness,
+      count,
+      share: total ? count / total : 0,
+      pct: total ? Math.round(100 * count / total) : 0,
+      color: HARNESS_MARK[harness] || '#888888',
+    };
+  });
+  return { harnesses, weights, total, rows };
+}
+
+/** ME hex: hollow when empty; solid wedges proportional to share. */
+export function meGlyphMarkup(me, { r = 28, bg = '#000000', color = '#ccccaa' } = {}) {
+  const stroke = `<path d="${hexPath(r)}" fill="none" stroke="${esc(color)}" stroke-width="2"/>`;
+  if (!me || !me.total) {
+    return `<path d="${hexPath(r)}" fill="${bg}" stroke="${esc(color)}" stroke-width="2"/>`;
+  }
+  const wedges = harnessWedges(me.harnesses, r, me.weights);
+  const fills = wedges.map(w =>
+    `<path d="${w.d}" fill="${HARNESS_MARK[w.harness] || color}" fill-opacity="${HARNESS_FILL_OPACITY}"/>`
+  ).join('');
+  return fills + stroke;
+}
+
+export function meGlyphSvg(me, opts = {}) {
+  const r = opts.r || 28;
+  const pad = 1;
+  const size = r * 2 + pad * 2;
+  return `<svg class="me-glyph" width="${size}" height="${size}" viewBox="${-r - pad} ${-r - pad} ${size} ${size}" aria-hidden="true">${meGlyphMarkup(me, { ...opts, r })}</svg>`;
+}
+
+/** Hex + session count + per-harness share rows — dock and landing. */
+export function meGlyphCardHtml(me, opts = {}) {
+  const r = opts.r || 28;
+  const total = me?.total || 0;
+  const nH = me?.harnesses?.length || 0;
+  const line = total
+    ? `${total} session${total === 1 ? '' : 's'} · ${nH} harness${nH === 1 ? '' : 'es'}`
+    : 'no sessions';
+  const legend = (me?.rows || []).map(row =>
+    `<div class="me-row"><span class="me-swatch" style="background:${esc(row.color)}"></span>` +
+    `<span class="me-h">${esc(row.harness)}</span>` +
+    `<span class="me-pct">${row.pct}%</span>` +
+    `<span class="me-n">${row.count}</span></div>`
+  ).join('');
+  return meGlyphSvg(me, opts) + `<div class="me-line">${line}</div>` +
+    (legend ? `<div class="me-rows">${legend}</div>` : '');
+}
+
 /** Panel rows for a project: glyph order, session counts, mark colors. */
 export function harnessBreakdown(harnesses, sessions = []) {
   const order = uniqHarnesses(harnesses);
@@ -872,6 +943,42 @@ export function forceProfile(free) {
     projectCharge:      -700,
     grouping:           null,   // honor the cluster-by-project checkbox
     center:             false,
+  };
+}
+
+/**
+ * Landing handshake queue. `firstDelay` holds on a cursor before line one
+ * (first-boot pause). Later lines wait `minGap`. `onReveal` fires when
+ * that line is shown.
+ */
+export function createBootQueue(opts = {}) {
+  const minGap = opts.minGap ?? 180;
+  const firstDelay = opts.firstDelay ?? 0;
+  const delay = opts.delay || ((fn, ms) => setTimeout(fn, ms));
+  const shown = [];
+  const queue = [];
+  let timer = null;
+  function flush() {
+    timer = null;
+    if (!queue.length) return;
+    const item = queue.shift();
+    shown.push(item.html);
+    if (opts.onShow) opts.onShow(shown.slice());
+    if (typeof item.onReveal === 'function') item.onReveal();
+    if (queue.length) timer = delay(flush, minGap);
+  }
+  function arm() {
+    if (timer) return;
+    const wait = shown.length === 0 ? firstDelay : minGap;
+    if (wait <= 0) flush();
+    else timer = delay(flush, wait);
+  }
+  return {
+    push(html, onReveal) {
+      queue.push({ html, onReveal });
+      arm();
+    },
+    shown: () => shown.slice(),
   };
 }
 

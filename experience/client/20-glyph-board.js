@@ -85,7 +85,18 @@
     decorLayer.selectAll('path.grid-hex').remove();
   }
 
+  function renderMe() {
+    const el = document.getElementById('me-glyph-body');
+    const count = document.getElementById('me-glyph-count');
+    const sessions = GRAPH.nodes.filter(n => n.type === 'session');
+    const me = meGlyph(sessions);
+    if (count) count.textContent = me.total ? String(me.total) : '';
+    if (!el) return;
+    el.innerHTML = meGlyphCardHtml(me, { r: 28, bg: KAARO_TOKENS.bg, color: KAARO_TOKENS.accent });
+  }
+
   function renderMinimap() {
+    renderMe();
     if (!dockBody) return;
     const st = boardState();
     const live = st.list.filter(isProjectGlyphActive).length;

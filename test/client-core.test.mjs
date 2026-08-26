@@ -10,8 +10,9 @@ import assert from 'node:assert/strict';
 import {
   fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
-  connectEvents, resolveControlVisibility,
+  connectEvents, createBootQueue, resolveControlVisibility,
   hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
+  meGlyph, meGlyphMarkup, meGlyphSvg, meGlyphCardHtml,
   SIM_ALPHA_DECAY,
   isProjectGlyphActive, glyphGrid, glyphGridExtent,
   glyphCellPosition, glyphLatticeCells, snapToGlyphCell,
@@ -412,6 +413,66 @@ test('harnessWedges — weighted by session counts', () => {
   assert.ok(hasLeftMid(minority), 'minority wedge shares the same boundary point');
 });
 
+test('meGlyph — aggregate harness usage across all sessions, split by share', () => {
+  assert.deepEqual(meGlyph(), { harnesses: [], weights: {}, total: 0, rows: [] });
+  assert.equal(meGlyph([]).total, 0);
+
+  const me = meGlyph([
+    { harness: 'pi' },
+    { harness: 'claude-code' },
+    { harness: 'claude-code' },
+    { harness: 'claude-code' },
+    { source: 'pi' },
+    { harness: 'grok' },
+    { label: 'no-harness' },
+  ]);
+  assert.equal(me.total, 6);
+  assert.deepEqual(me.harnesses, ['claude-code', 'pi', 'grok'], 'largest share first');
+  assert.equal(me.weights['claude-code'], 3);
+  assert.equal(me.weights.pi, 2);
+  assert.equal(me.weights.grok, 1);
+  assert.equal(me.rows[0].share, 0.5);
+  assert.equal(me.rows[0].pct, 50);
+  assert.equal(me.rows[0].count, 3);
+  assert.equal(me.rows[0].color, HARNESS_MARK['claude-code']);
+  assert.equal(me.rows[1].share, 2 / 6);
+  assert.equal(me.rows[2].pct, 17);
+
+  const tied = meGlyph([{ harness: 'pi' }, { harness: 'grok' }]);
+  assert.deepEqual(tied.harnesses, ['grok', 'pi'], 'ties break alphabetically');
+});
+
+test('meGlyphMarkup — empty is hollow; usage splits the hex by share', () => {
+  const empty = meGlyphMarkup(meGlyph([]), { r: 20, bg: '#000000', color: '#ccccaa' });
+  assert.ok(empty.includes(hexPath(20)));
+  assert.ok(empty.includes('fill="#000000"'));
+  assert.ok(!empty.includes(HARNESS_MARK['claude-code']));
+
+  const me = meGlyph([
+    { harness: 'claude-code' }, { harness: 'claude-code' }, { harness: 'claude-code' },
+    { harness: 'pi' },
+  ]);
+  const markup = meGlyphMarkup(me, { r: 20, bg: '#000000', color: '#ccccaa' });
+  assert.ok(markup.includes(HARNESS_MARK['claude-code']));
+  assert.ok(markup.includes(HARNESS_MARK.pi));
+  assert.ok(/fill-opacity="1"/.test(markup), 'ME fill is solid');
+  const equal = harnessWedges(me.harnesses, 20);
+  const weighted = harnessWedges(me.harnesses, 20, me.weights);
+  assert.notDeepEqual(weighted, equal, 'share wedges are not equal-angle');
+  assert.ok(markup.includes(weighted[0].d), 'majority wedge path is in the mark');
+
+  const svg = meGlyphSvg(me, { r: 16, bg: '#000000' });
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('class="me-glyph"'));
+  assert.ok(svg.includes('viewBox'));
+
+  const card = meGlyphCardHtml(me, { r: 16, bg: '#000000' });
+  assert.ok(card.includes('class="me-glyph"'));
+  assert.ok(card.includes('75%'));
+  assert.ok(card.includes('claude-code'));
+  assert.ok(card.includes('4 session'));
+});
+
 test('harnessBreakdown — preserves glyph order, counts sessions, carries mark color', () => {
   assert.deepEqual(harnessBreakdown([]), []);
   const rows = harnessBreakdown(
@@ -437,6 +498,51 @@ test('edge opacity/width — weighted edges scale with sqrt(weight/max)', () => 
   const heavy = edgeOpacity({ type: 'read', weight: 100 }, 100);
   assert.ok(heavy > base, 'weight raises opacity');
   assert.ok(edgeWidth({ type: 'write', weight: 100 }, 100) > edgeWidth({ type: 'write', weight: 1 }, 100));
+});
+
+test('createBootQueue — first line is immediate, later lines wait minGap', () => {
+  const frames = [];
+  const reveals = [];
+  const scheduled = [];
+  const delay = (fn, ms) => { scheduled.push({ fn, ms }); return scheduled.length; };
+  const q = createBootQueue({
+    minGap: 180,
+    delay,
+    onShow: shown => frames.push(shown.slice()),
+  });
+  q.push('a');
+  assert.deepEqual(frames, [['a']], 'first line paints now');
+  q.push('b', () => reveals.push('b'));
+  q.push('c');
+  assert.equal(frames.length, 1, 'later lines stay queued');
+  assert.deepEqual(reveals, []);
+  assert.equal(scheduled[0].ms, 180);
+  scheduled[0].fn();
+  assert.deepEqual(frames[1], ['a', 'b']);
+  assert.deepEqual(reveals, ['b'], 'onReveal fires when that line is shown');
+  scheduled[1].fn();
+  assert.deepEqual(frames[2], ['a', 'b', 'c']);
+});
+
+test('createBootQueue — firstDelay holds on the cursor before line one', () => {
+  const frames = [];
+  const scheduled = [];
+  const delay = (fn, ms) => { scheduled.push({ fn, ms }); return scheduled.length; };
+  const q = createBootQueue({
+    minGap: 500,
+    firstDelay: 400,
+    delay,
+    onShow: shown => frames.push(shown.slice()),
+  });
+  q.push('a');
+  assert.equal(frames.length, 0, 'hold before the first line');
+  assert.equal(scheduled[0].ms, 400);
+  scheduled[0].fn();
+  assert.deepEqual(frames[0], ['a']);
+  q.push('b');
+  assert.equal(scheduled[1].ms, 500);
+  scheduled[1].fn();
+  assert.deepEqual(frames[1], ['a', 'b']);
 });
 
 test('connectEvents — wires handlers with JSON parsing and status callbacks', () => {

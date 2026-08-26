@@ -142,7 +142,8 @@ On `#canvas`, origin is **canvas centre** and `r = GLYPH_GRAPH_R` (`NODE_RADII.P
 | Force graph nodes | Same active/idle fill; size still `sizeNorm`; optional pin-to-lattice |
 | Lattice layout | Same nodes, lattice under them, drag-snap projects |
 | Project panel | Hero glyph (`r = 28`) above the title |
-| Landing `/` | Field of all projects; click → `/graph#grid` |
+| **ME glyph** | Singular hex: all sessions, wedges by harness share (`meGlyph`). Dock hero + landing `/`. Always solid while `total > 0`. |
+| Landing `/` | First-boot handshake, then ME hex **above the three view tiles**; project field below. Click ME → `/graph`; project hex → `/graph#grid` |
 | DAW page | Dock hidden (`display: none !important`) |
 
 ---

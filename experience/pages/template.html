@@ -87,6 +87,16 @@ body { background: var(--k-bg); color: var(--k-body); font-family: 'IBM Plex Mon
 #glyph-dock .pglyph-field { display: block; }
 #glyph-dock .pglyph-cell { cursor: pointer; }
 #glyph-dock .pglyph-view { fill: none; stroke: var(--k-accent); stroke-width: 1; }
+#me-glyph-body { text-align: center; margin-bottom: 8px; }
+#me-glyph-body .me-glyph { display: inline-block; vertical-align: middle; }
+#me-glyph-body .me-rows { display: block; text-align: left; }
+.me-line { color: var(--k-dim); font-size: 9px; letter-spacing: 0.06em; margin: 6px 0 8px; }
+.me-row { display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--k-body); margin: 2px 0; text-align: left; }
+.me-swatch { width: 6px; height: 6px; flex-shrink: 0; }
+.me-h { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-pct { color: var(--k-data); letter-spacing: 0.04em; }
+.me-n { color: var(--k-dim); }
+#glyph-dock .grid-hd { color: var(--k-accent); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin: 8px 0 6px; }
 .pglyph-lattice { stroke: var(--k-border); stroke-width: 0.7; pointer-events: none; }
 .pglyph-label { fill: var(--k-dim); font-size: 8px; letter-spacing: 0.06em; pointer-events: none; }
 .pglyph-hero { text-align: center; margin: 4px 0 14px; }
@@ -672,8 +682,13 @@ button.btn:hover { background:#403d1e; }
   </div>
 </div>
 <div id="glyph-dock" class="widget">
-  <h3>◆ GRID <span id="glyph-dock-count"></span> <span id="glyph-dock-expand" title="Hex lattice layout">⤢</span> <span class="widget-toggle" onclick="toggleWidget('glyph-dock')">−</span></h3>
-  <div class="widget-body" id="glyph-dock-body"></div>
+  <h3>◆ ME <span id="me-glyph-count"></span> <span class="widget-toggle" onclick="toggleWidget('glyph-dock')">−</span></h3>
+  <div class="widget-body">
+    <div id="me-glyph-body"></div>
+    <div class="sep"></div>
+    <div class="grid-hd">◆ GRID <span id="glyph-dock-count"></span> <span id="glyph-dock-expand" title="Hex lattice layout">⤢</span></div>
+    <div id="glyph-dock-body"></div>
+  </div>
 </div>
 <div id="controls" class="widget">
   <h3>◆ DISPLAY <span class="widget-toggle" onclick="toggleWidget('controls')">−</span></h3>

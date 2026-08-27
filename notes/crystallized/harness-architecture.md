@@ -2,7 +2,7 @@
 published: false
 title: "Harness Architecture — How kaaroSessions reads every coding agent"
 tags: [kaaro-sessions, architecture, harness, adapter, normalized-record]
-description: "The registry-driven harness system: how one local server reads 7 different AI coding agents, normalizes their transcripts into a common vocabulary, and serves live pulses + trace trees."
+description: "The registry-driven harness system: how one local server reads 8 different AI coding agents, normalizes their transcripts into a common vocabulary, and serves live pulses + trace trees."
 date: 2026-06-16
 layer: L3-Architecture
 maturity: CRYSTALLIZED
@@ -11,8 +11,8 @@ para: Architecture
 
 # Harness Architecture — How kaaroSessions reads every coding agent
 
-kaaroSessions watches 7 AI coding agent harnesses (Claude Code, Pi, Google Antigravity,
-Grok, opencode, GitHub Copilot, and Command Code), normalizes their transcripts into a
+kaaroSessions watches 8 AI coding agent harnesses (Claude Code, Pi, Google Antigravity,
+Grok, opencode, GitHub Copilot, Command Code, and Grok Bot), normalizes their transcripts into a
 common record format, and serves live pulse events + trace trees over HTTP + SSE. This
 note explains how a new harness is added and how the pieces connect.
 

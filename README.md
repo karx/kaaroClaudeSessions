@@ -2,8 +2,8 @@
 
 A live observability surface for your AI coding agent sessions.
 
-Reads transcripts from seven harnesses — Claude Code, Pi, Google Antigravity, Grok,
-opencode, GitHub Copilot, and Command Code — normalizes them into a common record
+Reads transcripts from eight harnesses — Claude Code, Pi, Google Antigravity, Grok,
+opencode, GitHub Copilot, Command Code, and Grok Bot — normalizes them into a common record
 vocabulary, and serves an interactive force-directed graph of projects, sessions, and
 files plus live Mission Control and DAW views, all from a local HTTP server with
 live hot-reload.

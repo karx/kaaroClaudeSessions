@@ -26,3 +26,8 @@ function vscodeUserDir() {
 }
 export const COPILOT_WORKSPACE_STORAGE_ROOT = path.join(vscodeUserDir(), 'workspaceStorage');
 export const COMMANDCODE_PROJECTS_ROOT = path.join(os.homedir(), '.commandcode', 'projects');
+
+// Grok Bot (Cursor/SpaceXAI desktop assistant) transcripts live on the Linux
+// box at /home/box/agent-data — NOT Windows AppData. Honor GROK_BOT_AGENT_DATA
+// so Windows kaaroSessions can point at a mounted or copied tree.
+export const GROK_BOT_AGENT_DATA = process.env.GROK_BOT_AGENT_DATA || '/home/box/agent-data';

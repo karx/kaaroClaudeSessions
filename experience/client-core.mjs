@@ -83,6 +83,7 @@ export function hexPath(r) {
 export const HARNESS_MARK = {
   'claude-code': '#2a9d8f', pi: '#ff9944', antigravity: '#44cc88',
   grok: '#cc4488', opencode: '#aacc44', copilot: '#c070b0', 'command-code': '#ffcc44',
+  'grok-bot': '#e07a3a',
 };
 export const HARNESS_FILL_OPACITY = 1;
 

@@ -1,8 +1,8 @@
 # TODO — kaaroSessions
 
 **Current state (2026-07-19, post next-5 batch):** **1544 tests pass, 0 fail.**
-Seven harnesses supported (claude-code, pi, antigravity, grok, opencode, copilot,
-command-code) through the `hooks/` (normalization) + `surface/` (HTTP+SSE) split.
+Eight harnesses supported (claude-code, pi, antigravity, grok, opencode, copilot,
+command-code, grok-bot) through the `hooks/` (normalization) + `surface/` (HTTP+SSE) split.
 CI runs `node --test` on push/PR (Node 18/20/22). Policy pillar phase 1 landed
 (`hooks/policy.mjs`, `hooks/signal-evaluator.mjs`, `/api/signals`). See
 `docs/harnesses.md` for the live support matrix, CLAUDE.md's "Known coverage gaps"

@@ -214,6 +214,7 @@ import { getHarness } from '../hooks/registry.mjs';
 import { recordsToNormalized as ocToNorm } from '../hooks/adapters/opencode.mjs';
 import { recordsToNormalized as cpToNorm } from '../hooks/adapters/copilot.mjs';
 import { parseGrokRecords } from '../hooks/analyzers/analyze-grok.mjs';
+import { parseGrokBotRecords } from '../hooks/analyzers/analyze-grok-bot.mjs';
 
 const CAPABILITY_FIELDS = ['context_resets', 'ai_title', 'subagent_count', 'branches'];
 
@@ -320,6 +321,17 @@ const CAP_SESSION_BUILDERS = {
     });
     enrichSession(s);
     return s;
+  },
+
+  'grok-bot': () => {
+    const records = [
+      { role: 'user', message: { content: [{ type: 'text', text: 'populate grok-bot capability fields please' }] } },
+      { role: 'assistant', message: { content: [{ type: 'text', text: 'scratchpad' }] } },
+      { role: 'assistant', message: { content: [{ type: 'tool_use', name: 'send_message', input: { text: { content: 'On it.' } } }] } },
+      { role: 'tool', message: { content: [{ type: 'tool_result', name: 'send_message', result: { success: { timestamp: '1787860893175', messageId: 't0s0' } } }] } },
+      { role: 'assistant', message: { content: [{ type: 'tool_use', name: 'shell', input: { command: 'git status' } }] } },
+    ];
+    return parseGrokBotRecords(records, 'cap-gb', { ai_title: 'Cap parity grok-bot' });
   },
 };
 

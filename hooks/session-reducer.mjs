@@ -27,7 +27,7 @@ export const FILE_OP_TOOLS = {
   insert_edit_into_file: 'edit',
   replace_string_in_file: 'edit',
 };
-const BASH_TOOLS = new Set(['Bash', 'bash', 'run_command', 'Shell']);
+const BASH_TOOLS = new Set(['Bash', 'bash', 'run_command', 'Shell', 'shell']);
 
 function filePathFromInput(input = {}) {
   return input.file_path ?? input.path ?? input.AbsolutePath ?? input.TargetFile ?? null;

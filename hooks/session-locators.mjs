@@ -10,7 +10,7 @@ import fs   from 'fs';
 import path from 'path';
 import {
   CLAUDE_PROJECTS_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
-  OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
+  OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT, GROK_BOT_AGENT_DATA,
 } from './harness-paths.mjs';
 
 function sessionIdFromPiFilename(filename) {
@@ -264,6 +264,47 @@ export function locateCommandCodeSession(sessionId, root = COMMANDCODE_PROJECTS_
 
     const found = findByPrefix(projPath, sessionId, '.jsonl');
     if (found) return { filePath: found.filePath, projectId: proj, sessionId: found.id };
+  }
+  return null;
+}
+
+
+/**
+ * @param {string} sessionId — Grok Bot agent uuid
+ * @param {string} [root] — agent-data root (GROK_BOT_AGENT_DATA)
+ * @returns {{ filePath: string, projectId: string, sessionId: string }|null}
+ */
+export function locateGrokBotSession(sessionId, root = process.env.GROK_BOT_AGENT_DATA || GROK_BOT_AGENT_DATA) {
+  if (!sessionId) return null;
+  const transcripts = path.join(root, 'agent-transcripts');
+  if (!fs.existsSync(transcripts)) return null;
+
+  const exact = path.join(transcripts, sessionId, `${sessionId}.jsonl`);
+  if (fs.existsSync(exact)) {
+    return { filePath: exact, projectId: 'grok-bot', sessionId };
+  }
+
+  const sessionDir = path.join(transcripts, sessionId);
+  if (fs.existsSync(sessionDir)) {
+    try {
+      for (const name of fs.readdirSync(sessionDir)) {
+        if (!name.endsWith('.jsonl')) continue;
+        if (name.includes('journal')) continue;
+        return { filePath: path.join(sessionDir, name), projectId: 'grok-bot', sessionId };
+      }
+    } catch { /* skip */ }
+  }
+
+  if (sessionId.length < SLUG_MIN_LEN) return null;
+  const needle = sessionId.toLowerCase();
+  let names;
+  try { names = fs.readdirSync(transcripts); } catch { return null; }
+  for (const sid of names) {
+    if (!sid.toLowerCase().startsWith(needle)) continue;
+    const candidate = path.join(transcripts, sid, `${sid}.jsonl`);
+    if (fs.existsSync(candidate)) {
+      return { filePath: candidate, projectId: 'grok-bot', sessionId: sid };
+    }
   }
   return null;
 }

@@ -15,6 +15,7 @@ It is intended to be **self-growing**: when adding or discovering differences fo
 | opencode      | `opencode`    | `~/.local/share/opencode/storage/` | Yes | Yes          | No                 | Session spread across three JSON trees: `session/<proj>/ses_*.json` (info), `message/<ses>/msg_*.json` (roles + full token breakdown incl. cache read/write), `part/<msg>/prt_*.json` (text/reasoning/tool/step/patch). Whole-file JSON watch (`read_mode: 'json'`), not JSONL tail. Tool parts emit only on completed/error (file is rewritten across states). step-finish tokens silenced (message envelope is authoritative). Project id derived from `info.directory` path → unifies with CC project ids. |
 | GitHub Copilot | `copilot`    | VS Code `workspaceStorage/` (per-OS) | Partial | Yes      | No                 | Per-workspace `chatSessions/<uuid>.jsonl` op-log (kind 0=snapshot, 1=set, 2=append) — live-tailable; old `<uuid>.json` dumps analysis-only. Tokens = `completionTokens` output only (no input/cache). Tool calls = `toolInvocationSerialized` (toolId, file URIs) + `textEditGroup` (agent-mode edits). UI-state set-ops (inputState/modelState/result) silenced. Project attribution from `workspace.json` folder URI. Optional title/lastMessage enrichment from `state.vscdb` SQLite via `node:sqlite` (graceful `{}` fallback). |
 | Command Code  | `command-code` | `~/.commandcode/projects/`       | No     | Yes          | Yes                | JSONL format (one file per session): records have `role` (user/assistant/tool), content blocks with `text`/`reasoning`/`tool-call`/`tool-result`, `gitBranch` on every record. Tokenless (size_proxy = tool_calls). Titles from sibling `.meta.json` files. Project IDs use `users-<username>-<path>` convention. Checkpoint files (`.checkpoints.jsonl`) skipped by scanner. |
+| Grok Bot      | `grok-bot`    | `/home/box/agent-data` (or `GROK_BOT_AGENT_DATA`) | No     | Yes          | Yes                | Cursor/SpaceXAI Grok Bot desktop assistant. Transcripts are `agent-transcripts/<uuid>/<uuid>.jsonl` on the Linux box — NOT Windows AppData. Tokenless (size_proxy = tool_calls). Titles from `agents/<uuid>/profile.json` `name`. Not git-project scoped (`project_id` = `grok-bot`). `sand-subagent-*` transcripts are first-class sessions in the same `grok-bot` project (Windows mirror also junctions them under `.local/sand-subagent-*`). `send_message` is the user-visible reply; assistant text is a private scratchpad. |
 
 ## Optional Session Fields by Harness
 
@@ -22,7 +23,7 @@ See `hooks/sessions-schema.mjs` OPTIONAL_SESSION_FIELDS for the full list.
 
 Populated (✓) / absent or partial (—) as of latest:
 
-- `context_resets`, `ai_title`, `subagent_count`, `branches`: ✓ for claude-code + grok; — for pi + antigravity. opencode: `ai_title` ✓ (session info `title`), others —. copilot: `ai_title` ✓ (customTitle op or SQLite index), others —. command-code: `ai_title` ✓ (`.meta.json`) and `branches` ✓, `context_resets`/`subagent_count` —.
+- `context_resets`, `ai_title`, `subagent_count`, `branches`: ✓ for claude-code + grok; — for pi + antigravity. opencode: `ai_title` ✓ (session info `title`), others —. copilot: `ai_title` ✓ (customTitle op or SQLite index), others —. command-code: `ai_title` ✓ (`.meta.json`) and `branches` ✓, `context_resets`/`subagent_count` —. grok-bot: `ai_title` yes (`profile.json` name), others no (`sand-subagent-*` are sibling sessions, not parent `subagent_count`).
 - `message_count`: Authoritative from harness metadata when available (CC `turn_duration`); derived as `user_turns + assistant_turns` fallback for others.
 - `content_blocks` / `thinking_count`: Populated via `content_block` normalized records (CC/Grok). Used for UI dots and panels.
 
@@ -106,11 +107,11 @@ graph only shows what's still on disk" as a general caveat, not a claude-code-sp
 
 ## Known Gaps / Future
 
-- Subagent sessions under CC `<project>/subagents/*.jsonl` are not yet walked by the main CC scanner.
+- Subagent sessions under CC `<project>/subagents/*.jsonl` are not yet walked by the main CC scanner. Grok Bot walks `agent-transcripts/sand-subagent-*` as sibling sessions in the same project bucket.
 - Full incremental merge for Grok/Antigravity/Command Code (their `rebuildArg` currently returns `null`).
 - Deeper caching/index for resolver beyond the simple Map (current clear-on-any-change is pragmatic).
 - `serve.mjs` is now a thin composition root; remaining coverage gaps are tracked in CLAUDE.md's "Known coverage gaps" section (treat that as canonical — not duplicated here).
 
 Update this file whenever behavior or support changes. It is the single source of truth visible to contributors and users.
 
-Last updated: 2026-07-09, garden pass — paths resynced to the `hooks/`+`surface/` two-layer split, Command Code (7th harness) added.
+Last updated: 2026-08-28 — Grok Bot (8th harness) added. Transcripts live at `/home/box/agent-data` (override with `GROK_BOT_AGENT_DATA`).

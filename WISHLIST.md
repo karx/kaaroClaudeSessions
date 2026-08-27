@@ -1,7 +1,7 @@
 # kaaroSessions — Wishlist
 
 **Current implementation status (2026-07, two-layer + Command Code):**  
-The core `analyze → build → serve` pipeline now fully supports **7 harnesses** (claude-code, pi, antigravity, grok, opencode, copilot, command-code) via a clean normalized record adapter model (`hooks/adapters/*.mjs`, `hooks/session-reducer.mjs`, `surface/scan-harnesses.mjs`, `hooks/registry.mjs`). Many "Phase 1" extraction and multi-harness readiness items (W-OBS-04, W-OBS-06) were realized as part of the original multi-harness TDD effort and have since been carried through the `hooks/`+`surface/` two-layer split. See `docs/harnesses.md` for the live support matrix. Policy and advanced Report pillars remain future work — nothing below has moved since the last pass.
+The core `analyze → build → serve` pipeline now fully supports **8 harnesses** (claude-code, pi, antigravity, grok, opencode, copilot, command-code, grok-bot) via a clean normalized record adapter model (`hooks/adapters/*.mjs`, `hooks/session-reducer.mjs`, `surface/scan-harnesses.mjs`, `hooks/registry.mjs`). Many "Phase 1" extraction and multi-harness readiness items (W-OBS-04, W-OBS-06) were realized as part of the original multi-harness TDD effort and have since been carried through the `hooks/`+`surface/` two-layer split. See `docs/harnesses.md` for the live support matrix. Policy and advanced Report pillars remain future work — nothing below has moved since the last pass.
 
 Items grouped by the three pillars: **Observe → Policy → Report**.
 These extend the existing `analyze → build → serve` pipeline without breaking it.
@@ -147,7 +147,7 @@ Deepen what `analyze.mjs` already extracts.
 
 **Current state (2026-07):** ✅ **Fully implemented, now spans two layers.**
 - `hooks/normalized-record.mjs` and the adapter contract (`recordsToNormalized()`) exist.
-- 7 harnesses supported via `hooks/adapters/{claude-code,pi,antigravity,grok,opencode,copilot,command-code}.mjs`.
+- 8 harnesses supported via `hooks/adapters/{claude-code,pi,antigravity,grok,opencode,copilot,command-code,grok-bot}.mjs`.
 - `hooks/session-reducer.mjs` + `enrichSession` consume the common normalized stream.
 - Dynamic discovery/routing via `hooks/registry.mjs` + `surface/scan-harnesses.mjs`.
 - Live watch + targeted rebuilds work across harnesses (see `surface/watch-handlers.mjs` + `processWatchFilename`).
@@ -420,4 +420,4 @@ Optional, skipped silently if `alerts` is absent from config.
 
 **2026-06 update:** W-OBS-04 (multi-harness readiness + NormalizedRecord abstraction) has been delivered ahead of schedule as part of the original multi-harness TDD work (adapters, registry, scan-harnesses, pulse pipeline, etc.). The core pipeline is now multi-harness native.
 
-**2026-07 update:** That pipeline was re-homed into the `hooks/`+`surface/` two-layer split (see CLAUDE.md), and a 7th harness (Command Code) was added without touching the adapter contract — confirming the abstraction holds under both an architectural refactor and new-harness growth. Policy and Report pillars (beyond basic live pulses) remain the main future work. The original Phase 1 focus on `analyze.mjs` only has expanded to a full adapter-based architecture while preserving the observe-first philosophy.
+**2026-07 update:** That pipeline was re-homed into the `hooks/`+`surface/` two-layer split (see CLAUDE.md), a 7th harness (Command Code) was added, and an 8th (Grok Bot) in 2026-08 without touching the adapter contract — confirming the abstraction holds under both an architectural refactor and new-harness growth. Policy and Report pillars (beyond basic live pulses) remain the main future work. The original Phase 1 focus on `analyze.mjs` only has expanded to a full adapter-based architecture while preserving the observe-first philosophy.

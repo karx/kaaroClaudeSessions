@@ -9,3 +9,6 @@ node_modules/
 /agent-tools/
 /.claude/settings.local.json
 /.commandcode/
+
+/.local/
+

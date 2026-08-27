@@ -132,3 +132,27 @@ test('processWatchFilename — copilot ignores old .json dumps and state.vscdb',
   assert.equal(processWatchFilename('copilot', 'e07e/state.vscdb', ROOT), null);
   assert.equal(processWatchFilename('copilot', 'e07e/chatEditingSessions/x.jsonl', ROOT), null);
 });
+
+test('processWatchFilename — grok-bot agent-transcripts jsonl', () => {
+  const sid = '348c59d5-3636-4efd-aac2-465d3881629c';
+  const r = processWatchFilename(
+    'grok-bot',
+    `agent-transcripts/${sid}/${sid}.jsonl`,
+    ROOT,
+  );
+  assert.ok(r);
+  assert.equal(r.ctx.harness, 'grok-bot');
+  assert.equal(r.ctx.session_id, sid);
+  assert.equal(r.ctx.slug, sid.slice(0, 8));
+  assert.equal(r.ctx.project_id, 'grok-bot');
+  assert.equal(r.rebuildArg, null);
+  const sub = processWatchFilename(
+    'grok-bot',
+    'agent-transcripts/sand-subagent-deadbeef-0000-0000-0000-000000000000/sand-subagent-deadbeef-0000-0000-0000-000000000000.jsonl',
+    ROOT,
+  );
+  assert.ok(sub);
+  assert.equal(sub.ctx.session_id, 'sand-subagent-deadbeef-0000-0000-0000-000000000000');
+  assert.equal(sub.ctx.project_id, 'grok-bot');
+  assert.equal(processWatchFilename('grok-bot', 'box-secrets.json', ROOT), null);
+});

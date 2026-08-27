@@ -281,3 +281,19 @@ test('resolveSessionFile — locates command-code session by 8-char slug prefix'
     assert.equal(found.projectId, 'D--src-foo');
   } finally { rm(root, { recursive: true, force: true }); }
 });
+
+test('resolveSessionFile — locates grok-bot session by 8-char slug prefix', async () => {
+  const { mkdirSync: mk, writeFileSync: wr, rmSync: rm } = await import('fs');
+  const { tmpdir } = await import('os');
+  const root = join(tmpdir(), 'kaaro-gb-slug-' + Date.now());
+  const sessionId = '348c59d5-3636-4efd-aac2-465d3881629c';
+  mk(join(root, 'agent-transcripts', sessionId), { recursive: true });
+  wr(join(root, 'agent-transcripts', sessionId, `${sessionId}.jsonl`), '{}', 'utf8');
+  try {
+    const found = resolveSessionFile(sessionId.slice(0, 8), { harness: 'grok-bot', roots: { 'grok-bot': root } });
+    assert.ok(found, 'grok-bot session located by prefix');
+    assert.equal(found.sessionId, sessionId);
+    assert.equal(found.projectId, 'grok-bot');
+    assert.equal(found.harness, 'grok-bot');
+  } finally { rm(root, { recursive: true, force: true }); }
+});

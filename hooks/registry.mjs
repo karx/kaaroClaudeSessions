@@ -23,18 +23,21 @@ import { deriveLabel } from './helpers/analyze-helpers.mjs';
 import {
   CLAUDE_PROJECTS_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
   OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
+  GROK_BOT_AGENT_DATA,
 } from './harness-paths.mjs';
 import { deriveGrokProjectId, deriveGrokLabel } from './helpers/grok-helpers.mjs';
 import { copilotWorkspaceLabel } from './helpers/copilot-helpers.mjs';
 import {
   locateClaudeCodeSession, locatePiSession, locateAntigravitySession, locateGrokSession,
   locateOpencodeSession, locateCopilotSession, locateCommandCodeSession,
+  locateGrokBotSession,
 } from './session-locators.mjs';
 import path from 'node:path';
 import { parseJsonlFile } from './jsonl-io.mjs';
 import { readGrokSession } from './analyzers/analyze-grok.mjs';
 import { readOpencodeSession } from './analyzers/analyze-opencode.mjs';
 import { readCopilotSession } from './analyzers/analyze-copilot.mjs';
+import { readGrokBotSession } from './analyzers/analyze-grok-bot.mjs';
 
 // Default transcript reader for JSONL-file harnesses; harness-specific
 // readers (grok dir+summary, opencode three-tree, copilot op-log) override.
@@ -48,17 +51,18 @@ import { recordsToNormalized as grokAdapter } from './adapters/grok.mjs';
 import { recordsToNormalized as ocAdapter }   from './adapters/opencode.mjs';
 import { recordsToNormalized as cpAdapter }   from './adapters/copilot.mjs';
 import { recordsToNormalized as cmdAdapter }  from './adapters/command-code.mjs';
+import { recordsToNormalized as grokBotAdapter } from './adapters/grok-bot.mjs';
 
 export {
   PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT, OPENCODE_STORAGE_ROOT,
-  COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
+  COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT, GROK_BOT_AGENT_DATA,
 } from './harness-paths.mjs';
 
 function derivePiLabel(slug) {
   return deriveLabel(slug.replace(/^--/, '').replace(/--$/, ''));
 }
 
-export const HARNESS_IDS = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
+export const HARNESS_IDS = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code', 'grok-bot'];
 
 function opencodeSlug(sessionId) {
   return sessionId.replace(/^ses_/, '').slice(0, 8);
@@ -335,6 +339,45 @@ export const HARNESS_REGISTRY = [
       rebuildArg: () => null,
     },
   },
+  {
+    id: 'grok-bot',
+    label: 'Grok Bot',
+    adapter: grokBotAdapter,
+    scan: { module: './analyzers/analyze-grok-bot.mjs', export: 'scanGrokBotSessions' },
+    locateSession: locateGrokBotSession,
+    readSessionRecords(filePath) {
+      const gb = readGrokBotSession(filePath);
+      return { records: gb.records, traceOpts: gb.traceOpts };
+    },
+    roots: [GROK_BOT_AGENT_DATA],
+    capabilities: {
+      tokens: false, pulse: true, trace: true,
+      context_resets: false, ai_title: true, subagent_count: false, branches: false,
+      size_proxy: 'tool_calls',
+    },
+    watch: {
+      matchLogFile(rel) {
+        const n = rel.replace(/\\/g, '/');
+        const parts = n.split('/');
+        return parts.length === 3
+          && parts[0] === 'agent-transcripts'
+          && parts[2].endsWith('.jsonl');
+      },
+      ctxFromPath(relPath) {
+        const parts = relPath.replace(/\\/g, '/').split('/');
+        if (parts.length !== 3 || parts[0] !== 'agent-transcripts') return null;
+        const session_id = parts[1];
+        return {
+          harness: 'grok-bot', session_id,
+          slug: session_id.slice(0, 8),
+          project_id: 'grok-bot',
+          project_label: 'Grok Bot',
+        };
+      },
+      rebuildArg: () => null,
+    },
+  },
+
 ];
 
 export function getHarness(id) {

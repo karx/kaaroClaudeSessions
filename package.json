@@ -30,7 +30,8 @@
     "og-image.png",
     "site.webmanifest",
     "robots.txt",
-    "generate-og-png.html"
+    "generate-og-png.html",
+    "scripts/sync-grok-bot.mjs"
   ],
   "scripts": {
     "start":              "node serve.mjs",
@@ -43,6 +44,8 @@
     "transcript:grok":    "node scripts/sim-audio.mjs --harness=grok",
     "transcript:snap":    "node scripts/sim-audio.mjs --snap",
     "transcript:diff":    "node scripts/sim-audio.mjs --diff",
-    "transcript:summary": "node scripts/sim-audio.mjs --summary --silent"
+    "transcript:summary": "node scripts/sim-audio.mjs --summary --silent",
+    "grok-bot:sync":  "node scripts/sync-grok-bot.mjs --watch --interval=5000",
+    "grok-bot:serve": "node scripts/sync-grok-bot.mjs --watch --interval=5000 --serve -- --port=3333"
   }
 }

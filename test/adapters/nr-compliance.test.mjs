@@ -25,6 +25,7 @@ import { recordsToNormalized as grokToNorm } from '../../hooks/adapters/grok.mjs
 import { recordsToNormalized as ocToNorm }   from '../../hooks/adapters/opencode.mjs';
 import { recordsToNormalized as cpToNorm }   from '../../hooks/adapters/copilot.mjs';
 import { recordsToNormalized as cmdToNorm }  from '../../hooks/adapters/command-code.mjs';
+import { recordsToNormalized as grokBotToNorm } from '../../hooks/adapters/grok-bot.mjs';
 
 const ADAPTERS = {
   'claude-code': ccToNorm,
@@ -34,6 +35,7 @@ const ADAPTERS = {
   'opencode':    ocToNorm,
   'copilot':     cpToNorm,
   'command-code': cmdToNorm,
+  'grok-bot':     grokBotToNorm,
 };
 
 function assertAllValid(nrs, label) {
@@ -284,6 +286,42 @@ const GOLDEN = {
       content: [{ type: 'text', text: 'looks good' }],
       metadata: { timestamp: 't6', source: 'cli', messageId: 'm3', version: 2 },
     },
+  ],
+
+  'grok-bot': [
+    {
+      role: 'user',
+      message: { content: [{ type: 'text', text: 'Check D:/src/kaaroSessions and add grok-bot harness support' }] },
+    },
+    {
+      role: 'assistant',
+      message: { content: [{ type: 'text', text: 'Looking at the harness layout first.' }] },
+    },
+    {
+      role: 'assistant',
+      message: { content: [{ type: 'tool_use', name: 'send_message', input: { text: { content: 'On it. Looking at kaaroSessions first.' } } }] },
+    },
+    {
+      role: 'tool',
+      message: { content: [{ type: 'tool_result', name: 'send_message', result: { success: { timestamp: '1787860893175', messageId: 't0s0' } } }] },
+    },
+    {
+      role: 'assistant',
+      message: { content: [{ type: 'tool_use', name: 'shell', input: { command: 'git status -sb', workingDirectory: 'D:/src/kaaroSessions', description: 'Check git status' } }] },
+    },
+    {
+      role: 'tool',
+      message: { content: [{ type: 'tool_result', name: 'shell', result: { success: { command: 'git status -sb', stdout: '## kaaro/feat/add-grok-bot', executionTime: 200 }, isBackground: false } }] },
+    },
+    {
+      role: 'assistant',
+      message: { content: [{ type: 'tool_use', name: 'read', input: { path: 'docs/harnesses.md' } }] },
+    },
+    {
+      role: 'tool',
+      message: { content: [{ type: 'tool_result', name: 'read', result: { error: { errorMessage: 'Path is outside the allowed local-exec root' } } }] },
+    },
+    { role: 'mystery', message: { content: [] } },
   ],
 };
 

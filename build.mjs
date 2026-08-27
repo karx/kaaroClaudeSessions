@@ -61,7 +61,7 @@ export function applySubstitutions(template, subs) {
  * The core file's syntax contract: only `export function` / `export const`.
  */
 export function stripExports(src) {
-  return src.replace(/^export (function|const)/gm, '$1');
+  return src.replace(/^export (async function|function|const)/gm, '$1');
 }
 
 function loadClientCore() {

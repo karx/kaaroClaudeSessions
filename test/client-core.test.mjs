@@ -956,3 +956,190 @@ test('computeClusterHidden', async t => {
     assert.ok(hidden.has('s1') && hidden.has('s2') && !hidden.has('cl1'));
   });
 });
+
+test('contextStripSegments — proportional by token weight, colored by dominant tool', async () => {
+  const { contextStripSegments } = await import('../experience/client-core.mjs');
+  assert.deepEqual(contextStripSegments(null), []);
+  assert.deepEqual(contextStripSegments([]), []);
+
+  const segs = contextStripSegments([
+    { tokens: { output: 300, cache_read: 0 }, tool_summary: { Write: 5, Read: 2 }, user_turns: 1, assistant_turns: 2 },
+    { tokens: { output: 100, cache_read: 0 }, tool_summary: { Bash: 3 }, user_turns: 1, assistant_turns: 1 },
+  ], '#888888');
+  assert.equal(segs.length, 2);
+  assert.equal(segs[0].tool, 'Write', 'dominant tool by call count');
+  assert.equal(segs[0].color, TOOL_COLORS.Write);
+  assert.ok(segs[0].pct > segs[1].pct, 'bigger token weight → bigger share');
+  assert.equal(segs[0].turns, 3);
+
+  const noSummary = contextStripSegments([{ tokens: { output: 10, cache_read: 0 } }], '#123456');
+  assert.equal(noSummary[0].tool, null);
+  assert.equal(noSummary[0].color, '#123456', 'falls back to session color when no dominant tool');
+});
+
+test('buildShareCardData — assembles a session node into card data (single source for preview/share/download)', async () => {
+  const { buildShareCardData } = await import('../experience/client-core.mjs');
+  const node = {
+    id: 's1', label: 'fix-bug', ai_title: 'Fix the flaky test', harness: 'claude-code',
+    project_id: 'proj-a', date_str: '2026-08-01', duration_min: 12.3, model: 'claude-sonnet-5',
+    tokens_total: 42000, tokens_work: 9000, cache_hit_rate: 88.5,
+    tool_calls: 40, tool_errors: 2, tool_diversity: 6, subagent_count: 1, context_resets: 2,
+    skills: ['code-review', 'run'], color: '#ff8800',
+  };
+  const data = buildShareCardData(node, { projectLabel: 'kaaroSessions' });
+  assert.equal(data.sessionLabel, 'Fix the flaky test', 'ai_title wins over label');
+  assert.equal(data.project, 'kaaroSessions');
+  assert.equal(data.tokens_total, 42000);
+  assert.equal(data.context_resets, 2);
+  assert.equal(data.segments.length, 0, 'no traceSegments opt → empty, SVG generator supplies the placeholder');
+  assert.deepEqual(data.skills, ['code-review', 'run']);
+
+  const bare = buildShareCardData({ session_id: 's2' });
+  assert.equal(bare.sessionLabel, 'session', 'graceful defaults with a near-empty node');
+  assert.equal(bare.tokens_total, 0);
+});
+
+test('generateShareCardSVG — 1200×630, escapes user text, one strip per segment, placeholder when none', async () => {
+  const { buildShareCardData, generateShareCardSVG } = await import('../experience/client-core.mjs');
+
+  const withSegs = buildShareCardData(
+    { id: 's1', ai_title: 'Refactor <script>alert(1)</script>', harness: 'grok', tokens_total: 1000, tokens_work: 500, tool_calls: 10, context_resets: 1, skills: ['note'] },
+    { projectLabel: 'p', traceSegments: [
+      { tokens: { output: 300, cache_read: 0 }, tool_summary: { Write: 1 } },
+      { tokens: { output: 200, cache_read: 0 }, tool_summary: { Read: 1 } },
+    ] },
+  );
+  const svg = generateShareCardSVG(withSegs);
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('width="1200" height="630"'));
+  assert.ok(!svg.includes('<script>alert'), 'session title is escaped, not injected raw');
+  assert.ok(svg.includes('&lt;script&gt;'));
+  assert.equal((svg.match(/<rect[^>]*fill="#[0-9a-f]{6}"[^>]*><title>/gi) || []).length, 2, 'one strip rect per segment');
+  assert.ok(svg.includes('GROK'));
+  assert.ok(svg.includes('1k'), 'consumption stat formatted via fmtTok');
+
+  const noSegs = generateShareCardSVG(buildShareCardData({ id: 's2', label: 'plain', harness: 'pi', tokens_work: 400 }));
+  assert.equal((noSegs.match(/<title>/gi) || []).length, 1, 'placeholder single strip when no trace segments');
+});
+
+test('buildShareText — plain-text twin, no live URL (local tool)', async () => {
+  const { buildShareCardData, buildShareText } = await import('../experience/client-core.mjs');
+  const data = buildShareCardData({ id: 's1', ai_title: 'Ship the thing', harness: 'claude-code', tokens_total: 5000, tool_calls: 12, context_resets: 3 }, { projectLabel: 'kaaroSessions' });
+  const text = buildShareText(data);
+  assert.ok(text.includes('Ship the thing'));
+  assert.ok(text.includes('4 context windows'), 'context_resets + 1');
+  assert.ok(text.includes('kaaroSessions'));
+  assert.ok(!/https?:\/\//.test(text), 'no fabricated public URL for a local tool');
+});
+
+test('buildProjectShareCardData / generateProjectShareCardSVG — harness breakdown bars', async () => {
+  const { buildProjectShareCardData, generateProjectShareCardSVG, buildShareText } = await import('../experience/client-core.mjs');
+  const node = {
+    id: 'proj-a', label: 'kaaroSessions', session_count: 12, tokens_total: 900000, tokens_work: 200000,
+    skills: ['code-review'], last_activity: '2026-08-27T10:00:00Z', color: '#ff6600',
+  };
+  const harnessRows = [
+    { harness: 'claude-code', count: 8, color: '#2a9d8f' },
+    { harness: 'grok', count: 4, color: '#cc4488' },
+  ];
+  const data = buildProjectShareCardData(node, { harnessRows });
+  assert.equal(data.kind, 'project');
+  assert.equal(data.session_count, 12);
+  assert.deepEqual(data.harnessRows, harnessRows);
+
+  const svg = generateProjectShareCardSVG(data);
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('width="1200" height="630"'));
+  assert.ok(svg.includes('kaaroSessions'));
+  assert.ok(svg.includes('claude-code · 8'));
+  assert.ok(svg.includes('grok · 4'));
+  assert.ok(svg.includes('PROJECT CARD'));
+
+  const noRows = generateProjectShareCardSVG(buildProjectShareCardData({ id: 'p2', label: 'solo', session_count: 3 }));
+  assert.ok(noRows.includes('unknown · 3'), 'falls back to a single unknown-harness bar');
+
+  const text = buildShareText(data);
+  assert.ok(text.includes('kaaroSessions'));
+  assert.ok(text.includes('12 sessions'));
+});
+
+test('buildUsageShareCardData / generateUsageShareCardSVG — full-canvas card from meGlyph()', async () => {
+  const { buildUsageShareCardData, generateUsageShareCardSVG, buildShareText, meGlyph } = await import('../experience/client-core.mjs');
+  const sessions = [
+    { harness: 'claude-code' }, { harness: 'claude-code' }, { harness: 'grok' },
+  ];
+  const me = meGlyph(sessions);
+  const data = buildUsageShareCardData(me, { projectCount: 5, tokensTotal: 1_200_000, dateFrom: '2026-01-01', dateTo: '2026-08-27' });
+  assert.equal(data.kind, 'usage');
+  assert.equal(data.total_sessions, 3);
+  assert.equal(data.rows.length, 2);
+
+  const svg = generateUsageShareCardSVG(data);
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('FULL USAGE CANVAS'));
+  assert.ok(svg.includes('2026-01-01 → 2026-08-27'));
+  assert.ok(svg.includes('claude-code'));
+  assert.ok(svg.includes('1.2M'), 'consumption formatted via fmtTok');
+
+  const empty = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {}));
+  assert.ok(empty.startsWith('<svg'), 'renders even with no sessions');
+
+  const text = buildShareText(data);
+  assert.ok(text.includes('3 sessions'));
+  assert.ok(text.includes('5 projects'));
+});
+
+test('buildUsageShareCardData — constellation: sessions ranked by their project\'s consumption, projects keep their full render fields', async () => {
+  const { buildUsageShareCardData, meGlyph } = await import('../experience/client-core.mjs');
+  const projects = [
+    { id: 'p1', label: 'small', color: '#111111', harnesses: ['pi'], sizeNorm: 0.1, tokens_total: 1000 },
+    { id: 'p2', label: 'big', color: '#222222', harnesses: ['claude-code'], inFlight: true, sizeNorm: 0.9, tokens_total: 900000 },
+  ];
+  const sessions = [
+    { project_id: 'p1', color: '#111111', tool_diversity: 2, date_str: '2026-01-01' },
+    { project_id: 'p2', color: '#222222', tool_diversity: 6, date_str: '2026-02-01' },
+    { project_id: 'p2', color: '#222222', tool_diversity: 4, date_str: '2026-01-15' },
+  ];
+  const data = buildUsageShareCardData(meGlyph([]), { projects, sessions });
+  assert.equal(data.project_count, 2, 'falls back to projects.length when projectCount is not supplied');
+  assert.equal(data.topProject, 'big', 'top project = highest tokens_total');
+  assert.equal(data.projects[0].label, 'big', 'projects sorted by tokens_total descending');
+  assert.equal(data.projects[0].inFlight, true, 'render fields (color/harnesses/inFlight/sizeNorm) survive for the hex layer');
+  assert.equal(data.sessions.length, 3);
+  assert.equal(data.sessions[0].color, '#222222', 'the biggest project\'s sessions sort first, closest to center');
+  assert.equal(data.sessions[1].color, '#222222');
+  assert.equal(data.sessions[0].diversity, 4, 'within a project, sessions sort by date ascending (2026-01-15 before 2026-02-01)');
+  assert.equal(data.sessions[1].diversity, 6);
+  assert.equal(data.sessions[2].color, '#111111');
+});
+
+test('generateUsageShareCardSVG — constellation: one hex per project over one ball per session, ME hero big + right-half + vertically centered, overflow noted past either cap', async () => {
+  const { buildUsageShareCardData, generateUsageShareCardSVG, meGlyph } = await import('../experience/client-core.mjs');
+  const projects = Array.from({ length: 3 }, (_, i) => ({
+    id: 'p' + i, label: 'proj' + i, color: '#334455', harnesses: ['claude-code'], sizeNorm: 0.5, tokens_total: 100 - i,
+  }));
+  const sessions = Array.from({ length: 5 }, (_, i) => ({
+    project_id: 'p0', color: '#556677', tool_diversity: i + 1, date_str: '2026-01-0' + (i + 1),
+  }));
+  const data = buildUsageShareCardData(meGlyph([{ harness: 'claude-code' }]), { projects, sessions });
+  const svg = generateUsageShareCardSVG(data);
+
+  assert.equal((svg.match(/<circle cx="[^"]*" cy="[^"]*" r="[^"]*" fill="#556677"/g) || []).length, sessions.length, 'one ball per session');
+  assert.equal((svg.match(/<g transform="translate\([^)]*\)">\s*<circle[^>]*fill="#000000"/g) || []).length, projects.length, 'one backing-cleared hex group per project');
+  assert.ok(svg.includes('hex = project'));
+  assert.ok(svg.includes('ball = session'));
+  assert.ok(!svg.includes('more'), 'no overflow note under either cap');
+
+  // ME hero: right half of the right column, vertically centered in the body.
+  const g = { width: 1200, height: 630, headerH: 80, footerH: 70, bodyTop: 80, bodyBot: 560, dividerX: 660, leftPad: 55, rightPad: 700 };
+  const expectX = (g.rightPad + (g.width - g.leftPad - g.rightPad) * 0.72).toFixed(1);
+  const expectY = ((g.bodyTop + g.bodyBot) / 2).toFixed(1);
+  assert.ok(svg.includes(`translate(${expectX},${expectY})`), 'ME hero sits right-half + vertically centered');
+  assert.ok(svg.includes('r="66"'), 'ME hero backing ring reflects the bigger, more prominent hex (r=56 + 10)');
+
+  const manyProjects = Array.from({ length: 65 }, (_, i) => ({ id: 'q' + i, label: 'q' + i, color: '#334455', tokens_total: 1 }));
+  const manySessions = Array.from({ length: 205 }, () => ({ project_id: 'q0', color: '#556677', tool_diversity: 1 }));
+  const overflowSvg = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), { projects: manyProjects, sessions: manySessions }));
+  assert.ok(overflowSvg.includes('+5 projects'), '65 projects, 60-cap → 5 overflow');
+  assert.ok(overflowSvg.includes('+5 sessions'), '205 sessions, 200-cap → 5 overflow');
+});

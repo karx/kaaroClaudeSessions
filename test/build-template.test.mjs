@@ -91,6 +91,13 @@ test('stripExports — removes export prefixes at line starts only', async () =>
   assert.ok(out.includes('"export function inside a string"'), 'strings untouched');
 });
 
+test('stripExports — also strips `export async function` (must yield valid plain script, not a bare "export")', async () => {
+  const { stripExports } = await import('../build.mjs');
+  const out = stripExports('export async function svgToPNG(s) { return s; }');
+  assert.equal(out, 'async function svgToPNG(s) { return s; }');
+  assert.ok(!/^export /m.test(out), 'no top-level export remains');
+});
+
 test('client core placeholder exists and is injected by the bundle assembly', async () => {
   const fs = await import('node:fs');
   const core = fs.readFileSync('experience/client/00-core.js', 'utf8');

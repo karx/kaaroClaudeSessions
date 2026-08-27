@@ -274,6 +274,7 @@ function showPanel(d) {
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtTok(d.tokens_work)}</span></div>
       <div class="prow"><span class="pk">Skills</span><span class="pv">${d.skills.map(s=>'<span class="ptag">/'+s+'</span>').join('')||'none'}</span></div>
       ${hRows?`<div class="psep"></div><div class="p-section-hd">◆ HARNESSES</div>${hRows}`:''}
+      <button class="paction" data-share-project="${esc(d.id)}">◆ SHARE CARD</button>
       <div class="psep"></div>
       ${ss.map(s=>_nodeRow(s.id,`<span class="pk">${s.date_str||'?'}</span><span class="pv" style="color:${d.color}">${s.label}</span>`)).join('')}`;
   } else if (d.type==='session') {
@@ -313,6 +314,7 @@ function showPanel(d) {
       <div class="psep"></div>
       ${d.context_resets ? `<button class="paction paction-thread" data-thread-open="${esc(d.id)}">◆ VIEW THREAD ▸</button>` : ''}
       <button class="paction" data-resume="${esc(d.id)}">◆ COPY RESUME PROMPT</button>
+      <button class="paction" data-share="${esc(d.id)}">◆ SHARE CARD</button>
       `;
   } else if (d.type==='cluster') {
     const members=(d.member_ids||[]).map(id=>nodeById[id]).filter(Boolean);

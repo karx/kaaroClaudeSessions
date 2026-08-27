@@ -176,6 +176,49 @@ const FP_DEFAULTS = { 'fp-charge-s': -130, 'fp-charge-f': -55, 'fp-link-m': 125,
   });
 });
 
+function syncRangeLabel(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (id === 'fp-vdecay') {
+    const lab = document.getElementById(id + '-val');
+    if (lab) lab.textContent = (+el.value / 100).toFixed(2);
+  } else if (id === 'arc-min-shared') {
+    const lab = document.getElementById('arc-min-val');
+    if (lab) lab.textContent = el.value;
+  } else if (id === 'arc-max-span') {
+    const v = +el.value;
+    const lab = document.getElementById('arc-span-val');
+    if (lab) lab.textContent = v >= 365 ? 'All' : v + 'd';
+  } else {
+    const lab = document.getElementById(id + '-val');
+    if (lab) lab.textContent = el.value;
+  }
+}
+
+function resetLayoutOptions() {
+  if (!confirmLayoutReset()) return;
+  document.querySelectorAll('#controls input[type="checkbox"]').forEach(el => { el.checked = el.defaultChecked; });
+  document.querySelectorAll('#controls input[type="range"]').forEach(el => {
+    el.value = el.defaultValue;
+    syncRangeLabel(el.id);
+  });
+  document.querySelectorAll('#controls select').forEach(el => {
+    const def = [...el.options].find(o => o.defaultSelected);
+    el.value = def ? def.value : el.options[0]?.value;
+  });
+  document.getElementById('tf-clear')?.click();
+  focusedArcFileId = null;
+  if (currentLayout !== 'force') setLayout('force');
+  else {
+    restoreForceLayout();
+    applyFilters();
+    if (typeof simulation !== 'undefined') simulation.alpha(0.5).restart();
+  }
+  svg.transition().duration(600).call(zoom.transform, initialTransform);
+}
+
+document.getElementById('btn-reset-layout')?.addEventListener('click', resetLayoutOptions);
+
 document.getElementById('btn-reset-physics')?.addEventListener('click', () => {
   for (const [id, val] of Object.entries(FP_DEFAULTS)) {
     const el = document.getElementById(id);
@@ -259,8 +302,43 @@ function buildTimeline() {
 
 function toggleWidget(id) {
   const el=document.getElementById(id);
+  if (!el) return;
   const col=el.classList.toggle('collapsed');
-  el.querySelector('.widget-toggle').textContent=col?'+':'−';
+  const t=el.querySelector('.widget-toggle');
+  if (t) t.textContent=col?'+':'−';
+  persistChromeCollapsed();
+}
+
+function chromeWidgetStates() {
+  return [...document.querySelectorAll('.widget')].map(el => el.classList.contains('collapsed'));
+}
+
+function persistChromeCollapsed() {
+  const down = chromeWidgetStates();
+  const allDown = down.length > 0 && down.every(Boolean);
+  try { localStorage.setItem('kaaro-chrome-collapsed', allDown ? '1' : '0'); } catch {}
+}
+
+function applyChromeCollapsed(collapsed) {
+  document.querySelectorAll('.widget').forEach(el => {
+    el.classList.toggle('collapsed', collapsed);
+    const t = el.querySelector('.widget-toggle');
+    if (t) t.textContent = collapsed ? '+' : '−';
+  });
+  try { localStorage.setItem('kaaro-chrome-collapsed', collapsed ? '1' : '0'); } catch {}
+}
+
+function collapseAllChrome() {
+  const collapse = nextChromeCollapsed(chromeWidgetStates());
+  applyChromeCollapsed(collapse);
+  if (collapse) {
+    if (typeof closePanel === 'function') closePanel();
+    document.getElementById('help-panel')?.classList.remove('open');
+    if (typeof window._apClose === 'function') window._apClose();
+    if (typeof window.closeThread === 'function') window.closeThread();
+    selectedId = null;
+    if (currentLayout === 'swimlane') slHighlight(null); else highlight(null);
+  }
 }
 
 // ── Arc-specific controls ─────────────────────────────────────────────────────
@@ -292,6 +370,7 @@ const SHORTCUTS_DEF = [
   { key:'m', label:'M',      desc:'Matrix view',          action:()=>setLayout('matrix') },
   { key:'g', label:'G',      desc:'3D force graph',       action:()=>setLayout('3d') },
   { key:'p', label:'P',      desc:'Hex lattice layout',   action:()=>setLayout(currentLayout==='grid'?'force':'grid') },
+  { key:'h', label:'H',      desc:'Collapse / expand all panels', action:()=>collapseAllChrome() },
 ];
 
 function _loadSCPrefs() {
@@ -316,6 +395,7 @@ function renderHelpPanel() {
     '<div class="help-sep"></div>',
     '<div class="help-row"><span class="help-key">?</span><span class="help-desc">Toggle this panel</span><span class="help-fixed">—</span></div>',
     '<div class="help-row"><span class="help-key">ESC</span><span class="help-desc">Close panel · deselect</span><span class="help-fixed">—</span></div>',
+    '<div class="help-row"><span class="help-key">↺</span><span class="help-desc">Reset layout options (asks first)</span><span class="help-fixed">—</span></div>',
     '<div class="help-sep"></div>',
     '<div class="help-h">◆ MOUSE</div>',
     '<div class="help-row"><span class="help-key">Drag</span><span class="help-desc">Pan · reposition node (force/lattice snap)</span></div>',
@@ -369,3 +449,6 @@ document.addEventListener('keydown', ev => {
 
 buildTimeline();
 nodeSel.call(drag);
+try {
+  if (localStorage.getItem('kaaro-chrome-collapsed') === '1') applyChromeCollapsed(true);
+} catch {}

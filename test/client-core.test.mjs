@@ -11,6 +11,7 @@ import {
   fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
   connectEvents, createBootQueue, resolveControlVisibility,
+  nextChromeCollapsed, confirmLayoutReset,
   hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
   meGlyph, meGlyphMarkup, meGlyphSvg, meGlyphCardHtml,
   SIM_ALPHA_DECAY,
@@ -592,6 +593,21 @@ test('resolveControlVisibility — only the active layout’s control panels sho
   assert.deepEqual(resolveControlVisibility(handlers, 'grid'), {
     'force-options': true, 'sl-options': false, 'sl-extra': false,
   }, 'shared force-options stays visible on lattice');
+});
+
+test('nextChromeCollapsed — collapse unless every widget is already collapsed', () => {
+  assert.equal(nextChromeCollapsed([]), true);
+  assert.equal(nextChromeCollapsed([false, false, false]), true);
+  assert.equal(nextChromeCollapsed([true, false]), true);
+  assert.equal(nextChromeCollapsed([true, true, true]), false, 'all down → expand');
+});
+
+test('confirmLayoutReset — asks are-you-sure and follows the answer', () => {
+  const asked = [];
+  assert.equal(confirmLayoutReset(msg => { asked.push(msg); return false; }), false);
+  assert.equal(confirmLayoutReset(msg => { asked.push(msg); return true; }), true);
+  assert.ok(asked[0].toLowerCase().includes('reset'));
+  assert.ok(asked[0].toLowerCase().includes('sure') || asked[0].includes('?'));
 });
 
 // ── DAW lane geometry (extracted from 19-daw-builder) ─────────────────────────

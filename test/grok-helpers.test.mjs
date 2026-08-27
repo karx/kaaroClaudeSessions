@@ -133,6 +133,15 @@ test('grokRecordTs — _meta.agentTimestampMs takes priority over timestamp', ()
   assert.ok(!iso.startsWith('1970-'), `should not use timestamp=0, got ${iso}`);
 });
 
+test('grokRecordTs — timestamp: 0 with no _meta fallback returns null, not 1970', () => {
+  // 0 is a sentinel for "no timestamp available", not a real Unix time.
+  assert.equal(grokRecordTs({ timestamp: 0 }), null);
+});
+
+test('grokRecordTs — negative timestamp returns null', () => {
+  assert.equal(grokRecordTs({ timestamp: -1 }), null);
+});
+
 // ── grokSessionUpdate ─────────────────────────────────────────────────────────
 
 test('grokSessionUpdate — extracts sessionUpdate from params.update', () => {

@@ -22,7 +22,9 @@ export function deriveGrokLabel(encodedCwd) {
 export function grokRecordTs(record) {
   if (record?._meta?.agentTimestampMs)
     return new Date(record._meta.agentTimestampMs).toISOString();
-  if (typeof record?.timestamp === 'number')
+  // 0 (and negatives) are a "no timestamp available" sentinel, not a real Unix
+  // time — converting them would fabricate a 1970 epoch date.
+  if (typeof record?.timestamp === 'number' && record.timestamp > 0)
     return new Date(record.timestamp * 1000).toISOString();
   return null;
 }

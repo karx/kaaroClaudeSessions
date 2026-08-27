@@ -1100,6 +1100,18 @@ function _shareTrunc(s, max) {
 }
 
 /**
+ * Highest-count [name, count] entry from a tool_summary object, or null.
+ * The single "which tool dominated this window" rule — shared by the share
+ * card's context strip and the panel's context-window strips
+ * (experience/client/17-trace-panel.js `_domTool`) so the two can't drift.
+ */
+export function dominantTool(toolSummary) {
+  if (!toolSummary) return null;
+  const entries = Object.entries(toolSummary);
+  return entries.length ? entries.sort((a, b) => b[1] - a[1])[0] : null;
+}
+
+/**
  * Reduce /api/trace segments into card-ready strips: proportional width by
  * token weight, colored by each window's dominant tool (same idea as the
  * panel's context-window strips, kept independent since this feeds a fixed
@@ -1111,8 +1123,7 @@ export function contextStripSegments(segments, fallbackColor) {
   const totalTok = segs.reduce((s, g) => s + (g.tokens?.output || 0) + (g.tokens?.cache_read || 0), 0) || 1;
   return segs.map(seg => {
     const tok = (seg.tokens?.output || 0) + (seg.tokens?.cache_read || 0);
-    const summary = seg.tool_summary || {};
-    const top = Object.entries(summary).sort((a, b) => b[1] - a[1])[0] || null;
+    const top = dominantTool(seg.tool_summary);
     return {
       pct:  Math.max(4, tok / totalTok * 100),
       tok,
@@ -1151,7 +1162,7 @@ function _shareFooter(g, { tagLine, footerRightLabel }) {
   const c = SHARE_CARD_TOKENS;
   return `<line x1="0" y1="${g.bodyBot}" x2="${g.width}" y2="${g.bodyBot}" stroke="${c.border}" stroke-width="1"/>
   <rect y="${g.bodyBot}" width="${g.width}" height="${g.footerH}" fill="${c.panel}"/>
-  <text x="${g.leftPad}" y="${g.bodyBot + 26}" style="font-size:11px;fill:${c.select};letter-spacing:0.5px;">${tagLine || 'KAAROSESSIONS'}</text>
+  <text x="${g.leftPad}" y="${g.bodyBot + 26}" style="font-size:11px;fill:${c.select};letter-spacing:0.5px;">${esc(tagLine || 'KAAROSESSIONS')}</text>
   <text x="${g.leftPad}" y="${g.bodyBot + 48}" style="font-size:10px;fill:${c.dim};">an observability surface for coding agents</text>
   <text x="${g.width - g.leftPad}" y="${g.bodyBot + 40}" style="font-size:14px;font-weight:bold;fill:${c.accent};text-anchor:end;letter-spacing:1px;">${esc(footerRightLabel || '◆ KAAROSESSIONS')}</text>`;
 }
@@ -1229,7 +1240,8 @@ export function generateShareCardSVG(data) {
     ['SUBAGENTS',   String(data.subagent_count)],
   ];
 
-  const skillTags = (data.skills || []).slice(0, 4).map(s => esc('/' + s)).join('  ');
+  // Raw (unescaped) — _shareFooter is the single escaping point for tagLine.
+  const skillTags = (data.skills || []).slice(0, 4).map(s => '/' + s).join('  ');
 
   return `<svg width="${g.width}" height="${g.height}" xmlns="http://www.w3.org/2000/svg">
   <defs><style>text { font-family: 'IBM Plex Mono', 'Courier New', monospace; }</style></defs>
@@ -1293,7 +1305,8 @@ export function generateProjectShareCardSVG(data) {
     ['HARNESSES',   String(rows.length)],
   ];
 
-  const skillTags = (data.skills || []).slice(0, 4).map(s => esc('/' + s)).join('  ');
+  // Raw (unescaped) — _shareFooter is the single escaping point for tagLine.
+  const skillTags = (data.skills || []).slice(0, 4).map(s => '/' + s).join('  ');
 
   return `<svg width="${g.width}" height="${g.height}" xmlns="http://www.w3.org/2000/svg">
   <defs><style>text { font-family: 'IBM Plex Mono', 'Courier New', monospace; }</style></defs>

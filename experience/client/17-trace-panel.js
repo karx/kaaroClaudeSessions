@@ -15,11 +15,11 @@
   window._traceCache = window._traceCache || new Map();
   const _cache = window._traceCache;
 
+  // dominantTool() lives in client-core.mjs (00-core.js) — the single
+  // "which tool dominated this window" rule, shared with the share card's
+  // context strip so the two can't drift.
   function _domTool(seg) {
-    const s = seg.tool_summary;
-    if (!s) return null;
-    const top = Object.entries(s).sort((a, b) => b[1] - a[1])[0];
-    return top || null;
+    return dominantTool(seg.tool_summary);
   }
 
   function _renderStrips(data, sessionColor) {

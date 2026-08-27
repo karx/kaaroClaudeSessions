@@ -957,6 +957,15 @@ test('computeClusterHidden', async t => {
   });
 });
 
+test('dominantTool — highest-count [name, count] entry, shared by contextStripSegments and the trace panel', async () => {
+  const { dominantTool } = await import('../experience/client-core.mjs');
+  assert.equal(dominantTool(null), null);
+  assert.equal(dominantTool(undefined), null);
+  assert.equal(dominantTool({}), null);
+  assert.deepEqual(dominantTool({ Write: 5, Read: 2 }), ['Write', 5]);
+  assert.deepEqual(dominantTool({ Bash: 3 }), ['Bash', 3]);
+});
+
 test('contextStripSegments — proportional by token weight, colored by dominant tool', async () => {
   const { contextStripSegments } = await import('../experience/client-core.mjs');
   assert.deepEqual(contextStripSegments(null), []);
@@ -1020,6 +1029,23 @@ test('generateShareCardSVG — 1200×630, escapes user text, one strip per segme
 
   const noSegs = generateShareCardSVG(buildShareCardData({ id: 's2', label: 'plain', harness: 'pi', tokens_work: 400 }));
   assert.equal((noSegs.match(/<title>/gi) || []).length, 1, 'placeholder single strip when no trace segments');
+});
+
+test('generateShareCardSVG / generateProjectShareCardSVG — footer tagLine (skill tags) is escaped, not injected raw', async () => {
+  const { buildShareCardData, generateShareCardSVG, buildProjectShareCardData, generateProjectShareCardSVG } =
+    await import('../experience/client-core.mjs');
+
+  const sessionSvg = generateShareCardSVG(buildShareCardData(
+    { id: 's1', label: 's1', harness: 'claude-code', skills: ['<script>alert(1)</script>'] },
+  ));
+  assert.ok(!sessionSvg.includes('<script>alert'), 'session card footer escapes skill tags');
+  assert.ok(sessionSvg.includes('&lt;script&gt;'));
+
+  const projectSvg = generateProjectShareCardSVG(buildProjectShareCardData(
+    { id: 'p1', label: 'p1', skills: ['<script>alert(1)</script>'] },
+  ));
+  assert.ok(!projectSvg.includes('<script>alert'), 'project card footer escapes skill tags');
+  assert.ok(projectSvg.includes('&lt;script&gt;'));
 });
 
 test('buildShareText — plain-text twin, no live URL (local tool)', async () => {

@@ -3,7 +3,15 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Live multi-harness AI coding session observability surface — a kaaroViewer companion tool",
-  "keywords": ["claude-code", "sessions", "graph", "visualization", "d3", "observability", "multi-harness"],
+  "keywords": [
+    "claude-code",
+    "sessions",
+    "graph",
+    "visualization",
+    "d3",
+    "observability",
+    "multi-harness"
+  ],
   "license": "AGPL-3.0-or-later",
   "author": "karx",
   "repository": {
@@ -14,7 +22,9 @@
   "bugs": {
     "url": "https://github.com/karx/kaaroSessions/issues"
   },
-  "engines": { "node": ">=18.0.0" },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "bin": {
     "kaaro-sessions": "./serve.mjs"
   },
@@ -31,21 +41,24 @@
     "site.webmanifest",
     "robots.txt",
     "generate-og-png.html",
-    "scripts/sync-grok-bot.mjs"
+    "scripts/sync-grok-bot.mjs",
+    "scripts/grok-bot-pipe.mjs"
   ],
   "scripts": {
-    "start":              "node serve.mjs",
-    "analyze":            "node analyze.mjs",
-    "build":              "node build.mjs",
-    "test":               "node --test",
-
-    "transcript":         "node scripts/sim-audio.mjs",
-    "transcript:cc":      "node scripts/sim-audio.mjs --harness=cc",
-    "transcript:grok":    "node scripts/sim-audio.mjs --harness=grok",
-    "transcript:snap":    "node scripts/sim-audio.mjs --snap",
-    "transcript:diff":    "node scripts/sim-audio.mjs --diff",
+    "start": "node serve.mjs",
+    "analyze": "node analyze.mjs",
+    "build": "node build.mjs",
+    "test": "node --test",
+    "transcript": "node scripts/sim-audio.mjs",
+    "transcript:cc": "node scripts/sim-audio.mjs --harness=cc",
+    "transcript:grok": "node scripts/sim-audio.mjs --harness=grok",
+    "transcript:snap": "node scripts/sim-audio.mjs --snap",
+    "transcript:diff": "node scripts/sim-audio.mjs --diff",
     "transcript:summary": "node scripts/sim-audio.mjs --summary --silent",
-    "grok-bot:sync":  "node scripts/sync-grok-bot.mjs --watch --interval=5000",
-    "grok-bot:serve": "node scripts/sync-grok-bot.mjs --watch --interval=5000 --serve -- --port=3333"
+    "grok-bot:sync": "node scripts/sync-grok-bot.mjs --watch --interval=5000",
+    "grok-bot:serve": "node scripts/sync-grok-bot.mjs --watch --interval=5000 --serve -- --port=3333",
+    "grok-bot:init": "node scripts/grok-bot-pipe.mjs init",
+    "grok-bot:box": "node scripts/grok-bot-pipe.mjs box --watch --interval=5000",
+    "grok-bot:pc": "node scripts/grok-bot-pipe.mjs pc --serve -- --port=3333"
   }
 }

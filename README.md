@@ -8,6 +8,8 @@ vocabulary, and serves an interactive force-directed graph of projects, sessions
 files plus live Mission Control and DAW views, all from a local HTTP server with
 live hot-reload.
 
+Grok Bot transcripts live on the Linux box at `/home/box/agent-data` — see [`docs/PIPE-grok-bot.md`](docs/PIPE-grok-bot.md) for the pack / transport / land flow.
+
 <img width="2510" height="1315" alt="Screenshot 2026-04-28 at 11-19-17 Claude Code Sessions — kaaro-sessions" src="https://github.com/user-attachments/assets/d43cf02f-feb2-4eb1-8fc3-5fd6802a9a75" />
 
 ## Requirements

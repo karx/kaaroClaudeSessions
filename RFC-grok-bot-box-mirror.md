@@ -1,5 +1,7 @@
 # RFC: Grok Bot box-tree mirror (view + hear live)
 
+**PIPE status:** implemented as PIPE, see `docs/PIPE-grok-bot.md` (this RFC is history).
+
 **Project:** kaaroSessions
 **Status:** Proposed
 **Date:** 2026-08-28

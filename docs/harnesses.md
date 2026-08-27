@@ -114,4 +114,8 @@ graph only shows what's still on disk" as a general caveat, not a claude-code-sp
 
 Update this file whenever behavior or support changes. It is the single source of truth visible to contributors and users.
 
+## Grok Bot PIPE
+
+Grok Bot transcripts live on the Linux box at `/home/box/agent-data`, not on Windows AppData. The PIPE packs jsonl + profile.json onto a staging dir, transports them, and lands them at `.local/grok-bot-agent-data` for `serve.mjs`. Secrets never cross. See `docs/PIPE-grok-bot.md`.
+
 Last updated: 2026-08-28 — Grok Bot (8th harness) added. Transcripts live at `/home/box/agent-data` (override with `GROK_BOT_AGENT_DATA`).

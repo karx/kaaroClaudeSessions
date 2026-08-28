@@ -26,7 +26,13 @@ import { createHub } from './surface/sse-hub.mjs';
 import { createPulseEmitter } from './surface/pulse-emitter.mjs';
 import { createRebuilder } from './surface/rebuild-orchestrator.mjs';
 import { createRequestHandler } from './surface/http-routes.mjs';
+import { createKindMapStore } from './surface/kind-map-store.mjs';
+import { buildKindMap } from './surface/kind-map-build.mjs';
 import { createTraceService } from './surface/trace-service.mjs';
+import { streamEvents } from './hooks/pulse-map.mjs';
+import { EVENT_TYPES } from './experience/audio/event-registry.mjs';
+import { renderKindMapPage, renderKindMapSnippet } from './experience/kind-map-widget.mjs';
+import { tokensToCss } from './experience/design-tokens.mjs';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] ?? '3333');
@@ -44,7 +50,10 @@ const hub = createHub();
 // Mission Control active-session state (/api/active + SSE `now`) + pulses.
 
 const activeState = createActiveState();
-const { tailAndPulse } = createPulseEmitter({ hub, activeState });
+const kindMapStore = createKindMapStore({
+  buildBaseline: () => buildKindMap({ local: true, eventTypes: EVENT_TYPES }),
+});
+const { tailAndPulse } = createPulseEmitter({ hub, activeState, kindMap: kindMapStore });
 
 // ── Rebuild pipeline ──────────────────────────────────────────────────────────
 
@@ -130,6 +139,13 @@ const server = http.createServer(createRequestHandler({
   },
   resolveSessionFile,
   buildTrace,
+  kindMapStore,
+  renderKindMapPage: (payload) => renderKindMapPage(payload, {
+    tokensCss: tokensToCss(),
+    live: true,
+    streamEvents: [...streamEvents()],
+  }),
+  renderKindMapSnippet,
 }));
 
 // ── Start ─────────────────────────────────────────────────────────────────────

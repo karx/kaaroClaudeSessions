@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import {
   fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
-  connectEvents, createBootQueue, resolveControlVisibility,
+  connectEvents, createBootQueue, resolveControlVisibility, fetchRetry,
   nextChromeCollapsed, confirmLayoutReset,
   hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
   meGlyph, meGlyphMarkup, meGlyphSvg, meGlyphCardHtml,
@@ -574,6 +574,37 @@ test('connectEvents — wires handlers with JSON parsing and status callbacks', 
   assert.deepEqual(states, ['open', 'reconnecting']);
 });
 
+test('fetchRetry — resolves on first try without retrying', async () => {
+  let calls = 0;
+  const fetchImpl = () => { calls++; return Promise.resolve('ok'); };
+  const delay = () => { throw new Error('should not delay'); };
+  const result = await fetchRetry('/x', { fetchImpl, delay });
+  assert.equal(result, 'ok');
+  assert.equal(calls, 1);
+});
+
+test('fetchRetry — retries once after a delay on transient failure', async () => {
+  let calls = 0;
+  const fetchImpl = () => {
+    calls++;
+    return calls === 1 ? Promise.reject(new Error('NetworkError')) : Promise.resolve('ok');
+  };
+  const delays = [];
+  const delay = (fn, ms) => { delays.push(ms); fn(); };
+  const result = await fetchRetry('/x', { fetchImpl, delay, retryDelay: 400 });
+  assert.equal(result, 'ok');
+  assert.equal(calls, 2);
+  assert.deepEqual(delays, [400]);
+});
+
+test('fetchRetry — rejects if both attempts fail', async () => {
+  let calls = 0;
+  const fetchImpl = () => { calls++; return Promise.reject(new Error('still down')); };
+  const delay = (fn) => fn();
+  await assert.rejects(() => fetchRetry('/x', { fetchImpl, delay }), /still down/);
+  assert.equal(calls, 2);
+});
+
 test('resolveControlVisibility — only the active layout’s control panels show', () => {
   const handlers = {
     force:    { controls: ['force-options'] },
@@ -633,6 +664,17 @@ test('laneForEvent — routes by pulse family', async () => {
   const { laneForEvent } = await import('../experience/client-core.mjs');
   assert.equal(laneForEvent({ family: 'ai' }).id, 'ai');
   assert.equal(laneForEvent({ family: 'nope' }), null);
+  assert.equal(laneForEvent({ family: 'context', type: 'thinking' }).id, 'context');
+});
+
+test('DAW context lane — thinking is a visible pad, not a word_count sliver', async () => {
+  const { DAW_FAMILY_LANES } = await import('../experience/client-core.mjs');
+  const ctx = DAW_FAMILY_LANES.find(l => l.id === 'context');
+  assert.ok(ctx.toolColors.thinking, 'thinking has a lane color');
+  assert.ok(ctx.blockH({ type: 'thinking' }) >= 0.4,
+    'thinking pad must be visible on the context lane');
+  assert.ok(ctx.blockH({ type: 'thinking' }) < ctx.blockH({ type: 'words', word_count: 80 }),
+    'thinking stays under a full words block');
 });
 
 test('evTimeX — right-anchored time axis with scroll offset', async () => {
@@ -802,6 +844,20 @@ test('pulseTickerEntry — glyphs, text, and roles per cognition event', async (
   assert.equal(aerr.role, 'err');
 
   assert.equal(pulseTickerEntry('chirp', {}), null, 'chirps stay out of the ticker');
+  assert.equal(pulseTickerEntry('thinking', { slug: 'abc12345' }), null,
+    'thinking is a pad on the ring, not a ticker line');
+});
+
+test('LIVE_COGNITION_EVENTS — thinking is live; unknown/silent/tool_result stay wire-only', async () => {
+  const { LIVE_COGNITION_EVENTS, LIVE_PLAYPULSE_EVENTS } = await import('../experience/client-core.mjs');
+  assert.ok(LIVE_COGNITION_EVENTS.includes('thinking'));
+  for (const skip of ['unknown', 'silent', 'tool_result']) {
+    assert.ok(!LIVE_COGNITION_EVENTS.includes(skip), skip + ' must not be subscribed');
+    assert.ok(!LIVE_PLAYPULSE_EVENTS.includes(skip), skip + ' must not reach playPulse');
+  }
+  for (const ev of ['tool_call', 'tokens', 'words', 'thinking']) {
+    assert.ok(LIVE_PLAYPULSE_EVENTS.includes(ev), ev + ' must reach playPulse');
+  }
 });
 
 test('blockGeom — cognition events get distinct canvas geometry', () => {
@@ -813,6 +869,7 @@ test('blockGeom — cognition events get distinct canvas geometry', () => {
   assert.deepEqual(blockGeom({ type: 'permission' }, trackH), { h: 12, yOff: 2 });
   assert.deepEqual(blockGeom({ type: 'mode_shift' }, trackH), { h: 12, yOff: 2 });
   assert.deepEqual(blockGeom({ type: 'chirp' }, trackH),      { h: 5,  yOff: 40 });
+  assert.deepEqual(blockGeom({ type: 'thinking' }, trackH),   { h: 16, yOff: 20 }, 'thinking = mid-track pad');
 });
 
 // ── E5: DAW session legend + context pressure ─────────────────────────────────

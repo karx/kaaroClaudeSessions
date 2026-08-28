@@ -11,6 +11,7 @@ import path from 'path';
 
 import { HARNESS_REGISTRY, getHarness } from '../hooks/registry.mjs';
 import { snapshotActive } from './active-state.mjs';
+import { buildKindMap } from './kind-map-build.mjs';
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
@@ -25,9 +26,12 @@ const JSON_HEADERS = {
  * @param {{ root: string, html: string, data: string, daw: string, now: string }} deps.paths
  * @param {(sessionId: string) => object|null} deps.resolveSessionFile
  * @param {(filePath: string, projectId: string|null, sessionId: string, harness: string) => object|null} deps.buildTrace
+ * @param {{ snapshot: Function }} [deps.kindMapStore]
+ * @param {(payload: object) => string} [deps.renderKindMapPage] — experience widget; injected by serve.mjs
+ * @param {(payload: object) => string} [deps.renderKindMapSnippet]
  * @returns {(req: import('http').IncomingMessage, res: import('http').ServerResponse) => void}
  */
-export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace }) {
+export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace, kindMapStore = null, renderKindMapPage, renderKindMapSnippet } = {}) {
   return (req, res) => {
     const pathOnly = req.url.split('?')[0];
     if (pathOnly === '/events') {
@@ -70,6 +74,26 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
 
     // Registry as the experience layer's source of truth: id, label,
     // capabilities only (watch config / adapters are backend-internal).
+    if (req.url === '/api/kind-map') {
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(kindMapStore ? kindMapStore.snapshot() : buildKindMap()));
+      return;
+    }
+
+    if (pathOnly === '/mapping' || pathOnly === '/kind-map') {
+      const payload = kindMapStore ? kindMapStore.snapshot() : buildKindMap();
+      const partial = /(?:\?|&)partial=1(?:&|$)/.test(req.url);
+      const render = partial ? renderKindMapSnippet : renderKindMapPage;
+      if (typeof render !== 'function') {
+        res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('kind map renderer missing');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      res.end(render(payload));
+      return;
+    }
+
     if (req.url === '/api/harnesses') {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({

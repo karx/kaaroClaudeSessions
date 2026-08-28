@@ -151,6 +151,17 @@ test('response item textEditGroup → edit tool_use (agent-mode file edits)', ()
   assert.equal(tool.input.file_path, 'd:/src/x/app.mjs');
 });
 
+test('response item markdownContent → content_block text (not unknown)', () => {
+  const nrs = recordsToNormalized([{
+    kind: 2, k: ['requests', 0, 'response'], v: [
+      { kind: 'markdownContent', content: { value: 'The ontology is…' } },
+    ],
+  }]);
+  const text = nrs.find(r => r.kind === 'content_block' && r.block_type === 'text');
+  assert.equal(text.text, 'The ontology is…');
+  assert.equal(nrs.filter(r => r.kind === 'unknown_record').length, 0);
+});
+
 test('unknown response item kind → unknown_record catch-all', () => {
   const nrs = recordsToNormalized([{
     kind: 2, k: ['requests', 0, 'response'], v: [{ kind: 'hologram9000' }],
@@ -192,6 +203,8 @@ test('toolNameToKey — copilot tool names map to canonical keys', () => {
   assert.equal(toolNameToKey('findTextInFiles'), 'grep_glob');
   assert.equal(toolNameToKey('fileSearch'), 'grep_glob');
   assert.equal(toolNameToKey('listDirectory'), 'grep_glob');
+  assert.equal(toolNameToKey('findFiles'), 'grep_glob');
+  assert.equal(toolNameToKey('searchCodebase'), 'grep_glob');
   assert.equal(toolNameToKey('runInTerminal'), 'bash_other');
   assert.equal(toolNameToKey('fetchWebpage'), 'web');
 });

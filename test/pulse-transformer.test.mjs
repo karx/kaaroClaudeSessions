@@ -30,6 +30,7 @@ test('tool_use NR → tool_call pulse with canonical key derived by transformer'
   assert.equal(pulses[0].data.tool, 'Read');
   assert.equal(pulses[0].data.slug, CTX.slug);
   assert.equal(pulses[0].data.harness, CTX.harness);
+  assert.equal(pulses[0].data.nr_kind, 'tool_use');
 });
 
 test('tool_use NR key derived from tool+category by transformer', () => {
@@ -64,6 +65,7 @@ test('tokens NR → tokens pulse', () => {
   assert.equal(pulse.data.output, 200);
   assert.equal(pulse.data.cache_read, 8000);
   assert.ok(!pulse.data.synthetic);
+  assert.equal(pulse.data.nr_kind, 'tokens');
 });
 
 // ── content_block → words / chirp ────────────────────────────────────────────
@@ -75,6 +77,7 @@ test('content_block text ≥3 words → words pulse', () => {
   assert.equal(pulse.event, 'words');
   assert.ok(pulse.data.word_count >= 3);
   assert.ok(pulse.data.preview.length > 0);
+  assert.equal(pulse.data.nr_kind, 'content_block');
 });
 
 test('content_block text <3 words → chirp pulse', () => {
@@ -100,6 +103,7 @@ test('user_turn NR → human_turn pulse', () => {
   const [pulse] = normRecordsToPulses(nrs, CTX);
   assert.equal(pulse.event, 'human_turn');
   assert.equal(pulse.data.slug, CTX.slug);
+  assert.equal(pulse.data.nr_kind, 'user_turn');
 });
 
 // ── context_reset → compact pulse ────────────────────────────────────────────
@@ -108,6 +112,7 @@ test('context_reset NR → compact pulse', () => {
   const nrs = [{ kind: 'context_reset', harness: 'claude-code', ts: TS }];
   const [pulse] = normRecordsToPulses(nrs, CTX);
   assert.equal(pulse.event, 'compact');
+  assert.equal(pulse.data.nr_kind, 'context_reset');
 });
 
 // ── permission_mode → permission pulse ───────────────────────────────────────
@@ -177,11 +182,23 @@ test('unknown_record NR → unknown pulse with raw_type', () => {
 
 // ── catch-all invariant ───────────────────────────────────────────────────────
 
-test('unmapped NR kind → unknown pulse (catch-all never drops)', () => {
-  const nrs = [{ kind: 'branch_change', harness: 'claude-code', ts: TS, branch: 'main' }];
+test('string that is not a RECORD_KIND → unknown pulse (catch-all never drops)', () => {
+  const nrs = [{ kind: 'not_a_kind', harness: 'claude-code', ts: TS }];
   const pulses = normRecordsToPulses(nrs, CTX);
   assert.equal(pulses.length, 1);
   assert.equal(pulses[0].event, 'unknown');
+  assert.equal(pulses[0].data.nr_kind, 'not_a_kind');
+});
+
+test('P0 snapshot kinds → silent, not unknown', () => {
+  const nrs = [
+    { kind: 'session_meta', harness: 'claude-code', ts: TS, slug: 'x' },
+    { kind: 'branch_change', harness: 'claude-code', ts: TS, branch: 'feat/x' },
+    { kind: 'skill_invoke', harness: 'claude-code', ts: TS, skill: 'review' },
+  ];
+  const pulses = normRecordsToPulses(nrs, CTX);
+  assert.deepEqual(pulses.map(p => p.event), ['silent', 'silent', 'silent']);
+  assert.deepEqual(pulses.map(p => p.data.reason), ['snapshot', 'snapshot', 'snapshot']);
 });
 
 test('every NR in a mixed batch emits ≥1 pulse', () => {
@@ -198,6 +215,8 @@ test('every NR in a mixed batch emits ≥1 pulse', () => {
   ];
   const pulses = normRecordsToPulses(nrs, CTX);
   assert.equal(pulses.length, nrs.length, 'each NR must produce exactly 1 pulse in this batch');
+  assert.ok(pulses.every(p => p.data.nr_kind), 'every pulse carries nr_kind');
+  assert.deepEqual(pulses.map(p => p.data.nr_kind), nrs.map(n => n.kind));
 });
 
 // ── synthetic tokens from assistant_turn ─────────────────────────────────────
@@ -213,12 +232,14 @@ test('content_block thinking NR → thinking pulse with block_type', () => {
   assert.equal(pulse.data.nr_kind, 'content_block');
 });
 
-test('content_block thinking: non-text non-thinking block still produces unknown (diagnostics)', () => {
+test('content_block tool_use → silent duplicate (not unknown)', () => {
   const nrs = [{ kind: 'content_block', harness: 'claude-code', ts: TS,
     block_type: 'tool_use' }];
   const [pulse] = normRecordsToPulses(nrs, CTX);
-  assert.equal(pulse.event, 'unknown');
+  assert.equal(pulse.event, 'silent');
+  assert.equal(pulse.data.reason, 'duplicate');
   assert.equal(pulse.data.block_type, 'tool_use');
+  assert.equal(pulse.data.nr_kind, 'content_block');
 });
 
 // ── synthetic tokens from assistant_turn ─────────────────────────────────────
@@ -231,12 +252,15 @@ test('assistant_turn + capabilities.tokens:false → synthetic tokens pulse', ()
   assert.equal(pulse.event, 'tokens');
   assert.ok(pulse.data.synthetic);
   assert.ok(pulse.data.output > 0, 'estimated output tokens from content_length/4');
+  assert.equal(pulse.data.nr_kind, 'assistant_turn');
 });
 
-test('assistant_turn + capabilities.tokens:true → unknown pulse (no duplicate tokens)', () => {
+test('assistant_turn + capabilities.tokens:true → silent envelope (no duplicate tokens)', () => {
   const nrs = [{ kind: 'assistant_turn', harness: 'claude-code', ts: TS }];
   const [pulse] = normRecordsToPulses(nrs, CTX, { tokens: true });
-  assert.notEqual(pulse.event, 'tokens');
+  assert.equal(pulse.event, 'silent');
+  assert.equal(pulse.data.reason, 'envelope');
+  assert.equal(pulse.data.nr_kind, 'assistant_turn');
 });
 
 // ── api_error → api_error pulse ──────────────────────────────────────────────
@@ -250,6 +274,7 @@ test('api_error NR → api_error pulse with message and code', () => {
   assert.equal(pulses[0].data.message, 'quota exceeded');
   assert.equal(pulses[0].data.code, 'rate_limit');
   assert.equal(pulses[0].data.slug, CTX.slug);
+  assert.equal(pulses[0].data.nr_kind, 'api_error');
 });
 
 test('api_error NR without code → code null', () => {
@@ -261,18 +286,8 @@ test('api_error NR without code → code null', () => {
 
 // ── kind coverage — no RECORD_KIND silently falls through ────────────────────
 
-test('every RECORD_KIND maps to a named event or the explicit catch-all allowlist', async () => {
+test('every RECORD_KIND maps to a named event; only unknown_record is the catch-all', async () => {
   const { RECORD_KINDS, KIND_FIELDS } = await import('../hooks/normalized-record.mjs');
-
-  // Kinds whose pulses are deliberately the 'unknown' catch-all today.
-  // Removing a kind from this list requires giving it a real event mapping.
-  const EXPECTED_CATCH_ALL = new Set([
-    'session_meta',   // metadata envelope — no live signal
-    'skill_invoke',   // no dedicated event yet (candidate for E5 audio work)
-    'branch_change',  // no dedicated event yet
-    'assistant_turn', // synthetic tokens only when capabilities.tokens === false
-    'unknown_record', // catch-all by definition
-  ]);
 
   const DUMMY = {
     tokens: { input: 1, output: 1, cache_create: 0, cache_read: 0 },
@@ -289,11 +304,11 @@ test('every RECORD_KIND maps to a named event or the explicit catch-all allowlis
   for (const kind of RECORD_KINDS) {
     const [pulse] = normRecordsToPulses([minimalNR(kind)], CTX, { tokens: true });
     assert.ok(pulse, `${kind}: no pulse emitted`);
-    if (EXPECTED_CATCH_ALL.has(kind)) {
+    if (kind === 'unknown_record') {
       assert.equal(pulse.event, 'unknown', `${kind}: expected catch-all`);
     } else {
       assert.notEqual(pulse.event, 'unknown',
-        `${kind}: silently fell through to catch-all — add a mapping or allowlist it`);
+        `${kind}: classified as unknown — add a KIND_PULSE row (silent or sonic)`);
     }
   }
 });

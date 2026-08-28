@@ -8,6 +8,7 @@ import {
   grokRecordTs, grokSessionUpdate, isGrokToolFailure,
 } from '../helpers/grok-helpers.mjs';
 import { categorizeBash } from '../helpers/analyze-helpers.mjs';
+import { isBashToolName } from '../action-keys.mjs';
 
 const HARNESS = 'grok';
 const ASSISTANT_CHUNKS = new Set(['agent_message_chunk', 'agent_thought_chunk']);
@@ -68,7 +69,7 @@ export function recordsToNormalized(records) {
       handled = true;
       const title   = upd.title || 'unknown';
       const raw     = upd.rawInput || {};
-      const isBash  = ['shell', 'bash'].includes(title.toLowerCase());
+      const isBash  = isBashToolName(title);
       const category = isBash ? categorizeBash(raw.command) : null;
       toolTitles.set(upd.toolCallId, title);
       ensureAssistantTurn(rec, ts);

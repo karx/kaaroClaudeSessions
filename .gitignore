@@ -1,10 +1,15 @@
 /sessions-data.json
 /signals-data.json
+/live-feed-*.json
+/live-feed-capture.json
 /graph.html
 /graph-data.json
 /daw-builder.html
 /now.html
 /home.html
+/kind-map.html
+/public/kind-map.html
+/temp_missing_log.json
 node_modules/
 /agent-tools/
 /.claude/settings.local.json

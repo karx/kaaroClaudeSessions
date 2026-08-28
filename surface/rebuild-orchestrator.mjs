@@ -16,10 +16,11 @@
  * @param {string} deps.analyzeScript
  * @param {string} deps.buildScript
  * @param {number} [deps.debounceMs]
+ * @param {() => void} [deps.onSnapshot] — after analyze writes sessions-data
  * @param {{ log: Function, error: Function }} [deps.log]
  */
 export function createRebuilder({
-  hub, runScript, analyzeScript, buildScript, debounceMs = 1500, log = console,
+  hub, runScript, analyzeScript, buildScript, debounceMs = 1500, onSnapshot = null, log = console,
 }) {
   let rebuilding     = false;
   let pendingRebuild = false;
@@ -50,6 +51,7 @@ export function createRebuilder({
         analyzeArgs = ['--all-harnesses'];
       }
       await runScript(analyzeScript, analyzeArgs);
+      try { onSnapshot?.(); } catch (e) { log.error?.('onSnapshot failed:', e.message); }
       await runScript(buildScript);
       lastBuilt = new Date();
       log.log(`Done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

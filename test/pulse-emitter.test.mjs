@@ -61,6 +61,19 @@ test('tailAndPulse — emits pulses for new JSONL bytes and advances the offset'
   });
 });
 
+test('tailAndPulse — same pulses overlay the kind-map store', () => {
+  withTempDir((dir) => {
+    const fp = join(dir, 's.jsonl');
+    writeFileSync(fp, CC_LINE + '\n', 'utf8');
+    const seen = [];
+    const kindMap = { applyPulse: (p) => seen.push(p) };
+    const emitter = createPulseEmitter({ hub: fakeHub(), activeState: createActiveState(), kindMap });
+    emitter.tailAndPulse(fp, CC_CTX);
+    assert.ok(seen.some(p => p.event === 'tool_call'));
+    assert.equal(seen.filter(p => p.event === 'tool_call')[0].data.harness, 'claude-code');
+  });
+});
+
 test('tailAndPulse — feeds active-state so /api/active sees the session', () => {
   withTempDir((dir) => {
     const fp = join(dir, 's.jsonl');

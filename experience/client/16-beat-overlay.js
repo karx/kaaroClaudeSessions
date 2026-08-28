@@ -21,6 +21,7 @@
     tool_error: KAARO_TOKENS.err, api_error: KAARO_TOKENS.err,
     human_turn: KAARO_TOKENS.select, compact: KAARO_TOKENS.label,
     permission: KAARO_TOKENS.dim, mode_shift: KAARO_TOKENS.dim,
+    thinking: KAARO_TOKENS.label,
   };
   function _toolStripeColor(ev) {
     if (ev.type === 'tokens' || ev.type === 'words') return null;

@@ -15,6 +15,9 @@ import { join } from 'node:path';
 import { createRequestHandler } from '../surface/http-routes.mjs';
 import { createHub } from '../surface/sse-hub.mjs';
 import { createActiveState, applyPulse } from '../surface/active-state.mjs';
+import { renderKindMapPage, renderKindMapSnippet } from '../experience/kind-map-widget.mjs';
+import { tokensToCss } from '../experience/design-tokens.mjs';
+import { streamEvents } from '../hooks/pulse-map.mjs';
 
 function makeDeps(over = {}) {
   const hub = createHub();
@@ -32,6 +35,12 @@ function makeDeps(over = {}) {
     },
     resolveSessionFile: () => null,
     buildTrace: () => null,
+    renderKindMapPage: (payload) => renderKindMapPage(payload, {
+      tokensCss: tokensToCss(),
+      live: true,
+      streamEvents: [...streamEvents()],
+    }),
+    renderKindMapSnippet,
     ...over,
   };
 }
@@ -102,6 +111,61 @@ test('GET /api/signals — empty payload (200) when file absent', async () => {
     const body = await r.json();
     assert.equal(body.total_signals, 0);
     assert.deepEqual(body.signals, []);
+  });
+});
+
+test('GET /api/kind-map — generated payload, no adapter leak', async () => {
+  await withServer(makeDeps(), async (base) => {
+    const r = await fetch(`${base}/api/kind-map`);
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.ok(Array.isArray(body.harnesses) && body.harnesses.length >= 1);
+    assert.ok(Array.isArray(body.kinds) && body.kinds.length >= 1);
+    assert.equal(body.harnesses[0].adapter, undefined);
+    assert.ok(body.kinds.every(k => Array.isArray(k.emit)));
+    assert.ok(Array.isArray(body.unknowns));
+  });
+});
+
+test('GET /api/kind-map — uses kindMapStore snapshot when provided', async () => {
+  const kindMapStore = {
+    snapshot: () => ({ generated_at: 'live', harnesses: [], kinds: [{ id: 'x', emit: [] }], tools: [] }),
+  };
+  await withServer(makeDeps({ kindMapStore }), async (base) => {
+    const body = await (await fetch(`${base}/api/kind-map`)).json();
+    assert.equal(body.generated_at, 'live');
+    assert.equal(body.kinds[0].id, 'x');
+  });
+});
+
+test('GET /mapping — 503 when renderer is not injected', async () => {
+  await withServer(makeDeps({ renderKindMapPage: undefined, renderKindMapSnippet: undefined }), async (base) => {
+    const r = await fetch(`${base}/mapping`);
+    assert.equal(r.status, 503);
+  });
+});
+
+test('GET /mapping — generated kind-map widget', async () => {
+  await withServer(makeDeps(), async (base) => {
+    const r = await fetch(`${base}/mapping`);
+    assert.equal(r.status, 200);
+    const html = await r.text();
+    assert.ok(html.includes('k-kind-map'));
+    assert.ok(html.includes('Kind × harness') || html.includes('kind'));
+    assert.ok(html.includes('?partial=1'));
+    assert.ok(!html.includes('function paint('));
+    assert.ok(html.includes('EventSource'));
+  });
+});
+
+test('GET /mapping?partial=1 — snippet only, same widget', async () => {
+  await withServer(makeDeps(), async (base) => {
+    const r = await fetch(`${base}/mapping?partial=1`);
+    assert.equal(r.status, 200);
+    const html = await r.text();
+    assert.ok(html.includes('k-kind-map'));
+    assert.ok(!html.includes('<!DOCTYPE html>'));
+    assert.ok(!html.includes('EventSource'));
   });
 });
 

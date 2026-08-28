@@ -604,6 +604,7 @@ export function blockGeom(ev, trackH = 62) {
   if (ev.type === 'human_turn') return { h: 36, yOff: 2 };
   if (ev.type === 'permission' || ev.type === 'mode_shift') return { h: 12, yOff: 2 };
   if (ev.type === 'chirp') return { h: 5, yOff: trackH - 22 };
+  if (ev.type === 'thinking') return { h: 16, yOff: 20 };
   if (t === 'write')                       return { h: 52, yOff: 2 };
   if (t === 'edit')                        return { h: 46, yOff: 2 };
   if (t === 'agent' || t === 'task')       return { h: 40, yOff: 2 };
@@ -638,11 +639,14 @@ export const DAW_FAMILY_LANES = [
   },
   {
     id: 'context', label: 'CONTEXT', bg: '#080c18', portion: 0.15,
-    toolColors: { tokens: '#00ddcc', words: '#00aaff' },
-    blockW: e => e.type === 'tokens' ? 3 : 8,
-    blockH: e => e.type === 'tokens'
-      ? Math.max(0.1, Math.min(0.8, Math.log1p((e.output || 0) / 200) * 0.35))
-      : Math.max(0.1, Math.min(0.85, (e.word_count || 0) / 80)),
+    toolColors: { tokens: '#00ddcc', words: '#00aaff', thinking: '#ffaa00' },
+    blockW: e => e.type === 'tokens' ? 3 : e.type === 'thinking' ? 6 : 8,
+    blockH: e => {
+      if (e.type === 'tokens')
+        return Math.max(0.1, Math.min(0.8, Math.log1p((e.output || 0) / 200) * 0.35));
+      if (e.type === 'thinking') return 0.45;
+      return Math.max(0.1, Math.min(0.85, (e.word_count || 0) / 80));
+    },
   },
 ];
 
@@ -846,6 +850,21 @@ export function sessionLegend(ring, max = 6, windowTokens = 200_000) {
   return [...bySlug.values()];
 }
 
+// ── Live SSE subscribe (Graph / DAW → playPulse) ──────────────────────────────
+// tool_call / tokens / words have their own listeners (custom ticker lines).
+// Cognition events share one loop. unknown / silent / tool_result stay wire-only.
+
+export const LIVE_COGNITION_EVENTS = [
+  'human_turn', 'compact', 'permission', 'mode_shift',
+  'tool_error', 'api_error', 'chirp', 'attachment', 'scaffold',
+  'thinking',
+];
+
+export const LIVE_PLAYPULSE_EVENTS = [
+  'tool_call', 'tokens', 'words',
+  ...LIVE_COGNITION_EVENTS,
+];
+
 // ── Cognition pulse vocabulary (ticker / overlays) ────────────────────────────
 
 export const PULSE_GLYPHS = {
@@ -855,7 +874,7 @@ export const PULSE_GLYPHS = {
 
 /**
  * Ticker line for a cognition pulse. Returns { text, role } or null when the
- * event should stay out of the ticker (chirps — too chatty).
+ * event should stay out of the ticker (chirps, thinking — too chatty).
  * Roles: 'err' | 'human' | 'context' | 'dim' (consumer maps role → color).
  */
 export function pulseTickerEntry(event, data = {}) {
@@ -1000,7 +1019,7 @@ export function connectEvents(opts, ES) {
     es.addEventListener(event, e => {
       let data = null;
       try { data = JSON.parse(e.data); } catch { /* non-JSON event payload */ }
-      try { fn(data, e); } catch { /* handler errors must not kill the stream */ }
+      try { fn(data, e); } catch (err) { console.error('[connectEvents] handler for "' + event + '" threw', err); }
     });
   }
   if (opts.onStatus) {
@@ -1008,6 +1027,27 @@ export function connectEvents(opts, ES) {
     es.onerror = () => opts.onStatus('reconnecting');
   }
   return es;
+}
+
+/**
+ * fetch() with one retry after a short delay. Covers the transient
+ * connection-reset a burst of simultaneous requests can trigger at page
+ * load (observed on Windows/Firefox — Chrome silently retries these,
+ * Firefox surfaces them as an immediate rejected fetch).
+ * @param {string} url
+ * @param {object}   [opts]
+ * @param {number}   [opts.retryDelay=400]
+ * @param {typeof fetch} [opts.fetchImpl] — injectable for tests
+ * @param {(fn: () => void, ms: number) => void} [opts.delay] — injectable for tests
+ * @returns {Promise<Response>}
+ */
+export function fetchRetry(url, opts = {}) {
+  const retryDelay = opts.retryDelay ?? 400;
+  const fetchImpl = opts.fetchImpl || fetch;
+  const delay = opts.delay || ((fn, ms) => setTimeout(fn, ms));
+  return fetchImpl(url).catch(() => new Promise((resolve, reject) => {
+    delay(() => fetchImpl(url).then(resolve, reject), retryDelay);
+  }));
 }
 
 // ── Layout controls (declarative show/hide) ───────────────────────────────────

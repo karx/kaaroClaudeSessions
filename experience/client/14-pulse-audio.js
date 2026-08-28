@@ -23,7 +23,7 @@
     { id: 'file',    label: 'File Ops', color: '#2a6a2a', tools: ['read', 'write', 'edit', 'grep_glob'] },
     { id: 'system',  label: 'System',   color: '#2a3a7a', tools: ['bash_git', 'bash_run', 'bash_other'] },
     { id: 'ai',      label: 'AI',       color: '#6a2a7a', tools: ['agent', 'other', 'web'] },
-    { id: 'context', label: 'Context',  color: '#2a5a6a', tools: ['tokens', 'words'] },
+    { id: 'context', label: 'Context',  color: '#2a5a6a', tools: ['tokens', 'words', 'thinking'] },
   ];
 
   const TOOL_FAMILY = {};
@@ -42,6 +42,7 @@
       human_turn: 'bell', compact: 'kick',
       permission: 'hat', mode_shift: 'hat',
       chirp: 'pling', attachment: 'pling', scaffold: 'hat',
+      thinking: 'bell',
     },
     scale:       'major_pentatonic',
     noteMode:    'path_hash',
@@ -151,6 +152,7 @@
     chirp:      { pan:  0.20, sendAmt: 0.10, brightness: 8000  },
     attachment: { pan:  0.25, sendAmt: 0.15, brightness: 6500  },
     scaffold:   { pan: -0.20, sendAmt: 0.05, brightness: 4000  },
+    thinking:   { pan: -0.10, sendAmt: 0.06, brightness: 4000  },
   };
   const HARNESS_PAN_BIAS = { pi: -0.15, antigravity: 0.15, grok: 0.25 };
 
@@ -172,6 +174,7 @@
     chirp:      { instrument: 'pling', octave:  1, volMult: 0.35 },
     attachment: { instrument: 'pling', octave:  0, volMult: 0.50 },
     scaffold:   { instrument: 'hat',   octave: -1, volMult: 0.40 },
+    thinking:   { instrument: 'bell',  octave: -1, volMult: 0.25 },
   };
 
   function resolveSonic(event, data) {
@@ -247,6 +250,9 @@
 
     const tmb = (P.timbre && P.timbre[instrument]) || {};
     const fam = key ? (TOOL_FAMILY[key] || null) : null;
+    if (instrument && instrument !== 'off' && !['harp','bass','bell','flute','bit','pling','snare','kick','hat','buzz'].includes(instrument)) {
+      instrument = ({ pad:'bell', click:'pling', chime:'bell', tick:'hat', woodblock:'pling', sweep:'kick' })[instrument] || 'harp';
+    }
     return { key, instrument, volMult, octave, degreeMode, scale, timbre: tmb, fam, pan, sendAmt, brightness };
   }
 

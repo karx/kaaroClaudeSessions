@@ -110,23 +110,27 @@ Legend: **Y** = this sink receives it today. **—** = produced upstream but thi
 | `tool_result` (`error: true`) | `tool_error` | Y | Y | Y | Y |
 | `tool_result` (ok) | `tool_result` | last_seen | — | — | — |
 | `api_error` | `api_error` | Y | Y | Y | Y |
-| `content_block` thinking | `thinking` | last_seen | — | — | — |
-| `content_block` other / unmapped kind / `unknown_record` | `unknown` | last_seen | — | — | — |
-| `assistant_turn` when tokens **are** a capability | `unknown` | last_seen | — | — | — |
+| `content_block` thinking | `thinking` | last_seen | — | Y | Y |
+| `content_block` unclassified `block_type` / `unknown_record` | `unknown` | last_seen | — | — | — |
+| `assistant_turn` when tokens **are** a capability | `silent` | — | — | — | — |
 
-### NR kinds with no dedicated pulse
+### Silent rest (known NR, no live sonic)
 
-These fall through the transformer `default` (or a kind-specific unknown) and become `unknown` pulses. SSE emits them. The client does **not** listen for `unknown`.
+SSE emits `silent`. The client does **not** subscribe. `reason` is `envelope` | `snapshot` | `duplicate`.
 
-| NR kind | Pulse | Notes |
+| NR kind | Pulse | reason |
 |---|---|---|
-| `session_meta` | `unknown` | Snapshot/trace material, not a live pulse type |
-| `skill_invoke` | `unknown` | Skills live on the session bundle, not the Stream |
-| `branch_change` | `unknown` | Same |
+| `assistant_turn` (tokens capable) | `silent` | envelope |
+| `session_meta` | `silent` | snapshot |
+| `skill_invoke` | `silent` | snapshot |
+| `branch_change` | `silent` | snapshot |
+| `content_block` `tool_use` | `silent` | duplicate |
+
+`unknown` is only `unknown_record` and unclassified kinds/block types. The client does **not** listen for `unknown` until that is true.
 
 ### Stream events the client dispatcher will encode **if called**
 
-`playPulse` treats `thinking` and `unknown` as cognition events (they would hit both viz and audio). `13-live-updates.js` does not subscribe to those SSE names, so they never reach `playPulse` today.
+`playPulse` treats `thinking` and `unknown` as cognition events (they would hit both viz and audio). The live client subscribes `thinking`. It does **not** subscribe `unknown` (coverage alarm) or `tool_result` (success; noisy 1:1 with `tool_call`).
 
 `tool_result` (success) is not in that set: even a direct `playPulse('tool_result', …)` would not build a ring entry.
 
@@ -156,7 +160,7 @@ Same pulse object, two effects. Encoding does not decide visibility.
 
 ## 6. Gaps (current, not aspirational)
 
-1. **SSE subscribe ≠ transformer emit.** `thinking`, `unknown`, `tool_result` leave the server and never call `playPulse`.
-2. **Ticker ⊂ beat ring.** `tokens`, `chirp`, `attachment`, `scaffold` draw on the ring (when they reach `playPulse`) but have no ticker line.
-3. **Playable Instrument vs registry names.** Registry still names `pad` / `tick` / `woodblock` / `chime` / `sweep` for some types; live `startVoice` falls back to `harp`. Encoding and playback are not the same table.
+1. **SSE subscribe ≠ transformer emit.** `unknown` and `tool_result` leave the server and never call `playPulse`. `thinking` is subscribed.
+2. **Ticker ⊂ beat ring.** `tokens`, `chirp`, `attachment`, `scaffold`, `thinking` draw on the ring (when they reach `playPulse`) but have no ticker line.
+3. **Playable Instrument vs registry names.** P1 aliased leftover pad/click/chime/tick/woodblock/sweep at encode time. Live mix names only voices `INSTS` implements.
 4. **Recorded Time is unused on the live feed.** `data.ts` is the burst clock in the encoder/sim path; the live ring uses arrival `Date.now()`.

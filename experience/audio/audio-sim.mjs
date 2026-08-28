@@ -8,7 +8,7 @@
  *   JSONL records → parsePulse() → pulses → resolveSonic() → SimEvent[]
  */
 
-import { EVENT_TYPES, toolNameToKey } from './event-registry.mjs';
+import { EVENT_TYPES, toolNameToKey, playableInstrument } from './event-registry.mjs';
 import { normRecordsToPulses } from '../../hooks/pulse-transformer.mjs';
 import { recordsToNormalized as ccNorm }   from '../../hooks/adapters/claude-code.mjs';
 import { recordsToNormalized as piNorm }   from '../../hooks/adapters/pi.mjs';
@@ -151,6 +151,7 @@ export function resolveSonic(event, data, settings = DEFAULT_SETTINGS, profile =
   }
 
   const fam = et.family;
+  instrument = playableInstrument(instrument);
   return { key, instrument, volMult, octave, degreeMode, scale, fam, pan, sendAmt, brightness };
 }
 

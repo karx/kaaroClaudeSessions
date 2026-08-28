@@ -14,6 +14,8 @@ import {
   TOOL_ACTION_KEYS,
   EVENT_TYPE_KEYS,
   FAMILIES,
+  PLAYABLE_INSTRUMENTS,
+  playableInstrument,
 } from '../experience/audio/event-registry.mjs';
 
 const REQUIRED_SONIC = ['family', 'instrument', 'pan', 'sendAmt', 'brightness', 'volMult', 'octave', 'desc'];
@@ -47,11 +49,23 @@ test('EVENT_TYPES — sendAmt is in [0, 1]', () => {
   }
 });
 
-test('EVENT_TYPES — instrument is a non-empty string', () => {
+test('EVENT_TYPES — instrument is a Playable Instrument or off', () => {
   for (const [key, entry] of Object.entries(EVENT_TYPES)) {
     assert.equal(typeof entry.instrument, 'string', `EVENT_TYPES['${key}'].instrument must be string`);
-    assert.ok(entry.instrument.length > 0, `EVENT_TYPES['${key}'].instrument must be non-empty`);
+    assert.ok(PLAYABLE_INSTRUMENTS.has(entry.instrument),
+      `EVENT_TYPES['${key}'].instrument='${entry.instrument}' is not playable`);
   }
+});
+
+test('playableInstrument — maps aspirational names; passes through playable', () => {
+  assert.equal(playableInstrument('pad'), 'bell');
+  assert.equal(playableInstrument('click'), 'pling');
+  assert.equal(playableInstrument('chime'), 'bell');
+  assert.equal(playableInstrument('tick'), 'hat');
+  assert.equal(playableInstrument('woodblock'), 'pling');
+  assert.equal(playableInstrument('sweep'), 'kick');
+  assert.equal(playableInstrument('harp'), 'harp');
+  assert.equal(playableInstrument('off'), 'off');
 });
 
 test('EVENT_TYPES — family is a known FAMILIES value', () => {
@@ -91,10 +105,11 @@ test('EVENT_TYPE_KEYS — contains all canonical types including unknown', () =>
     // tool-action
     'read','write','edit','grep_glob','agent','bash_git','bash_run','bash_other','web','other',
     // cognitive/stream
-    'tokens','words','chirp','human_turn','attachment','mode_shift',
+    'tokens','words','chirp','human_turn','attachment','mode_shift','thinking',
     // structural
     'compact','permission','scaffold','tool_error','tool_result',
-    // catch-all
+    // rest + catch-all
+    'silent',
     'unknown',
   ];
   for (const k of required) {
@@ -109,11 +124,19 @@ test('FAMILIES — is a Set containing expected family values', () => {
   }
 });
 
-test('unknown — has lowest volMult among all types (catch-all is low-weight)', () => {
+test('unknown — has lowest volMult among sounding types (catch-all is low-weight)', () => {
   const unknownVol = EVENT_TYPES.unknown.volMult;
-  const allVols = Object.values(EVENT_TYPES).map(e => e.volMult);
-  const minVol = Math.min(...allVols);
-  assert.equal(unknownVol, minVol, 'unknown should have the lowest volMult');
+  const soundingVols = Object.values(EVENT_TYPES)
+    .filter(e => e.instrument !== 'off')
+    .map(e => e.volMult);
+  const minVol = Math.min(...soundingVols);
+  assert.equal(unknownVol, minVol, 'unknown should have the lowest volMult among sounding types');
+});
+
+test('silent — instrument is off and family is meta', () => {
+  assert.equal(EVENT_TYPES.silent.instrument, 'off');
+  assert.equal(EVENT_TYPES.silent.family, 'meta');
+  assert.equal(EVENT_TYPES.silent.volMult, 0);
 });
 
 test('compact — has lowest brightness (context limit is dark/heavy)', () => {
@@ -158,6 +181,7 @@ test('toolNameToKey — Antigravity tool names', () => {
   assert.equal(toolNameToKey('view_file'),          'read');
   assert.equal(toolNameToKey('write_to_file'),      'write');
   assert.equal(toolNameToKey('replace_file_content'),'edit');
+  assert.equal(toolNameToKey('multi_replace_file_content'), 'edit');
   assert.equal(toolNameToKey('run_command', 'git'), 'bash_git');
   assert.equal(toolNameToKey('run_command', 'node'),'bash_run');
   assert.equal(toolNameToKey('run_command', 'other'),'bash_other');
@@ -171,6 +195,10 @@ test('toolNameToKey — Antigravity tool names', () => {
 test('toolNameToKey — Grok tool names', () => {
   assert.equal(toolNameToKey('Shell', 'git'),     'bash_git');
   assert.equal(toolNameToKey('Shell', 'node'),    'bash_run');
+  assert.equal(toolNameToKey('run_terminal_command'),        'bash_other');
+  assert.equal(toolNameToKey('run_terminal_command', 'git'), 'bash_git');
+  assert.equal(toolNameToKey('run_terminal_command', 'node'),'bash_run');
+  assert.equal(toolNameToKey('spawn_subagent'),   'agent');
   assert.equal(toolNameToKey('StrReplace'),       'edit');
   assert.equal(toolNameToKey('EditNotebook'),     'edit');
   assert.equal(toolNameToKey('Web search:'),      'web');
@@ -181,6 +209,11 @@ test('toolNameToKey — Pi tool names', () => {
   assert.equal(toolNameToKey('read'),         'read');
   assert.equal(toolNameToKey('write'),        'write');
   assert.equal(toolNameToKey('glob'),         'grep_glob');
+});
+
+test('toolNameToKey — command-code shell_command is bash', () => {
+  assert.equal(toolNameToKey('shell_command'), 'bash_other');
+  assert.equal(toolNameToKey('shell_command', 'git'), 'bash_git');
 });
 
 test('toolNameToKey — unknown returns other', () => {

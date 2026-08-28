@@ -109,26 +109,34 @@ A named, versioned entry in the Event Registry. Every pulse emitted by the Pulse
 
 Tool-action types (sub-keys of `tool_call`): `read · write · edit · grep_glob · agent · bash_git · bash_run · bash_other · web · other`
 
-Cognitive/stream types: `tokens · words · chirp · human_turn · attachment · mode_shift`
+Cognitive/stream types: `tokens · words · chirp · human_turn · attachment · mode_shift · thinking`
 
 Structural types: `compact · permission · scaffold · tool_error · tool_result`
 
+Rest: `silent`
+
 Catch-all: `unknown`
 
-**Catch-all Event** (`unknown`):
-The event type emitted when a NormalizedRecord kind has no mapping in the Pulse Transformer. Guarantees the audio layer never silently drops harness activity. Fully customizable through the Event Registry defaults and preset mapping rules — a preset may silence it with `instrument: 'off'` once a harness is fully mapped, but the emission itself is unconditional. The transcript renders `[?]` family for unknowns, providing a live feedback loop on coverage gaps.
+**Silent Pulse** (`silent`):
+A pulse emitted for a known NormalizedRecord that has no live sonic — envelope (`assistant_turn` when tokens already exist), snapshot (`session_meta`, `branch_change`, `skill_invoke`), or duplicate (`content_block` / `tool_use`). Registry default is `instrument: 'off'`. Still one pulse per NR. Not a coverage gap.
 
-_Avoid_: fallback event, dropped record, silent record
+_Avoid_: dropping the NR, silencing via `unknown` + `nr_kind` preset rules
+
+**Catch-all Event** (`unknown`):
+The event type emitted when a NormalizedRecord is a coverage hole: `unknown_record`, an unclassified `content_block.block_type`, or a string that is not a `RECORD_KIND`. The emission is unconditional. The transcript renders `[?]` family for unknowns, providing a live feedback loop on adapter gaps.
+
+_Avoid_: fallback event, dropped record, using `unknown` for known kinds
 
 **Synthetic Event**:
 A pulse derived by heuristic when a harness's `capabilities` flag indicates a data dimension is unavailable (e.g. `tokens: false` for Antigravity and Grok). Carried as a normal pulse with `data.synthetic: true`. Example: `tokens` pulse approximated from `content_length / 4` as an `output` proxy. Distinct from the Catch-all — a Synthetic Event models a known-missing capability with a deliberate approximation; the Catch-all handles genuinely unknown record types.
 
 **Pulse Transformer** (`hooks/pulse-transformer.mjs`):
-Converts `NormalizedRecord[]` (the adapter output) into typed pulses for the Sonic Encoder. Replaces the archived per-harness `pulse-adapters.mjs`, which previously re-parsed raw JSONL per harness. With the unified pipeline, raw JSONL is parsed exactly once — by the adapter — and all downstream layers (session reducer, pulse transformer) consume NormalizedRecords. The transformer:
-- Maps each NormalizedRecord kind to one or more Audio Event Types
+Converts `NormalizedRecord[]` (the adapter output) into typed pulses for the Sonic Encoder. Replaces the archived per-harness `pulse-adapters.mjs`, which previously re-parsed raw JSONL per harness. With the unified pipeline, raw JSONL is parsed exactly once — by the adapter — and all downstream layers (session reducer, pulse transformer) consume NormalizedRecords. Disposition (sonic / silent / unknown) is the table in `hooks/pulse-map.mjs` — 1:1 with `RECORD_KINDS`. The transformer:
+- Builds payload for the disposition of each kind
 - Derives the Canonical Action Key on `tool_call` pulses (`data.key`) from `nr.tool + nr.category` — never raw tool names in the encoder
 - Emits Synthetic Events for harnesses with `capabilities.tokens: false`
-- Emits a Catch-all `unknown` pulse for any kind not in its mapping
+- Emits a Silent Pulse for known NRs with no live sonic
+- Emits a Catch-all `unknown` pulse only for coverage holes
 - Stamps **Recorded Time** on every pulse (`data.ts`) from the NormalizedRecord
 
 **Canonical Action Key**:
@@ -147,7 +155,7 @@ The single mapping from Stream pulses to sounding parameters (instrument, pitch,
 _Avoid_: pulse-audio engine, scheduler, a second resolveSonic in the browser, running adapters inside simulateSession
 
 **Playable Instrument**:
-A synth the browser pulse engine actually implements today: `harp · bass · bell · flute · bit · pling · snare · kick · hat · buzz`, plus `off`. The Event Registry and Sonic Encoder may only name these. Aspirational timbres (pad, sweep, chime, click, tick, woodblock) stay in the description until someone writes the synth.
+A synth the browser pulse engine actually implements today: `harp · bass · bell · flute · bit · pling · snare · kick · hat · buzz`, plus `off`. The Event Registry and Sonic Encoder may only name these. Aspirational timbres (`pad · sweep · chime · click · tick · woodblock`) are aliased at encode time (`playableInstrument`) until those synths exist: pad/chime→bell, click/woodblock→pling, tick→hat, sweep→kick.
 
 _Avoid_: falling back to harp at play time, a second instrument table in the browser, AudioWorklet / unguarded StereoPanner as a requirement
 

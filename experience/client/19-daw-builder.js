@@ -486,7 +486,7 @@
     'bash_git', 'bash_run', 'bash_other',
     'agent', 'other', 'web', 'tokens', 'words', 'chirp',
     'human_turn', 'compact', 'permission', 'mode_shift',
-    'attachment', 'scaffold', 'tool_error', 'api_error',
+    'attachment', 'scaffold', 'thinking', 'tool_error', 'api_error',
   ];
   const MATCH_HARNESSES = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot'];
   const INST_NAMES = ['harp', 'bass', 'bell', 'flute', 'bit', 'pling', 'snare', 'kick', 'hat', 'buzz', 'off'];

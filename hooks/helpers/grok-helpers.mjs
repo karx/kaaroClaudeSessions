@@ -5,6 +5,7 @@
  */
 
 import { deriveAntigravityProjectId, deriveAntigravityLabel } from './antigravity-helpers.mjs';
+import { isBashToolName } from '../action-keys.mjs';
 
 export function decodeGrokCwd(encoded) {
   if (!encoded) return null;
@@ -38,7 +39,6 @@ export function grokSessionUpdate(record) {
 const FILE_READ_TOOLS  = new Set(['Read']);
 const FILE_WRITE_TOOLS = new Set(['Write']);
 const FILE_EDIT_TOOLS  = new Set(['StrReplace', 'EditNotebook']);
-const BASH_TOOLS       = new Set(['Shell']);
 
 export function grokFileOp(tool) {
   if (FILE_READ_TOOLS.has(tool))  return 'read';
@@ -60,7 +60,7 @@ export function grokToolWhere(title, rawInput = {}) {
     return String(rawInput.target_directory).replace(/\\/g, '/');
 
   // Shell / bash
-  if (BASH_TOOLS.has(tool) && rawInput.command)
+  if (isBashToolName(tool) && rawInput.command)
     return String(rawInput.command).slice(0, 80);
 
   // Search / grep

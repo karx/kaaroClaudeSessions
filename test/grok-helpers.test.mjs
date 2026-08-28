@@ -93,6 +93,13 @@ test('grokToolWhere — empty rawInput returns null', () => {
   assert.equal(grokToolWhere('write',     {}), null);
 });
 
+test('grokToolWhere — run_terminal_command extracts command as where', () => {
+  assert.equal(
+    grokToolWhere('run_terminal_command', { command: 'git status' }),
+    'git status',
+  );
+});
+
 test('grokToolWhere — Shell extracts command as where', () => {
   assert.equal(
     grokToolWhere('Shell', { command: 'node --test' }),

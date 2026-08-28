@@ -47,6 +47,17 @@ test('rebuild — runs analyze then build, notifies status/updated', async () =>
   assert.equal(rebuilder.state.rebuilding, false);
 });
 
+test('rebuild — onSnapshot runs after analyze, before build', async () => {
+  const order = [];
+  const rebuilder = createRebuilder({
+    hub: fakeHub(), analyzeScript: 'A', buildScript: 'B', log: { log() {}, error() {} },
+    runScript: async (script) => { order.push(script); },
+    onSnapshot: () => { order.push('snap'); },
+  });
+  await rebuilder.rebuild();
+  assert.deepEqual(order, ['A', 'snap', 'B']);
+});
+
 test('rebuild — targeted rebuildArg replaces the full scan', async () => {
   const calls = [];
   const rebuilder = createRebuilder({

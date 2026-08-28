@@ -167,3 +167,44 @@ test('registry descriptor — grok-bot watch matches agent-transcripts jsonl', (
   assert.equal(ctx.project_label, 'Grok Bot');
   assert.equal(h.watch.rebuildArg(rel), null);
 });
+
+test('grokBotSlug -- sand-subagent parse/locate/ctxFromPath uniqueness', () => {
+  const parent = '348c59d5-3636-4efd-aac2-465d3881629c';
+  const subA = 'sand-subagent-25c32331-e9ad-4b12-9c0a-aaaaaaaaaaaa';
+  const subB = 'sand-subagent-deadbeef-0000-0000-0000-000000000000';
+  const root = join(tmpdir(), 'kaaro-gb-slug-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+  mkdirSync(join(root, 'agent-transcripts', parent), { recursive: true });
+  mkdirSync(join(root, 'agent-transcripts', subA), { recursive: true });
+  mkdirSync(join(root, 'agent-transcripts', subB), { recursive: true });
+  mkdirSync(join(root, 'agents', parent), { recursive: true });
+  writeFileSync(join(root, 'agent-transcripts', parent, parent + '.jsonl'), GOLDEN_LINES.join('\n') + '\n', 'utf8');
+  writeFileSync(join(root, 'agent-transcripts', subA, subA + '.jsonl'), '{"role":"user","message":{"content":[{"type":"text","text":"sub A"}]}}\n', 'utf8');
+  writeFileSync(join(root, 'agent-transcripts', subB, subB + '.jsonl'), '{"role":"user","message":{"content":[{"type":"text","text":"sub B"}]}}\n', 'utf8');
+  try {
+    const parsed = parseGrokBotRecords(GOLDEN_LINES.map(l => JSON.parse(l)), subA, {});
+    assert.equal(parsed.slug, '25c32331');
+
+    const byUuid = locateGrokBotSession('25c32331', root);
+    assert.ok(byUuid);
+    assert.equal(byUuid.sessionId, subA);
+
+    const byDead = locateGrokBotSession('deadbeef', root);
+    assert.ok(byDead);
+    assert.equal(byDead.sessionId, subB);
+
+    const byParent = locateGrokBotSession('348c59d5', root);
+    assert.ok(byParent);
+    assert.equal(byParent.sessionId, parent);
+
+    assert.equal(locateGrokBotSession('sand-sub', root), null, 'sand-sub is not a unique hit on every subagent');
+
+    const h = getHarness('grok-bot');
+    const ctx = h.watch.ctxFromPath('agent-transcripts/' + subA + '/' + subA + '.jsonl');
+    assert.equal(ctx.slug, '25c32331');
+    assert.equal(ctx.session_id, subA);
+    const pctx = h.watch.ctxFromPath('agent-transcripts/' + parent + '/' + parent + '.jsonl');
+    assert.equal(pctx.slug, '348c59d5');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

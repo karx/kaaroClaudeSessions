@@ -153,6 +153,7 @@ test('processWatchFilename — grok-bot agent-transcripts jsonl', () => {
   );
   assert.ok(sub);
   assert.equal(sub.ctx.session_id, 'sand-subagent-deadbeef-0000-0000-0000-000000000000');
+  assert.equal(sub.ctx.slug, 'deadbeef');
   assert.equal(sub.ctx.project_id, 'grok-bot');
   assert.equal(processWatchFilename('grok-bot', 'box-secrets.json', ROOT), null);
 });

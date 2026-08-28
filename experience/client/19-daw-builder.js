@@ -1173,6 +1173,7 @@
       es.addEventListener('tool_call', e => { try { if (window.playPulse) window.playPulse('tool_call', JSON.parse(e.data)); } catch {} });
       es.addEventListener('tokens',    e => { try { if (window.playPulse) window.playPulse('tokens',    JSON.parse(e.data)); } catch {} });
       es.addEventListener('words',     e => { try { if (window.playPulse) window.playPulse('words',     JSON.parse(e.data)); } catch {} });
+      es.addEventListener('thinking',  e => { try { if (window.playPulse) window.playPulse('thinking',  JSON.parse(e.data)); } catch {} });
       es.onopen  = () => { if (statusEl) statusEl.textContent = 'LIVE /events'; };
       es.onerror = () => { if (statusEl) statusEl.textContent = 'reconnecting…'; };
     } catch { if (statusEl) statusEl.textContent = 'SSE failed — use SIM'; }

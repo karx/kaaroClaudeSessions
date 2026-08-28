@@ -14,10 +14,17 @@ import { toolNameToKey } from './action-keys.mjs';
  * @param {object}   capabilities  — harness capabilities (e.g. { tokens: false })
  * @returns {object[]} pulse objects { event, data }
  */
+export function stampPulse(pulse) {
+  if (pulse && pulse.data && pulse.data.ts == null) {
+    pulse.data.ts = new Date().toISOString();
+  }
+  return pulse;
+}
+
 export function normRecordsToPulses(nrRecords, ctx, capabilities = {}) {
   const pulses = [];
   for (const nr of nrRecords) {
-    const p = transformRecord(nr, ctx, capabilities);
+    const p = stampPulse(transformRecord(nr, ctx, capabilities));
     pulses.push(p);
   }
   return pulses;

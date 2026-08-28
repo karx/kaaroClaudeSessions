@@ -22,8 +22,46 @@ import { categorizeBash } from '../helpers/analyze-helpers.mjs';
 
 const HARNESS = 'grok-bot';
 const DISPLAY_TOOLS = new Set(['send_message']);
-const NOISE_TOOLS = new Set(['communicate_update']);
+const NOISE_TOOLS = new Set(['communicate_update', 'await', 'get_mcp_tools']);
 
+
+const SUBAGENT_PREFIX = 'sand-subagent-';
+
+export function grokBotSlug(sessionId) {
+  const id = String(sessionId || '');
+  if (id.startsWith(SUBAGENT_PREFIX)) return id.slice(SUBAGENT_PREFIX.length).slice(0, 8);
+  return id.slice(0, 8);
+}
+export function categorizeGrokBotShell(input) {
+  const names = [];
+  if (Array.isArray(input?.simpleCommands)) names.push(...input.simpleCommands);
+  if (Array.isArray(input?.executableCommands)) {
+    for (const c of input.executableCommands) names.push(c?.name ?? c);
+  }
+  const table = {git:'git'};
+  for (const n of names) {
+    if (typeof n !== 'string') continue;
+    const k = n.trim().split(/\s+/)[0].toLowerCase();
+    if (table[k]) return table[k];
+    if (k === 'npm') return 'npm';
+    if (k === 'npx') return 'npx';
+    if (k === 'node') return 'node';
+    if (k === 'python') return 'python';
+    if (k === 'python3') return 'python';
+    if (k === 'py') return 'python';
+    if (k === 'get-childitem') return 'fs';
+    if (k === 'get-content') return 'fs';
+    if (k === 'test-path') return 'fs';
+    if (k === 'dir') return 'fs';
+    if (k === 'ls') return 'fs';
+    if (k === 'rg') return 'fs';
+    if (k === 'ripgrep') return 'fs';
+    if (k === 'select-string') return 'fs';
+    if (k === 'findstr') return 'fs';
+    if (k === 'curl') return 'curl';
+  }
+  return categorizeBash(input?.command);
+}
 function extractText(content) {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
@@ -74,6 +112,13 @@ function toolResultError(result) {
       : (rej == null || rej === true ? 'rejected' : String(rej));
     return { error: true, error_text: String(msg).trim().slice(0, 300) || 'rejected' };
   }
+  if (result.failure) {
+    const f = result.failure;
+    const msg = (f && typeof f === 'object')
+      ? (f.stderr || (f.exitCode != null ? String(f.exitCode) : 'failure'))
+      : 'failure';
+    return { error: true, error_text: String(msg || '').trim().slice(0, 300) || 'failure' };
+  }
   return { error: false };
 }
 
@@ -86,23 +131,26 @@ function blocksOf(rec) {
  * @param {object[]} records — raw Grok Bot JSONL records
  * @returns {object[]} NormalizedRecord[]
  */
-export function recordsToNormalized(records) {
+export function recordsToNormalized(records, state) {
   const out = [];
-  let emittedAssistantSinceLastUser = false;
-  let lastTs = null;
+  if (!state || typeof state !== 'object') state = { emittedAssistantSinceLastUser: false, lastTs: null };
+  if (!Object.prototype.hasOwnProperty.call(state, 'emittedAssistantSinceLastUser')) state.emittedAssistantSinceLastUser = false;
+  if (!Object.prototype.hasOwnProperty.call(state, 'lastTs')) state.lastTs = null;
 
   function tsFor(candidate) {
-    if (candidate) lastTs = candidate;
-    return lastTs;
+    if (candidate) state.lastTs = candidate;
+    return state.lastTs;
   }
 
-  function ensureAssistantTurn(ts) {
-    if (emittedAssistantSinceLastUser) return;
-    emittedAssistantSinceLastUser = true;
-    out.push({
+  function ensureAssistantTurn(ts, text) {
+    if (state.emittedAssistantSinceLastUser) return;
+    state.emittedAssistantSinceLastUser = true;
+    const rec = {
       kind: 'assistant_turn', harness: HARNESS, ts,
       model: null, stop_reason: null,
-    });
+    };
+    if (text) rec.content_length = text.length;
+    out.push(rec);
   }
 
   for (const rec of records) {
@@ -114,7 +162,7 @@ export function recordsToNormalized(records) {
       const trimmed = text.trim();
       const display = hidden ? null : (trimmed.slice(0, 500) || null);
       const first = (!hidden && trimmed.length >= 8) ? trimmed.slice(0, 200) : null;
-      emittedAssistantSinceLastUser = false;
+      state.emittedAssistantSinceLastUser = false;
       out.push({
         kind: 'user_turn', harness: HARNESS, ts: tsFor(null),
         text: first,
@@ -127,7 +175,7 @@ export function recordsToNormalized(records) {
       for (const block of blocks) {
         if (block.type === 'text' && block.text) {
           const ts = tsFor(null);
-          ensureAssistantTurn(ts);
+          ensureAssistantTurn(ts, block.text);
           out.push({
             kind: 'content_block', harness: HARNESS, ts,
             block_type: 'thinking', text: block.text,
@@ -143,7 +191,7 @@ export function recordsToNormalized(records) {
         if (DISPLAY_TOOLS.has(name)) {
           const visible = sendMessageText(input);
           const ts = tsFor(null);
-          ensureAssistantTurn(ts);
+          ensureAssistantTurn(ts, visible);
           if (visible) {
             out.push({
               kind: 'content_block', harness: HARNESS, ts,
@@ -156,7 +204,7 @@ export function recordsToNormalized(records) {
         const ts = tsFor(null);
         ensureAssistantTurn(ts);
         const isBash = ['shell', 'bash', 'powershell'].includes(name.toLowerCase());
-        const category = isBash ? categorizeBash(input.command) : null;
+        const category = isBash ? categorizeGrokBotShell(input) : null;
         out.push({
           kind: 'tool_use', harness: HARNESS, ts,
           tool: name, category,

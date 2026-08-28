@@ -6,6 +6,7 @@
  */
 
 import { normPath, categorizeBash, BUILTIN_COMMANDS } from './helpers/analyze-helpers.mjs';
+import { grokBotSlug } from './adapters/grok-bot.mjs';
 
 export const FILE_OP_TOOLS = {
   Read: 'read', Write: 'write', Edit: 'edit',
@@ -211,7 +212,7 @@ export function reduceSession(records, meta) {
         }
 
         if (BASH_TOOLS.has(name) && rec.input?.command) {
-          const cat = categorizeBash(rec.input.command);
+          const cat = rec.category || categorizeBash(rec.input.command);
           session.bash_categories[cat] = (session.bash_categories[cat] || 0) + 1;
         }
 
@@ -228,7 +229,7 @@ export function reduceSession(records, meta) {
     }
   }
 
-  if (!session.slug) session.slug = session.session_id.slice(0, 8);
+  if (!session.slug) session.slug = session.harness === 'grok-bot' ? grokBotSlug(session.session_id) : session.session_id.slice(0, 8);
   if (session.message_count == null) {
     if (session.user_turns || session.assistant_turns) {
       session.message_count = session.user_turns + session.assistant_turns;

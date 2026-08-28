@@ -12,6 +12,7 @@ import {
   CLAUDE_PROJECTS_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
   OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT, GROK_BOT_AGENT_DATA,
 } from './harness-paths.mjs';
+import { grokBotSlug } from './adapters/grok-bot.mjs';
 
 function sessionIdFromPiFilename(filename) {
   const base = filename.replace(/\.jsonl$/, '');
@@ -300,7 +301,13 @@ export function locateGrokBotSession(sessionId, root = process.env.GROK_BOT_AGEN
   let names;
   try { names = fs.readdirSync(transcripts); } catch { return null; }
   for (const sid of names) {
-    if (!sid.toLowerCase().startsWith(needle)) continue;
+    const lower = sid.toLowerCase();
+    const slug = grokBotSlug(sid).toLowerCase();
+    const slugHit = slug === needle || slug.startsWith(needle);
+    const fullHit = lower.startsWith(needle) && (
+      !lower.startsWith('sand-subagent-') || needle.startsWith('sand-subagent-')
+    );
+    if (!slugHit && !fullHit) continue;
     const candidate = path.join(transcripts, sid, `${sid}.jsonl`);
     if (fs.existsSync(candidate)) {
       return { filePath: candidate, projectId: 'grok-bot', sessionId: sid };

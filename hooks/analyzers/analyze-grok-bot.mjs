@@ -18,7 +18,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { parseJsonlFile } from '../jsonl-io.mjs';
 import { buildSessionsOutput } from '../../surface/analyze-orchestrator.mjs';
-import { recordsToNormalized } from '../adapters/grok-bot.mjs';
+import { recordsToNormalized, grokBotSlug } from '../adapters/grok-bot.mjs';
 import { reduceSession } from '../session-reducer.mjs';
 import { enrichSession } from '../enrich-session.mjs';
 import { walkSessions, dirNames } from '../scan-walk.mjs';
@@ -68,6 +68,7 @@ export function parseGrokBotRecords(records, sessionId, opts = {}) {
     capabilities:  { size_proxy: 'tool_calls' },
   });
   if (opts.ai_title) session.ai_title = opts.ai_title;
+  session.slug = grokBotSlug(sessionId);
   return session;
 }
 

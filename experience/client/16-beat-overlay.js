@@ -107,7 +107,7 @@
     if (!ev || typeof GRAPH === 'undefined' || typeof highlight !== 'function') return;
     if (typeof clearAccent === 'function') clearAccent();
 
-    const sessNode = GRAPH.nodes.find(n => n.type === 'session' && ev.slug && n.id.startsWith(ev.slug));
+    const sessNode = GRAPH.nodes.find(n => n.type === 'session' && ev.slug && (n.id.startsWith(ev.slug) || n.label === ev.slug || n.id.includes(ev.slug)));
     if (sessNode) {
       // Collapsed bundle: the session node is display:none — land the pulse on its cluster
       if (typeof BUNDLE_ON !== 'undefined' && BUNDLE_ON && sessNode.cluster_id &&

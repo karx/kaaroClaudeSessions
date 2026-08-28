@@ -26,7 +26,8 @@ import { MAX_JSONL_BYTES } from '../hooks/jsonl-io.mjs';
  * @returns {{ tailAndPulse: (filePath: string, ctx: object) => void }}
  */
 export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000, maxBytes = MAX_JSONL_BYTES }) {
-  const offsetMap = new Map(); // filePath → byte offset (jsonl) or size:mtime sig (json)
+  const offsetMap = new Map();
+  const parseStateMap = new Map(); // filePath -> adapter parse state (per session file) // filePath → byte offset (jsonl) or size:mtime sig (json)
   let nowTimer = null;
 
   // Throttle: at most one `now` broadcast per window, trailing-edge,
@@ -40,10 +41,15 @@ export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000, max
     nowTimer.unref?.();
   }
 
-  function emitPulses(records, ctx) {
+  function emitPulses(records, ctx, filePath) {
     const harness = getHarness(ctx.harness);
     if (!harness) return;
-    const nrs   = harness.adapter(records);
+    let parseState;
+    if (filePath) {
+      parseState = parseStateMap.get(filePath);
+      if (!parseState) { parseState = {}; parseStateMap.set(filePath, parseState); }
+    }
+    const nrs   = harness.adapter(records, parseState);
     const nowMs = Date.now();
     for (const pulse of normRecordsToPulses(nrs, ctx, harness.capabilities)) {
       applyPulse(activeState, pulse, nowMs);
@@ -79,7 +85,7 @@ export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000, max
       session_id: sessionId,
       slug: ctx.slug || sessionId.replace(/^ses_/, '').slice(0, 8),
       project_label: ctx.project_label || dir,
-    });
+    }, filePath);
   }
 
   function tailAndPulse(filePath, ctx) {
@@ -96,7 +102,7 @@ export function createPulseEmitter({ hub, activeState, nowThrottleMs = 1000, max
         console.warn(`[pulse] tail skipped ${(skippedBytes / 1024 / 1024).toFixed(1)}MB (over ${(maxBytes / 1024 / 1024).toFixed(1)}MB cap) — ${filePath}`);
       }
       if (!records.length) return;
-      emitPulses(records, ctx);
+      emitPulses(records, ctx, filePath);
     } catch { /* tail errors must not affect the main rebuild flow */ }
   }
 

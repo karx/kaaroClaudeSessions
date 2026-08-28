@@ -173,3 +173,47 @@ test('json read_mode — over-cap file is skipped, not crashed: no pulses, no th
     assert.equal(hub.events.filter(e => e.event !== 'now').length, 0, 'oversized json produced no data pulses');
   });
 });
+
+const GB_CTX = {
+  harness: 'grok-bot', session_id: 'sand-subagent-25c32331-e9ad-4b12-9c0a-aaaaaaaaaaaa',
+  slug: '25c32331', project_id: 'grok-bot', project_label: 'Grok Bot',
+};
+
+const GB_LINES = [
+  {role:'user',message:{content:[{type:'text',text:'hello there friend'}]}},
+  {role:'assistant',message:{content:[{type:'text',text:'scratchpad thinking line'}]}},
+  {role:'assistant',message:{content:[{type:'tool_use',name:'send_message',input:{text:{content:'On it now thanks'}}}]}},
+  {role:'tool',message:{content:[{type:'tool_result',name:'send_message',result:{success:{timestamp:'1787860893175',messageId:'t0s0'}}}]}},
+  {role:'assistant',message:{content:[{type:'tool_use',name:'shell',input:{command:'git status'}}]}},
+];
+
+test('tailAndPulse -- grok-bot shared parse state across line-at-a-time tails', () => {
+  withTempDir((dir) => {
+    const fp = join(dir, 'gb.jsonl');
+    writeFileSync(fp, '', 'utf8');
+    const hub = fakeHub();
+    const emitter = createPulseEmitter({ hub, activeState: createActiveState() });
+    for (const rec of GB_LINES) {
+      appendFileSync(fp, JSON.stringify(rec) + String.fromCharCode(10), 'utf8');
+      emitter.tailAndPulse(fp, GB_CTX);
+    }
+    const tokens = hub.events.filter(e => e.event === 'tokens');
+    assert.equal(tokens.length, 1, 'one synthetic tokens pulse from one assistant_turn across tails');
+    assert.ok(tokens[0].data.synthetic);
+    assert.ok(tokens[0].data.output > 0, 'content_length must make synthetic output non-zero');
+  });
+});
+
+test('tailAndPulse -- grok-bot isolated shell result live pulse has ts', () => {
+  withTempDir((dir) => {
+    const fp = join(dir, 'gb.jsonl');
+    const rec = {role:'tool',message:{content:[{type:'tool_result',name:'shell',result:{success:{command:'git status',stdout:'ok',executionTime:1}}}]}};
+    writeFileSync(fp, JSON.stringify(rec) + String.fromCharCode(10), 'utf8');
+    const hub = fakeHub();
+    const emitter = createPulseEmitter({ hub, activeState: createActiveState() });
+    emitter.tailAndPulse(fp, GB_CTX);
+    const results = hub.events.filter(e => e.event === 'tool_result');
+    assert.equal(results.length, 1);
+    assert.ok(results[0].data.ts, 'isolated shell result live pulse must have ts');
+  });
+});

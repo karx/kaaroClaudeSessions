@@ -51,7 +51,7 @@ import { recordsToNormalized as grokAdapter } from './adapters/grok.mjs';
 import { recordsToNormalized as ocAdapter }   from './adapters/opencode.mjs';
 import { recordsToNormalized as cpAdapter }   from './adapters/copilot.mjs';
 import { recordsToNormalized as cmdAdapter }  from './adapters/command-code.mjs';
-import { recordsToNormalized as grokBotAdapter } from './adapters/grok-bot.mjs';
+import { recordsToNormalized as grokBotAdapter, grokBotSlug } from './adapters/grok-bot.mjs';
 
 export {
   PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT, OPENCODE_STORAGE_ROOT,
@@ -369,7 +369,7 @@ export const HARNESS_REGISTRY = [
         const session_id = parts[1];
         return {
           harness: 'grok-bot', session_id,
-          slug: session_id.slice(0, 8),
+          slug: grokBotSlug(session_id),
           project_id: 'grok-bot',
           project_label: 'Grok Bot',
         };

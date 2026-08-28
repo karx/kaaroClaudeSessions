@@ -129,7 +129,7 @@ if (window.location.protocol==='http:'||window.location.protocol==='https:') {
     context: KAARO_TOKENS.label,
     dim:     KAARO_TOKENS.dim,
   };
-  for (const cogEvent of ['human_turn','compact','permission','mode_shift','tool_error','api_error','chirp','attachment','scaffold']) {
+  for (const cogEvent of ['human_turn','compact','permission','mode_shift','tool_error','api_error','chirp','attachment','scaffold','thinking']) {
     es.addEventListener(cogEvent, e => {
       try {
         const d = JSON.parse(e.data);

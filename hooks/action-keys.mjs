@@ -34,6 +34,7 @@ export function toolNameToKey(name, category = null) {
        'filesearch', 'listdirectory', 'codebase', 'file_search',
        'semantic_search'].includes(t))                                        return 'grep_glob';
   if (['agent', 'task'].includes(t))                                          return 'agent';
+  if (['update_todos', 'todo', 'todos', 'todowrite', 'todo_write'].includes(t)) return 'write';
   if (['bash', 'powershell', 'shell', 'run_command', 'runinterminal',
        'run_in_terminal'].includes(t)) {
     if (category === 'git')                                                   return 'bash_git';

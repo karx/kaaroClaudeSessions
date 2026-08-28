@@ -51,7 +51,8 @@
     shareBtn.addEventListener('click', async () => {
       shareBtn.textContent = '…';
       try {
-        const result = await shareCard(svgString, 'kaaroSessions', buildShareText(cardData));
+        const filename = `kaaro-${cardData.kind || 'share'}-card.png`;
+        const result = await shareCard(svgString, 'kaaroSessions', buildShareText(cardData), filename);
         shareBtn.textContent = result === 'shared' ? '✓ SHARED' : result === 'downloaded' ? '✓ SAVED' : '◆ SHARE / SAVE';
       } catch (_) {
         shareBtn.textContent = '⚠ FAILED';

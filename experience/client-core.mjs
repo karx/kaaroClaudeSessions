@@ -1514,13 +1514,14 @@ function _shareCardDataURL(svgString) {
   return `data:image/svg+xml,${encodeURIComponent(svgString)}`;
 }
 
-/** SVG string → PNG Blob (1200×630). Browser-only (Image/canvas); not Node-tested. */
+/** SVG string → PNG Blob, same size as _shareGeom(). Browser-only (Image/canvas); not Node-tested. */
 export async function svgToPNG(svgString) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const canvas = document.createElement('canvas');
-    canvas.width = 1200;
-    canvas.height = 630;
+    const { width, height } = _shareGeom();
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
     img.onload = () => {
       ctx.drawImage(img, 0, 0);
@@ -1531,7 +1532,7 @@ export async function svgToPNG(svgString) {
   });
 }
 
-export async function downloadCard(svgString, filename = 'kaaro-session-card.png') {
+export async function downloadCard(svgString, filename = 'kaaro-share-card.png') {
   const blob = await svgToPNG(svgString);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1544,9 +1545,9 @@ export async function downloadCard(svgString, filename = 'kaaro-session-card.png
 }
 
 /** Web Share API (mobile) or download (desktop fallback). Returns 'shared' | 'downloaded' | 'cancelled'. */
-export async function shareCard(svgString, title = 'kaaroSessions', text = '') {
+export async function shareCard(svgString, title = 'kaaroSessions', text = '', filename = 'kaaro-share-card.png') {
   const blob = await svgToPNG(svgString);
-  const file = new File([blob], 'kaaro-session-card.png', { type: 'image/png' });
+  const file = new File([blob], filename, { type: 'image/png' });
   if (navigator.share) {
     try {
       if (navigator.canShare?.({ files: [file] })) {
@@ -1560,6 +1561,6 @@ export async function shareCard(svgString, title = 'kaaroSessions', text = '') {
       throw err;
     }
   }
-  await downloadCard(svgString);
+  await downloadCard(svgString, filename);
   return 'downloaded';
 }

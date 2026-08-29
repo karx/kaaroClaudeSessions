@@ -1,6 +1,6 @@
 # TODO — kaaroSessions
 
-**Current state (2026-07-19, post next-5 batch):** **1544 tests pass, 0 fail.**
+**Current state (2026-08-28, gardening pass):** **1734 tests pass, 0 fail.**
 Seven harnesses supported (claude-code, pi, antigravity, grok, opencode, copilot,
 command-code) through the `hooks/` (normalization) + `surface/` (HTTP+SSE) split.
 CI runs `node --test` on push/PR (Node 18/20/22). Policy pillar phase 1 landed
@@ -60,6 +60,21 @@ explicit and grep-able. Not urgent but will bite as more client modules are adde
 ### 6. ~~Client module numbering vs concat order~~ ✅ Resolved 2026-07-19
 `orderClientModules()` in `build.mjs` fails the build on any client filename that
 isn't `NN-name.js` (tested in `test/build.test.mjs`).
+
+### 7. ~~`hooks/analyzers` depend on `surface/analyze-orchestrator.mjs`~~ ✅ Resolved 2026-08-29
+Found 2026-08-28: all six per-harness analyzers imported `buildSessionsOutput`
+from `surface/analyze-orchestrator.mjs`, which itself imported
+`buildProjectSummary`/`buildGlobalRollup` back from root `analyze.mjs` — a
+`hooks/` → `surface/` → root circular import.
+
+Fixed by consolidating all four assembly functions (`buildProjectSummary`,
+`buildGlobalRollup`, `buildSessionsOutput`, `mergeSessionIntoData`) into new
+`hooks/session-output.mjs`. `analyze.mjs` now imports from there and
+re-exports for backward compat; the six analyzers import directly from
+`../session-output.mjs` (hooks → hooks, same layer). `surface/analyze-orchestrator.mjs`
+retired to `ARCHIVE/surface/` (see `ARCHIVE/README.md` log).
+`test/architecture-boundary.test.mjs`'s `hooks/` guard no longer needs an
+allowlist — zero tolerance restored.
 
 ---
 

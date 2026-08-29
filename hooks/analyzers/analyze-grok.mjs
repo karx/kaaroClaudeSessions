@@ -10,7 +10,7 @@ import fs   from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { enrichSession } from '../enrich-session.mjs';
-import { buildSessionsOutput } from '../../surface/analyze-orchestrator.mjs';
+import { buildSessionsOutput } from '../session-output.mjs';
 import { recordsToNormalized } from '../adapters/grok.mjs';
 import { reduceSession } from '../session-reducer.mjs';
 import {

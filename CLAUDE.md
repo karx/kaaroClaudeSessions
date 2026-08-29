@@ -60,9 +60,9 @@ Observability Surface (HTTP endpoints + SSE events) only. Root `analyze.mjs`,
 `build.mjs`, `serve.mjs` are thin CLI/composition entries.
 
 Repository layout:
-- `hooks/` — registry.mjs (THE single source of truth: adapter, scan, locateSession, readSessionRecords, capabilities per harness; `HARNESS_IDS` = `claude-code, pi, antigravity, grok, opencode, copilot, command-code`), normalized-record.mjs (NR contract), action-keys.mjs, session-reducer.mjs, enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, trace-tree.mjs, jsonl-io.mjs, jsonl-tail.mjs, scan-walk.mjs, session-locators.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-pi/-antigravity/-grok/-opencode/-copilot/-command-code), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
-- `surface/` — http-routes.mjs, sse-hub.mjs, pulse-emitter.mjs, rebuild-orchestrator.mjs, trace-service.mjs, active-state.mjs, session-resolver.mjs, watch-handlers.mjs, scan-harnesses.mjs, analyze-orchestrator.mjs (all tested; serve.mjs only composes)
-- `experience/` — client-core.mjs (shared browser helpers, Node-tested, injected as `%%CLIENT_CORE%%`), design-tokens.mjs (Register A `--k-*` tokens, injected as `%%TOKENS_CSS%%` + `KAARO_TOKENS`), `client/` (21 numbered browser modules: `00-boot`, `00-core` placeholder, `01`–`19`), `pages/` (template.html, now.html, daw-template.html, home.html, og-image.svg), `audio/` (event-registry, audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs, session-clusters.mjs
+- `hooks/` — registry.mjs (THE single source of truth: adapter, scan, locateSession, readSessionRecords, capabilities per harness; `HARNESS_IDS` = `claude-code, pi, antigravity, grok, opencode, copilot, command-code`), normalized-record.mjs (NR contract), action-keys.mjs, session-reducer.mjs, session-output.mjs (assembles the sessions-data.json shape: buildProjectSummary, buildGlobalRollup, buildSessionsOutput, mergeSessionIntoData — re-exported from `analyze.mjs` for backward compat), enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, trace-tree.mjs, jsonl-io.mjs, jsonl-tail.mjs, scan-walk.mjs, session-locators.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-pi/-antigravity/-grok/-opencode/-copilot/-command-code), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
+- `surface/` — http-routes.mjs, sse-hub.mjs, pulse-emitter.mjs, rebuild-orchestrator.mjs, trace-service.mjs, active-state.mjs, session-resolver.mjs, watch-handlers.mjs, scan-harnesses.mjs (all tested; serve.mjs only composes)
+- `experience/` — client-core.mjs (barrel re-exporting `client-core/` for existing import sites; carries no logic itself), `client-core/` (12 numbered submodules — 00-format, 01-color, 02-glyph, 03-node-geometry, 04-daw, 05-context, 06-pulse, 07-filters, 08-layout, 09-net, 10-controls, 11-share-card — the shared browser helpers, Node-tested, concatenated in NN order and injected as `%%CLIENT_CORE%%`), design-tokens.mjs (Register A `--k-*` tokens, injected as `%%TOKENS_CSS%%` + `KAARO_TOKENS`), `client/` (21 numbered browser modules: `00-boot`, `00-core` placeholder, `01`–`19`), `pages/` (template.html, now.html, daw-template.html, home.html, og-image.svg), `audio/` (event-registry, audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs, session-clusters.mjs
 
 **Adding a harness**: see the checklist at the top of `hooks/registry.mjs` — one adapter, one analyzer (using `hooks/scan-walk.mjs`), one registry descriptor, tests (golden + `test/adapters/nr-compliance.test.mjs` entry). Nothing else changes.
 
@@ -84,8 +84,10 @@ Four-stage pipeline, each stage independently testable:
 ```
 
 Every page artifact receives `%%TOKENS_CSS%%` (Register A `--k-*` block) and the
-shared client core (`%%CLIENT_CORE%%`, export-stripped from
-`experience/client-core.mjs`); the graph bundle additionally gets graph data and
+shared client core (`%%CLIENT_CORE%%`, `experience/client-core/*.mjs` concatenated
+in NN order with `export `/sibling-`import` lines stripped — same plain-script
+contract as `experience/client/*.js`, see `loadClientCore()` in `build.mjs`); the
+graph bundle additionally gets graph data and
 `%%TRACE_HARNESSES%%` from the registry. `graph.html` stays a single
 self-contained file.
 
@@ -182,7 +184,8 @@ Test files map to modules:
 - `test/analyze-pi.test.mjs` → `hooks/analyzers/analyze-pi.mjs`
 - `test/analyze-grok.test.mjs` → `hooks/analyzers/analyze-grok.mjs`
 - `test/analyze-antigravity.test.mjs` → `hooks/analyzers/analyze-antigravity.mjs`
-- `test/analyze-orchestrator.test.mjs` → `surface/analyze-orchestrator.mjs` (merges per-harness scan results into `sessions-data.json` shape)
+- `test/session-output.test.mjs` → `hooks/session-output.mjs` (merges per-harness scan results into `sessions-data.json` shape)
+- `test/scan-harnesses.test.mjs` → `surface/scan-harnesses.mjs` (parseHarnessFlags, per-harness scan dispatch/error isolation)
 - `test/session-reducer.test.mjs` → `hooks/session-reducer.mjs` (NormalizedRecord[] → canonical session object)
 - `test/session-resolver.test.mjs` → `surface/session-resolver.mjs`
 - `test/watch-handlers.test.mjs` → `surface/watch-handlers.mjs` (`processWatchFilename` per harness)
@@ -215,7 +218,8 @@ Test files map to modules:
 - `test/harness-parity.test.mjs` → sample traces + capability-enforced field parity (registry flags ARE the matrix)
 - `test/scan-walk.test.mjs` / `test/jsonl-io.test.mjs` → the shared scanner skeleton + JSONL reader
 - `test/sse-hub.test.mjs` / `test/pulse-emitter.test.mjs` / `test/rebuild-orchestrator.test.mjs` / `test/http-routes.test.mjs` → the decomposed serve runtime (ephemeral ports, no child processes)
-- `test/client-core.test.mjs` → `experience/client-core.mjs` (formatters, colors, geometry, SSE wiring, filters, force profiles, DAW legend)
+- `test/client-core.test.mjs` → `experience/client-core.mjs` barrel / `experience/client-core/*.mjs` (formatters, colors, geometry, SSE wiring, filters, force profiles, DAW legend)
+- `test/architecture-boundary.test.mjs` → the two-layer import boundary (`experience/` vs `hooks/` vs `surface/`); `hooks/` is zero-tolerance (TODO.md #7 resolved), `experience/` allowlists only the documented audio-sim Node tooling
 - `test/design-tokens.test.mjs` / `test/design-lint.test.mjs` → Register A tokens + the grammar guard (no blue chrome, no shadows/gradients/large radii)
 
 ## Known coverage gaps

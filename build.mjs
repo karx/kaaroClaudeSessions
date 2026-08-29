@@ -56,16 +56,39 @@ export function applySubstitutions(template, subs) {
 }
 
 /**
- * Strip top-level `export ` prefixes so experience/client-core.mjs (ESM for
- * Node tests) doubles as a plain script for browser bundle injection.
- * The core file's syntax contract: only `export function` / `export const`.
+ * Strip top-level `export ` prefixes so the experience/client-core/*.mjs
+ * files (ESM for Node tests) double as plain scripts for browser bundle
+ * injection. Syntax contract: only `export function` / `export const`.
  */
 export function stripExports(src) {
   return src.replace(/^export (async function|function|const)/gm, '$1');
 }
 
-function loadClientCore() {
-  return stripExports(fs.readFileSync(path.join(CWD, 'experience', 'client-core.mjs'), 'utf8'));
+/**
+ * Strip the sibling `import { ... } from './NN-name.mjs';` lines the
+ * client-core submodules use for Node/test correctness — meaningless once
+ * concatenated, since by then every earlier module's exports are already
+ * plain globals in load order.
+ */
+export function stripImports(src) {
+  return src.replace(/^import\s*\{[^}]*\}\s*from\s*'\.\/[^']+';\s*\n?/gm, '');
+}
+
+/**
+ * Concatenate experience/client-core/*.mjs in numeric order (same NN-name
+ * safety contract as orderClientModules — see below) into one plain-script
+ * blob for the %%CLIENT_CORE%% placeholder.
+ */
+export function loadClientCore() {
+  const dir = path.join(CWD, 'experience', 'client-core');
+  const files = fs.readdirSync(dir).filter(f => f.endsWith('.mjs'));
+  const bad = files.filter(f => !/^\d\d-[\w.-]+\.mjs$/.test(f));
+  if (bad.length) {
+    throw new Error(`client-core modules must be named NN-name.mjs (two-digit prefix); invalid: ${bad.join(', ')}`);
+  }
+  return files.sort()
+    .map(f => stripImports(stripExports(fs.readFileSync(path.join(dir, f), 'utf8'))))
+    .join('\n');
 }
 
 // Substitutions shared by every page artifact (Register A tokens).

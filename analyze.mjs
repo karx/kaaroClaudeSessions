@@ -13,15 +13,17 @@ import fs   from 'fs';
 import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
-import { buildSessionsOutput } from './surface/analyze-orchestrator.mjs';
+import {
+  buildProjectSummary, buildGlobalRollup, buildSessionsOutput, mergeSessionIntoData,
+} from './hooks/session-output.mjs';
 import { recordsToNormalized } from './hooks/adapters/claude-code.mjs';
 import { reduceSession } from './hooks/session-reducer.mjs';
-import { enrichSession, enrichProject } from './hooks/enrich-session.mjs';
+import { enrichSession } from './hooks/enrich-session.mjs';
 import { loadPolicy } from './hooks/policy.mjs';
 import { buildSignalsData } from './hooks/signal-evaluator.mjs';
 import {
   deriveLabel, normPath, categorizeBash,
-  extractTextFromContent, extractSkills, canonicalProjectId,
+  extractTextFromContent, extractSkills,
 } from './hooks/helpers/analyze-helpers.mjs';
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -51,84 +53,6 @@ function analyzeSession(projectId, filePath) {
   session.tool_timeline = extractToolTimeline(records);
   enrichSession(session);
   return session;
-}
-
-// ── Project rollup ────────────────────────────────────────────────────────────
-
-function buildProjectSummary(projectId, sessions) {
-  const s = {
-    id:            projectId,
-    label:         deriveLabel(projectId),
-    session_count: sessions.length,
-    tokens:        { input: 0, cache_create: 0, cache_read: 0, output: 0 },
-    tool_calls:    0,
-    tool_errors:   0,
-    skills:        [],
-    builtin_commands: [],
-    models:        {},
-    git_branches:  [],
-    total_bytes:   0,
-    duration_ms:   0,
-  };
-
-  for (const sess of sessions) {
-    s.tokens.input        += sess.tokens.input;
-    s.tokens.cache_create += sess.tokens.cache_create;
-    s.tokens.cache_read   += sess.tokens.cache_read;
-    s.tokens.output       += sess.tokens.output;
-    s.tool_calls          += sess.tool_calls;
-    s.tool_errors         += sess.tool_errors;
-    s.total_bytes         += sess.file_size_bytes;
-    if (sess.duration_ms) s.duration_ms += sess.duration_ms;
-    for (const sk of sess.skills)             if (!s.skills.includes(sk))            s.skills.push(sk);
-    for (const cmd of (sess.builtin_commands||[])) if (!s.builtin_commands.includes(cmd)) s.builtin_commands.push(cmd);
-    if (sess.model) s.models[sess.model] = (s.models[sess.model] || 0) + 1;
-    if (sess.git_branch && !s.git_branches.includes(sess.git_branch)) s.git_branches.push(sess.git_branch);
-  }
-
-  s.git_branches.sort(); s.skills.sort(); s.builtin_commands.sort();
-  return s;
-}
-
-// ── Global rollup ─────────────────────────────────────────────────────────────
-
-function buildGlobalRollup(sessions) {
-  const tools  = {}, skills = {}, models = {};
-  const tokens = { input: 0, cache_create: 0, cache_read: 0, output: 0 };
-  let   errors = 0;
-  const fileMap = {};
-
-  for (const sess of sessions) {
-    tokens.input        += sess.tokens.input;
-    tokens.cache_create += sess.tokens.cache_create;
-    tokens.cache_read   += sess.tokens.cache_read;
-    tokens.output       += sess.tokens.output;
-    errors              += sess.tool_errors;
-
-    for (const [name, data] of Object.entries(sess.tools)) {
-      if (!tools[name]) tools[name] = { calls: 0, errors: 0 };
-      tools[name].calls += data.calls;
-    }
-    for (const sk of sess.skills) skills[sk] = (skills[sk] || 0) + 1;
-    if (sess.model) models[sess.model] = (models[sess.model] || 0) + 1;
-
-    for (const [fp, ops] of Object.entries(sess.file_ops || {})) {
-      if (!fileMap[fp]) fileMap[fp] = { path: fp, read: 0, write: 0, edit: 0, sessions: [] };
-      fileMap[fp].read  += ops.read;
-      fileMap[fp].write += ops.write;
-      fileMap[fp].edit  += ops.edit;
-      if (!fileMap[fp].sessions.includes(sess.session_id)) fileMap[fp].sessions.push(sess.session_id);
-    }
-  }
-
-  return {
-    tools:  Object.entries(tools).sort((a,b)=>b[1].calls-a[1].calls).map(([name,d])=>({name,...d})),
-    skills: Object.entries(skills).sort((a,b)=>b[1]-a[1]).map(([name,count])=>({name,count})),
-    models,
-    tokens,
-    total_errors: errors,
-    files: Object.values(fileMap).sort((a,b)=>(b.write+b.edit+b.read)-(a.write+a.edit+a.read)),
-  };
 }
 
 // ── Tool timeline ─────────────────────────────────────────────────────────────
@@ -182,45 +106,10 @@ export function parseSessionFlag(argv) {
   return { projectId, sessionId };
 }
 
-export function mergeSessionIntoData(existingData, updatedSession) {
-  const projectId = canonicalProjectId(updatedSession.project_id);
-
-  // Replace or append session
-  const sessions = existingData.sessions.filter(s => s.session_id !== updatedSession.session_id);
-  sessions.push(updatedSession);
-
-  // Group by canonical id so live-tail matches buildSessionsOutput and keeps raw_ids complete.
-  const projectSessions = sessions.filter(s => canonicalProjectId(s.project_id) === projectId);
-  const newProjectSummary = buildProjectSummary(projectId, projectSessions);
-  newProjectSummary.raw_ids   = [...new Set(projectSessions.map(s => s.project_id))].sort();
-  newProjectSummary.harnesses = [...new Set(projectSessions.map(s => s.harness))].sort();
-  enrichProject(newProjectSummary);
-
-  const projects = existingData.projects
-    .filter(p => p.id !== projectId)
-    .concat(newProjectSummary)
-    .sort((a, b) => a.id < b.id ? -1 : 1);
-
-  // Recompute rollup
-  const rollup = buildGlobalRollup(sessions);
-
-  return {
-    ...existingData,
-    sessions,
-    projects,
-    rollup,
-    meta: {
-      ...existingData.meta,
-      total_sessions: sessions.length,
-      total_projects: projects.length,
-    },
-  };
-}
-
 export {
   deriveLabel, normPath, extractTextFromContent, extractSkills,
-  buildProjectSummary, buildGlobalRollup, parseJsonlFile, categorizeBash,
-  analyzeSession, enrichSession,
+  buildProjectSummary, buildGlobalRollup, buildSessionsOutput, mergeSessionIntoData,
+  parseJsonlFile, categorizeBash, analyzeSession, enrichSession,
 };
 
 export function scanClaudeCodeSessions(root = PROJECTS_ROOT) {

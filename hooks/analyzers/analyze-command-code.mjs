@@ -3,7 +3,7 @@ import fs   from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { deriveLabel, parseJsonlFile } from '../../analyze.mjs';
-import { buildSessionsOutput } from '../../surface/analyze-orchestrator.mjs';
+import { buildSessionsOutput } from '../session-output.mjs';
 import { recordsToNormalized } from '../adapters/command-code.mjs';
 import { reduceSession } from '../session-reducer.mjs';
 import { enrichSession } from '../enrich-session.mjs';

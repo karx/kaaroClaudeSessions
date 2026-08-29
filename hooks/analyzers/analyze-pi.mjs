@@ -4,7 +4,7 @@ import path from 'path';
 import os   from 'os';
 import { fileURLToPath } from 'url';
 import { deriveLabel, parseJsonlFile } from '../../analyze.mjs';
-import { buildSessionsOutput } from '../../surface/analyze-orchestrator.mjs';
+import { buildSessionsOutput } from '../session-output.mjs';
 import { recordsToNormalized } from '../adapters/pi.mjs';
 import { reduceSession } from '../session-reducer.mjs';
 import { enrichSession } from '../enrich-session.mjs';

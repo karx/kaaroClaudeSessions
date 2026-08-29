@@ -5,8 +5,8 @@ import {
 } from '../hooks/registry.mjs';
 
 test('HARNESS_REGISTRY — known harnesses', () => {
-  assert.deepEqual(HARNESS_IDS, ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code']);
-  assert.equal(HARNESS_REGISTRY.length, 7);
+  assert.deepEqual(HARNESS_IDS, ['claude-code', 'codex', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code']);
+  assert.equal(HARNESS_REGISTRY.length, 8);
 });
 
 test('getHarness — claude-code watch config', () => {
@@ -32,6 +32,16 @@ test('getHarness — pi ctxFromPath extracts UUID from timestamp prefix', () => 
   const ctx = h.watch.ctxFromPath('--D--src-ebrain--/2026-04-26T14-22-51-638Z_019dca2b.jsonl');
   assert.equal(ctx.harness, 'pi');
   assert.equal(ctx.session_id, '019dca2b');
+});
+
+test('getHarness — codex matches dated rollout paths', () => {
+  const h = getHarness('codex');
+  assert.ok(h.watch.matchLogFile('sessions/2026/08/21/rollout-2026-08-21T20-02-32-01abc000-0000-7000-8000-000000000001.jsonl'));
+  assert.equal(h.watch.matchLogFile('session_index.jsonl'), false);
+  const ctx = h.watch.ctxFromPath('sessions/2026/08/21/rollout-2026-08-21T20-02-32-01abc000-0000-7000-8000-000000000001.jsonl');
+  assert.equal(ctx.harness, 'codex');
+  assert.equal(ctx.session_id, '01abc000-0000-7000-8000-000000000001');
+  assert.equal(ctx.slug, '01abc000');
 });
 
 test('getHarness — antigravity matches nested log paths', () => {
@@ -77,7 +87,7 @@ test('adapter functions produce NormalizedRecords (smoke)', async () => {
 test('copilot watch config exposes resolveProjectLabel; others omit it', () => {
   const cp = getHarness('copilot');
   assert.equal(typeof cp.watch.resolveProjectLabel, 'function');
-  for (const id of ['claude-code', 'pi', 'antigravity', 'grok', 'opencode']) {
+  for (const id of ['claude-code', 'codex', 'pi', 'antigravity', 'grok', 'opencode']) {
     assert.equal(getHarness(id).watch.resolveProjectLabel, undefined, `${id} should omit it`);
   }
 });
@@ -97,7 +107,7 @@ test('loadScanner resolves a callable scanner from the descriptor', async () => 
 });
 
 test('trace-capable file harnesses expose locateSession', () => {
-  for (const id of ['claude-code', 'pi', 'antigravity', 'grok']) {
+  for (const id of ['claude-code', 'codex', 'pi', 'antigravity', 'grok']) {
     assert.equal(typeof getHarness(id).locateSession, 'function', `${id}: locateSession`);
   }
 });

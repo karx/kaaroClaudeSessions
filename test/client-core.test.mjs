@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
+  fmtTok, fmtPct, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
   connectEvents, createBootQueue, resolveControlVisibility, fetchRetry,
   nextChromeCollapsed, confirmLayoutReset,
@@ -30,6 +30,12 @@ test('fmtTok — M/k/plain formatting', () => {
   assert.equal(fmtTok(42_000), '42k');
   assert.equal(fmtTok(999), '999');
   assert.equal(fmtTok(0), '0');
+});
+
+test('fmtPct — N/A for null (unknown), formats real numbers including zero', () => {
+  assert.equal(fmtPct(null), 'N/A');
+  assert.equal(fmtPct(0), '0%');
+  assert.equal(fmtPct(93.4), '93.4%');
 });
 
 test('esc — escapes HTML-significant characters', () => {
@@ -317,10 +323,17 @@ test('projectGlyphFieldSvg — one svg, glyphs at grid cells, data-pid for click
     'idle cell stays hollow');
 });
 
-test('HARNESS_MARK has seven distinct non-blue data hues', () => {
-  const ids = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
+test('HARNESS_MARK has an entry for every registered harness', async () => {
+  const { HARNESS_IDS } = await import('../hooks/registry.mjs');
+  for (const id of HARNESS_IDS) {
+    assert.ok(HARNESS_MARK[id], `HARNESS_MARK is missing a color for harness "${id}"`);
+  }
+});
+
+test('HARNESS_MARK has eight distinct non-blue data hues', () => {
+  const ids = ['claude-code', 'codex', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
   const hexes = ids.map(id => HARNESS_MARK[id]);
-  assert.equal(new Set(hexes).size, 7);
+  assert.equal(new Set(hexes).size, 8);
   for (const hex of hexes) {
     const n = parseInt(hex.slice(1), 16);
     const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;

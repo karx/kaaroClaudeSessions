@@ -94,7 +94,8 @@ export function validateSession(s) {
  * message_count    : number
  * user_turns       : number
  * assistant_turns  : number
- * cache_hit_rate   : number      — percent
+ * cache_hit_rate   : number|null — percent; null when cache_accounting:false
+ *                                  (harness zeroes input/cache fields on purpose — see enrich-session.mjs)
  * skills           : string[]    — user-invoked skills (slash-commands). Split from
  *                                  builtin_commands by BUILTIN_COMMANDS in
  *                                  hooks/helpers/analyze-helpers.mjs: harness chrome

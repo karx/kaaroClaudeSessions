@@ -43,7 +43,7 @@ function attachTooltip(sel) {
         <div class="meta">${d.date_str||'?'} · ${d.duration_min!=null?d.duration_min+'min':'?'} · ${d.model||'?'}</div>
         ${d.recencyLevel>0?'<div class="meta" style="color:'+(['','#446','#88a','#adf'][d.recencyLevel])+'">● '+(['','< 2 days','< 15 min','< 5 min'][d.recencyLevel])+'</div>':''}
         <div class="meta">branch: ${d.git_branch||'?'}</div>
-        <div class="meta">consumption: ${fmtTok(d.tokens_total)} · AI work: ${fmtTok(d.tokens_work)} · cache: ${fmtTok(d.tokens_cached)} (${d.cache_hit_rate}%)</div>
+        <div class="meta">consumption: ${fmtTok(d.tokens_total)} · AI work: ${fmtTok(d.tokens_work)} · cache: ${fmtTok(d.tokens_cached)} (${fmtPct(d.cache_hit_rate)})</div>
         <div class="meta">${d.tool_calls} calls · ${d.tool_errors} errors · ${d.tool_diversity} tool types</div>
         ${d.thinking_count?'<div class="meta">thinking: '+d.thinking_count+'</div>':''}
         ${d.hit_max_tokens?'<div class="meta" style="color:#ff4444">⚠ hit max_tokens</div>':''}
@@ -216,7 +216,7 @@ function _buildResume(d, fileNodes) {
   if (d.context_resets) lines.push(`Context resets: ${d.context_resets}`);
   if (d.subagent_count) lines.push(`Subagents spawned: ${d.subagent_count}`);
   if (d.ai_title) lines.push(`Task: ${d.ai_title}`);
-  lines.push(`AI work: ${fmtTok(d.tokens_work)} tokens (${d.cache_hit_rate}% cached)`);
+  lines.push(`AI work: ${fmtTok(d.tokens_work)} tokens (${fmtPct(d.cache_hit_rate)} cached)`);
   if (d.first_user_message) {
     lines.push(``, `First message:`, `"${d.first_user_message.slice(0, 300)}"`);
   }
@@ -317,7 +317,7 @@ function showPanel(d) {
       <div class="psep"></div>
       <div class="prow"><span class="pk">Consumption</span><span class="pv">${fmtTok(d.tokens_total)}</span></div>
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtTok(d.tokens_work)}</span></div>
-      <div class="prow"><span class="pk">Cache read</span><span class="pv">${fmtTok(d.tokens_cached)} (${d.cache_hit_rate}%)</span></div>
+      <div class="prow"><span class="pk">Cache read</span><span class="pv">${fmtTok(d.tokens_cached)} (${fmtPct(d.cache_hit_rate)})</span></div>
       <div class="prow"><span class="pk">Output</span><span class="pv">${fmtTok(d.tokens_output)}</span></div>
       <div class="psep"></div>
       <div class="prow"><span class="pk">Tool calls</span><span class="pv">${d.tool_calls}</span></div>

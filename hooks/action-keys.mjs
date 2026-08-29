@@ -19,7 +19,8 @@ const BASH_ALIASES = new Set([
   'bash', 'powershell', 'shell', 'run_command',
   'runinterminal', 'run_in_terminal',
   'run_terminal_command', // grok
-  'shell_command',        // command-code
+  'shell_command',        // command-code, codex (real local CLI tool name)
+  'exec_command',         // codex (older CLI versions)
 ]);
 
 /** Case-insensitive: is this raw tool name a shell? Single list for keys + reducers. */

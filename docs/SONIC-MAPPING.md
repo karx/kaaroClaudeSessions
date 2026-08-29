@@ -206,11 +206,11 @@ Implementation sites:
 
 | Change | File | Function |
 |---|---|---|
-| Add dynamic sonic per event | `lib/audio-sim.mjs` | `resolveSonic()` |
-| Expose new data fields | `lib/pulse-transformer.mjs` | `transformRecord()` |
-| Add new data from raw records | `adapters/<harness>.mjs` | `recordsToNormalized()` |
-| Silence specific NR subtypes | `lib/audio-presets.mjs` | per-preset `mappings[]` |
-| New default sonic profile | `lib/event-types.mjs` | `EVENT_TYPES` entry |
+| Add dynamic sonic per event | `experience/audio/audio-sim.mjs` | `resolveSonic()` |
+| Expose new data fields | `hooks/pulse-transformer.mjs` | `transformRecord()` |
+| Add new data from raw records | `hooks/adapters/<harness>.mjs` | `recordsToNormalized()` |
+| Silence specific NR subtypes | `experience/audio/audio-presets.mjs` | per-preset `mappings[]` |
+| New default sonic profile | `experience/audio/event-registry.mjs` | `EVENT_TYPES` entry |
 
 The architecture enforces the boundary: adapters are sonic-unaware. All sonic
 decisions live in `resolveSonic()` and presets. Don't put audio logic in adapters.

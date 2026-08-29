@@ -27,6 +27,7 @@ export const FILE_OP_TOOLS = {
   create_file: 'write',
   insert_edit_into_file: 'edit',
   replace_string_in_file: 'edit',
+  apply_patch: 'edit', // codex — snake_case, real tool name (custom_tool_call)
 };
 
 
@@ -42,6 +43,7 @@ function emptySession(meta) {
     source:          meta.harness,
     file_size_bytes: meta.file_size_bytes ?? 0,
     size_proxy:      meta.capabilities?.size_proxy ?? 'tokens_work',
+    cache_accounting: meta.capabilities?.cache_accounting ?? true,
 
     first_timestamp: null,
     last_timestamp:  null,
@@ -205,10 +207,17 @@ export function reduceSession(records, meta) {
         if (name === 'Agent' || name === 'Task' || name === 'spawn_subagent') session.subagent_count++;
 
         const op = FILE_OP_TOOLS[name];
-        const fp = normPath(filePathFromInput(rec.input));
-        if (op && fp) {
-          if (!session.file_ops[fp]) session.file_ops[fp] = { read: 0, write: 0, edit: 0 };
-          session.file_ops[fp][op]++;
+        if (op) {
+          // Most tools touch one path; a multi-file patch (codex apply_patch)
+          // carries input.paths[] instead — credit every path, but the call
+          // itself was still only counted once above.
+          const paths = Array.isArray(rec.input?.paths) ? rec.input.paths : [filePathFromInput(rec.input)];
+          for (const raw of paths) {
+            const fp = normPath(raw);
+            if (!fp) continue;
+            if (!session.file_ops[fp]) session.file_ops[fp] = { read: 0, write: 0, edit: 0 };
+            session.file_ops[fp][op]++;
+          }
         }
 
         if (isBashToolName(name) && rec.input?.command) {

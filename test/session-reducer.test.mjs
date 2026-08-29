@@ -53,6 +53,17 @@ test('reduceSession — tool_use and file_ops', () => {
   assert.equal(s.bash_categories.git, 1);
 });
 
+test('reduceSession — tool_use with input.paths[] credits file_ops for every path, once per call', () => {
+  const s = reduceSession([
+    { kind: 'tool_use', harness: 'codex', ts: TS1, tool: 'apply_patch',
+      input: { paths: ['a.mjs', 'b.mjs'] } },
+  ], { ...META, harness: 'codex' });
+  assert.equal(s.tool_calls, 1, 'one LLM call touching two files must count as one tool_call');
+  assert.equal(s.tools.apply_patch.calls, 1);
+  assert.equal(s.file_ops['a.mjs'].edit, 1);
+  assert.equal(s.file_ops['b.mjs'].edit, 1);
+});
+
 test('reduceSession — tokens accumulation', () => {
   const s = reduceSession([
     { kind: 'tokens', harness: 'claude-code', ts: TS1,
@@ -207,6 +218,13 @@ test('reduceSession — tokenless harness sets size_proxy', () => {
   ], { ...META, harness: 'antigravity', capabilities: { size_proxy: 'tool_calls' } });
   assert.equal(s.size_proxy, 'tool_calls');
   assert.equal(s.tokens.output, 0);
+});
+
+test('reduceSession — cache_accounting defaults true, honors capabilities override', () => {
+  const s1 = reduceSession([], META);
+  assert.equal(s1.cache_accounting, true);
+  const s2 = reduceSession([], { ...META, harness: 'codex', capabilities: { size_proxy: 'tokens_work', cache_accounting: false } });
+  assert.equal(s2.cache_accounting, false);
 });
 
 test('reduceSession — first_user_message from user_turn', () => {

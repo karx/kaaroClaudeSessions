@@ -30,6 +30,12 @@ test('enrichSession — cache_hit_rate zero when no input side', () => {
   assert.equal(s.cache_hit_rate, 0);
 });
 
+test('enrichSession — cache_hit_rate null when cache_accounting is false, even with nonzero input side', () => {
+  const s = baseSession({ cache_accounting: false });
+  enrichSession(s);
+  assert.equal(s.cache_hit_rate, null);
+});
+
 test('enrichSession — duration_min null when duration_ms absent', () => {
   const s = baseSession({ duration_ms: null });
   enrichSession(s);

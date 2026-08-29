@@ -60,7 +60,7 @@ Observability Surface (HTTP endpoints + SSE events) only. Root `analyze.mjs`,
 `build.mjs`, `serve.mjs` are thin CLI/composition entries.
 
 Repository layout:
-- `hooks/` — registry.mjs (THE single source of truth: adapter, scan, locateSession, readSessionRecords, capabilities per harness; `HARNESS_IDS` = `claude-code, pi, antigravity, grok, opencode, copilot, command-code`), normalized-record.mjs (NR contract), action-keys.mjs, session-reducer.mjs, enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, trace-tree.mjs, jsonl-io.mjs, jsonl-tail.mjs, scan-walk.mjs, session-locators.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-pi/-antigravity/-grok/-opencode/-copilot/-command-code), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
+- `hooks/` — registry.mjs (THE single source of truth: adapter, scan, locateSession, readSessionRecords, capabilities per harness; `HARNESS_IDS` = `claude-code, codex, pi, antigravity, grok, opencode, copilot, command-code`), normalized-record.mjs (NR contract), action-keys.mjs, session-reducer.mjs, enrich-session.mjs, sessions-schema.mjs, pulse-transformer.mjs, trace-tree.mjs, jsonl-io.mjs, jsonl-tail.mjs, scan-walk.mjs, session-locators.mjs, harness-paths.mjs; `hooks/adapters/` (one per harness), `hooks/analyzers/` (analyze-codex/-pi/-antigravity/-grok/-opencode/-copilot/-command-code), `hooks/helpers/` (analyze/grok/copilot/antigravity helpers)
 - `surface/` — http-routes.mjs, sse-hub.mjs, pulse-emitter.mjs, rebuild-orchestrator.mjs, trace-service.mjs, active-state.mjs, session-resolver.mjs, watch-handlers.mjs, scan-harnesses.mjs, analyze-orchestrator.mjs (all tested; serve.mjs only composes)
 - `experience/` — client-core.mjs (shared browser helpers, Node-tested, injected as `%%CLIENT_CORE%%`), design-tokens.mjs (Register A `--k-*` tokens, injected as `%%TOKENS_CSS%%` + `KAARO_TOKENS`), `client/` (21 numbered browser modules: `00-boot`, `00-core` placeholder, `01`–`19`), `pages/` (template.html, now.html, daw-template.html, home.html, og-image.svg), `audio/` (event-registry, audio-sim, audio-presets, beat-clock, ticker-store), graph-pipeline.mjs, graph-data.mjs, session-clusters.mjs
 
@@ -92,6 +92,8 @@ self-contained file.
 **`serve.mjs`** owns the runtime: runs `analyze.mjs` then `build.mjs` as child processes via `execFile`, watches `~/.claude/projects/` for `.jsonl` changes (1500 ms debounce), and pushes `event: updated` over SSE so the browser calls `window.updateGraph(newData)` without a full reload. Also tails new JSONL bytes on every change and emits live pulse SSE events. Also watches `PI_SESSIONS_ROOT` if present.
 
 **`analyze.mjs`** walks every `~/.claude/projects/<projectId>/*.jsonl` file (one JSONL = one session). Extracts token usage, tool calls, file ops (Read/Write/Edit with paths), bash categories, skills (from `<command-name>` tags), first user message, git branch, and model. Also extracts: `context_resets` (compact_boundary count), `ai_title` (from `<ai-title>` tags), `subagent_count` (Agent tool_use count), `branches[]` (all git branches seen). Outputs `sessions` array + `rollup` object (global aggregates). Skills from `BUILTIN_COMMANDS` are stored under `builtin_commands`, not `skills`.
+
+**`hooks/analyzers/analyze-codex.mjs`** — Codex harness adapter. Reads dated rollout JSONL under `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` (`~/.codex` default); titles from a sibling `session_index.jsonl`. Real local CLI emits tool name `shell_command` (bash-aliased in `hooks/action-keys.mjs`; `exec_command` kept as a legacy alias). File edits arrive as a separate `custom_tool_call`/`custom_tool_call_output` pair (`apply_patch`), not `function_call` — its diff-DSL `input` is parsed into `input.paths[]` so `session-reducer.mjs`'s `file_ops` can credit every file a multi-file patch touched without inflating the tool-call count. `event_msg`'s `agent_message`/`user_message`/`agent_reasoning` duplicate `response_item`'s message/reasoning content (verified byte-identical) and are intentionally left unhandled — only `response_item` is read for turn content. Tokens are output-only — `last_token_usage.input_tokens`/`cached_input_tokens` report the whole context window as of that turn, not a per-turn delta, so they're excluded from the normalized token object (see `docs/CODEX.md#token-handling`). `trace: true`, `branches: true`, but `context_resets`/`subagent_count` not extracted; no `unknown_record` catch-all yet.
 
 **`hooks/analyzers/analyze-pi.mjs`** — Pi harness adapter. Same output shape as `analyze.mjs` for Pi session files. **Does not yet extract** `context_resets`, `ai_title`, `subagent_count`, or `branches` — these are CC-only for now.
 
@@ -179,6 +181,7 @@ Test files map to modules:
 - `test/analyze-session-tokens.test.mjs` → `analyze.mjs` (token accounting)
 - `test/analyze-timeline.test.mjs` → `analyze.mjs` (date/timeline fields)
 - `test/analyze-session-metadata.test.mjs` → `analyze.mjs` (context_resets, ai_title, subagent_count, branches)
+- `test/analyze-codex.test.mjs` → `hooks/analyzers/analyze-codex.mjs`
 - `test/analyze-pi.test.mjs` → `hooks/analyzers/analyze-pi.mjs`
 - `test/analyze-grok.test.mjs` → `hooks/analyzers/analyze-grok.mjs`
 - `test/analyze-antigravity.test.mjs` → `hooks/analyzers/analyze-antigravity.mjs`
@@ -209,8 +212,8 @@ Test files map to modules:
 - `test/analyze-opencode.test.mjs` → `hooks/analyzers/analyze-opencode.mjs` (read/analyze/scan over temp storage tree)
 - `test/copilot-adapter.test.mjs` → `hooks/adapters/copilot.mjs` + `hooks/helpers/copilot-helpers.mjs` (op-log mapping, URI decode, aliases)
 - `test/analyze-copilot.test.mjs` → `hooks/analyzers/analyze-copilot.mjs` (workspace attribution, both formats, real SQLite index fixture)
-- `test/adapters/nr-compliance.test.mjs` → all seven adapters vs the NR contract (sample traces + golden sessions) — the harness-format-change guard
-- `test/adapters/{claude-code,pi,grok,antigravity}.test.mjs` → per-adapter golden fixtures (opencode/copilot/command-code adapters are covered by their own `test/<name>-adapter.test.mjs` instead)
+- `test/adapters/nr-compliance.test.mjs` → all eight adapters vs the NR contract (sample traces + golden sessions) — the harness-format-change guard
+- `test/adapters/{claude-code,codex,pi,grok,antigravity}.test.mjs` → per-adapter golden fixtures (opencode/copilot/command-code adapters are covered by their own `test/<name>-adapter.test.mjs` instead)
 - `test/normalized-record.test.mjs` → `hooks/normalized-record.mjs` (KIND_FIELDS, validateNormalizedRecord)
 - `test/harness-parity.test.mjs` → sample traces + capability-enforced field parity (registry flags ARE the matrix)
 - `test/scan-walk.test.mjs` / `test/jsonl-io.test.mjs` → the shared scanner skeleton + JSONL reader
@@ -223,3 +226,4 @@ Test files map to modules:
 - **`serve.mjs`** — only the thin composition root + registry watch loop remain untested; HTTP routes, SSE hub, pulse emission, and rebuild orchestration are tested in `surface/` (`http-routes`, `sse-hub`, `pulse-emitter`, `rebuild-orchestrator` test files)
 - **`experience/client/*.js`** — browser JS; pure logic (e.g. `blockGeom`, `_toolBars`) testable but not yet extracted
 - **Pi optional fields** — `context_resets`, `ai_title`, `subagent_count`, `branches` are data-absent in Pi's raw format (verified 2026-07-19: only `session`/`model_change`/`thinking_level_change`/`message` record types exist); not extractable, registry capabilities `false` are correct
+- **`unknown_record` catch-all** — codex and command-code adapters silently drop raw record types they don't recognize instead of emitting `unknown_record`, unlike the other six adapters; kind-map coverage holes for these two harnesses won't surface until this is added

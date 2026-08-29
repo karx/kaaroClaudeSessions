@@ -1,4 +1,4 @@
-/**
+﻿/**
  * test/adapters/nr-compliance.test.mjs
  *
  * The permanent adapter-contract guard: every NormalizedRecord emitted by
@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { validateNormalizedRecord } from '../../hooks/normalized-record.mjs';
 import { EVENT_TYPES } from '../../experience/audio/event-registry.mjs';
 import { recordsToNormalized as ccToNorm }   from '../../hooks/adapters/claude-code.mjs';
+import { recordsToNormalized as codexToNorm } from '../../hooks/adapters/codex.mjs';
 import { recordsToNormalized as piToNorm }   from '../../hooks/adapters/pi.mjs';
 import { recordsToNormalized as agToNorm }   from '../../hooks/adapters/antigravity.mjs';
 import { recordsToNormalized as grokToNorm } from '../../hooks/adapters/grok.mjs';
@@ -29,6 +30,7 @@ import { GOLDEN_SESSIONS } from '../../hooks/adapters/golden-sessions.mjs';
 
 const ADAPTERS = {
   'claude-code': ccToNorm,
+  'codex':       codexToNorm,
   'pi':          piToNorm,
   'antigravity': agToNorm,
   'grok':        grokToNorm,

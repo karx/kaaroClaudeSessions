@@ -6,6 +6,7 @@ import path from 'path';
 import os   from 'os';
 
 export const CLAUDE_PROJECTS_ROOT  = path.join(os.homedir(), '.claude', 'projects');
+export const CODEX_HOME_ROOT       = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
 export const PI_SESSIONS_ROOT      = path.join(os.homedir(), '.pi', 'agent', 'sessions');
 export const ANTIGRAVITY_BRAIN_ROOT = path.join(
   os.homedir(), '.gemini', 'antigravity', 'brain'

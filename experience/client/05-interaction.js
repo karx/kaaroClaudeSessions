@@ -34,6 +34,10 @@ function attachTooltip(sel) {
         <div class="meta">${d.session_count} sessions · consumption: ${fmtTok(d.tokens_total)} · AI work: ${fmtTok(d.tokens_work)}</div>
         ${hs.length?`<div class="meta">${hs.length} harness${hs.length===1?'':'es'} · ${hs.join(' · ')}</div>`:''}
         ${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;
+    } else if (d.type==='subagent') {
+      tip.innerHTML=`<strong style="color:${EDGE_COLORS.spawn}">↳ ${esc(d.agent_type||'subagent')}</strong>
+        <div class="meta">${esc((d.description||d.agent_id||'').slice(0,80))}</div>
+        <div class="meta">parent ${(d.parent_session_id||'').slice(0,8)}</div>`;
     } else if (d.type==='session') {
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
         <div class="meta">${d.date_str||'?'} · ${d.duration_min!=null?d.duration_min+'min':'?'} · ${d.model||'?'}</div>
@@ -277,6 +281,17 @@ function showPanel(d) {
       <button class="paction" data-share-project="${esc(d.id)}">◆ SHARE CARD</button>
       <div class="psep"></div>
       ${ss.map(s=>_nodeRow(s.id,`<span class="pk">${s.date_str||'?'}</span><span class="pv" style="color:${d.color}">${s.label}</span>`)).join('')}`;
+  } else if (d.type==='subagent') {
+    const parent = nodeById[d.parent_session_id];
+    const sc = EDGE_COLORS.spawn;
+    html=`<h3 style="color:${sc}">↳ ${esc(d.agent_type||'subagent')}</h3>
+      <div class="pai-title">${esc(d.description||d.agent_id||'')}</div>
+      <div class="prow"><span class="pk">Agent id</span><span class="pv">${esc(d.agent_id||'')}</span></div>
+      <div class="prow"><span class="pk">Parent</span><span class="pv">${esc(parent?.label||(d.parent_session_id||'').slice(0,8))}</span></div>
+      <div class="prow"><span class="pk">Linked</span><span class="pv">${d.linked===false?'no':'yes'}</span></div>
+      <div class="psep"></div>
+      ${d.parent_session_id?`<button class="paction paction-thread" data-thread-open="${esc(d.parent_session_id)}">◆ VIEW PARENT THREAD ▸</button>`:''}
+      ${parent?_nodeRow(parent.id,`<span class="pk">session</span><span class="pv" style="color:${parent.color}">${parent.label}</span>`):''}`;
   } else if (d.type==='session') {
     const files=[...nb].filter(id=>id!==d.id&&nodeById[id]?.type==='file').map(id=>nodeById[id]);
     const peers=[...nb].filter(id=>id!==d.id&&nodeById[id]?.type==='session').map(id=>nodeById[id]);
@@ -293,6 +308,12 @@ function showPanel(d) {
         :`<div class="prow"><span class="pk">Branch</span><span class="pv">${d.git_branch||'?'}</span></div>`}
       ${d.context_resets?`<div class="prow"><span class="pk">Context resets</span><span class="pv">${d.context_resets}</span></div>`:''}
       ${d.subagent_count?`<div class="prow"><span class="pk">Subagents</span><span class="pv">${d.subagent_count}</span></div>`:''}
+      ${(d.subagents&&d.subagents.length)?`<div class="psep"></div><div class="p-section-hd">◆ SUBAGENTS</div>`+
+        d.subagents.map(s=>`<div class="prow subagent-stub" data-thread-open="${esc(d.id)}" title="Open thread">`+
+          `<span class="pk" style="color:${EDGE_COLORS.spawn}">↳ ${esc(s.agent_type||'agent')}</span>`+
+          `<span class="pv" style="text-align:right">${esc((s.description||s.agent_id||'').slice(0,48))}</span>`+
+        `</div>`).join('')
+      :''}
       <div class="psep"></div>
       <div class="prow"><span class="pk">Consumption</span><span class="pv">${fmtTok(d.tokens_total)}</span></div>
       <div class="prow"><span class="pk">AI work</span><span class="pv">${fmtTok(d.tokens_work)}</span></div>
@@ -312,7 +333,8 @@ function showPanel(d) {
       ${_toolBars(d)}
       ${window._traceSection ? window._traceSection(d) : ''}
       <div class="psep"></div>
-      ${d.context_resets ? `<button class="paction paction-thread" data-thread-open="${esc(d.id)}">◆ VIEW THREAD ▸</button>` : ''}
+      ${(d.context_resets || (d.subagents&&d.subagents.length) || TRACE_HARNESSES.has(d.harness))
+        ? `<button class="paction paction-thread" data-thread-open="${esc(d.id)}">◆ VIEW THREAD ▸</button>` : ''}
       <button class="paction" data-resume="${esc(d.id)}">◆ COPY RESUME PROMPT</button>
       <button class="paction" data-share="${esc(d.id)}">◆ SHARE CARD</button>
       `;

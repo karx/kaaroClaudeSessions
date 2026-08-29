@@ -13,8 +13,37 @@ test('processWatchFilename — claude-code jsonl', () => {
   assert.equal(r.absPath.replace(/\\/g, '/'), 'C:/fake/root/D--src-foo/abc-def-123.jsonl');
 });
 
+test('processWatchFilename — claude-code nested subagent attributes to parent', () => {
+  const r = processWatchFilename(
+    'claude-code',
+    'D--src-foo/abc-def-123/subagents/agent-a3e11a292d609acd8.jsonl',
+    ROOT,
+  );
+  assert.ok(r);
+  assert.equal(r.ctx.harness, 'claude-code');
+  assert.equal(r.ctx.session_id, 'abc-def-123', 'parent session, not agent id');
+  assert.equal(r.ctx.agent_id, 'a3e11a292d609acd8');
+  assert.equal(r.ctx.slug, 'abc-def-');
+  assert.equal(r.rebuildArg, '--session=D--src-foo/abc-def-123.jsonl');
+});
+
+test('processWatchFilename — claude-code sidechain meta.json rebuilds parent', () => {
+  const r = processWatchFilename(
+    'claude-code',
+    'D--src-foo/abc-def-123/subagents/agent-a3e11a292d609acd8.meta.json',
+    ROOT,
+  );
+  assert.ok(r, 'meta under subagents is a watched log');
+  assert.equal(r.ctx.harness, 'claude-code');
+  assert.equal(r.ctx.session_id, 'abc-def-123');
+  assert.equal(r.ctx.agent_id, 'a3e11a292d609acd8');
+  assert.equal(r.rebuildArg, '--session=D--src-foo/abc-def-123.jsonl');
+});
+
 test('processWatchFilename — rejects non-log files', () => {
   assert.equal(processWatchFilename('claude-code', 'D--src-foo/readme.txt', ROOT), null);
+  assert.equal(processWatchFilename('claude-code', 'D--src-foo/notes.meta.json', ROOT), null,
+    'meta outside subagents is ignored');
   assert.equal(processWatchFilename('claude-code', null, ROOT), null);
 });
 

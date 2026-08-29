@@ -19,6 +19,8 @@ import { buildClusters } from './session-clusters.mjs';
  * @param {object} opts
  * @param {number} opts.minSessions  - Min sessions for a file node to appear (default 1)
  * @param {number} opts.referenceMs  - Epoch ms to use as "now" for recency (default data.meta.generated_at)
+ * @param {boolean} opts.includeSubagentNodes - Emit type:subagent nodes + spawn edges from
+ *   session.subagents stubs (default false). Sidechains never become type:session.
  * @returns {{ nodes, edges, timeline, stats }}
  */
 function _topTools(toolsObj) {
@@ -29,7 +31,12 @@ function _topTools(toolsObj) {
     .slice(0, 10);
 }
 
-export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverrides = null } = {}) {
+export function buildGraph(data, {
+  minSessions = 1,
+  referenceMs,
+  clusterOverrides = null,
+  includeSubagentNodes = false,
+} = {}) {
   const ref = referenceMs ?? new Date(data.meta?.generated_at ?? Date.now()).getTime();
   const recencyScore = ts => calcRecencyScore(ts, ref);
   const recencyLevel = ts => calcRecencyLevel(ts, ref);
@@ -128,6 +135,7 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       context_resets:   sess.context_resets  || 0,
       ai_title:         sess.ai_title        || null,
       subagent_count:   sess.subagent_count  || 0,
+      subagents:        Array.isArray(sess.subagents) ? sess.subagents : [],
       branches:         sess.branches        || [],
       tools_top:        _topTools(sess.tools),
       sizeNorm,
@@ -139,6 +147,37 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
       cluster_id:       null,
     });
     edges.push({ source: sess.session_id, target: canon(sess.project_id), type: 'membership' });
+  }
+
+  // ── Subagent satellite nodes + spawn edges (opt-in; not first-class sessions) ─
+  if (includeSubagentNodes) {
+    for (const sess of data.sessions) {
+      const stubs = Array.isArray(sess.subagents) ? sess.subagents : [];
+      for (const s of stubs) {
+        if (!s?.agent_id) continue;
+        const id = `subagent:${sess.session_id}:${s.agent_id}`;
+        nodes.push({
+          id,
+          type:               'subagent',
+          label:              (s.agent_id || '').slice(0, 8),
+          color:              PROJECT_COLORS[sess.project_id] || '#cc2244', // match EDGE_COLORS.spawn
+          project_id:         sess.project_id,
+          parent_session_id:  sess.session_id,
+          agent_id:           s.agent_id,
+          agent_type:         s.agent_type || null,
+          description:        s.description || null,
+          tool_use_id:        s.tool_use_id || null,
+          spawn_depth:        s.spawn_depth ?? null,
+          linked:             s.linked !== false,
+          harness:            sess.harness || sess.source || 'claude-code',
+          sizeNorm:           0.15,
+          last_activity:      sess.last_timestamp || sess.first_timestamp || null,
+          recency:            recencyScore(sess.last_timestamp || sess.first_timestamp),
+          recencyLevel:       recencyLevel(sess.last_timestamp || sess.first_timestamp),
+        });
+        edges.push({ source: sess.session_id, target: id, type: 'spawn' });
+      }
+    }
   }
 
   // ── Cluster (bundle) nodes + edges ─────────────────────────────────────────
@@ -243,10 +282,12 @@ export function buildGraph(data, { minSessions = 1, referenceMs, clusterOverride
     project: nodes.filter(n => n.type === 'project').length,
     session: nodes.filter(n => n.type === 'session').length,
     cluster: nodes.filter(n => n.type === 'cluster').length,
+    subagent: nodes.filter(n => n.type === 'subagent').length,
     file:    nodes.filter(n => n.type === 'file').length,
     membership: edges.filter(e => e.type === 'membership').length,
     bundle:     edges.filter(e => e.type === 'bundle').length,
     branch:     edges.filter(e => e.type === 'branch').length,
+    spawn:      edges.filter(e => e.type === 'spawn').length,
     write:      edges.filter(e => e.type === 'write').length,
     edit:       edges.filter(e => e.type === 'edit').length,
     read:       edges.filter(e => e.type === 'read').length,

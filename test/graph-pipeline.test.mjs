@@ -145,6 +145,9 @@ test('buildGraph — optional session fields pass through to nodes', async t => 
     context_resets: 3,
     ai_title: 'Fix the auth flow',
     subagent_count: 2,
+    subagents: [
+      { agent_id: 'aaa', tool_use_id: 'tu1', description: 'Explore x', agent_type: 'Explore', spawn_depth: 1, linked: true },
+    ],
     branches: ['main', 'feat/x'],
     tools: { Read: { calls: 7, errors: 0 }, Bash: { calls: 3, errors: 1 } },
   });
@@ -157,6 +160,13 @@ test('buildGraph — optional session fields pass through to nodes', async t => 
     assert.equal(s1.ai_title, 'Fix the auth flow');
     assert.equal(s1.subagent_count, 2);
     assert.deepEqual(s1.branches, ['main', 'feat/x']);
+  });
+
+  await t.test('subagents stubs pass through; absent defaults to []', () => {
+    assert.equal(s1.subagents.length, 1);
+    assert.equal(s1.subagents[0].agent_id, 'aaa');
+    assert.equal(s1.subagents[0].agent_type, 'Explore');
+    assert.deepEqual(s2.subagents, []);
   });
 
   await t.test('absent optional fields default to 0/null/empty', () => {
@@ -173,6 +183,49 @@ test('buildGraph — optional session fields pass through to nodes', async t => 
     ]);
     assert.deepEqual(s2.tools_top, []);
   });
+});
+
+// ── Phase 5: subagent nodes + spawn edges (opt-in) ────────────────────────────
+test('buildGraph — subagent nodes default off', () => {
+  const d = makeData();
+  Object.assign(d.sessions[0], {
+    subagent_count: 2,
+    subagents: [
+      { agent_id: 'aaa', tool_use_id: 'tu1', description: 'Explore x', agent_type: 'Explore', spawn_depth: 1, linked: true },
+      { agent_id: 'bbb', tool_use_id: 'tu2', description: 'Explore y', agent_type: 'Explore', spawn_depth: 1, linked: true },
+    ],
+  });
+  const result = buildGraph(d, { referenceMs: Date.now() });
+  assert.equal(result.nodes.filter(n => n.type === 'subagent').length, 0);
+  assert.equal(result.edges.filter(e => e.type === 'spawn').length, 0);
+  assert.equal(result.stats.subagent ?? 0, 0);
+  assert.equal(result.stats.spawn ?? 0, 0);
+});
+
+test('buildGraph — includeSubagentNodes emits subagent nodes + spawn edges', () => {
+  const d = makeData();
+  Object.assign(d.sessions[0], {
+    subagent_count: 2,
+    subagents: [
+      { agent_id: 'aaa', tool_use_id: 'tu1', description: 'Explore x', agent_type: 'Explore', spawn_depth: 1, linked: true },
+      { agent_id: 'bbb', tool_use_id: 'tu2', description: 'Explore y', agent_type: 'Explore', spawn_depth: 1, linked: true },
+    ],
+  });
+  const result = buildGraph(d, { referenceMs: Date.now(), includeSubagentNodes: true });
+  const subs = result.nodes.filter(n => n.type === 'subagent');
+  assert.equal(subs.length, 2);
+  assert.ok(subs.every(n => n.id.startsWith('subagent:s1:')));
+  assert.equal(subs.find(n => n.agent_id === 'aaa').description, 'Explore x');
+  assert.equal(subs[0].parent_session_id, 's1');
+  assert.equal(subs[0].project_id, 'proj-a');
+
+  const spawns = result.edges.filter(e => e.type === 'spawn');
+  assert.equal(spawns.length, 2);
+  assert.ok(spawns.every(e => e.source === 's1'));
+  assert.equal(result.stats.subagent, 2);
+  assert.equal(result.stats.spawn, 2);
+  // still no extra session nodes
+  assert.equal(result.stats.session, 2);
 });
 
 // ── session source field ──────────────────────────────────────────────────────

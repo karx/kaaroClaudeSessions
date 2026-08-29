@@ -54,6 +54,11 @@ function findByPrefix(dir, needle, ext) {
 export function locateClaudeCodeSession(sessionId, root = CLAUDE_PROJECTS_ROOT) {
   if (!sessionId || !fs.existsSync(root)) return null;
 
+  // Accept either bare agentId or `agent-<id>` form for sidechain lookup.
+  const agentFile = sessionId.startsWith('agent-')
+    ? `${sessionId}.jsonl`
+    : `agent-${sessionId}.jsonl`;
+
   for (const proj of fs.readdirSync(root)) {
     const projPath = path.join(root, proj);
     try {
@@ -65,6 +70,17 @@ export function locateClaudeCodeSession(sessionId, root = CLAUDE_PROJECTS_ROOT) 
       return { filePath: candidate, projectId: proj, sessionId };
     }
 
+    // Current CC layout: <project>/<parentUuid>/subagents/agent-<agentId>.jsonl
+    let entries;
+    try { entries = fs.readdirSync(projPath); } catch { continue; }
+    for (const entry of entries) {
+      const nested = path.join(projPath, entry, 'subagents', agentFile);
+      if (fs.existsSync(nested)) {
+        return { filePath: nested, projectId: proj, sessionId };
+      }
+    }
+
+    // Legacy layout (RFC-era): <project>/subagents/<id>.jsonl
     const subCandidate = path.join(projPath, 'subagents', `${sessionId}.jsonl`);
     if (fs.existsSync(subCandidate)) {
       return { filePath: subCandidate, projectId: proj, sessionId };

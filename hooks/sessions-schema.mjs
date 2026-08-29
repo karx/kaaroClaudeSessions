@@ -114,6 +114,9 @@ export function validateSession(s) {
  * context_resets   : number      — count of compact_boundary events (context window resets)
  * ai_title         : string      — AI-generated session title from ai-title JSONL record
  * subagent_count   : number      — number of Agent tool calls (subagents spawned)
+ * subagents        : object[]    — graph stubs only (no nested tree):
+ *                                  { agent_id, tool_use_id, description, agent_type,
+ *                                    spawn_depth, linked }[] from subagent-discover
  * branches         : string[]    — all unique git branches encountered in the session
  * tokens_work      : number      — output + cache_create; DERIVED by enrichSession
  *                                  (hooks/enrich-session.mjs — the single home of token
@@ -138,7 +141,7 @@ export const OPTIONAL_SESSION_FIELDS = [
   'message_count', 'user_turns', 'assistant_turns', 'cache_hit_rate',
   'skills', 'bash_categories', 'content_blocks', 'stop_reasons',
   'first_user_message', 'file_ops', 'harness', 'source',
-  'context_resets', 'ai_title', 'subagent_count', 'branches',
+  'context_resets', 'ai_title', 'subagent_count', 'subagents', 'branches',
   'tokens_work', 'tokens_total', 'skill_timeline', 'skill_attribution',
 ];
 

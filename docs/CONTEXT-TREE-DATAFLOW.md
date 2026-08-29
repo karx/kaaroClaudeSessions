@@ -401,11 +401,12 @@ Nothing in this path mutates graph state. Live SSE pulses (`tool_call`, `words`,
 
 | Item | Status |
 |---|---|
-| Subagent nesting (Agent → child session tree) | Counted (`subagent_count`); not linked/loaded |
+| Subagent nesting (Agent → child session tree) | **CC linked/loaded** via `capabilities.subagent_tree`: discover flat `parent/subagents/agent-*` (siblings at any `spawnDepth` — not nested dirs) + meta.toolUseId, nest in `/api/trace` (`tree.subagents`, `turn.spawned_subagents`). Graph carries **stubs** + opt-in spawn satellites. Sidechains never enter the session scanner or rollups. |
 | Full tool result bodies in the thread | Only error flag + short `error_text` |
 | Write file content in tool rows | Stripped by `_sanitizeInput` |
 | Thinking prose in thr-turn-text | Thinking sets `has_thinking` badge only, not body text |
-| Graph-time precompute of segments | Still on-demand (`/api/trace`); graph only has `context_resets` count |
+| Graph-time precompute of segments | Still on-demand (`/api/trace`); graph has `context_resets` + subagent **stubs** (not full nested trees) |
+| Graph spawn edges / type:`subagent` nodes | **Shipped opt-in** (same as stubs row): `includeSubagentNodes` + **Subagent spawn edges** checkbox (default off). Ids `subagent:<parent>:<agentId>`; never type:`session`. |
 
 ---
 

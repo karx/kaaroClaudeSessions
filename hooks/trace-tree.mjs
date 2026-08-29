@@ -96,13 +96,23 @@ function _newSegment(index) {
 
 /**
  * @param {object[]} nrs — NormalizedRecord[] in chronological order
- * @param {{ ai_title?: string|null, git_branch?: string|null }} [opts] —
+ * @param {{
+ *   ai_title?: string|null,
+ *   git_branch?: string|null,
+ *   spawns?: object[],
+ *   childTrees?: Record<string, object>,
+ * }} [opts] —
  *   side-channel metadata for harnesses that store it outside the transcript
- *   (grok summary.json)
- * @returns {{ ai_title: string|null, segments: object[] }}
+ *   (grok summary.json). Optional spawns / childTrees attach SubagentRefs
+ *   without I/O in this module.
+ * @returns {{ ai_title: string|null, segments: object[], subagents?: object[] }}
  */
 export function reconstructTraceFromNRs(nrs, opts = {}) {
-  if (!nrs || nrs.length === 0) return { ai_title: opts.ai_title ?? null, segments: [] };
+  if (!nrs || nrs.length === 0) {
+    const empty = { ai_title: opts.ai_title ?? null, segments: [] };
+    if (opts.spawns) empty.subagents = _materializeSpawns(opts.spawns, opts.childTrees);
+    return empty;
+  }
 
   let aiTitle    = opts.ai_title ?? null;
   const segments = [];
@@ -110,6 +120,7 @@ export function reconstructTraceFromNRs(nrs, opts = {}) {
   let hasContent = false;
   let pending    = null;            // open assistant turn
   let toolById   = new Map();       // tool_id → tool-call object (per segment)
+  const spawnByToolId = _indexSpawns(opts.spawns);
 
   function _addBranch(branch) {
     if (branch && !seg.branches.includes(branch)) seg.branches.push(branch);
@@ -126,7 +137,7 @@ export function reconstructTraceFromNRs(nrs, opts = {}) {
 
   function _flushPending() {
     if (!pending) return;
-    seg.turns.push({
+    const turn = {
       role:         'assistant',
       ts:           pending.ts,
       text:         _assembleText(pending.parts),
@@ -135,7 +146,17 @@ export function reconstructTraceFromNRs(nrs, opts = {}) {
       usage:        pending.usage,
       duration_ms:  pending.duration_ms,
       stop_reason:  pending.stop_reason,
-    });
+    };
+    if (spawnByToolId.size) {
+      const spawned = [];
+      for (const tc of pending.tool_calls) {
+        if (tc.name !== 'Agent' && tc.name !== 'Task') continue;
+        if (!tc.id || !spawnByToolId.has(tc.id)) continue;
+        spawned.push(_cloneSpawn(spawnByToolId.get(tc.id), opts.childTrees));
+      }
+      if (spawned.length) turn.spawned_subagents = spawned;
+    }
+    seg.turns.push(turn);
     pending = null;
   }
 
@@ -286,5 +307,53 @@ export function reconstructTraceFromNRs(nrs, opts = {}) {
     segments.push(seg);
   }
 
-  return { ai_title: aiTitle, segments };
+  const out = { ai_title: aiTitle, segments };
+  if (opts.spawns) out.subagents = _materializeSpawns(opts.spawns, opts.childTrees);
+  return out;
+}
+
+/** @param {object[]|undefined} spawns */
+function _indexSpawns(spawns) {
+  const map = new Map();
+  if (!Array.isArray(spawns)) return map;
+  for (const s of spawns) {
+    if (s?.tool_use_id) map.set(s.tool_use_id, s);
+  }
+  return map;
+}
+
+/**
+ * Lookup key for nested child trees. Prefer tool_use_id; fall back to
+ * agent:<id> when meta.toolUseId is missing (real CC metas sometimes empty).
+ */
+export function childTreeKey(spawn) {
+  if (!spawn) return null;
+  if (spawn.tool_use_id) return spawn.tool_use_id;
+  if (spawn.agent_id) return `agent:${spawn.agent_id}`;
+  return null;
+}
+
+function _lookupChildTree(spawn, childTrees) {
+  if (!childTrees || !spawn) return undefined;
+  if (spawn.tool_use_id && childTrees[spawn.tool_use_id] != null)
+    return childTrees[spawn.tool_use_id];
+  if (spawn.agent_id) {
+    const k = `agent:${spawn.agent_id}`;
+    if (childTrees[k] != null) return childTrees[k];
+  }
+  return undefined;
+}
+
+function _cloneSpawn(spawn, childTrees) {
+  // Public API ref: no host filesystem paths (service keeps them for I/O only).
+  const { jsonl_path: _dropPath, meta_path: _dropMeta, ...rest } = spawn || {};
+  const ref = { ...rest };
+  const nested = _lookupChildTree(spawn, childTrees);
+  if (nested !== undefined) ref.tree = nested;
+  return ref;
+}
+
+function _materializeSpawns(spawns, childTrees) {
+  if (!Array.isArray(spawns)) return [];
+  return spawns.map(s => _cloneSpawn(s, childTrees));
 }

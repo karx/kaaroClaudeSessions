@@ -1,0 +1,26 @@
+PackageIdentifier: Karx.kaaroSessions
+PackageVersion: 1.1.0
+PackageLocale: en-US
+Publisher: Karx
+PackageName: kaaro-sessions
+PackageURL: https://github.com/karx/kaaroSessions
+License: AGPL-3.0-or-later
+LicenseURL: https://github.com/karx/kaaroSessions/blob/master/LICENSE
+ShortDescription: Live multi-harness AI coding session observability surface.
+Moniker: kaaro-sessions
+Tags:
+  - ai
+  - cli
+  - observability
+  - sessions
+Installers:
+  - Architecture: x64
+    InstallerType: exe
+    InstallerUrl: TODO_RELEASE_WINDOWS_INSTALLER_URL
+    InstallerSha256: TODO_RELEASE_WINDOWS_INSTALLER_SHA256
+    Scope: user
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+ManifestType: singleton
+ManifestVersion: 1.4.0

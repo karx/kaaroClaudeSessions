@@ -6,6 +6,9 @@
   "keywords": ["claude-code", "sessions", "graph", "visualization", "d3", "observability", "multi-harness"],
   "license": "AGPL-3.0-or-later",
   "author": "karx",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/karx/kaaroSessions.git"
@@ -37,6 +40,8 @@
     "analyze":            "node analyze.mjs",
     "build":              "node build.mjs",
     "test":               "node --test",
+    "package:check":      "npm pack --dry-run",
+    "release:pack":       "npm pack",
 
     "transcript":         "node scripts/sim-audio.mjs",
     "transcript:cc":      "node scripts/sim-audio.mjs --harness=cc",

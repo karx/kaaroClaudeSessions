@@ -1,6 +1,6 @@
 # kaaroSessions — Wishlist
 
-**Current implementation status (2026-07, two-layer + Command Code):**  
+**Current implementation status (2026-08-28, two-layer + Command Code):**  
 The core `analyze → build → serve` pipeline now fully supports **7 harnesses** (claude-code, pi, antigravity, grok, opencode, copilot, command-code) via a clean normalized record adapter model (`hooks/adapters/*.mjs`, `hooks/session-reducer.mjs`, `surface/scan-harnesses.mjs`, `hooks/registry.mjs`). Many "Phase 1" extraction and multi-harness readiness items (W-OBS-04, W-OBS-06) were realized as part of the original multi-harness TDD effort and have since been carried through the `hooks/`+`surface/` two-layer split. See `docs/harnesses.md` for the live support matrix. Policy and advanced Report pillars remain future work — nothing below has moved since the last pass.
 
 Items grouped by the three pillars: **Observe → Policy → Report**.

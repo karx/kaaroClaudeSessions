@@ -2,7 +2,7 @@
 
 Branch: `kaaro/ci/distribution`
 Worktree: `.claude/worktrees/ci-distribution`
-Status: Implementation started
+Status: Baseline merged; trusted publishing decision pending
 
 ## Goal
 
@@ -18,7 +18,7 @@ Set up a resilient release and distribution path for `kaaro-sessions` across:
 - Keep CI deterministic and dependency-light, matching the repo's current zero-dependency posture.
 - Treat tests, package metadata, and release artifacts as separate gates.
 - Prefer templates with explicit placeholders over invalid publish-ready manifests.
-- Make release credentials opt-in through repository secrets.
+- Prefer npm Trusted Publishing through GitHub Actions OIDC over long-lived npm tokens. If token publishing is used temporarily, keep release credentials opt-in through repository secrets.
 - Keep distribution files reviewable and manually auditable.
 
 ## Phases
@@ -38,7 +38,8 @@ Set up a resilient release and distribution path for `kaaro-sessions` across:
 - [x] Add deterministic `--help` and `--version` CLI exits for package manager checks.
 - [x] Document the release tag flow.
 - [x] Configure GitHub Actions npm publish job gated on `vX.Y.Z` tags.
-- [x] Require `NPM_TOKEN` as a GitHub Actions secret.
+- [x] Document temporary `NPM_TOKEN` release path.
+- [ ] Replace token-based npm publishing with npm Trusted Publishing through GitHub Actions OIDC.
 
 ### Phase 3 - winget
 
@@ -72,22 +73,47 @@ Recommended repository settings:
 - Require pull requests before merging into `master`.
 - Require conversation resolution before merge.
 - Protect `v*.*.*` tags or restrict release/tag creation to maintainers.
-- Store `NPM_TOKEN` as a repository or environment secret with publish-only scope.
+- Prefer npm Trusted Publishing configured on npmjs.com for this GitHub repository/workflow.
+- If using token publishing temporarily, store `NPM_TOKEN` as a repository or environment secret with publish-only scope.
 - Use a protected `release` environment if tag publishing should require manual approval.
 
 ## Open Decisions
 
 - Windows installer format for winget: `exe`, `msi`, `msix`, or a generated wrapper around the npm CLI.
 - Whether release publishing should be automatic on tags or require a protected GitHub environment approval.
+- Whether the next sprint switches immediately to npm Trusted Publishing or keeps the token path for one release while OIDC is configured.
 - Homebrew target: personal tap first, with homebrew-core as a later option only if the project meets their criteria.
 - Whether GitHub Releases should also carry Windows installer artifacts once winget is active.
 
 ## Implementation Notes
 
 - The current package already supports `npx kaaro-sessions` through the `bin` field.
+- npm 2FA and CI: token-based `npm publish` works only when the token is a granular access token with package write access and Bypass 2FA enabled. A normal 2FA-protected user login cannot answer an OTP prompt inside GitHub Actions.
+- npm Trusted Publishing is the preferred path for GitHub Actions. It uses OIDC, avoids storing `NPM_TOKEN`, and automatically produces provenance for public packages from public GitHub repositories.
+- Trusted Publishing requires the package's `repository.url` to exactly match the GitHub repository. Current package metadata points at `https://github.com/karx/kaaroSessions.git`, matching the canonical repo GitHub reported after redirect.
 - The winget manifest cannot be valid until a silent install-capable Windows installer exists.
 - Homebrew can install this as a Node-based formula, but the formula checksum must be generated per release tag.
 - CI only fails on manifest placeholders during tag-style release readiness checks.
+
+## Next Sprint Handoff
+
+Recommended first task: migrate `.github/workflows/release.yml` from `NPM_TOKEN` publishing to npm Trusted Publishing.
+
+Concrete steps:
+
+1. In npmjs.com package settings, add GitHub Actions as a trusted publisher for `karx/kaaroSessions` and the release workflow.
+2. Remove the `Confirm npm token` step and `NODE_AUTH_TOKEN` environment usage from `.github/workflows/release.yml`.
+3. Keep `permissions: id-token: write` in the release workflow.
+4. Keep `npm publish kaaro-sessions-*.tgz --provenance` or simplify after verifying npm's automatic provenance behavior for trusted publishing.
+5. Run a dry release from a test tag only after package ownership and trusted publisher settings are confirmed.
+
+Critical gotchas:
+
+- If the npm package has "require 2FA and disallow tokens" enabled, token publishing will fail, but Trusted Publishing should continue to work.
+- If the npm token path is retained, create a granular access token with Bypass 2FA enabled at token creation time; this cannot be fixed from GitHub Actions during publish.
+- Starting August 2026, bypass-2FA tokens are not valid for account identity or governance actions; they are only relevant for package automation such as publishing.
+- Do not submit the winget manifest until a real silent Windows installer URL and SHA256 exist.
+- Do not publish the Homebrew formula until `TODO_RELEASE_SHA256` is replaced for the release tag archive.
 
 ## Verification Plan
 

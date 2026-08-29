@@ -82,7 +82,7 @@ export function hexPath(r) {
 // Harness fill on the project hex — data, not chrome (mirrors TOOL_COLORS).
 // No blue-family hues: Register A retired navy chrome; ticks/fills still encode identity.
 export const HARNESS_MARK = {
-  'claude-code': '#2a9d8f', pi: '#ff9944', antigravity: '#44cc88',
+  'claude-code': '#2a9d8f', codex: '#d9534f', pi: '#ff9944', antigravity: '#44cc88',
   grok: '#cc4488', opencode: '#aacc44', copilot: '#c070b0', 'command-code': '#ffcc44',
 };
 export const HARNESS_FILL_OPACITY = 1;

@@ -103,3 +103,44 @@ test('Codex adapter ignores cumulative token totals as per-event signal', () => 
 
   assert.equal(nrs.some(r => r.kind === 'tokens'), false);
 });
+
+test('Codex adapter categorizes real CLI shell_command tool name as bash (git)', () => {
+  // Real local Codex CLI (v0.147.0+) emits function_call name "shell_command",
+  // not "exec_command" — verified against live ~/.codex rollout transcripts.
+  const nrs = recordsToNormalized([
+    {
+      timestamp: '2026-08-29T10:49:30.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'function_call',
+        name: 'shell_command',
+        call_id: 'call_1',
+        arguments: '{"command":"git status --short --branch","workdir":"D:\\\\src\\\\x"}',
+      },
+    },
+  ]);
+
+  const toolUse = nrs.find(r => r.kind === 'tool_use');
+  assert.equal(toolUse.tool, 'shell_command');
+  assert.equal(toolUse.category, 'git');
+});
+
+test('Codex adapter populates user_turn text on every qualifying turn, not just the first', () => {
+  const nrs = recordsToNormalized([
+    {
+      timestamp: '2026-08-29T10:49:21.000Z',
+      type: 'response_item',
+      payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'First prompt here' }] },
+    },
+    {
+      timestamp: '2026-08-29T10:55:59.000Z',
+      type: 'response_item',
+      payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Second prompt here too' }] },
+    },
+  ]);
+
+  const userTurns = nrs.filter(r => r.kind === 'user_turn');
+  assert.equal(userTurns.length, 2);
+  assert.equal(userTurns[0].text, 'First prompt here');
+  assert.equal(userTurns[1].text, 'Second prompt here too');
+});

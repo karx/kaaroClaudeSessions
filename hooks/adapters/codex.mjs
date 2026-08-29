@@ -5,6 +5,7 @@
  */
 
 import { categorizeBash } from '../helpers/analyze-helpers.mjs';
+import { isBashToolName } from '../action-keys.mjs';
 
 const HARNESS = 'codex';
 
@@ -69,7 +70,6 @@ function tokenUsage(payload = {}) {
 export function recordsToNormalized(records) {
   const out = [];
   const toolByCallId = new Map();
-  let firstUserSeen = false;
   let lastBranch = null;
 
   for (const rec of records) {
@@ -126,11 +126,9 @@ export function recordsToNormalized(records) {
         const text = textFromContent(payload.content, new Set(['input_text']));
         const cleaned = stripInfrastructure(text);
         if (!cleaned) continue;
-        const firstText = !firstUserSeen && cleaned.length >= 8 ? cleaned : null;
-        if (firstText) firstUserSeen = true;
         out.push({
           kind: 'user_turn', harness: HARNESS, ts,
-          text: firstText,
+          text: cleaned.length >= 8 ? cleaned : null,
           display_text: cleaned.slice(0, 500),
         });
       } else if (payload.role === 'assistant') {
@@ -164,7 +162,7 @@ export function recordsToNormalized(records) {
       if (args.workdir && !input.path) input.path = args.workdir;
       const tool = payload.name || 'unknown';
       if (payload.call_id) toolByCallId.set(payload.call_id, tool);
-      const isShell = tool === 'exec_command' || tool === 'shell' || tool === 'bash';
+      const isShell = isBashToolName(tool);
       out.push({
         kind: 'tool_use', harness: HARNESS, ts,
         tool,

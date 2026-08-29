@@ -267,6 +267,20 @@ test('resolveSessionFile — locates copilot chat session by 8-char slug prefix'
   } finally { rm(root, { recursive: true, force: true }); }
 });
 
+test('resolveSessionFile — locates codex session by 8-char slug prefix', async () => {
+  const { mkdirSync: mk, writeFileSync: wr, rmSync: rm } = await import('fs');
+  const { tmpdir } = await import('os');
+  const root = join(tmpdir(), 'kaaro-codex-slug-' + Date.now());
+  mk(join(root, 'sessions', '2026', '08', '29'), { recursive: true });
+  const sessionId = '01a04d21-a44b-7e80-b264-f41065cdf768';
+  wr(join(root, 'sessions', '2026', '08', '29', `rollout-2026-08-29T16-17-25-${sessionId}.jsonl`), '{}', 'utf8');
+  try {
+    const found = resolveSessionFile(sessionId.slice(0, 8), { harness: 'codex', roots: { codex: root } });
+    assert.ok(found, 'codex session located by prefix');
+    assert.equal(found.sessionId, sessionId);
+  } finally { rm(root, { recursive: true, force: true }); }
+});
+
 test('resolveSessionFile — locates command-code session by 8-char slug prefix', async () => {
   const { mkdirSync: mk, writeFileSync: wr, rmSync: rm } = await import('fs');
   const { tmpdir } = await import('os');

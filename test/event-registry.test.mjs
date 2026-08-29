@@ -216,6 +216,12 @@ test('toolNameToKey — command-code shell_command is bash', () => {
   assert.equal(toolNameToKey('shell_command', 'git'), 'bash_git');
 });
 
+test('toolNameToKey — Codex tool names (shell_command real CLI, exec_command legacy)', () => {
+  assert.equal(toolNameToKey('shell_command', 'git'), 'bash_git');
+  assert.equal(toolNameToKey('exec_command', 'npm'), 'bash_run');
+  assert.equal(toolNameToKey('apply_patch'), 'edit');
+});
+
 test('toolNameToKey — unknown returns other', () => {
   assert.equal(toolNameToKey('UnknownTool'), 'other');
   assert.equal(toolNameToKey(''),            'other');

@@ -466,6 +466,7 @@
 {
   "harnesses": [
     {"id":"claude-code","short":"cc"},
+    {"id":"codex","short":"cx"},
     {"id":"pi","short":"pi"},
     {"id":"antigravity","short":"ag"},
     {"id":"grok","short":"gk"},
@@ -481,22 +482,22 @@
     {"id":"views","label":"History · Live · Sonic","desc":"Graph, Mission Control, DAW consume only the surface."}
   ],
   "kinds": [
-    {"id":"user_turn","blurb":"A human prompt entering the session.","lane":"stream","pulse":"human_turn","required":[],"optional":["text","display_text","cwd","branch"],"emit":[1,1,1,1,1,1,1]},
-    {"id":"assistant_turn","blurb":"One assistant message envelope. Tokenless harnesses emit a synthetic tokens pulse; tokenful ones emit silent (envelope).","lane":"snapshot","pulse":"silent","required":[],"optional":["model","stop_reason","content_length","text"],"emit":[1,1,1,1,1,1,1]},
-    {"id":"tool_use","blurb":"One tool invocation. Key (read/write/bash_git/…) is derived later — adapters stay sonic-unaware.","lane":"stream","pulse":"tool_call","required":["tool"],"optional":["category","input","tool_id"],"emit":[1,1,1,1,1,1,1]},
-    {"id":"tool_result","blurb":"Outcome of a tool invocation. error=true becomes a tool_error pulse.","lane":"stream","pulse":"tool_result","required":[],"optional":["tool","error","tool_id","error_text"],"emit":[1,0,1,1,1,0,1]},
-    {"id":"tokens","blurb":"Token usage for one assistant turn. Four counters: input, output, cache_create, cache_read.","lane":"stream","pulse":"tokens","required":["tokens"],"optional":[],"emit":[1,1,0,0,1,1,0]},
-    {"id":"skill_invoke","blurb":"A skill / slash-command detected in a user turn. Snapshot rest — silent pulse, not a coverage gap.","lane":"snapshot","pulse":"silent","required":["skill"],"optional":[],"emit":[1,0,0,0,0,0,0]},
-    {"id":"context_reset","blurb":"Compaction boundary — segments the session's context tree.","lane":"stream","pulse":"compact","required":[],"optional":[],"emit":[1,0,0,1,0,0,0]},
-    {"id":"session_meta","blurb":"Session-level metadata drops (title, model, cwd, duration…). Snapshot rest — silent pulse.","lane":"snapshot","pulse":"silent","required":[],"optional":["ai_title","model","cwd","slug","title"],"emit":[1,1,1,1,1,1,0]},
-    {"id":"permission_mode","blurb":"Permission mode change (plan / acceptEdits / bypassPermissions).","lane":"stream","pulse":"permission","required":[],"optional":["mode"],"emit":[1,0,0,0,0,0,0]},
-    {"id":"branch_change","blurb":"Git branch observed to change mid-session. Snapshot rest — silent pulse.","lane":"snapshot","pulse":"silent","required":["branch"],"optional":[],"emit":[1,0,0,0,0,0,1]},
-    {"id":"content_block","blurb":"One assistant content block. Text ≥3 words → words pulse; shorter → chirp; thinking stays thinking.","lane":"stream","pulse":"words","required":["block_type"],"optional":["text","chunk"],"emit":[1,1,0,1,1,1,1]},
-    {"id":"mode_shift","blurb":"Agent operating-mode shift.","lane":"stream","pulse":"mode_shift","required":[],"optional":["mode"],"emit":[1,1,0,0,0,0,0]},
-    {"id":"attachment","blurb":"User-attached context (files, images) entering the conversation.","lane":"stream","pulse":"attachment","required":[],"optional":["subtype"],"emit":[1,0,0,0,0,0,0]},
-    {"id":"scaffold","blurb":"System-injected scaffolding — harness loading guardrails into the context window.","lane":"stream","pulse":"scaffold","required":[],"optional":["content_preview"],"emit":[0,0,1,0,0,0,0]},
-    {"id":"api_error","blurb":"Harness/API-level failure (quota, rate limit, auth). Distinct from a tool failing.","lane":"stream","pulse":"api_error","required":["message"],"optional":["code"],"emit":[0,0,0,0,0,0,0]},
-    {"id":"unknown_record","blurb":"Catch-all: a raw record type the adapter does not recognise. Coverage hole — unknown pulse.","lane":"stream","pulse":"unknown","required":[],"optional":["raw_type"],"emit":[1,1,1,1,1,1,0]}
+    {"id":"user_turn","blurb":"A human prompt entering the session.","lane":"stream","pulse":"human_turn","required":[],"optional":["text","display_text","cwd","branch"],"emit":[1,1,1,1,1,1,1,1]},
+    {"id":"assistant_turn","blurb":"One assistant message envelope. Tokenless harnesses emit a synthetic tokens pulse; tokenful ones emit silent (envelope).","lane":"snapshot","pulse":"silent","required":[],"optional":["model","stop_reason","content_length","text"],"emit":[1,1,1,1,1,1,1,1]},
+    {"id":"tool_use","blurb":"One tool invocation. Key (read/write/bash_git/…) is derived later — adapters stay sonic-unaware.","lane":"stream","pulse":"tool_call","required":["tool"],"optional":["category","input","tool_id"],"emit":[1,1,1,1,1,1,1,1]},
+    {"id":"tool_result","blurb":"Outcome of a tool invocation. error=true becomes a tool_error pulse.","lane":"stream","pulse":"tool_result","required":[],"optional":["tool","error","tool_id","error_text"],"emit":[1,1,0,1,1,1,0,1]},
+    {"id":"tokens","blurb":"Token usage for one assistant turn. Four counters: input, output, cache_create, cache_read.","lane":"stream","pulse":"tokens","required":["tokens"],"optional":[],"emit":[1,1,1,0,0,1,1,0]},
+    {"id":"skill_invoke","blurb":"A skill / slash-command detected in a user turn. Snapshot rest — silent pulse, not a coverage gap.","lane":"snapshot","pulse":"silent","required":["skill"],"optional":[],"emit":[1,0,0,0,0,0,0,0]},
+    {"id":"context_reset","blurb":"Compaction boundary — segments the session's context tree.","lane":"stream","pulse":"compact","required":[],"optional":[],"emit":[1,0,0,0,1,0,0,0]},
+    {"id":"session_meta","blurb":"Session-level metadata drops (title, model, cwd, duration…). Snapshot rest — silent pulse.","lane":"snapshot","pulse":"silent","required":[],"optional":["ai_title","model","cwd","slug","title"],"emit":[1,1,1,1,1,1,1,0]},
+    {"id":"permission_mode","blurb":"Permission mode change (plan / acceptEdits / bypassPermissions).","lane":"stream","pulse":"permission","required":[],"optional":["mode"],"emit":[1,0,0,0,0,0,0,0]},
+    {"id":"branch_change","blurb":"Git branch observed to change mid-session. Snapshot rest — silent pulse.","lane":"snapshot","pulse":"silent","required":["branch"],"optional":[],"emit":[1,1,0,0,0,0,0,1]},
+    {"id":"content_block","blurb":"One assistant content block. Text ≥3 words → words pulse; shorter → chirp; thinking stays thinking.","lane":"stream","pulse":"words","required":["block_type"],"optional":["text","chunk"],"emit":[1,1,1,0,1,1,1,1]},
+    {"id":"mode_shift","blurb":"Agent operating-mode shift.","lane":"stream","pulse":"mode_shift","required":[],"optional":["mode"],"emit":[1,0,1,0,0,0,0,0]},
+    {"id":"attachment","blurb":"User-attached context (files, images) entering the conversation.","lane":"stream","pulse":"attachment","required":[],"optional":["subtype"],"emit":[1,0,0,0,0,0,0,0]},
+    {"id":"scaffold","blurb":"System-injected scaffolding — harness loading guardrails into the context window.","lane":"stream","pulse":"scaffold","required":[],"optional":["content_preview"],"emit":[0,0,0,1,0,0,0,0]},
+    {"id":"api_error","blurb":"Harness/API-level failure (quota, rate limit, auth). Distinct from a tool failing.","lane":"stream","pulse":"api_error","required":["message"],"optional":["code"],"emit":[0,0,0,0,0,0,0,0]},
+    {"id":"unknown_record","blurb":"Catch-all: a raw record type the adapter does not recognise. Coverage hole — unknown pulse.","lane":"stream","pulse":"unknown","required":[],"optional":["raw_type"],"emit":[1,0,1,1,1,1,1,0]}
   ],
   "tape": [
     {"kind":"user_turn","preview":"fix the landing copy"},

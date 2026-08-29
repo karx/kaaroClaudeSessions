@@ -90,10 +90,18 @@ export function locateClaudeCodeSession(sessionId, root = CLAUDE_PROJECTS_ROOT) 
  * @param {string} [root]
  * @returns {{ filePath: string, projectId: null, sessionId: string }|null}
  */
+// Rollout filenames are `rollout-<timestamp>-<uuid>.jsonl` — the session id
+// is a suffix, not a prefix of the filename, so the shared findByPrefix
+// (prefix-of-filename) helper doesn't apply; match the trailing uuid instead.
+const CODEX_ROLLOUT_ID_RE = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
+
 export function locateCodexSession(sessionId, root = CODEX_HOME_ROOT) {
   if (!sessionId || !fs.existsSync(root)) return null;
   const sessionsRoot = path.join(root, 'sessions');
   if (!fs.existsSync(sessionsRoot)) return null;
+
+  const lower = sessionId.toLowerCase();
+  let prefixMatch = null;
 
   const stack = [sessionsRoot];
   while (stack.length) {
@@ -102,12 +110,22 @@ export function locateCodexSession(sessionId, root = CODEX_HOME_ROOT) {
       const p = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         stack.push(p);
-      } else if (entry.isFile() && entry.name.endsWith(`${sessionId}.jsonl`)) {
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (entry.name.endsWith(`${sessionId}.jsonl`)) {
         return { filePath: p, projectId: null, sessionId };
+      }
+      // 8-char slug prefix (graph/Mission Control/DAW slug = session_id.slice(0, 8))
+      if (!prefixMatch && sessionId.length >= SLUG_MIN_LEN) {
+        const m = entry.name.match(CODEX_ROLLOUT_ID_RE);
+        if (m && m[1].toLowerCase().startsWith(lower)) {
+          prefixMatch = { filePath: p, projectId: null, sessionId: m[1] };
+        }
       }
     }
   }
-  return null;
+  return prefixMatch;
 }
 
 /**

@@ -54,10 +54,10 @@ latest entry per task id and uses `thread_name` as `session.ai_title`.
 |---|---|---|
 | `session_meta` | `session_meta`, `branch_change` | project labels, model/version/cwd, branch history |
 | `turn_context` | `session_meta` | cwd/model fallback |
-| `response_item` message, role `user` | `user_turn` | first prompt, Thread View text, human-turn pulses |
+| `response_item` message, role `user` | `user_turn` | every qualifying prompt (≥8 chars), Thread View text, human-turn pulses |
 | `response_item` message, role `assistant` | `assistant_turn`, `content_block:text` | Thread View text, word/chirp pulses |
 | `response_item` reasoning | `content_block:thinking` | thinking count and thinking pulses |
-| `response_item` function call | `tool_use` | tool counts, graph stats, DAW/Now pulses |
+| `response_item` function call | `tool_use` | tool counts, graph stats, DAW/Now pulses. Shell calls (`shell_command` — the real local CLI name; `exec_command`/`shell`/`bash` kept as aliases) get `category` from `categorizeBash()` (git/npm/node/python/other) |
 | `response_item` function call output | `tool_result` / `tool_error` | error counts and error pulses |
 | `event_msg` token count | `tokens` | session size and token pulses |
 | `event_msg` agent message | `content_block:text` | live commentary pulses |
@@ -96,10 +96,18 @@ For Codex, only output tokens are counted into the normalized token object:
 }
 ```
 
-Older Codex logs can report input and cache counters in a cumulative way within
-a task. Counting them as per-event work makes graph sizing and audio intensity
-explode into unusable ranges. Output tokens are the stable signal for "agent
-work heard/seen" in this harness.
+Verified against live local rollouts (2026-08-29): `last_token_usage.input_tokens`
+and `.cached_input_tokens` grow every turn because they report the size of the
+*whole context window sent with that request*, not new tokens since the last
+turn — a session's `total_token_usage.input_tokens` is essentially the running
+sum of each turn's `last_token_usage.input_tokens`. Treating either as a
+per-event delta would make graph sizing and audio intensity explode into
+unusable ranges (confirmed: summing `last_token_usage.input_tokens` across one
+session's turns lands within ~0.3% of that session's final
+`total_token_usage.input_tokens`). Output tokens are the stable signal for
+"agent work heard/seen" in this harness. A future improvement could derive a
+true per-turn delta from consecutive `total_token_usage` snapshots instead of
+dropping input/cache entirely — not yet implemented.
 
 ## Live Watch
 
@@ -155,6 +163,9 @@ node --test
 
 - Codex title changes in `session_index.jsonl` are scan-time metadata, not live
   pulse events.
-- Codex input/cache token counters are not used for sizing or audio because
-  older logs can report them as cumulative values.
+- Codex input/cache token counters are not used for sizing or audio — see
+  [Token Handling](#token-handling) above.
 - Context resets are not currently derived from Codex compaction metadata.
+- No `unknown_record` catch-all yet (matches Command Code, unlike the other six
+  adapters) — an unrecognised raw record type is silently dropped instead of
+  surfacing as a kind-map coverage hole.

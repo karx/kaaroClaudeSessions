@@ -113,7 +113,7 @@ export const HARNESS_REGISTRY = [
     readSessionRecords: readJsonlRecords,
     roots: [CODEX_HOME_ROOT],
     capabilities: {
-      tokens: true, pulse: true, trace: true,
+      tokens: true, pulse: true, trace: true, // tokens are output-only (input/cache are per-request context-window snapshots, not per-turn deltas — see docs/CODEX.md)
       context_resets: false, ai_title: true, subagent_count: false, branches: true,
       size_proxy: 'tokens_work',
     },

@@ -104,6 +104,31 @@ test('client core placeholder exists and is injected by the bundle assembly', as
   assert.ok(core.includes('%%CLIENT_CORE%%'));
 });
 
+test('stripImports — removes sibling client-core import lines, leaves everything else', async () => {
+  const { stripImports } = await import('../build.mjs');
+  const src = [
+    "import { esc } from './00-format.mjs';",
+    "import { a, b } from './01-color.mjs';",
+    'export function f() { return "not an import statement"; }',
+  ].join('\n');
+  const out = stripImports(src);
+  assert.ok(!/^import /m.test(out), 'no import line remains');
+  assert.ok(out.includes('"not an import statement"'), 'unrelated code untouched');
+});
+
+test('loadClientCore — concatenates experience/client-core/*.mjs with no import lines left, in NN order', async () => {
+  const { loadClientCore } = await import('../build.mjs');
+  const core = loadClientCore();
+  assert.ok(!/^import /m.test(core), 'no import statement survives concatenation');
+  assert.ok(!/^export /m.test(core), 'no export prefix survives concatenation');
+  // 00-format.mjs defines fmtTok; 11-share-card.mjs (which depends on it) must
+  // load after it for the browser-global handoff to work.
+  const fmtTokAt = core.indexOf('function fmtTok');
+  const shareCardAt = core.indexOf('function buildShareCardData');
+  assert.ok(fmtTokAt >= 0 && shareCardAt >= 0, 'both functions present');
+  assert.ok(fmtTokAt < shareCardAt, '00-format.mjs loads before 11-share-card.mjs');
+});
+
 // ── Register A token injection (E2) ───────────────────────────────────────────
 
 test('all page templates carry the %%TOKENS_CSS%% marker', async () => {

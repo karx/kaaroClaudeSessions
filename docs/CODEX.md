@@ -112,6 +112,16 @@ session's turns lands within ~0.3% of that session's final
 true per-turn delta from consecutive `total_token_usage` snapshots instead of
 dropping input/cache entirely — not yet implemented.
 
+Zeroing input/cache also zeroes the *ratio* — `cache_hit_rate` — even though
+real Codex cache-hit rates run high (80-90%+ in sampled sessions). Registry
+capability `cache_accounting: false` (also set on Copilot, same UI symptom,
+different cause — see `docs/CODEX.md` §Token Handling vs. Copilot's
+output-only VS Code API) makes `enrich-session.mjs` emit `cache_hit_rate:
+null` instead of `0` for these harnesses, and the UI renders `N/A` rather than
+a false `0%`. See `RFC-cache-hit-rate.md` for the full analysis — that RFC's
+Option D (UI honesty) is what's implemented; Option C (recovering a real
+last-turn-snapshot ratio) is still an open follow-up.
+
 ## Live Watch
 
 The registry watches dated rollout paths:

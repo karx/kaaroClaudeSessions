@@ -115,7 +115,7 @@ export const HARNESS_REGISTRY = [
     capabilities: {
       tokens: true, pulse: true, trace: true, // tokens are output-only (input/cache are per-request context-window snapshots, not per-turn deltas — see docs/CODEX.md)
       context_resets: false, ai_title: true, subagent_count: false, branches: true,
-      size_proxy: 'tokens_work',
+      size_proxy: 'tokens_work', cache_accounting: false,
     },
     watch: {
       matchLogFile(rel) {
@@ -309,7 +309,7 @@ export const HARNESS_REGISTRY = [
     capabilities: {
       tokens: true, pulse: true, trace: true, // tokens are output-only (completionTokens)
       context_resets: false, ai_title: true, subagent_count: false, branches: false,
-      size_proxy: 'tokens_work',
+      size_proxy: 'tokens_work', cache_accounting: false,
     },
     watch: {
       // live format is the .jsonl op-log (tailable); old .json dumps are

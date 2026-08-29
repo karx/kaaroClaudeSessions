@@ -19,7 +19,9 @@ const PREDICATES = {
   'skill':             (s, v) => (s.skills || []).includes(v),
   'tool':              (s, v) => Boolean(s.tools?.[v]),
   'tool_errors.gt':    (s, v) => (s.tool_errors    || 0) > v,
-  'cache_hit_rate.lt': (s, v) => (s.cache_hit_rate || 0) < v,
+  // null on cache_accounting:false harnesses (Codex, Copilot) means "unknown",
+  // not "zero" — must not match, or every such session would falsely signal.
+  'cache_hit_rate.lt': (s, v) => s.cache_hit_rate != null && s.cache_hit_rate < v,
   'duration_min.gt':   (s, v) => (s.duration_min   || 0) > v,
   'project':           (s, v) => s.project_label === v,
   'compact_count.gt':  (s, v) => (s.context_resets || 0) > v,

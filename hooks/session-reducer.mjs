@@ -43,6 +43,7 @@ function emptySession(meta) {
     source:          meta.harness,
     file_size_bytes: meta.file_size_bytes ?? 0,
     size_proxy:      meta.capabilities?.size_proxy ?? 'tokens_work',
+    cache_accounting: meta.capabilities?.cache_accounting ?? true,
 
     first_timestamp: null,
     last_timestamp:  null,

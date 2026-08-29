@@ -1,7 +1,7 @@
 # RFC: Cache-Hit-Rate Blind Spot on Output-Only-Token Harnesses
 
 **Project:** kaaroSessions
-**Status:** Needs decision — no implementation started
+**Status:** Option D implemented (2026-08-29, same review pass). Option C (§4) remains an open follow-up decision.
 **Date:** 2026-08-29
 **Relates to:** `hooks/enrich-session.mjs` (all-harness token arithmetic), Codex harness (`hooks/adapters/codex.mjs`), Copilot harness (`hooks/adapters/copilot.mjs`), session detail panel (`experience/client/05-interaction.js`), Mission Control / DAW stat row (`experience/client-core.mjs`)
 **Grounding:** verified against 19 real local `~/.codex` rollout sessions (2025-12 → 2026-08) during the Codex harness PR review/audit
@@ -87,7 +87,7 @@ Option 2 reuses an existing, tested mechanism (`overwrite: true`) and needs no n
 
 ## 5. Recommendation
 
-1. Ship **D now** — regardless of what happens with C, showing `0%` as fact when the truth is "we don't know" is a straightforward correctness bug in the UI layer. Low risk, small diff, three call sites.
+1. ~~Ship **D now**~~ **Done.** `cache_accounting: false` registry capability (codex + copilot) → `enrich-session.mjs` emits `cache_hit_rate: null` instead of `0` → UI (`fmtPct` in `experience/client-core.mjs`, used by `experience/client/05-interaction.js`'s 3 call sites, the Mission Control/DAW stat row, and the share card) renders `N/A`. Also fixed two call sites this RFC's audit didn't originally list: the resume-prompt text builder (`05-interaction.js:215`) and `hooks/signal-evaluator.mjs`'s `cache_hit_rate.lt` predicate, which previously coerced `null` to `0` via `|| 0` and would have falsely matched *every* Codex/Copilot session against any `cache_hit_rate.lt` policy rule — the same silently-wrong-data bug this RFC exists to fix, one layer down in policy signals instead of the UI.
 2. Decide on **C** as a separate, deliberate follow-up — it's a real feature (recovering a genuinely useful signal for Codex specifically), but it sets a pattern (a harness-computed value bypassing the shared sum) that should be a conscious choice, not something bundled into a "fix the misleading 0%" patch.
 3. **B stays rejected** — recorded here so nobody re-proposes "just stop zeroing them" without rediscovering why that corrupts graph sizing.
 

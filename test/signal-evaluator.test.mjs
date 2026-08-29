@@ -66,6 +66,12 @@ test('evaluateSession — numeric predicates gt/lt', () => {
   }
 });
 
+test('evaluateSession — cache_hit_rate.lt never matches when cache_hit_rate is null (unknown, not zero)', () => {
+  const r = rule({ match: { 'cache_hit_rate.lt': 999 } }); // would match any real number
+  const sigs = evaluateSession(makeSess({ cache_hit_rate: null }), { rules: [r] }, { now: NOW });
+  assert.equal(sigs.length, 0);
+});
+
 test('evaluateSession — project predicate matches project_label', () => {
   const r = rule({ match: { project: 'kaaroSkills' } });
   assert.equal(evaluateSession(makeSess(), { rules: [r] }, { now: NOW }).length, 1);

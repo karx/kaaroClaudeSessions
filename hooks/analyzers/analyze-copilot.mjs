@@ -97,7 +97,7 @@ export function analyzeCopilotSession(filePath, projectInfo = {}) {
     project_id:    projectInfo.project_id ?? 'copilot-unknown',
     project_label: projectInfo.project_label ?? 'copilot',
     harness:       'copilot',
-    capabilities:  { size_proxy: 'tokens_work' },
+    capabilities:  { size_proxy: 'tokens_work', cache_accounting: false },
   });
 
   if (projectInfo.cwd) session.cwd = projectInfo.cwd;

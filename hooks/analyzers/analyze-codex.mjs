@@ -58,7 +58,7 @@ export function analyzeCodexSession(filePath, opts = {}) {
     project_label: project.project_label,
     harness: 'codex',
     file_size_bytes: sizeBytes,
-    capabilities: { size_proxy: 'tokens_work' },
+    capabilities: { size_proxy: 'tokens_work', cache_accounting: false },
   });
 
   session.file_size_bytes = sizeBytes;

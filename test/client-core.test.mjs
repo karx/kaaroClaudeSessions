@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
+  fmtTok, fmtPct, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
   connectEvents, createBootQueue, resolveControlVisibility, fetchRetry,
   nextChromeCollapsed, confirmLayoutReset,
@@ -30,6 +30,12 @@ test('fmtTok — M/k/plain formatting', () => {
   assert.equal(fmtTok(42_000), '42k');
   assert.equal(fmtTok(999), '999');
   assert.equal(fmtTok(0), '0');
+});
+
+test('fmtPct — N/A for null (unknown), formats real numbers including zero', () => {
+  assert.equal(fmtPct(null), 'N/A');
+  assert.equal(fmtPct(0), '0%');
+  assert.equal(fmtPct(93.4), '93.4%');
 });
 
 test('esc — escapes HTML-significant characters', () => {

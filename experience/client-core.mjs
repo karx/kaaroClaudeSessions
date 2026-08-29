@@ -20,6 +20,12 @@ export function fmtTok(n) {
   return String(n);
 }
 
+// cache_hit_rate is null on cache_accounting:false harnesses (Codex,
+// Copilot) — the field is unknown there, not zero (see enrich-session.mjs).
+export function fmtPct(n) {
+  return n == null ? 'N/A' : n + '%';
+}
+
 export function esc(s) {
   return String(s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -1196,7 +1202,7 @@ export function buildShareCardData(node, opts = {}) {
     model:          d.model || null,
     tokens_total:   d.tokens_total || 0,
     tokens_work:    d.tokens_work || 0,
-    cache_hit_rate: d.cache_hit_rate || 0,
+    cache_hit_rate: d.cache_hit_rate ?? null,
     tool_calls:     d.tool_calls || 0,
     tool_errors:    d.tool_errors || 0,
     tool_diversity: d.tool_diversity || 0,
@@ -1234,7 +1240,7 @@ export function generateShareCardSVG(data) {
   const stats = [
     ['CONSUMPTION', fmtTok(data.tokens_total)],
     ['AI WORK',     fmtTok(data.tokens_work)],
-    ['CACHE HIT',   data.cache_hit_rate + '%'],
+    ['CACHE HIT',   fmtPct(data.cache_hit_rate)],
     ['TOOL CALLS',  String(data.tool_calls)],
     ['ERRORS',      String(data.tool_errors)],
     ['SUBAGENTS',   String(data.subagent_count)],

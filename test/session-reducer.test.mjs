@@ -220,6 +220,13 @@ test('reduceSession — tokenless harness sets size_proxy', () => {
   assert.equal(s.tokens.output, 0);
 });
 
+test('reduceSession — cache_accounting defaults true, honors capabilities override', () => {
+  const s1 = reduceSession([], META);
+  assert.equal(s1.cache_accounting, true);
+  const s2 = reduceSession([], { ...META, harness: 'codex', capabilities: { size_proxy: 'tokens_work', cache_accounting: false } });
+  assert.equal(s2.cache_accounting, false);
+});
+
 test('reduceSession — first_user_message from user_turn', () => {
   const s = reduceSession([
     { kind: 'user_turn', harness: 'claude-code', ts: TS1,

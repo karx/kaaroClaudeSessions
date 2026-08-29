@@ -8,8 +8,7 @@ npx kaaro-sessions
 
 GitHub Actions validates package metadata on every branch and pull request, runs
 tests on Node 18, 20, and 22, and uploads the npm tarball as a workflow artifact.
-Pushing a tag like `v1.1.0` enables the release workflow when `NPM_TOKEN` is
-available in repository or environment secrets.
+Pushing a tag like `v1.1.0` enables the release workflow. The current workflow uses `NPM_TOKEN`, but the preferred next sprint change is npm Trusted Publishing through GitHub Actions OIDC so the release does not depend on a long-lived token.
 
 ## npm
 
@@ -20,9 +19,13 @@ Release checklist:
 3. Let GitHub Actions publish `kaaro-sessions-*.tgz` to npm.
 4. Verify with `npx kaaro-sessions@X.Y.Z --no-open`.
 
-Required GitHub Actions secret:
+Current token-based path:
 
-- `NPM_TOKEN`: publish-capable npm token, preferably scoped to this package.
+- `NPM_TOKEN`: granular npm access token with package write access and Bypass 2FA enabled. Without Bypass 2FA, a 2FA-protected npm account cannot complete non-interactive CI publishing.
+
+Preferred path:
+
+- Configure npm Trusted Publishing for this GitHub repository and release workflow. Trusted Publishing uses OIDC, avoids storing `NPM_TOKEN`, and is the recommended handoff item for the next sprint.
 
 ## winget
 

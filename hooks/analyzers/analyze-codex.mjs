@@ -11,6 +11,7 @@ import { reduceSession } from '../session-reducer.mjs';
 import { enrichSession } from '../enrich-session.mjs';
 import { walkSessions, dirNames } from '../scan-walk.mjs';
 import { CODEX_HOME_ROOT } from '../harness-paths.mjs';
+import { HARNESS_CAPABILITIES } from '../harness-capabilities.mjs';
 
 const OUT_FILE = path.join(process.cwd(), 'sessions-data.json');
 
@@ -58,7 +59,7 @@ export function analyzeCodexSession(filePath, opts = {}) {
     project_label: project.project_label,
     harness: 'codex',
     file_size_bytes: sizeBytes,
-    capabilities: { size_proxy: 'tokens_work', cache_accounting: false },
+    capabilities: HARNESS_CAPABILITIES.codex,
   });
 
   session.file_size_bytes = sizeBytes;

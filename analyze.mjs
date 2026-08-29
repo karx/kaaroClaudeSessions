@@ -16,6 +16,7 @@ import { fileURLToPath } from 'url';
 import { buildSessionsOutput } from './surface/analyze-orchestrator.mjs';
 import { recordsToNormalized } from './hooks/adapters/claude-code.mjs';
 import { reduceSession } from './hooks/session-reducer.mjs';
+import { HARNESS_CAPABILITIES } from './hooks/harness-capabilities.mjs';
 import { enrichSession, enrichProject } from './hooks/enrich-session.mjs';
 import { loadPolicy } from './hooks/policy.mjs';
 import { buildSignalsData } from './hooks/signal-evaluator.mjs';
@@ -45,7 +46,7 @@ function analyzeSession(projectId, filePath) {
     project_label:   deriveLabel(projectId),
     harness:         'claude-code',
     file_size_bytes: sizeBytes,
-    capabilities:    { size_proxy: 'tokens_work' },
+    capabilities:    HARNESS_CAPABILITIES['claude-code'],
   });
 
   session.tool_timeline = extractToolTimeline(records);

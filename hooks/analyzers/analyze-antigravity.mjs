@@ -43,6 +43,7 @@ export {
 // ── Config ────────────────────────────────────────────────────────────────────
 
 import { ANTIGRAVITY_BRAIN_ROOT } from '../harness-paths.mjs';
+import { HARNESS_CAPABILITIES } from '../harness-capabilities.mjs';
 export { ANTIGRAVITY_BRAIN_ROOT };
 const OUT_FILE = path.join(process.cwd(), 'sessions-data.json');
 
@@ -83,7 +84,7 @@ export function parseAntigravityRecords(records, sessionId) {
     project_id:      null,
     project_label:   null,
     harness:         'antigravity',
-    capabilities:    { size_proxy: 'tool_calls' },
+    capabilities:    HARNESS_CAPABILITIES.antigravity,
   });
   applyAntigravityWorkspace(session, records);
   return session;

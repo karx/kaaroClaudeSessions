@@ -24,6 +24,7 @@ import {
   CLAUDE_PROJECTS_ROOT, CODEX_HOME_ROOT, PI_SESSIONS_ROOT, ANTIGRAVITY_BRAIN_ROOT, GROK_SESSIONS_ROOT,
   OPENCODE_STORAGE_ROOT, COPILOT_WORKSPACE_STORAGE_ROOT, COMMANDCODE_PROJECTS_ROOT,
 } from './harness-paths.mjs';
+import { HARNESS_CAPABILITIES } from './harness-capabilities.mjs';
 import { deriveGrokProjectId, deriveGrokLabel } from './helpers/grok-helpers.mjs';
 import { copilotWorkspaceLabel } from './helpers/copilot-helpers.mjs';
 import {
@@ -80,11 +81,7 @@ export const HARNESS_REGISTRY = [
     locateSession: locateClaudeCodeSession,
     readSessionRecords: readJsonlRecords,
     roots: [CLAUDE_PROJECTS_ROOT],
-    capabilities: {
-      tokens: true, pulse: true, trace: true,
-      context_resets: true, ai_title: true, subagent_count: true, branches: true,
-      size_proxy: 'tokens_work',
-    },
+    capabilities: HARNESS_CAPABILITIES['claude-code'],
     watch: {
       matchLogFile: (rel) => rel.replace(/\\/g, '/').endsWith('.jsonl'),
       ctxFromPath(relPath) {
@@ -112,11 +109,7 @@ export const HARNESS_REGISTRY = [
     locateSession: locateCodexSession,
     readSessionRecords: readJsonlRecords,
     roots: [CODEX_HOME_ROOT],
-    capabilities: {
-      tokens: true, pulse: true, trace: true, // tokens are output-only (input/cache are per-request context-window snapshots, not per-turn deltas — see docs/CODEX.md)
-      context_resets: false, ai_title: true, subagent_count: false, branches: true,
-      size_proxy: 'tokens_work', cache_accounting: false,
-    },
+    capabilities: HARNESS_CAPABILITIES.codex,
     watch: {
       matchLogFile(rel) {
         const n = rel.replace(/\\/g, '/');
@@ -145,11 +138,7 @@ export const HARNESS_REGISTRY = [
     locateSession: locatePiSession,
     readSessionRecords: readJsonlRecords,
     roots: [PI_SESSIONS_ROOT],
-    capabilities: {
-      tokens: true, pulse: true, trace: true,
-      context_resets: false, ai_title: false, subagent_count: false, branches: false,
-      size_proxy: 'tokens_work',
-    },
+    capabilities: HARNESS_CAPABILITIES.pi,
     watch: {
       matchLogFile: (rel) => rel.replace(/\\/g, '/').endsWith('.jsonl'),
       ctxFromPath(relPath) {
@@ -177,13 +166,7 @@ export const HARNESS_REGISTRY = [
     locateSession: locateAntigravitySession,
     readSessionRecords: readJsonlRecords,
     roots: [ANTIGRAVITY_BRAIN_ROOT],
-    capabilities: {
-      // trace stays false: antigravity NRs carry no assistant text/thinking
-      // blocks, so reconstructed turns are degenerate (tool lists only).
-      tokens: false, pulse: true, trace: false,
-      context_resets: false, ai_title: false, subagent_count: false, branches: false,
-      size_proxy: 'tool_calls',
-    },
+    capabilities: HARNESS_CAPABILITIES.antigravity,
     watch: {
       matchLogFile: (rel) => {
         const n = rel.replace(/\\/g, '/');
@@ -224,11 +207,7 @@ export const HARNESS_REGISTRY = [
       };
     },
     roots: [GROK_SESSIONS_ROOT],
-    capabilities: {
-      tokens: false, pulse: true, trace: true,
-      context_resets: true, ai_title: true, subagent_count: true, branches: true,
-      size_proxy: 'tool_calls',
-    },
+    capabilities: HARNESS_CAPABILITIES.grok,
     watch: {
       matchLogFile(rel) {
         const n = rel.replace(/\\/g, '/');
@@ -263,11 +242,7 @@ export const HARNESS_REGISTRY = [
       return { records: readOpencodeSession(storageRoot, filePath).records };
     },
     roots: [OPENCODE_STORAGE_ROOT],
-    capabilities: {
-      tokens: true, pulse: true, trace: true,
-      context_resets: false, ai_title: true, subagent_count: false, branches: false,
-      size_proxy: 'tokens_work',
-    },
+    capabilities: HARNESS_CAPABILITIES.opencode,
     watch: {
       // storage spreads a session across three JSON trees; only these carry
       // transcript signal (project/, session_diff/, snapshot/, log/ are noise)
@@ -306,11 +281,7 @@ export const HARNESS_REGISTRY = [
       return { records: readCopilotSession(filePath).records };
     },
     roots: [COPILOT_WORKSPACE_STORAGE_ROOT],
-    capabilities: {
-      tokens: true, pulse: true, trace: true, // tokens are output-only (completionTokens)
-      context_resets: false, ai_title: true, subagent_count: false, branches: false,
-      size_proxy: 'tokens_work', cache_accounting: false,
-    },
+    capabilities: HARNESS_CAPABILITIES.copilot,
     watch: {
       // live format is the .jsonl op-log (tailable); old .json dumps are
       // analysis-only (covered by the scanner, not the watcher)
@@ -343,11 +314,7 @@ export const HARNESS_REGISTRY = [
     locateSession: locateCommandCodeSession,
     readSessionRecords: readJsonlRecords,
     roots: [COMMANDCODE_PROJECTS_ROOT],
-    capabilities: {
-      tokens: false, pulse: true, trace: true,
-      context_resets: false, ai_title: true, subagent_count: false, branches: true,
-      size_proxy: 'tool_calls',
-    },
+    capabilities: HARNESS_CAPABILITIES['command-code'],
     watch: {
       matchLogFile: (rel) => {
         const n = rel.replace(/\\/g, '/');

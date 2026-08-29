@@ -25,6 +25,7 @@ import {
   deriveAntigravityLabel as deriveLabelFromPath,
 } from '../helpers/antigravity-helpers.mjs';
 import { OPENCODE_STORAGE_ROOT } from '../harness-paths.mjs';
+import { HARNESS_CAPABILITIES } from '../harness-capabilities.mjs';
 
 export { OPENCODE_STORAGE_ROOT };
 
@@ -83,7 +84,7 @@ export function analyzeOpencodeSession(storageRoot, infoPath) {
     project_id:    deriveProjectIdFromPath(info.directory), // CC-style path slug → cross-harness project unify
     project_label: deriveLabelFromPath(info.directory),
     harness:       'opencode',
-    capabilities:  { size_proxy: 'tokens_work' },
+    capabilities:  HARNESS_CAPABILITIES.opencode,
   });
 
   session.slug = opencodeSlug(info.id);

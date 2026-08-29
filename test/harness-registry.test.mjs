@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   HARNESS_REGISTRY, HARNESS_IDS, getHarness, getEnabledHarnesses,
 } from '../hooks/registry.mjs';
+import { HARNESS_CAPABILITIES } from '../hooks/harness-capabilities.mjs';
 
 test('HARNESS_REGISTRY — known harnesses', () => {
   assert.deepEqual(HARNESS_IDS, ['claude-code', 'codex', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code']);
@@ -89,6 +90,19 @@ test('copilot watch config exposes resolveProjectLabel; others omit it', () => {
   assert.equal(typeof cp.watch.resolveProjectLabel, 'function');
   for (const id of ['claude-code', 'codex', 'pi', 'antigravity', 'grok', 'opencode']) {
     assert.equal(getHarness(id).watch.resolveProjectLabel, undefined, `${id} should omit it`);
+  }
+});
+
+test('every descriptor.capabilities is the exact HARNESS_CAPABILITIES object (not a copy) — the single-source-of-truth guard', () => {
+  for (const h of HARNESS_REGISTRY) {
+    assert.equal(h.capabilities, HARNESS_CAPABILITIES[h.id],
+      `${h.id}: registry.capabilities must be === HARNESS_CAPABILITIES['${h.id}'], not a re-declared literal`);
+  }
+});
+
+test('HARNESS_CAPABILITIES entries are frozen — can\'t be mutated by one caller and leak into every other', () => {
+  for (const id of HARNESS_IDS) {
+    assert.ok(Object.isFrozen(HARNESS_CAPABILITIES[id]), `${id}: capabilities object should be frozen`);
   }
 });
 

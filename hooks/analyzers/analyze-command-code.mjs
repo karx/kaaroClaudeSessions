@@ -10,6 +10,7 @@ import { enrichSession } from '../enrich-session.mjs';
 import { walkSessions, dirNames } from '../scan-walk.mjs';
 
 import { COMMANDCODE_PROJECTS_ROOT } from '../harness-paths.mjs';
+import { HARNESS_CAPABILITIES } from '../harness-capabilities.mjs';
 const OUT_FILE = path.join(process.cwd(), 'sessions-data.json');
 
 // ── CC project label ─────────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ export function parseCCRecords(records, sessionId, projectId) {
     project_id: projectId,
     project_label: deriveCCLabel(projectId),
     harness: 'command-code',
-    capabilities: { size_proxy: 'tool_calls' },
+    capabilities: HARNESS_CAPABILITIES['command-code'],
   });
 
   // Read title from .meta.json if it exists

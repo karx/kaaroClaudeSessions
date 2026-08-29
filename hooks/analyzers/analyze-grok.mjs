@@ -20,6 +20,7 @@ import {
   grokRecordTs,
 } from '../helpers/grok-helpers.mjs';
 import { GROK_SESSIONS_ROOT } from '../harness-paths.mjs';
+import { HARNESS_CAPABILITIES } from '../harness-capabilities.mjs';
 
 export { GROK_SESSIONS_ROOT };
 
@@ -102,7 +103,7 @@ export function parseGrokRecords(records, sessionId, encodedCwd, summary = null,
     project_id:      deriveGrokProjectId(encodedCwd),
     project_label:   deriveGrokLabel(encodedCwd),
     harness:         'grok',
-    capabilities:    { size_proxy: 'tool_calls' },
+    capabilities:    HARNESS_CAPABILITIES.grok,
   });
   applyGrokMeta(session, encodedCwd, summary, signals, records);
   return session;

@@ -30,6 +30,7 @@ import {
   deriveAntigravityLabel as deriveLabelFromPath,
 } from '../helpers/antigravity-helpers.mjs';
 import { COPILOT_WORKSPACE_STORAGE_ROOT } from '../harness-paths.mjs';
+import { HARNESS_CAPABILITIES } from '../harness-capabilities.mjs';
 import { MAX_JSONL_BYTES } from '../jsonl-io.mjs';
 
 export { COPILOT_WORKSPACE_STORAGE_ROOT };
@@ -97,7 +98,7 @@ export function analyzeCopilotSession(filePath, projectInfo = {}) {
     project_id:    projectInfo.project_id ?? 'copilot-unknown',
     project_label: projectInfo.project_label ?? 'copilot',
     harness:       'copilot',
-    capabilities:  { size_proxy: 'tokens_work', cache_accounting: false },
+    capabilities:  HARNESS_CAPABILITIES.copilot,
   });
 
   if (projectInfo.cwd) session.cwd = projectInfo.cwd;

@@ -13,6 +13,7 @@ import { walkSessions, dirNames } from '../scan-walk.mjs';
 // ── Config ────────────────────────────────────────────────────────────────────
 
 import { PI_SESSIONS_ROOT } from '../harness-paths.mjs';
+import { HARNESS_CAPABILITIES } from '../harness-capabilities.mjs';
 const OUT_FILE         = path.join(process.cwd(), 'sessions-data.json');
 
 // ── Pi project label ──────────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ export function parsePiRecords(records, sessionId, projectId) {
     project_id:      projectId,
     project_label:   derivePiLabel(projectId),
     harness:         'pi',
-    capabilities:    { size_proxy: 'tokens_work' },
+    capabilities:    HARNESS_CAPABILITIES.pi,
   });
 }
 

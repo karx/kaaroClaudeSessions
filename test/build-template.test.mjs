@@ -124,3 +124,34 @@ test('home.html binds KAARO_TOKENS for landing canvas JS', async () => {
   assert.ok(html.includes('%%KAARO_TOKENS%%'), 'landing must inject the JS token object');
   assert.ok(/const KAARO_TOKENS\s*=\s*%%KAARO_TOKENS%%/.test(html));
 });
+
+// ── Stray placeholder guard ────────────────────────────────────────────────────
+// build.mjs concatenates experience/client/*.js and runs it through the SAME
+// single-pass %%PLACEHOLDER%% substitution as the HTML template (see the
+// injectedJS = applySubstitutions(clientJS, {...}) call for graph.html). A
+// %%WORD%% written anywhere in a client/*.js file — even inside a comment,
+// even just documenting the mechanism — is not inert: it gets replaced too,
+// splicing a full extra copy of whatever that key maps to (e.g. all of
+// client-core.mjs) into the middle of the line. Any %%WORD%% token in
+// client/*.js must be one of the keys build.mjs actually substitutes there.
+
+test('experience/client/*.js only uses %%PLACEHOLDER%% tokens build.mjs actually substitutes', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  // Keys passed to applySubstitutions(clientJS, {...}) for the graph bundle,
+  // plus tokenSubs() (%%TOKENS_CSS%%, %%KAARO_TOKENS%%) — build.mjs is the
+  // source of truth; update this set if that call's key list changes.
+  const KNOWN = new Set([
+    '%%CLIENT_CORE%%', '%%GRAPH_JSON%%', '%%TIMELINE_JSON%%', '%%COLOR_INDEX_JSON%%',
+    '%%IN_FLIGHT_COLOR%%', '%%TRACE_HARNESSES%%', '%%TOKENS_CSS%%', '%%KAARO_TOKENS%%',
+  ]);
+  const dir = 'experience/client';
+  const offenders = [];
+  for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.js'))) {
+    const src = fs.readFileSync(path.join(dir, f), 'utf8');
+    for (const m of src.matchAll(/%%[A-Z_]+%%/g)) {
+      if (!KNOWN.has(m[0])) offenders.push(`${f}: ${m[0]}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `stray placeholder-shaped text (will be spliced by build.mjs): ${offenders.join(', ')}`);
+});

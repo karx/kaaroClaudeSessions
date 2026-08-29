@@ -444,11 +444,33 @@ button.btn:hover { background:#403d1e; }
 #thr-chrome-left { display:flex; align-items:baseline; gap:12px; min-width:0; overflow:hidden; }
 #thr-chrome-label { font-size:12px; font-weight:700; letter-spacing:0.5px; flex-shrink:0; }
 #thr-chrome-ait {
-  font-size:9px; color:#55432a; font-style:italic;
+  font-size:9px; color:#aa8e66; font-style:italic;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+
+/* Find-in-thread */
+#thr-search {
+  display:flex; align-items:center; gap:6px; flex-shrink:0;
+}
+#thr-search-input {
+  background:#050400; border:1px solid #28260d; color:#ccccaa;
+  font:10px 'IBM Plex Mono','Courier New',monospace; letter-spacing:0.3px;
+  padding:4px 8px; width:150px;
+}
+#thr-search-input::placeholder { color:#5a4c30; }
+#thr-search-input:focus { outline:none; border-color:#aa8e66; }
+#thr-search-count {
+  font-size:9px; color:#aa8e66; min-width:3.5em; text-align:right; white-space:nowrap;
+}
+.thr-search-btn {
+  background:none; border:1px solid #28260d; color:#aa8e66;
+  font-size:10px; line-height:1; padding:4px 6px; cursor:pointer; font-family:inherit;
+}
+.thr-search-btn:hover:not(:disabled) { color:#ffaa00; border-color:#4a3a00; }
+.thr-search-btn:disabled { color:#403d1a; cursor:default; }
+
 #thr-close-btn {
-  background:none; border:none; color:#55432a; font-size:16px;
+  background:none; border:none; color:#aa8e66; font-size:16px;
   cursor:pointer; padding:0 4px; font-family:inherit; flex-shrink:0;
 }
 #thr-close-btn:hover { color:#ccbeaa; }
@@ -466,15 +488,15 @@ button.btn:hover { background:#403d1e; }
   margin-bottom:7px; flex-wrap:wrap;
 }
 .thr-wn   { font-size:11px; font-weight:700; letter-spacing:0.5px; flex-shrink:0; }
-.thr-mode { font-size:8px; color:#58452a; letter-spacing:0.8px; text-transform:uppercase; }
+.thr-mode { font-size:8px; color:#aa8e66; letter-spacing:0.8px; text-transform:uppercase; }
 .thr-branch {
-  font-size:8px; color:#504c1e; background:#181605;
+  font-size:8px; color:#aa8e66; background:#181605;
   border:1px solid #2e2b0d; padding:1px 6px; flex-shrink:0;
 }
-.thr-meta   { font-size:8px; color:#403d1a; margin-left:auto; white-space:nowrap; }
-.thr-badges { font-size:8px; color:#705a3a; letter-spacing:0.5px; flex-shrink:0; }
+.thr-meta   { font-size:8px; color:#aa8e66; margin-left:auto; white-space:nowrap; }
+.thr-badges { font-size:8px; color:#aa8e66; letter-spacing:0.5px; flex-shrink:0; }
 
-/* Stacked composition bar */
+/* Stacked composition bar — label color picked per-swatch (readableTextOn), not fixed here */
 .thr-compbar { display:flex; height:22px; gap:1px; overflow:hidden; }
 .thr-bar-seg {
   display:flex; align-items:center; overflow:hidden;
@@ -483,7 +505,7 @@ button.btn:hover { background:#403d1e; }
 }
 .thr-bar-seg:hover { filter:brightness(1.25); }
 .thr-bar-lbl {
-  font-size:8px; color:rgba(255,255,255,0.75); font-weight:700;
+  font-size:8px; font-weight:700;
   padding:0 5px; white-space:nowrap; overflow:hidden;
   text-overflow:clip; letter-spacing:0.2px; pointer-events:none;
 }
@@ -495,7 +517,7 @@ button.btn:hover { background:#403d1e; }
 }
 .thr-cline { flex:1; height:1px; background:#181709; }
 .thr-clbl  {
-  font-size:7px; color:#302d12; letter-spacing:1.5px;
+  font-size:8px; color:#aa8e66; letter-spacing:1.5px;
   text-transform:uppercase; white-space:nowrap; flex-shrink:0;
 }
 
@@ -508,10 +530,10 @@ button.btn:hover { background:#403d1e; }
   display:inline-block; width:8px; height:8px;
   vertical-align:middle; margin-right:3px;
 }
-.thr-legend-lbl { font-size:8px; color:#44411e; vertical-align:middle; }
+.thr-legend-lbl { font-size:8px; color:#aa8e66; vertical-align:middle; }
 
 .thr-loading, .thr-err {
-  font-size:10px; color:#44411e; padding:24px 0; font-style:italic;
+  font-size:10px; color:#aa8e66; padding:24px 0; font-style:italic;
 }
 
 /* ── Turn list ───────────────────────────────────────────────────────────── */
@@ -526,19 +548,21 @@ button.btn:hover { background:#403d1e; }
   font-size:8px; font-weight:700; letter-spacing:1.5px;
   padding:1px 5px; flex-shrink:0;
 }
-.thr-actor-user { color:#504c1e; background:#181707; border:1px solid #28260d; }
-.thr-actor-asst { color:#1e3a28; background:#040e08; border:1px solid #0a1e10; }
-.thr-turn-ts  { font-size:8px; color:#403d1a; }
-.thr-thinking { font-size:8px; color:#604a2a; letter-spacing:0.5px; }
-.thr-dur      { font-size:8px; color:#302e16; margin-left:auto; }
-.thr-maxtok   { font-size:8px; color:#5a2020; letter-spacing:0.5px; }
+.thr-actor-user { color:#ffaa00; background:#2a2000; border:1px solid #4a3a00; }
+.thr-actor-asst { color:#00ff88; background:#04160c; border:1px solid #0a2a18; }
+.thr-turn-ts  { font-size:8px; color:#aa8e66; }
+.thr-thinking { font-size:8px; color:#aa8e66; letter-spacing:0.5px; }
+.thr-dur      { font-size:8px; color:#aa8e66; margin-left:auto; }
+.thr-maxtok   { font-size:8px; color:#ff5555; letter-spacing:0.5px; }
 
+/* Turn text is the primary content of this view — one bright, readable
+   color for both roles; the actor badge above already carries the
+   user/assistant distinction, so the body text doesn't need to repeat it. */
 .thr-turn-text {
-  font-size:10px; color:#705a3a; line-height:1.55;
+  font-size:10px; color:#ccccaa; line-height:1.55;
   margin:2px 0 6px; white-space:pre-wrap; word-break:break-word;
   max-height:200px; overflow:hidden;
 }
-.thr-turn-asst .thr-turn-text { color:#5a462a; }
 /* click-to-copy: thr-turn-text-copy / data-thr-copy (user + asst) */
 .thr-turn-text-copy {
   cursor:pointer;
@@ -547,21 +571,18 @@ button.btn:hover { background:#403d1e; }
 }
 .thr-turn-text-copy:hover {
   background: #181707;
-  color: #a08050;
-}
-.thr-turn-asst .thr-turn-text-copy:hover {
-  background: #0a120c;
-  color: #6a8a70;
 }
 .thr-turn-text-copy:focus-visible {
-  outline:1px solid #403d1a;
+  outline:1px solid #aa8e66;
   outline-offset:2px;
 }
 .thr-turn-text-copy.copied {
-  background: #0a1e10;
-  color: #3a6a48;
+  background: #0a2a18;
+  color: #00bb55;
 }
-.thr-truncated { color:#403d1a; font-style:italic; }
+.thr-truncated { color:#aa8e66; font-style:italic; }
+mark.thr-hit { background:#4a3800; color:#ffe8a0; padding:0 1px; }
+mark.thr-hit-current { background:#ffaa00; color:#000000; }
 
 /* ── Tool call rows ──────────────────────────────────────────────────────── */
 .thr-tcs { margin:4px 0 0; }
@@ -569,36 +590,43 @@ button.btn:hover { background:#403d1e; }
   display:flex; align-items:baseline; gap:8px;
   padding:2px 0; font-size:9px; line-height:1.4;
 }
-.thr-tc-err  { opacity:0.8; }
+/* thr-tc-err is flagged by its red .thr-tc-errtxt, not by dimming the row —
+   opacity would composite the fixed AA colors below their measured ratio. */
+.thr-tc-dot {
+  display:inline-block; width:6px; height:6px; margin-right:2px;
+  align-self:center; flex-shrink:0;
+}
 .thr-tc-name {
-  font-size:8px; font-weight:700; letter-spacing:0.3px;
-  min-width:72px; flex-shrink:0;
+  color:#aa8e66; font-size:8px; font-weight:700; letter-spacing:0.3px;
+  min-width:66px; flex-shrink:0;
 }
 .thr-tc-arg  {
-  color:#604a2a; font-size:9px; word-break:break-all;
+  color:#ccccaa; font-size:9px; word-break:break-all;
   overflow:hidden; white-space:pre-wrap; max-height:3em;
 }
 .thr-tc-errtxt {
-  color:#5a2020; font-size:8px; font-style:italic; flex-shrink:0;
+  color:#ff5555; font-size:8px; font-style:italic; flex-shrink:0;
 }
 .thr-tc-cont {
   padding:1px 0 3px 80px;
 }
 .thr-tc-contline {
-  display:block; color:#504c1e; font-size:9px;
+  display:block; color:#ccccaa; font-size:9px;
   white-space:pre; overflow:hidden; text-overflow:ellipsis;
 }
 .thr-tc-diff { padding:2px 0 4px 80px; }
-.thr-tc-del  { display:block; font-size:8px; color:#4a1a1a; white-space:pre; }
-.thr-tc-add  { display:block; font-size:8px; color:#0a2a18; white-space:pre; }
+.thr-tc-del  { display:block; font-size:8px; color:#ff5555; white-space:pre; }
+.thr-tc-add  { display:block; font-size:8px; color:#00bb55; white-space:pre; }
 
-/* Nested subagent trees — accent matches EDGE_COLORS.spawn / TOOL_COLORS.Agent */
+/* Nested subagent trees — accent matches EDGE_COLORS.spawn / TOOL_COLORS.Agent.
+   Structural marks (borders) keep the true --k-spawn crimson; text roles use
+   a lighter tint of the same hue so they clear AA on near-black chrome. */
 .thr-roster {
   margin:0 0 14px; padding:10px 12px; border:1px solid #3a1520;
   background:#0a0408; border-left:3px solid var(--k-spawn, #cc2244);
 }
 .thr-roster-hd {
-  font-size:9px; letter-spacing:0.12em; color:var(--k-spawn, #cc2244); margin-bottom:8px;
+  font-size:9px; letter-spacing:0.12em; color:#ff7799; margin-bottom:8px;
   font-family:var(--k-font-mono, monospace);
 }
 .thr-roster-row {
@@ -616,25 +644,25 @@ button.btn:hover { background:#403d1e; }
 }
 .thr-sub-sum::-webkit-details-marker { display:none; }
 .thr-sub-sum:hover { color:#e8b8c0; }
-.thr-sub-mark { color:var(--k-spawn, #cc2244); font-weight:600; }
+.thr-sub-mark { color:#ff7799; font-weight:600; }
 .thr-sub-type {
-  color:var(--k-spawn, #cc2244); font-family:var(--k-font-mono, monospace); font-size:9px;
+  color:#ff7799; font-family:var(--k-font-mono, monospace); font-size:9px;
   letter-spacing:0.06em; text-transform:uppercase;
 }
 .thr-sub-desc { color:#d0a8b0; max-width:42em; }
-.thr-sub-id { color:#5a3040; font-family:var(--k-font-mono, monospace); font-size:8px; }
-.thr-sub-tools { color:#6a4050; font-size:8px; font-family:var(--k-font-mono, monospace); }
-.thr-sub-unlinked { color:#aa6633; font-size:8px; }
+.thr-sub-id { color:#aa8e66; font-family:var(--k-font-mono, monospace); font-size:8px; }
+.thr-sub-tools { color:#aa8e66; font-size:8px; font-family:var(--k-font-mono, monospace); }
+.thr-sub-unlinked { color:#cc8844; font-size:8px; }
 .thr-sub-turns { padding:4px 0 6px 4px; }
-.thr-sub-empty { padding:6px 8px; font-size:9px; color:#5a3040; }
+.thr-sub-empty { padding:6px 8px; font-size:9px; color:#aa8e66; }
 .thr-subagent .thr-turn { border-bottom-color:#1a0c12; }
-.thr-subagent .thr-actor-asst { color:#aa6680; }
+.thr-subagent .thr-actor-asst { color:#cc7d99; }
 
 /* Panel VIEW THREAD button */
 .paction-thread {
-  margin-bottom:6px; color:#504c1a; border-color:#2e2b0d;
+  margin-bottom:6px; color:#aa8e66; border-color:#2e2b0d;
 }
-.paction-thread:hover { color:#aa824a; border-color:#60431a; }
+.paction-thread:hover { border-color:#60431a; }
 </style>
 <script type="application/ld+json">
 {

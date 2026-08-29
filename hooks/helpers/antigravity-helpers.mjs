@@ -79,10 +79,30 @@ export function extractUserMessage(content) {
   return stripped.length >= 8 ? stripped.slice(0, 200) : null;
 }
 
+export function extractAiTitle(records) {
+  if (!records || !records.length) return null;
+  for (const rec of records) {
+    if (rec.type === 'USER_INPUT' && rec.source === 'USER_EXPLICIT') {
+      const msg = extractUserMessage(rec.content);
+      if (!msg) continue;
+      if (msg.length > 60) return msg.slice(0, 60).trim() + '…';
+      return msg;
+    }
+  }
+  return null;
+}
+
+
 export const REC_TYPE_TO_TOOL = {
-  VIEW_FILE:      'view_file',
-  LIST_DIRECTORY: 'list_dir',
-  GREP_SEARCH:    'grep_search',
-  RUN_COMMAND:    'run_command',
-  CODE_ACTION:    'run_command',
-};
+  VIEW_FILE:                  'view_file',
+  LIST_DIRECTORY:             'list_dir',
+  GREP_SEARCH:                'grep_search',
+  RUN_COMMAND:                'run_command',
+  CODE_ACTION:                'run_command',
+  REPLACE_FILE_CONTENT:       'replace_file_content',
+  MULTI_REPLACE_FILE_CONTENT: 'multi_replace_file_content',
+  WRITE_TO_FILE:              'write_to_file',
+  FETCH_URL:                  'read_url_content',
+  SCHEDULE_TASK:              'schedule',
+  GENERATE_IMAGE:             'generate_image',
+};

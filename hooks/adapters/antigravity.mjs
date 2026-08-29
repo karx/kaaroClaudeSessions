@@ -42,6 +42,13 @@ export function recordsToNormalized(records) {
       handled = true;
       out.push({ kind: 'assistant_turn', harness: HARNESS, ts });
 
+      if (rec.content && typeof rec.content === 'string' && rec.content.trim()) {
+        out.push({
+          kind: 'content_block', harness: HARNESS, ts,
+          block_type: 'text', text: rec.content.trim(),
+        });
+      }
+
       for (const tc of (rec.tool_calls || [])) {
         const name = tc.name || 'unknown';
         const args = tc.args || {};
@@ -61,6 +68,7 @@ export function recordsToNormalized(records) {
       }
     }
 
+
     if (rec.type === 'EPHEMERAL_MESSAGE') {
       handled = true;
       out.push({
@@ -76,6 +84,12 @@ export function recordsToNormalized(records) {
         content_preview: (rec.content || '').slice(0, 80),
       });
     }
+
+    if (rec.type === 'CONVERSATION_HISTORY') {
+      handled = true;
+      out.push({ kind: 'context_reset', harness: HARNESS, ts });
+    }
+
 
     if (rec.type === 'ERROR_MESSAGE') {
       handled = true;

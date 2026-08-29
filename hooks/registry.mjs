@@ -172,12 +172,12 @@ export const HARNESS_REGISTRY = [
     readSessionRecords: readJsonlRecords,
     roots: [ANTIGRAVITY_BRAIN_ROOT],
     capabilities: {
-      // trace stays false: antigravity NRs carry no assistant text/thinking
-      // blocks, so reconstructed turns are degenerate (tool lists only).
-      tokens: false, pulse: true, trace: false,
-      context_resets: false, ai_title: false, subagent_count: false, branches: false,
+      tokens: false, pulse: true, trace: true,
+      context_resets: true, ai_title: true, subagent_count: true, branches: false,
       size_proxy: 'tool_calls',
     },
+
+
     watch: {
       matchLogFile: (rel) => {
         const n = rel.replace(/\\/g, '/');
@@ -197,7 +197,15 @@ export const HARNESS_REGISTRY = [
           project_label: 'antigravity',
         };
       },
-      rebuildArg: () => null,
+      rebuildArg: (relPath) => {
+        const parts = relPath.replace(/\\/g, '/').split('/');
+        const convIdx = parts.findIndex((p, i) =>
+          parts[i + 1] === '.system_generated' && parts[i + 2] === 'logs'
+        );
+        if (convIdx < 0) return null;
+        return `--session=antigravity/${parts[convIdx]}`;
+      },
+
     },
   },
   {

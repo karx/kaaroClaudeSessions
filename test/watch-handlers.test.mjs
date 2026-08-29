@@ -69,8 +69,9 @@ test('processWatchFilename — antigravity nested log path', () => {
   assert.ok(r);
   assert.equal(r.ctx.harness, 'antigravity');
   assert.equal(r.ctx.session_id, 'c7f6b422');
-  assert.equal(r.rebuildArg, null);
+  assert.equal(r.rebuildArg, '--session=antigravity/c7f6b422');
 });
+
 
 test('processWatchFilename — antigravity overview.txt', () => {
   const r = processWatchFilename(

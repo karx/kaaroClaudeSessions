@@ -202,7 +202,8 @@ export function reduceSession(records, meta) {
         const name = rec.tool || 'unknown';
         if (!session.tools[name]) session.tools[name] = { calls: 0, errors: 0 };
         session.tools[name].calls++;
-        if (name === 'Agent' || name === 'Task' || name === 'spawn_subagent') session.subagent_count++;
+        if (name === 'Agent' || name === 'Task' || name === 'spawn_subagent' || name === 'invoke_subagent') session.subagent_count++;
+
 
         const op = FILE_OP_TOOLS[name];
         const fp = normPath(filePathFromInput(rec.input));

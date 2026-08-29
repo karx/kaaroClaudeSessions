@@ -1,7 +1,7 @@
 # kaaroSessions — Wishlist
 
-**Current implementation status (2026-07, two-layer + Command Code):**  
-The core `analyze → build → serve` pipeline now fully supports **7 harnesses** (claude-code, pi, antigravity, grok, opencode, copilot, command-code) via a clean normalized record adapter model (`hooks/adapters/*.mjs`, `hooks/session-reducer.mjs`, `surface/scan-harnesses.mjs`, `hooks/registry.mjs`). Many "Phase 1" extraction and multi-harness readiness items (W-OBS-04, W-OBS-06) were realized as part of the original multi-harness TDD effort and have since been carried through the `hooks/`+`surface/` two-layer split. See `docs/harnesses.md` for the live support matrix. Policy and advanced Report pillars remain future work — nothing below has moved since the last pass.
+**Current implementation status (2026-08, two-layer + Codex):**  
+The core `analyze → build → serve` pipeline now fully supports **8 harnesses** (claude-code, codex, pi, antigravity, grok, opencode, copilot, command-code) via a clean normalized record adapter model (`hooks/adapters/*.mjs`, `hooks/session-reducer.mjs`, `surface/scan-harnesses.mjs`, `hooks/registry.mjs`). Many "Phase 1" extraction and multi-harness readiness items (W-OBS-04, W-OBS-06) were realized as part of the original multi-harness TDD effort and have since been carried through the `hooks/`+`surface/` two-layer split. See `docs/harnesses.md` for the live support matrix and `docs/CODEX.md` for Codex-specific behavior. Policy and advanced Report pillars remain future work — nothing below has moved since the last pass.
 
 Items grouped by the three pillars: **Observe → Policy → Report**.
 These extend the existing `analyze → build → serve` pipeline without breaking it.
@@ -147,14 +147,14 @@ Deepen what `analyze.mjs` already extracts.
 
 **Current state (2026-07):** ✅ **Fully implemented, now spans two layers.**
 - `hooks/normalized-record.mjs` and the adapter contract (`recordsToNormalized()`) exist.
-- 7 harnesses supported via `hooks/adapters/{claude-code,pi,antigravity,grok,opencode,copilot,command-code}.mjs`.
+- 8 harnesses supported via `hooks/adapters/{claude-code,codex,pi,antigravity,grok,opencode,copilot,command-code}.mjs`.
 - `hooks/session-reducer.mjs` + `enrichSession` consume the common normalized stream.
 - Dynamic discovery/routing via `hooks/registry.mjs` + `surface/scan-harnesses.mjs`.
 - Live watch + targeted rebuilds work across harnesses (see `surface/watch-handlers.mjs` + `processWatchFilename`).
 - `hooks/pulse-transformer.mjs` provides harness-agnostic live pulses (post-two-layer replacement for the old per-harness `pulse-adapters.mjs`).
 - See `docs/harnesses.md` (self-growing matrix) and `hooks/registry.mjs` header for "easy hook-in" guidance.
 
-The original "Phase 1 (now)" normalized record + "Phase 2 (future)" routing has been delivered in production form, then re-homed into the `hooks/`+`surface/` two-layer split. New harnesses add one adapter + registry entry + scanner — Command Code (the 7th) is the most recent worked example.
+The original "Phase 1 (now)" normalized record + "Phase 2 (future)" routing has been delivered in production form, then re-homed into the `hooks/`+`surface/` two-layer split. New harnesses add one adapter + registry entry + scanner — Codex (the 8th) is the most recent worked example and is documented in `docs/CODEX.md`.
 
 **Why:** Avoids tight coupling between analysis logic and raw harness record shapes. The design proved robust enough to support real multi-harness use and survived a full architectural re-split without touching the adapter contract.
 

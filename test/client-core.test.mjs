@@ -317,10 +317,17 @@ test('projectGlyphFieldSvg — one svg, glyphs at grid cells, data-pid for click
     'idle cell stays hollow');
 });
 
-test('HARNESS_MARK has seven distinct non-blue data hues', () => {
-  const ids = ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
+test('HARNESS_MARK has an entry for every registered harness', async () => {
+  const { HARNESS_IDS } = await import('../hooks/registry.mjs');
+  for (const id of HARNESS_IDS) {
+    assert.ok(HARNESS_MARK[id], `HARNESS_MARK is missing a color for harness "${id}"`);
+  }
+});
+
+test('HARNESS_MARK has eight distinct non-blue data hues', () => {
+  const ids = ['claude-code', 'codex', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code'];
   const hexes = ids.map(id => HARNESS_MARK[id]);
-  assert.equal(new Set(hexes).size, 7);
+  assert.equal(new Set(hexes).size, 8);
   for (const hex of hexes) {
     const n = parseInt(hex.slice(1), 16);
     const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;

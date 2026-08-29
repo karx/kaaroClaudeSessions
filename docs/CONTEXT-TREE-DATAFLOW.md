@@ -273,6 +273,7 @@ How each harness feeds the fields that become `thr-turn-text`:
 | Harness | User `display_text` | User `text` (fallback) | Asst text source | Trace? |
 |---|---|---|---|---|
 | **claude-code** | Human text ≤500 from text blocks; hybrid text+tool_result keeps prose; tool-result-only → null | First user msg only (stripped) | `content_block` `block_type:'text'` | ✅ |
+| **codex** | Human `input_text` ≤500 after environment/plugin wrapper stripping | First user msg only | Assistant `output_text` and live `agent_message` → `content_block` text; reasoning → `thinking` | ✅ |
 | **command-code** | Same hybrid rules as CC | First user msg only | `text` + `reasoning`→`thinking` | ✅ |
 | **grok** | every user chunk ≤500 | ≤200 if ≥8 chars | `content_block` text with **`chunk:true`** | ✅ |
 | **opencode** | — | `firstText(_parts)` (capped in trace-tree) | Assistant parts → `content_block` text; reasoning → `thinking` | ✅ |
@@ -281,6 +282,8 @@ How each harness feeds the fields that become `thr-turn-text`:
 | **antigravity** | Minimal | — | No assistant text in NRs | ❌ `trace: false` |
 
 **Implication:** rich `.thr-turn-text` depends on adapters emitting either `display_text` (user) or `content_block` with `block_type:'text'` (assistant). Capability `trace: true` gates the endpoint; it does not guarantee full prose for every harness.
+
+Codex-specific trace details are documented in [CODEX.md](./CODEX.md#trace-support).
 
 ---
 

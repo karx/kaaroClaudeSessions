@@ -126,7 +126,7 @@ test('signals pipeline — buildSignalsData consumes buildSessionsOutput session
 test('parseHarnessFlags', () => {
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs']), ['claude-code']);
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs', '--all-harnesses']),
-    ['claude-code', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code']);
+    ['claude-code', 'codex', 'pi', 'antigravity', 'grok', 'opencode', 'copilot', 'command-code']);
   assert.deepEqual(parseHarnessFlags(['node', 'analyze.mjs', '--harness=pi']), ['pi']);
 });
 

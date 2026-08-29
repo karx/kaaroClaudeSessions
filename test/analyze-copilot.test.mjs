@@ -112,6 +112,9 @@ test('analyzeCopilotSession — canonical session shape', () => {
   assert.equal(session.model, 'copilot/oswe-vscode-prime');
   assert.ok(session.first_timestamp);
   assert.ok(session.file_size_bytes > 0);
+  // completionTokens is output-only; there's no cache signal to ratio at all,
+  // so cache_hit_rate must be null (unknown), never a misleading 0%.
+  assert.equal(session.cache_hit_rate, null);
 });
 
 // ── scan ──────────────────────────────────────────────────────────────────────

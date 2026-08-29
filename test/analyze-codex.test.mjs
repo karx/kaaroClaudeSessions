@@ -84,6 +84,10 @@ test('analyzeCodexSession produces canonical session shape with index title', ()
   assert.equal(session.tool_calls, 1);
   assert.equal(session.git_branch, 'main');
   assert.ok(session.file_size_bytes > 0);
+  // input/cache tokens are deliberately zeroed (whole-context-window
+  // snapshots, not per-turn deltas — docs/CODEX.md#token-handling), so the
+  // derived ratio must be null (unknown), never a misleading 0%.
+  assert.equal(session.cache_hit_rate, null);
 });
 
 test('scanCodexSessions walks dated rollout tree and skips non-session jsonl', () => {

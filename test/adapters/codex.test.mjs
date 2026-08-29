@@ -144,3 +144,72 @@ test('Codex adapter populates user_turn text on every qualifying turn, not just 
   assert.equal(userTurns[0].text, 'First prompt here');
   assert.equal(userTurns[1].text, 'Second prompt here too');
 });
+
+test('Codex adapter maps custom_tool_call (apply_patch) to tool_use/tool_result — real file-edit channel', () => {
+  // Verified against live ~/.codex rollouts: file edits never go through
+  // function_call — they're a separate custom_tool_call/custom_tool_call_output
+  // pair. Without this, file_ops stayed empty for every real codex session,
+  // even ones with 100+ tool calls.
+  const nrs = recordsToNormalized([
+    {
+      timestamp: '2026-08-29T10:00:00.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'custom_tool_call', status: 'completed', call_id: 'call_1', name: 'apply_patch',
+        input: '*** Begin Patch\n*** Update File: src/app.mjs\n@@\n-old\n+new\n*** End Patch',
+      },
+    },
+    {
+      timestamp: '2026-08-29T10:00:01.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'custom_tool_call_output', call_id: 'call_1',
+        output: '{"output":"Success. Updated the following files:\\nM src/app.mjs\\n","metadata":{"exit_code":0}}',
+      },
+    },
+  ]);
+
+  const toolUse = nrs.find(r => r.kind === 'tool_use');
+  assert.equal(toolUse.tool, 'apply_patch');
+  assert.equal(toolUse.tool_id, 'call_1');
+  assert.deepEqual(toolUse.input.paths, ['src/app.mjs']);
+
+  const toolResult = nrs.find(r => r.kind === 'tool_result');
+  assert.equal(toolResult.tool_id, 'call_1');
+  assert.equal(toolResult.error, false);
+});
+
+test('Codex adapter extracts every path from a multi-file apply_patch call', () => {
+  const nrs = recordsToNormalized([{
+    timestamp: '2026-08-29T10:00:00.000Z',
+    type: 'response_item',
+    payload: {
+      type: 'custom_tool_call', status: 'completed', call_id: 'call_2', name: 'apply_patch',
+      input: '*** Begin Patch\n*** Update File: a.mjs\n@@\n-x\n+y\n*** Add File: b.mjs\n+z\n*** End Patch',
+    },
+  }]);
+
+  const toolUse = nrs.find(r => r.kind === 'tool_use');
+  assert.deepEqual(toolUse.input.paths, ['a.mjs', 'b.mjs']);
+});
+
+test('Codex adapter marks a failed apply_patch as a tool_result error', () => {
+  const nrs = recordsToNormalized([
+    {
+      timestamp: '2026-08-29T10:00:00.000Z',
+      type: 'response_item',
+      payload: { type: 'custom_tool_call', status: 'completed', call_id: 'call_3', name: 'apply_patch', input: '*** Begin Patch\n*** End Patch' },
+    },
+    {
+      timestamp: '2026-08-29T10:00:01.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'custom_tool_call_output', call_id: 'call_3',
+        output: '{"output":"Error: context mismatch","metadata":{"exit_code":1}}',
+      },
+    },
+  ]);
+
+  const toolResult = nrs.find(r => r.kind === 'tool_result');
+  assert.equal(toolResult.error, true);
+});

@@ -129,12 +129,10 @@ export function recordsToNormalized(records) {
         const tokens = tokenUsage(payload);
         if (tokens) out.push({ kind: 'tokens', harness: HARNESS, ts, tokens });
       }
-      if (payload.type === 'agent_message' && payload.message) {
-        out.push({
-          kind: 'content_block', harness: HARNESS, ts,
-          block_type: 'text', text: String(payload.message),
-        });
-      }
+      // agent_message/user_message under event_msg duplicate response_item's
+      // message (role assistant/user) — verified byte-identical text, ~1ms
+      // apart, in live rollouts. response_item is the sole source of turn
+      // content; emitting both here would double every content_block:text.
       continue;
     }
 

@@ -145,6 +145,28 @@ test('Codex adapter populates user_turn text on every qualifying turn, not just 
   assert.equal(userTurns[1].text, 'Second prompt here too');
 });
 
+test('Codex adapter does not double-emit assistant text (event_msg/agent_message duplicates response_item/message)', () => {
+  // Verified against live ~/.codex rollouts: every assistant turn writes
+  // BOTH an event_msg/agent_message AND a response_item/message with the
+  // same text (1ms apart) — a real session showed exactly 2x as many
+  // content_block:text NRs as actual assistant turns before this fix.
+  const nrs = recordsToNormalized([
+    {
+      timestamp: '2026-08-29T10:00:00.000Z',
+      type: 'event_msg',
+      payload: { type: 'agent_message', message: 'I will inspect the repo shape first.' },
+    },
+    {
+      timestamp: '2026-08-29T10:00:00.001Z',
+      type: 'response_item',
+      payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'I will inspect the repo shape first.' }] },
+    },
+  ]);
+
+  const textBlocks = nrs.filter(r => r.kind === 'content_block' && r.block_type === 'text');
+  assert.equal(textBlocks.length, 1, 'assistant text must be emitted exactly once, not once per channel');
+});
+
 test('Codex adapter maps custom_tool_call (apply_patch) to tool_use/tool_result — real file-edit channel', () => {
   // Verified against live ~/.codex rollouts: file edits never go through
   // function_call — they're a separate custom_tool_call/custom_tool_call_output

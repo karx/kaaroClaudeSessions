@@ -59,8 +59,11 @@ latest entry per task id and uses `thread_name` as `session.ai_title`.
 | `response_item` reasoning | `content_block:thinking` | thinking count and thinking pulses |
 | `response_item` function call | `tool_use` | tool counts, graph stats, DAW/Now pulses. Shell calls (`shell_command` — the real local CLI name; `exec_command`/`shell`/`bash` kept as aliases) get `category` from `categorizeBash()` (git/npm/node/python/other) |
 | `response_item` function call output | `tool_result` / `tool_error` | error counts and error pulses |
+| `response_item` custom tool call (`apply_patch`) | `tool_use` | file_ops, graph file-node connections. Raw `input` is a diff-DSL string ("`*** Update File: x`"), not structured JSON — every touched path is parsed out into `input.paths[]` so a single multi-file patch credits every file without inflating the tool-call count |
+| `response_item` custom tool call output | `tool_result` / `tool_error` | error detection from the wrapped JSON's `metadata.exit_code` |
 | `event_msg` token count | `tokens` | session size and token pulses |
-| `event_msg` agent message | `content_block:text` | live commentary pulses |
+
+`event_msg`'s `agent_message`/`user_message`/`agent_reasoning` are a second, redundant narration channel — verified byte-identical text to the corresponding `response_item` message/reasoning, written ~1ms apart. Only `response_item` is read for turn content; handling both was found to double every `content_block:text` NR (62 for 31 real assistant turns in one session before this was fixed).
 
 The implementation lives in:
 

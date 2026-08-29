@@ -32,6 +32,63 @@ export function fmtAgo(sec) {
   return Math.floor(sec / 3600) + 'h' + Math.floor((sec % 3600) / 60) + 'm';
 }
 
+// ── Search / highlight (Thread View find-in-thread) ──────────────────────────
+
+export function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Wrap case-insensitive literal matches of `query` in <mark class="thr-hit">,
+ * escaping everything else with `escapeFn` (defaults to `esc`). Empty query
+ * returns the plain escaped text — the no-search render path.
+ */
+export function highlightMatches(text, query, escapeFn = esc) {
+  const s = String(text ?? '');
+  if (!query) return escapeFn(s);
+  const re = new RegExp(escapeRegExp(query), 'gi');
+  let out = '', last = 0, m;
+  while ((m = re.exec(s))) {
+    out += escapeFn(s.slice(last, m.index));
+    out += `<mark class="thr-hit">${escapeFn(m[0])}</mark>`;
+    last = m.index + m[0].length;
+    if (m[0].length === 0) re.lastIndex++;
+  }
+  out += escapeFn(s.slice(last));
+  return out;
+}
+
+/** Count case-insensitive literal occurrences of `query` in `text`. */
+export function countMatches(text, query) {
+  if (!query) return 0;
+  const re = new RegExp(escapeRegExp(query), 'gi');
+  return (String(text ?? '').match(re) || []).length;
+}
+
+// ── Contrast (WCAG relative luminance) ────────────────────────────────────────
+// Mirrors experience/wcag-contrast.mjs; duplicated because this file is
+// inlined as a plain <script> with no imports. test/client-core.test.mjs
+// cross-checks both implementations agree.
+
+function _linearChannel(c) {
+  const c1 = c / 255;
+  return c1 <= 0.03928 ? c1 / 12.92 : ((c1 + 0.055) / 1.055) ** 2.4;
+}
+
+export function relativeLuminance(hex) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return 0.2126 * _linearChannel(r) + 0.7152 * _linearChannel(g) + 0.0722 * _linearChannel(b);
+}
+
+/** Pick full-opacity black or white, whichever contrasts more against `hex`. */
+export function readableTextOn(hex) {
+  const l = relativeLuminance(hex);
+  const withWhite = 1.05 / (l + 0.05);
+  const withBlack = (l + 0.05) / 0.05;
+  return withWhite >= withBlack ? '#ffffff' : '#000000';
+}
+
 // ── Color vocabulary (color is grammar — one meaning per hue) ────────────────
 
 export const TOOL_COLORS = {

@@ -7,8 +7,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { contrastRatio } from '../experience/wcag-contrast.mjs';
 import {
   fmtTok, esc, fmtAgo, TOOL_COLORS, toolColor, blockGeom,
+  escapeRegExp, highlightMatches, countMatches,
+  relativeLuminance, readableTextOn,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
   connectEvents, createBootQueue, resolveControlVisibility, fetchRetry,
   nextChromeCollapsed, confirmLayoutReset,
@@ -41,6 +44,62 @@ test('fmtAgo — seconds/minutes/hours', () => {
   assert.equal(fmtAgo(45), '45s');
   assert.equal(fmtAgo(125), '2m5s');
   assert.equal(fmtAgo(7320), '2h2m');
+});
+
+test('escapeRegExp — escapes regex metacharacters', () => {
+  assert.equal(escapeRegExp('a.b*c?'), 'a\\.b\\*c\\?');
+  assert.equal(escapeRegExp('[test]'), '\\[test\\]');
+  assert.equal(escapeRegExp('plain'), 'plain');
+});
+
+test('highlightMatches — empty query returns plain escaped text', () => {
+  assert.equal(highlightMatches('<script>', ''), esc('<script>'));
+  assert.equal(highlightMatches('<script>', null), esc('<script>'));
+});
+
+test('highlightMatches — wraps case-insensitive matches in <mark class="thr-hit">', () => {
+  assert.equal(
+    highlightMatches('Read the file.md', 'read'),
+    '<mark class="thr-hit">Read</mark> the file.md',
+  );
+});
+
+test('highlightMatches — wraps every occurrence', () => {
+  assert.equal(
+    highlightMatches('cat cat CAT', 'cat'),
+    '<mark class="thr-hit">cat</mark> <mark class="thr-hit">cat</mark> <mark class="thr-hit">CAT</mark>',
+  );
+});
+
+test('highlightMatches — escapes surrounding text and treats query literally, not as regex', () => {
+  assert.equal(
+    highlightMatches('<a> a.b', 'a.b'),
+    '&lt;a&gt; <mark class="thr-hit">a.b</mark>',
+  );
+});
+
+test('countMatches — counts case-insensitive occurrences, 0 for empty query', () => {
+  assert.equal(countMatches('cat cat CAT', 'cat'), 3);
+  assert.equal(countMatches('no hits here', 'zzz'), 0);
+  assert.equal(countMatches('anything', ''), 0);
+});
+
+test('relativeLuminance — agrees with experience/wcag-contrast.mjs', () => {
+  for (const hex of ['#000000', '#ffffff', '#cc2244', '#00bb55', '#705a3a', '#aa8e66']) {
+    assert.ok(Math.abs(relativeLuminance(hex) - relativeLuminanceRef(hex)) < 1e-9, hex);
+  }
+  function relativeLuminanceRef(hex) {
+    // cross-check via the standalone contrast module: L such that
+    // contrastRatio(hex, '#000000') == (L + 0.05) / 0.05
+    return contrastRatio(hex, '#000000') * 0.05 - 0.05;
+  }
+});
+
+test('readableTextOn — picks whichever of black/white clears the bigger ratio', () => {
+  assert.equal(readableTextOn('#ccaa00'), '#000000', 'bright yellow needs black text');
+  assert.equal(readableTextOn('#2a5c8a'), '#ffffff', 'medium blue needs white text');
+  assert.equal(readableTextOn('#000000'), '#ffffff');
+  assert.equal(readableTextOn('#ffffff'), '#000000');
 });
 
 test('toolColor — case-insensitive canonical tool colors, aliases share hues', () => {

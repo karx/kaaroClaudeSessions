@@ -1659,7 +1659,7 @@ export function generateUsageShareCardSVG(data) {
     if (mo.sessions === 0) {
       return `<rect x="${x}" y="${stripY}" width="${w}" height="10" fill="none" stroke="${c.border}" stroke-width="1"/>`;
     }
-    const opacity = Number((0.15 + 0.85 * (mo.sessions / maxN)).toFixed(1));
+    const opacity = 0.15 + 0.85 * (mo.sessions / maxN);
     return `<rect x="${x}" y="${stripY}" width="${w}" height="10" fill="${c.select}" opacity="${opacity}"/>`;
   }).join('');
   const captionY = nMonths ? fieldY1 + 28 : fieldY1 + 22;

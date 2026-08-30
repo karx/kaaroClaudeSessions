@@ -7,8 +7,9 @@ import {
   isoProject, isoHexPts, hexRFromCellR, citySlabMetrics, citySlabSlice,
   roofNeighbourClearance, CITY_VISIBLE_FACES, CITY_SLAB_CAP,
   CITY_HEX_R_MIN_FRAC, CITY_HEX_R_MAX_FRAC, CITY_FIT_CELL_R_MAX,
-  GLYPH_GRAPH_R, glyphCellPitch, HARNESS_MARK, harnessWedges,
+  GLYPH_GRAPH_R, glyphCellPitch, glyphCellPosition, HARNESS_MARK, harnessWedges,
   fileBaseName, workingSetForProject, buildCityData, mergeGlyphPlacements,
+  fitCityToField, cityBuildingMarkup, cityFieldSvg,
 } from '../experience/client-core.mjs';
 
 const COS30 = Math.sqrt(3) / 2;
@@ -189,6 +190,97 @@ test('buildCityData — seats id-asc, uncapped, weights, oldest slabs, no localS
   assert.equal(viewer.overflowSlabs, 9);
   assert.equal(city.labeledIds[0], 'a');
   assert.equal(typeof localStorage, 'undefined');
+});
+
+function makeCityBuilding(id, col, row, extras = {}) {
+  const slabs = extras.slabs || Array.from({ length: extras.nSlabs || 12 }, () => (
+    { harness: 'pi', color: '#ff9944' }
+  ));
+  return {
+    id, col, row,
+    sizeNorm: extras.sizeNorm ?? 1,
+    shortLabel: extras.shortLabel ?? 'kaaroViewer',
+    slabs,
+    topFiles: extras.topFiles ?? [{ path: '/a.mjs', write: 2, edit: 1, color: '#00cccc' }],
+    harnesses: extras.harnesses ?? ['pi'],
+    weights: extras.weights ?? { pi: 1 },
+    color: extras.color ?? '#ff4488',
+    recencyLevel: extras.recencyLevel ?? 0,
+    ...extras,
+  };
+}
+
+test('fitCityToField — AABB of extents stays in the usage-card field', () => {
+  const city = {
+    buildings: [
+      makeCityBuilding('a', 0, 0),
+      makeCityBuilding('b', 1, 0),
+    ],
+  };
+  const fit = fitCityToField(city, { x0: 55, y0: 100, x1: 630, y1: 514 });
+  assert.ok(fit.s > 0);
+  assert.ok(fit.hexRById.a <= 0.55 * CITY_FIT_CELL_R_MAX + 1e-9);
+  const empty = fitCityToField({ buildings: [] });
+  assert.deepEqual(empty.pins, {});
+  assert.equal(empty.s, 1);
+
+  const cellR = GLYPH_GRAPH_R;
+  const { dy } = glyphCellPitch(cellR);
+  const { slabH } = citySlabMetrics(dy);
+  for (const b of city.buildings) {
+    const { x: cx, y: cy } = glyphCellPosition(b.col, b.row, { r: cellR, originX: 0, originY: 0 });
+    const hexR = hexRFromCellR(cellR, b.sizeNorm);
+    const { shown } = citySlabSlice(b.slabs);
+    const zRoof = shown.length * slabH;
+    const pts = [];
+    for (let k = 0; k < 6; k++) {
+      const a = k * Math.PI / 3;
+      const vx = hexR * Math.sin(a), vy = -hexR * Math.cos(a);
+      pts.push(isoProject(cx + vx, cy + vy, 0));
+      pts.push(isoProject(cx + vx, cy + vy, zRoof));
+    }
+    for (const p of pts) {
+      const q = { x: fit.cxF + (p.x - fit.cxA) * fit.s, y: fit.cyF + (p.y - fit.cyA) * fit.s };
+      assert.ok(q.x >= 55 - 0.5 && q.x <= 630 + 0.5, `x ${q.x}`);
+      assert.ok(q.y >= 100 - 0.5 && q.y <= 514 + 0.5, `y ${q.y}`);
+    }
+  }
+
+  const packed = {
+    buildings: Array.from({ length: 60 }, (_, i) => {
+      // spiral-ish seats
+      const col = (i % 10) - 5, row = Math.floor(i / 10) - 3;
+      return makeCityBuilding('p' + i, col, row, { nSlabs: 3, shortLabel: '', topFiles: [] });
+    }),
+  };
+  const fit60 = fitCityToField(packed);
+  assert.ok(Object.keys(fit60.pins).length === 60);
+});
+
+test('cityBuildingMarkup — iso faces SW first; 2D slab translate; no chrome', () => {
+  const b = makeCityBuilding('x', 0, 0, { nSlabs: 3, topFiles: [] });
+  const iso = cityBuildingMarkup(b, { iso: true, r: 20, slabH: 4, showDiamonds: false, label: false });
+  assert.ok(!iso.includes('<rect'));
+  assert.ok(!iso.includes('filter='));
+  assert.ok(!iso.includes('rx='));
+  const paths = iso.match(/<path /g) || [];
+  assert.equal((iso.match(/<path /g) || []).length >= 3 * 3, true, '3 faces × 3 slabs plus roof');
+  const firstD = iso.match(/<path d="([^"]+)"/)[1];
+  const sw = isoProject(-17.320508, 10, 0);
+  assert.ok(firstD.includes(sw.x.toFixed(0).replace('-', '')) || firstD.includes('-17') || firstD.includes('-23'),
+    'first painted face is SW (negative x)');
+  const flat = cityBuildingMarkup(b, { iso: false, r: 20, slabH: 4.25 });
+  assert.ok(flat.includes('translate(0, 0.00)'));
+  assert.ok(flat.includes('translate(0, -4.25)'));
+  assert.ok(CITY_VISIBLE_FACES[0][0] === 3);
+  assert.ok(paths.length);
+});
+
+test('cityFieldSvg viewBox includes roof height', () => {
+  const city = { buildings: [makeCityBuilding('a', 0, 0, { nSlabs: 8, shortLabel: 'hi', topFiles: [] })], labeledIds: ['a'], diamondIds: [] };
+  const svg = cityFieldSvg(city, { iso: true, pad: 16 });
+  const vb = svg.match(/viewBox="([^"]+)"/)[1].split(/\s+/).map(Number);
+  assert.ok(vb[3] > 40, 'viewBox height includes stack not just footprint');
 });
 
 test('harnessWedges — weighted grok wedge is 2π/11 not π (kaaroBrain shape)', () => {

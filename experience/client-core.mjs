@@ -1621,6 +1621,231 @@ export function buildCityData({
   };
 }
 
+function sideFace(verts, i, z0, z1) {
+  const a = verts[i], b = verts[(i + 1) % 6];
+  const p = [
+    isoProject(a[0], a[1], z0),
+    isoProject(b[0], b[1], z0),
+    isoProject(b[0], b[1], z1),
+    isoProject(a[0], a[1], z1),
+  ];
+  return pathFromPts(p.map(q => [q.x, q.y]));
+}
+
+function diamondPath(cx, cy, d) {
+  return pathFromPts([[cx, cy - d], [cx + d, cy], [cx, cy + d], [cx - d, cy]]);
+}
+
+function buildingIsoExtents(building, { cx, cy, hexR, slabH }) {
+  const { shown } = citySlabSlice(building.slabs);
+  const zRoof = shown.length * slabH;
+  const pts = [];
+  for (const [vx, vy] of hexVertices(hexR)) {
+    pts.push(isoProject(cx + vx, cy + vy, 0));
+    pts.push(isoProject(cx + vx, cy + vy, zRoof));
+  }
+  for (let k = 0; k < (building.topFiles || []).length; k++) {
+    const [vx, vy] = hexVertices(hexR)[k];
+    pts.push(isoProject(cx + vx * CITY_DIAMOND_OUT, cy + vy * CITY_DIAMOND_OUT, 0));
+  }
+  if (building.shortLabel) {
+    pts.push(isoProject(cx - CITY_LABEL_HALF_W, cy + hexR + 12, 0));
+    pts.push(isoProject(cx + CITY_LABEL_HALF_W, cy + hexR + 12, 0));
+    pts.push(isoProject(cx, cy, zRoof + 10));
+  }
+  return pts;
+}
+
+export function fitCityToField(city, {
+  x0 = 55, y0 = 100, x1 = 630, y1 = 514,
+  margin = CITY_FIELD_MARGIN,
+  shownIds = null,
+} = {}) {
+  const idSet = shownIds ? new Set(shownIds) : null;
+  const buildings = (city.buildings || []).filter(b => !idSet || idSet.has(b.id));
+  const cellR = GLYPH_GRAPH_R;
+  const { dx, dy } = glyphCellPitch(cellR);
+  const { slabH } = citySlabMetrics(dy);
+  const local = {};
+  const pts = [];
+  for (const b of buildings) {
+    const { x: cx, y: cy } = glyphCellPosition(b.col, b.row, { r: cellR, originX: 0, originY: 0 });
+    const hexR = hexRFromCellR(cellR, b.sizeNorm);
+    local[b.id] = { cx, cy, hexR };
+    pts.push(...buildingIsoExtents(b, { cx, cy, hexR, slabH }));
+  }
+  if (!buildings.length || !pts.length) {
+    return {
+      pins: {}, hexRById: {}, s: 1, slabH: 0,
+      pitch: { dx: 0, dy: 0, cellR },
+      cxA: 0, cyA: 0, cxF: (x0 + x1) / 2, cyF: (y0 + y1) / 2,
+    };
+  }
+  const minX = Math.min(...pts.map(p => p.x));
+  const maxX = Math.max(...pts.map(p => p.x));
+  const minY = Math.min(...pts.map(p => p.y));
+  const maxY = Math.max(...pts.map(p => p.y));
+  const bw = Math.max(1e-6, maxX - minX);
+  const bh = Math.max(1e-6, maxY - minY);
+  const fieldW = x1 - x0, fieldH = y1 - y0;
+  let s = Math.min((fieldW - 2 * margin) / bw, (fieldH - 2 * margin) / bh);
+  s = Math.min(s, CITY_FIT_CELL_R_MAX / cellR);
+  const cxA = (minX + maxX) / 2, cyA = (minY + maxY) / 2;
+  const cxF = (x0 + x1) / 2, cyF = (y0 + y1) / 2;
+  const pins = {}, hexRById = {};
+  for (const b of buildings) {
+    const { cx, cy, hexR } = local[b.id];
+    const p = isoProject(cx, cy, 0);
+    pins[b.id] = { x: cxF + (p.x - cxA) * s, y: cyF + (p.y - cyA) * s };
+    hexRById[b.id] = hexR * s;
+  }
+  return {
+    pins,
+    pitch: { dx: dx * s, dy: dy * s, cellR: cellR * s },
+    slabH: slabH * s,
+    hexRById,
+    s, cxA, cyA, cxF, cyF,
+  };
+}
+
+export function cityBuildingMarkup(building, {
+  iso = true,
+  r,
+  slabH,
+  showDiamonds = false,
+  diamondFill = 'building',
+  label = false,
+} = {}) {
+  const hexR = r;
+  const c = SHARE_CARD_TOKENS;
+  const { shown, overflow } = citySlabSlice(building.slabs);
+  const verts = hexVertices(hexR);
+  let out = '';
+  if (iso) {
+    for (let i = 0; i < shown.length; i++) {
+      const z0 = i * slabH, z1 = (i + 1) * slabH;
+      const fill = shown[i].color;
+      for (const [ia] of CITY_VISIBLE_FACES) {
+        out += `<path d="${sideFace(verts, ia, z0, z1)}" fill="${fill}" stroke="${c.border}" stroke-width="0.5"/>`;
+      }
+    }
+    const zRoof = shown.length * slabH;
+    const wedges = harnessWedgePts(building.harnesses, hexR, building.weights);
+    for (const w of wedges) {
+      const pts = w.pts.map(([x, y]) => {
+        const p = isoProject(x, y, zRoof);
+        return [p.x, p.y];
+      });
+      const fill = HARNESS_MARK[w.harness] || building.color;
+      out += `<path d="${pathFromPts(pts)}" fill="${fill}" fill-opacity="${HARNESS_FILL_OPACITY}"/>`;
+    }
+    const roof = isoHexPts(hexR, zRoof);
+    out += `<path d="${pathFromPts(roof.map(p => [p.x, p.y]))}" fill="none" stroke="${esc(building.color)}" stroke-width="1.5"/>`;
+    if ((building.recencyLevel || 0) >= 1) {
+      const op = building.recencyLevel >= 3 ? 0.75 : building.recencyLevel >= 2 ? 0.45 : 0.2;
+      out += `<path d="${pathFromPts(roof.map(p => [p.x, p.y]))}" fill="none" stroke="${c.geo}" stroke-width="1.2" opacity="${op}"/>`;
+    }
+    if (overflow > 0) {
+      const tip = isoProject(0, 0, zRoof + 10);
+      out += `<text x="${tip.x.toFixed(1)}" y="${tip.y.toFixed(1)}" text-anchor="middle" style="font-size:8px;fill:${c.dim};">+${overflow}</text>`;
+    }
+    if (showDiamonds) {
+      const files = building.topFiles || [];
+      const maxWe = Math.max(1, ...files.map(f => f.write + f.edit));
+      files.forEach((f, k) => {
+        const [vx, vy] = verts[k];
+        const p = isoProject(vx * CITY_DIAMOND_OUT, vy * CITY_DIAMOND_OUT, 0);
+        const d = clampCity(3 + 5 * Math.sqrt((f.write + f.edit) / maxWe), 3, 8);
+        const fill = diamondFill === 'file' ? (f.color || building.color) : building.color;
+        out += `<path d="${diamondPath(p.x, p.y, d)}" fill="${fill}"/>`;
+      });
+    }
+    if (label && building.shortLabel) {
+      const p = isoProject(0, hexR + 12, 0);
+      out += `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" style="font-size:9px;fill:${c.body};">${esc(_shareTrunc(building.shortLabel, 14))}</text>`;
+    }
+    return out;
+  }
+  const wedges = harnessWedges(building.harnesses, hexR, building.weights);
+  for (const w of wedges) {
+    out += `<path d="${w.d}" fill="${HARNESS_MARK[w.harness] || building.color}" fill-opacity="${HARNESS_FILL_OPACITY}"/>`;
+  }
+  out += `<path d="${hexPath(hexR)}" fill="none" stroke="${esc(building.color)}" stroke-width="2"/>`;
+  for (let i = 0; i < shown.length; i++) {
+    const fill = shown[i].color;
+    out += `<g transform="translate(0, ${(-i * slabH).toFixed(2)})">`;
+    for (const [ia] of CITY_VISIBLE_FACES) {
+      const a = verts[ia], b = verts[(ia + 1) % 6];
+      const pts = [a, b, [b[0], b[1] - slabH], [a[0], a[1] - slabH]];
+      out += `<path d="${pathFromPts(pts)}" fill="${fill}" stroke="${c.border}" stroke-width="0.4"/>`;
+    }
+    out += `</g>`;
+  }
+  if (showDiamonds) {
+    const files = building.topFiles || [];
+    const maxWe = Math.max(1, ...files.map(f => f.write + f.edit));
+    files.forEach((f, k) => {
+      const [vx, vy] = verts[k];
+      const d = clampCity(4 + 7 * Math.sqrt((f.write + f.edit) / maxWe), 4, 11);
+      const fill = diamondFill === 'file' ? (f.color || building.color) : building.color;
+      out += `<path d="${diamondPath(vx * CITY_DIAMOND_OUT, vy * CITY_DIAMOND_OUT, d)}" fill="${fill}"/>`;
+    });
+  }
+  if (label && building.shortLabel) {
+    out += `<text x="0" y="${(hexR + 12).toFixed(1)}" text-anchor="middle" style="font-size:9px;fill:${c.body};">${esc(_shareTrunc(building.shortLabel, 14))}</text>`;
+  }
+  return out;
+}
+
+export function cityFieldSvg(city, {
+  iso = true,
+  showDiamonds = false,
+  selectedId = null,
+  bg = '#000000',
+  pad = 16,
+  cellR = GLYPH_GRAPH_R,
+} = {}) {
+  const { dy } = glyphCellPitch(cellR);
+  const { slabH } = citySlabMetrics(dy);
+  const items = [];
+  const pts = [];
+  for (const b of city.buildings || []) {
+    const { x: cx, y: cy } = glyphCellPosition(b.col, b.row, { r: cellR, originX: 0, originY: 0 });
+    const hexR = hexRFromCellR(cellR, b.sizeNorm);
+    if (iso) pts.push(...buildingIsoExtents(b, { cx, cy, hexR, slabH }));
+    else {
+      pts.push({ x: cx - hexR, y: cy - hexR - (citySlabSlice(b.slabs).shown.length * slabH) });
+      pts.push({ x: cx + hexR, y: cy + hexR + 14 });
+    }
+    items.push({ b, cx, cy, hexR });
+  }
+  if (!items.length) {
+    return `<svg class="city-field" width="200" height="120" viewBox="-100 -60 200 120" xmlns="http://www.w3.org/2000/svg"></svg>`;
+  }
+  items.sort((A, B) => {
+    const ya = iso ? isoProject(A.cx, A.cy, 0).y : A.cy;
+    const yb = iso ? isoProject(B.cx, B.cy, 0).y : B.cy;
+    if (ya !== yb) return ya - yb;
+    return A.b.id < B.b.id ? -1 : A.b.id > B.b.id ? 1 : 0;
+  });
+  const minX = Math.min(...pts.map(p => p.x)) - pad;
+  const minY = Math.min(...pts.map(p => p.y)) - pad;
+  const maxX = Math.max(...pts.map(p => p.x)) + pad;
+  const maxY = Math.max(...pts.map(p => p.y)) + pad;
+  const groups = items.map(({ b, cx, cy, hexR }) => {
+    const origin = iso ? isoProject(cx, cy, 0) : { x: cx, y: cy };
+    const markup = cityBuildingMarkup(b, {
+      iso, r: hexR, slabH,
+      showDiamonds: showDiamonds || selectedId === b.id,
+      diamondFill: iso ? 'building' : 'file',
+      label: selectedId === b.id || (city.labeledIds || []).includes(b.id),
+    });
+    return `<g class="city-bldg" data-pid="${esc(b.id)}" transform="translate(${origin.x.toFixed(1)},${origin.y.toFixed(1)})">${markup}</g>`;
+  }).join('');
+  const w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY);
+  return `<svg class="city-field" width="${Math.ceil(w)}" height="${Math.ceil(h)}" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" xmlns="http://www.w3.org/2000/svg"><rect x="${minX.toFixed(1)}" y="${minY.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${bg}"/>${groups}</svg>`;
+}
+
 export function usageEpithet({ rows, dateFrom, dateTo, topProjectShort, total_sessions }) {
   if (!total_sessions || !(rows && rows.length)) return 'empty canvas';
   const parts = [];

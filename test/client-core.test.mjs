@@ -1607,3 +1607,136 @@ test('generateUsageShareCardSVG / buildShareText — named vs unnamed wordmark, 
   assert.ok(projectSvg.includes('letter-spacing:3px;">KAAROSESSIONS</text>'), 'project card keeps product wordmark');
 });
 
+function makePulseSess(date_str, extra = {}) {
+  return { project_id: 'p0', color: '#556677', tool_diversity: 1, date_str, tokens_total: 0, ...extra };
+}
+
+test('buildUsageShareCardData — months: dense inclusive calendar with empty-month holes, not populated-only', async () => {
+  const { buildUsageShareCardData, meGlyph } = await import('../experience/client-core.mjs');
+  // Six populated months of the 2025-03 → 2026-08 dump; 2025-04 is the hole.
+  const sessions = [
+    makePulseSess('2025-03-10', { tokens_total: 100, tool_calls: 1 }),
+    makePulseSess('2025-12-01', { tokens_total: 200, tool_calls: 1 }),
+    makePulseSess('2026-05-01', { tokens_total: 300, tool_calls: 1 }),
+    makePulseSess('2026-06-01', { tokens_total: 400, tool_calls: 1 }),
+    makePulseSess('2026-07-01', { tokens_total: 50, tool_calls: 1 }),
+    makePulseSess('2026-07-20', { tokens_total: 50, tool_calls: 1 }),
+    makePulseSess('2026-08-30', { tokens_total: 600, tool_calls: 1 }),
+  ];
+  const data = buildUsageShareCardData(meGlyph([]), {
+    sessions, dateFrom: '2025-03-01', dateTo: '2026-08-30',
+  });
+  assert.equal(data.months.length, 18, 'inclusive 2025-03 … 2026-08 is 18 cells, not 6 populated');
+  assert.equal(data.months[0].ym, '2025-03');
+  assert.equal(data.months[17].ym, '2026-08');
+  const apr = data.months.find(m => m.ym === '2025-04');
+  assert.ok(apr, '2025-04 is a seeded hole, not dropped');
+  assert.equal(apr.sessions, 0);
+  assert.equal(apr.tokens, 0);
+  assert.equal(data.months.filter(m => m.sessions > 0).length, 6);
+  const jul = data.months.find(m => m.ym === '2026-07');
+  assert.equal(jul.sessions, 2, 'two July sessions increment the same bucket');
+  assert.equal(jul.tokens, 100);
+  assert.equal('date_str' in data.sessions[0], false, 'constellation map still drops date_str after the month pass');
+
+  const noFrom = buildUsageShareCardData(meGlyph([]), { sessions, dateTo: '2026-08-30' });
+  assert.deepEqual(noFrom.months, [], 'missing dateFrom → no months');
+  const noTo = buildUsageShareCardData(meGlyph([]), { sessions, dateFrom: '2025-03-01' });
+  assert.deepEqual(noTo.months, [], 'missing dateTo → no months');
+  const empty = buildUsageShareCardData(meGlyph([]), { dateFrom: '2025-03-01', dateTo: '2026-08-30' });
+  assert.deepEqual(empty.months, [], 'empty canvas → no months');
+
+  // 30-month span 2024-03 → 2026-08; last 24 starts at 2024-09.
+  const longSessions = [
+    makePulseSess('2024-03-01', { tokens_total: 9 }),
+    makePulseSess('2024-09-01', { tokens_total: 3 }),
+    makePulseSess('2026-08-01', { tokens_total: 1 }),
+  ];
+  const capped = buildUsageShareCardData(meGlyph([]), {
+    sessions: longSessions, dateFrom: '2024-03-01', dateTo: '2026-08-30',
+  });
+  assert.equal(capped.months.length, 24, 'inclusive span > 24 keeps the last 24 months');
+  assert.equal(capped.months[0].ym, '2024-09');
+  assert.equal(capped.months[23].ym, '2026-08');
+  assert.equal(capped.months.find(m => m.ym === '2024-03'), undefined, 'oldest months fall off the cap');
+  assert.equal(capped.months[0].sessions, 1);
+  assert.equal(capped.months[0].tokens, 3);
+});
+
+test('generateUsageShareCardSVG — monthly pulse strip in the field gutter; caption moves only when months present', async () => {
+  const { buildUsageShareCardData, generateUsageShareCardSVG, meGlyph, HARNESS_MARK } = await import('../experience/client-core.mjs');
+  const projects = [{ id: 'p0', label: 'world', color: '#334455', harnesses: ['claude-code'], recencyLevel: 0, sizeNorm: 0.5, tokens_total: 1000 }];
+  const sessions = [
+    makePulseSess('2025-03-10', { tokens_total: 1, tool_calls: 4 }),
+    makePulseSess('2025-12-01', { tokens_total: 1, tool_calls: 4 }),
+    makePulseSess('2026-05-01', { tokens_total: 1, tool_calls: 4 }),
+    makePulseSess('2026-06-01', { tokens_total: 1, tool_calls: 4 }),
+    makePulseSess('2026-07-01', { tokens_total: 1, tool_calls: 4 }),
+    makePulseSess('2026-08-30', { tokens_total: 1, tool_calls: 4 }),
+  ];
+  const data = buildUsageShareCardData(meGlyph([{ harness: 'claude-code' }]), {
+    projects, sessions, dateFrom: '2025-03-01', dateTo: '2026-08-30', tokensTotal: 1000,
+  });
+  const svg = generateUsageShareCardSVG(data);
+
+  const stripRects = svg.match(/<rect x="[^"]*" y="522" width="[^"]*" height="10"[^/]*\/>/g) || [];
+  assert.equal(stripRects.length, 18, 'one 10px gutter cell per inclusive month');
+  const holes = stripRects.filter(r => r.includes('fill="none"') && r.includes('stroke="#1e1e00"') && r.includes('stroke-width="1"'));
+  assert.equal(holes.length, 12, 'unpopulated months are hairline holes, not omitted');
+  const filled = stripRects.filter(r => r.includes('fill="#00cccc"'));
+  assert.equal(filled.length, 6, 'fill encodes session count (six populated months)');
+
+  // w = (630 - 55 - 1*17) / 18 = 31; April (i=1) is a hole at x = 55 + 32.
+  assert.ok(stripRects[1].includes('x="31"') === false);
+  assert.ok(stripRects[1].includes('x="55"') === false);
+  assert.match(stripRects[1], /x="87"/);
+  assert.ok(stripRects[1].includes('fill="none"'), '2025-04 is the first hole');
+  assert.match(stripRects[0], /x="55"/);
+  assert.ok(stripRects[0].includes('fill="#00cccc"'), '2025-03 is populated');
+
+  assert.ok(svg.includes('<text x="55" y="542" style="font-size:9px;fill:#445544;">'), 'caption moves to fieldY1+28 when the strip is present');
+  assert.ok(!svg.includes('<text x="55" y="536"'), 'old fieldY1+22 caption slot is vacated');
+
+  // Constellation + PR 1 encoding still hold alongside the strip.
+  assert.ok(svg.includes('hex size = consumption'));
+  assert.ok(svg.includes('ball size = tool types'));
+  assert.ok(!svg.includes('size = activity'));
+  assert.ok(svg.includes('HEAVIEST'));
+  assert.ok(svg.includes('TOOL CALLS'));
+  assert.ok(svg.includes('24'), 'TOOL CALLS is the exact sum');
+  assert.ok(svg.includes('WEDGES = SESSIONS'));
+  assert.ok(/<text x="1020.4" y="402" text-anchor="middle"/.test(svg));
+  assert.ok(svg.includes(HARNESS_MARK['claude-code']), 'forceSolid idle hexes still paint');
+  assert.ok(svg.includes('Claude-native'), 'stacked on PR 2: footer is the epithet, not ALL PROJECTS');
+  assert.equal((svg.match(/<circle cx="[^"]*" cy="[^"]*" r="[^"]*" fill="#556677"/g) || []).length, sessions.length, 'strip does not replace the constellation');
+
+  const emptySvg = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {}));
+  assert.equal((emptySvg.match(/<rect x="[^"]*" y="522" width="[^"]*" height="10"/g) || []).length, 0, 'empty canvas → no strip');
+  assert.ok(emptySvg.includes('<text x="55" y="536"'), 'without months the caption stays at fieldY1+22');
+
+  const noDates = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), { projects, sessions }));
+  assert.equal((noDates.match(/<rect x="[^"]*" y="522" width="[^"]*" height="10"/g) || []).length, 0, 'missing dates → no strip');
+
+  // Fill follows session count, not tokens: 1 huge-token month vs 3 tokenless.
+  const weightSessions = [
+    makePulseSess('2026-01-01', { tokens_total: 9_000_000 }),
+    makePulseSess('2026-02-01', { tokens_total: 0 }),
+    makePulseSess('2026-02-02', { tokens_total: 0 }),
+    makePulseSess('2026-02-03', { tokens_total: 0 }),
+  ];
+  const weightSvg = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {
+    sessions: weightSessions, dateFrom: '2026-01-01', dateTo: '2026-02-01',
+  }));
+  const weightRects = weightSvg.match(/<rect x="[^"]*" y="522" width="[^"]*" height="10" fill="#00cccc" opacity="([^"]*)"/g) || [];
+  assert.equal(weightRects.length, 2);
+  const opacities = weightRects.map(r => Number(/opacity="([^"]*)"/.exec(r)[1]));
+  assert.ok(opacities[1] > opacities[0], 'February (3 sessions, 0 tokens) is darker than January (1 session, huge tokens)');
+  assert.equal(opacities[1], 1, 'maxN month is full opacity (0.15 + 0.85)');
+  assert.equal(opacities[0], 0.15 + 0.85 * (1 / 3));
+
+  const longSvg = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {
+    sessions: [makePulseSess('2024-03-01'), makePulseSess('2026-08-01')],
+    dateFrom: '2024-03-01', dateTo: '2026-08-30',
+  }));
+  assert.equal((longSvg.match(/<rect x="[^"]*" y="522" width="[^"]*" height="10"[^/]*\/>/g) || []).length, 24);
+});

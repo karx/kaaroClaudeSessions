@@ -1506,7 +1506,18 @@ export function buildUsageShareCardData(me, opts = {}) {
   const projRank = new Map(projects.map((p, i) => [p.id, i]));
 
   const rawSessions = opts.sessions || [];
-  const tool_calls = rawSessions.reduce((n, s) => n + (s.tool_calls || 0), 0);
+  // Count months before the constellation map drops date_str. Missing dates
+  // or an empty canvas yield no strip — not a populated-only bucket list.
+  const monthMap = _seedUsageMonths(opts.dateFrom, opts.dateTo, rawSessions.length);
+  const tool_calls = rawSessions.reduce((n, s) => {
+    const bucket = monthMap.get((s.date_str || '').slice(0, 7));
+    if (bucket) {
+      bucket.sessions += 1;
+      bucket.tokens += s.tokens_total || 0;
+    }
+    return n + (s.tool_calls || 0);
+  }, 0);
+  const months = [...monthMap.values()];
   const avg_diversity = rawSessions.length
     ? Math.round(rawSessions.reduce((n, s) => n + (s.tool_diversity || 0), 0) / rawSessions.length)
     : 0;
@@ -1543,10 +1554,32 @@ export function buildUsageShareCardData(me, opts = {}) {
     displayName,
     epithet: usageEpithet({ rows, dateFrom, dateTo, topProjectShort, total_sessions }),
     shareFilename: usageShareFilename(displayName, dateTo),
+    months,
     projects,
     sessions,
     me: me || null,
   };
+}
+
+/** Dense inclusive YYYY-MM calendar from dateFrom..dateTo; last 24 if longer. */
+function _seedUsageMonths(dateFrom, dateTo, sessionCount) {
+  const map = new Map();
+  if (!dateFrom || !dateTo || !sessionCount) return map;
+  let y = Number(String(dateFrom).slice(0, 4));
+  let m = Number(String(dateFrom).slice(5, 7));
+  const y2 = Number(String(dateTo).slice(0, 4));
+  const m2 = Number(String(dateTo).slice(5, 7));
+  if (!y || !m || !y2 || !m2) return map;
+  const keys = [];
+  while (y < y2 || (y === y2 && m <= m2)) {
+    keys.push(`${y}-${String(m).padStart(2, '0')}`);
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+    if (keys.length > 240) break;
+  }
+  const kept = keys.length > 24 ? keys.slice(-24) : keys;
+  for (const ym of kept) map.set(ym, { ym, sessions: 0, tokens: 0 });
+  return map;
 }
 
 /** Minimal spiral ring count k with capacity 1+3k(k+1) >= n. */
@@ -1613,6 +1646,24 @@ export function generateUsageShareCardSVG(data) {
   const caption = `◆ hex size = consumption · ball size = tool types (avg ${data.avg_diversity || 0})` +
     (overflowBits.length ? ` · ${overflowBits.join(', ')} more` : '');
 
+  // Pulse strip in the 46px gutter under the field. Empty months are
+  // hairline holes; fill encodes session count, not tokens.
+  const months = data.months || [];
+  const nMonths = months.length;
+  const gap = 1;
+  const cellW = nMonths ? (fieldX1 - fieldX0 - gap * (nMonths - 1)) / nMonths : 0;
+  const maxN = Math.max(1, ...months.map(mo => mo.sessions));
+  const stripY = fieldY1 + 8;
+  const strip = months.map((mo, i) => {
+    const x = fieldX0 + i * (cellW + gap);
+    if (mo.sessions === 0) {
+      return `<rect x="${x}" y="${stripY}" width="${cellW}" height="10" fill="none" stroke="${c.border}" stroke-width="1"/>`;
+    }
+    const opacity = 0.15 + 0.85 * (mo.sessions / maxN);
+    return `<rect x="${x}" y="${stripY}" width="${cellW}" height="10" fill="${c.select}" opacity="${opacity}"/>`;
+  }).join('');
+  const captionY = nMonths ? fieldY1 + 28 : fieldY1 + 22;
+
   // ── RIGHT: stats + legend on the left half; ME hero hex big, vertically
   // centered, in the right half of the right column.
   const stats = [
@@ -1651,7 +1702,8 @@ export function generateUsageShareCardSVG(data) {
 
   ${balls}
   ${hexes}
-  <text x="${fieldX0}" y="${fieldY1 + 22}" style="font-size:9px;fill:${c.dim};">${esc(caption)}</text>
+  ${strip}
+  <text x="${fieldX0}" y="${captionY}" style="font-size:9px;fill:${c.dim};">${esc(caption)}</text>
 
   ${_shareStatRows(stats, g)}
   ${legend}

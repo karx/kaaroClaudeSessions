@@ -30,9 +30,15 @@ function attachTooltip(sel) {
     tip.style.display='block';
     if (d.type==='project') {
       const hs = d.harnesses || [];
+      const seat = window._seatCity?.buildings?.find(b => b.id === d.id);
+      const mix = seat?.weights
+        ? Object.entries(seat.weights).map(([h, n]) => h + ' ' + n).join(' · ')
+        : '';
       tip.innerHTML=`<strong style="color:${d.color}">${d.label}</strong>
         <div class="meta">${d.session_count} sessions · consumption: ${fmtTok(d.tokens_total)} · AI work: ${fmtTok(d.tokens_work)}</div>
         ${hs.length?`<div class="meta">${hs.length} harness${hs.length===1?'':'es'} · ${hs.join(' · ')}</div>`:''}
+        ${mix?`<div class="meta">stack · ${mix}</div>`:''}
+        ${seat?.scaffold?.length?`<div class="meta">plumbing · ${seat.scaffold.length} files</div>`:''}
         ${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;
     } else if (d.type==='subagent') {
       tip.innerHTML=`<strong style="color:${EDGE_COLORS.spawn}">↳ ${esc(d.agent_type||'subagent')}</strong>

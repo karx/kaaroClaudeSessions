@@ -13,8 +13,10 @@ window.updateGraph = function(newData) {
   expandedClusters.forEach(id=>{ if(!liveClusterIds.has(id)){expandedClusters.delete(id);prunedExpanded=true;} });
   if (prunedExpanded) _saveExpanded();
   simulation.nodes(GRAPH.nodes);
-  simulation.force('link').links(GRAPH.edges);
+  const linkForce = simulation.force('link');
+  if (linkForce) linkForce.links(GRAPH.edges);
   edgeSel=edgeLayer.selectAll('path').data(GRAPH.edges,edgeKey).join(enter=>enter.append('path').call(styleEdge),update=>update,exit=>exit.remove());
+  window.refreshSeatCity?.();
   nodeSel=joinNodes(GRAPH); nodeSel.call(drag); attachTooltip(nodeSel); attachClick(nodeSel);
   projLabelSel=labelLayer.selectAll('text.pl').data(GRAPH.nodes.filter(n=>n.type==='project'),d=>d.id).join('text').attr('class','pl').attr('text-anchor','middle').attr('fill',d=>d.color).attr('font-size',9).attr('letter-spacing',1).attr('pointer-events','none').text(d=>d.label.toUpperCase());
   LAYOUT_HANDLERS[currentLayout]?.enter?.();

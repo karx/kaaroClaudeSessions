@@ -14,6 +14,7 @@ const LAYOUT_HANDLERS = {
       if (currentLayout !== 'grid') decorLayer.selectAll('*').remove();
       simulation.nodes(GRAPH.nodes);
       restoreForceLayout();
+      if (typeof joinNodes === 'function') nodeSel = joinNodes(GRAPH);
       simulation.alpha(0.25).restart();
       nodeSel.call(drag);
     },
@@ -27,6 +28,8 @@ const LAYOUT_HANDLERS = {
       const free = document.getElementById('fp-free');
       if (free) free.checked = false;
       LAYOUT_HANDLERS.force.enter();
+      window.refreshSeatCity?.();
+      if (typeof joinNodes === 'function') nodeSel = joinNodes(GRAPH);
       document.getElementById('canvas')?.classList.add('layout-grid');
       window.drawGridDecor?.();
       zoom.on('zoom.grid', () => {
@@ -102,8 +105,9 @@ function applyControlVisibility(active) {
   }
 }
 
-function setLayout(name) {
-  if (name === currentLayout) return;
+function setLayout(name, opts) {
+  const forceEnter = opts && opts.forceEnter;
+  if (!forceEnter && name === currentLayout) return;
   LAYOUT_HANDLERS[currentLayout]?.exit?.();
   currentLayout = name;
   document.querySelectorAll('[data-layout]').forEach(b=>b.classList.toggle('active', b.dataset.layout===name));

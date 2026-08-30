@@ -27,7 +27,10 @@ function applyFilters() {
   const clusterHidden = computeClusterHidden(GRAPH.nodes,
     { bundleOn: BUNDLE_ON, expanded: expandedClusters, filters: SESSION_FILTERS });
   const hiddenNodes = new Set();
+  const seatMode = currentLayout === 'grid';
+  if (seatMode) window.refreshSeatCity?.();
   for (const n of GRAPH.nodes) {
+    if (seatMode && seatLayoutHides(n.type)) { hiddenNodes.add(n.id); continue; }
     if (n.type === 'session' && (!sessionMatchesFilters(n, SESSION_FILTERS) || clusterHidden.has(n.id))) hiddenNodes.add(n.id);
     if (n.type === 'cluster' && clusterHidden.has(n.id)) hiddenNodes.add(n.id);
     // Subagent satellites: default OFF; also hide if parent session is hidden
@@ -46,10 +49,16 @@ function applyFilters() {
       (fileSess[t] = fileSess[t] || []).push(s);
     }
   }
+  const scaffoldFiles = new Set(window._seatCity?.scaffoldFileIds || []);
   nodeSel.attr('display', d => {
     if (d.type === 'session' || d.type === 'cluster' || d.type === 'subagent')
       return hiddenNodes.has(d.id) ? 'none' : null;
     if (d.type === 'file') {
+      if (seatMode) {
+        if (!showFiles || !scaffoldFiles.has(d.id)) { hiddenNodes.add(d.id); return 'none'; }
+        if (!showRoFiles && d.write === 0 && d.edit === 0) { hiddenNodes.add(d.id); return 'none'; }
+        return null;
+      }
       if (!showFiles)                                    { hiddenNodes.add(d.id); return 'none'; }
       if (d.session_count < minSess)                     { hiddenNodes.add(d.id); return 'none'; }
       if (!showRoFiles && d.write === 0 && d.edit === 0) { hiddenNodes.add(d.id); return 'none'; }
@@ -61,6 +70,14 @@ function applyFilters() {
   });
   edgeSel.attr('display', e => {
     const src=e.source?.id??e.source, tgt=e.target?.id??e.target;
+    if (seatMode) {
+      if (e.type !== 'write' && e.type !== 'edit' && e.type !== 'read') return 'none';
+      if (e.type === 'read' && !showReads) return 'none';
+      const sn = nodeById[src], tn = nodeById[tgt];
+      const fileId = tn?.type === 'file' ? tgt : (sn?.type === 'file' ? src : null);
+      if (!fileId || hiddenNodes.has(fileId)) return 'none';
+      return null;
+    }
     if (hiddenNodes.has(src)||hiddenNodes.has(tgt)) return 'none';
     if (e.type==='read'   && !showReads)  return 'none';
     if (e.type==='branch' && !showBranch) return 'none';
@@ -76,8 +93,19 @@ function applyFilters() {
     return !hiddenNodes.has(s) && !hiddenNodes.has(t);
   });
   simulation.nodes(visNodes);
-  simulation.force('link', makeForceLink(visEdges));
-  if (hiddenNodes.size > 0) simulation.alpha(0.15).restart();
+  if (seatMode) {
+    simulation.force('link', null);
+    if (typeof seatPinScaffold === 'function')
+      seatPinScaffold(typeof window.glyphBoardPins === 'function' ? window.glyphBoardPins(W, H) : null);
+    nodeSel.filter(d => d.type === 'project').each(function(d) {
+      const el = d3.select(this);
+      el.selectAll('*').remove();
+      renderNodeContent(el, d);
+    });
+  } else {
+    simulation.force('link', makeForceLink(visEdges));
+    if (hiddenNodes.size > 0) simulation.alpha(0.15).restart();
+  }
 }
 
 // General controls
@@ -377,7 +405,7 @@ const SHORTCUTS_DEF = [
   { key:'a', label:'A',      desc:'Arc coupling map',     action:()=>setLayout('arc') },
   { key:'m', label:'M',      desc:'Matrix view',          action:()=>setLayout('matrix') },
   { key:'g', label:'G',      desc:'3D force graph',       action:()=>setLayout('3d') },
-  { key:'p', label:'P',      desc:'Hex lattice layout',   action:()=>setLayout(currentLayout==='grid'?'force':'grid') },
+  { key:'p', label:'P',      desc:'Seat lattice layout',  action:()=>setLayout(currentLayout==='grid'?'force':'grid') },
   { key:'h', label:'H',      desc:'Collapse / expand all panels', action:()=>collapseAllChrome() },
 ];
 

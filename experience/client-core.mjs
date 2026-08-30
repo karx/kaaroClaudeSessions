@@ -634,6 +634,246 @@ export function harnessBreakdown(harnesses, sessions = []) {
   }));
 }
 
+// ── Seat City (lattice seats + stacked session tiles) ─────────────────────────
+// Projects sit on the hex lattice. Sessions stack in depth (cabinet shear)
+// so a top-down pancake cannot hide them. Roof = harness. Walls = tools.
+// Files and write/edit/read edges are the ground plumbing.
+
+export const SEAT_SLAB_CAP = 12;
+export const SEAT_HEX_MIN_FRAC = 0.36;
+export const SEAT_HEX_MAX_FRAC = 0.50;
+export const SEAT_SHEAR = 0.42;
+export const SEAT_SCAFFOLD_CAP = 8;
+const SEAT_PIPE_TYPES = new Set(['write', 'edit', 'read']);
+
+export function isSeatLayout(name) {
+  return name === 'grid';
+}
+
+export function seatLayoutHides(type) {
+  return type === 'session' || type === 'cluster' || type === 'subagent';
+}
+
+export function seatForceConfig() {
+  return {
+    pinProjects: true,
+    includeSessions: false,
+    includeFiles: true,
+    includeClusters: false,
+    link: false,
+    charge: false,
+    collide: true,
+  };
+}
+
+export function seatFootprintR(cellR, sizeNorm) {
+  const n = Math.max(0, Math.min(1, sizeNorm || 0));
+  return cellR * (SEAT_HEX_MIN_FRAC + (SEAT_HEX_MAX_FRAC - SEAT_HEX_MIN_FRAC) * n);
+}
+
+export function seatSlabHeight(cellR) {
+  const { dy } = glyphCellPitch(cellR);
+  return (dy * 0.45) / SEAT_SLAB_CAP;
+}
+
+export function sliceSeatSlabs(slabs, cap = SEAT_SLAB_CAP) {
+  const list = slabs || [];
+  if (list.length <= cap) return { shown: list, overflow: 0 };
+  return { shown: list.slice(list.length - cap), overflow: list.length - cap };
+}
+
+export function seatOblique(x, y, z, shear = SEAT_SHEAR) {
+  return { x: x + z * shear, y: y - z };
+}
+
+export function seatSessionDepth(slab, unit = 1) {
+  const n = Math.max(0, Math.min(1, Number(slab?.sizeNorm) || 0));
+  const floors = Math.max(1, Math.min(4, (Number(slab?.context_resets) || 0) + 1));
+  return unit * (0.65 + 0.35 * n) * (0.75 + 0.25 * floors);
+}
+
+export function seatSlabHeights(slabs, unit, cap = SEAT_SLAB_CAP) {
+  const { shown, overflow } = sliceSeatSlabs(slabs, cap);
+  const raw = shown.map(s => seatSessionDepth(s, 1));
+  const sum = raw.reduce((a, b) => a + b, 0) || 1;
+  const budget = unit * Math.max(shown.length, 1);
+  const heights = raw.map(d => budget * d / sum);
+  return { shown, overflow, heights, rise: budget };
+}
+
+export function seatScaffoldForProject(projectId, { sessions = [], files = [], edges = [], cap = SEAT_SCAFFOLD_CAP } = {}) {
+  const memberIds = new Set(
+    sessions.filter(s => s.project_id === projectId).map(s => s.id),
+  );
+  const acc = new Map();
+  for (const e of edges) {
+    if (!SEAT_PIPE_TYPES.has(e.type)) continue;
+    const src = e.source?.id ?? e.source;
+    const tgt = e.target?.id ?? e.target;
+    if (!memberIds.has(src)) continue;
+    if (!acc.has(tgt)) acc.set(tgt, { path: tgt, write: 0, edit: 0, read: 0 });
+    acc.get(tgt)[e.type] += (e.weight || 1);
+  }
+  const fileById = new Map(files.map(f => [f.id, f]));
+  return [...acc.values()]
+    .filter(f => f.write + f.edit + f.read > 0)
+    .sort((a, b) => {
+      const dw = (b.write + b.edit) - (a.write + a.edit);
+      if (dw) return dw;
+      if (b.read !== a.read) return b.read - a.read;
+      return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+    })
+    .slice(0, cap)
+    .map(f => {
+      const node = fileById.get(f.path);
+      const name = node?.label || String(f.path).replace(/\\/g, '/').split('/').pop() || f.path;
+      return {
+        path: f.path,
+        name,
+        write: f.write, edit: f.edit, read: f.read,
+        color: node?.color || '#666666',
+        sizeNorm: node?.sizeNorm || 0,
+      };
+    });
+}
+
+export function buildSeatCity({
+  projects = [], sessions = [], files = [], edges = [], placements = null,
+} = {}) {
+  const ids = [...projects].map(p => p.id).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const merged = mergeGlyphPlacements(ids, placements);
+  const byId = new Map(projects.map(p => [p.id, p]));
+  const members = new Map();
+  for (const s of sessions) {
+    const pid = s.project_id;
+    if (!pid) continue;
+    if (!members.has(pid)) members.set(pid, []);
+    members.get(pid).push(s);
+  }
+  const scaffoldFileIds = [];
+  const seenFile = new Set();
+  const buildings = ids.map(id => {
+    const p = byId.get(id) || { id };
+    const sess = (members.get(id) || []).slice().sort((a, b) =>
+      String(a.first_timestamp || a.last_activity || '').localeCompare(
+        String(b.first_timestamp || b.last_activity || ''),
+      ),
+    );
+    const weights = {};
+    const slabs = sess.map(s => {
+      const harness = s.harness || s.source || '';
+      if (harness) weights[harness] = (weights[harness] || 0) + 1;
+      const tools_top = Array.isArray(s.tools_top) ? s.tools_top : [];
+      const slab = {
+        id: s.id,
+        harness,
+        color: HARNESS_MARK[harness] || p.color || '#888888',
+        tokens_total: s.tokens_total || 0,
+        tool_calls: s.tool_calls || 0,
+        sizeNorm: s.sizeNorm || 0,
+        context_resets: s.context_resets || 0,
+        tools_top,
+      };
+      slab.depth = seatSessionDepth(slab, 1);
+      return slab;
+    });
+    const seat = merged[id] || { col: 0, row: 0 };
+    const tool_calls = sess.reduce((n, s) => n + (s.tool_calls || 0), 0);
+    const scaffold = seatScaffoldForProject(id, { sessions, files, edges, cap: SEAT_SCAFFOLD_CAP });
+    for (const f of scaffold) {
+      if (seenFile.has(f.path)) continue;
+      seenFile.add(f.path);
+      scaffoldFileIds.push(f.path);
+    }
+    return {
+      id,
+      label: p.label || id,
+      color: p.color || '#888888',
+      sizeNorm: p.sizeNorm || 0,
+      footprint: p.sizeNorm || 0,
+      session_count: p.session_count != null ? p.session_count : sess.length,
+      tokens_total: p.tokens_total || 0,
+      tool_calls,
+      weights,
+      col: seat.col,
+      row: seat.row,
+      slabs,
+      scaffold,
+    };
+  });
+  return { kind: 'seats', placements: merged, buildings, scaffoldFileIds };
+}
+
+function seatObliquePt(xy, z) {
+  const p = seatOblique(xy[0], xy[1], z);
+  return [p.x, p.y];
+}
+
+function seatToolWall(toolsTop, a, b, z0, z1, stroke) {
+  const items = (toolsTop || []).filter(t => (t.calls || 0) > 0);
+  if (!items.length) return '';
+  const total = items.reduce((s, t) => s + (t.calls || 0), 0) || 1;
+  let u = 0;
+  let out = '';
+  for (const t of items) {
+    const du = (t.calls || 0) / total;
+    const p0 = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+    const p1 = [a[0] + (b[0] - a[0]) * (u + du), a[1] + (b[1] - a[1]) * (u + du)];
+    const fill = toolColor(t.name) || '#666666';
+    const d = pathFromPts([
+      seatObliquePt(p0, z0),
+      seatObliquePt(p1, z0),
+      seatObliquePt(p1, z1),
+      seatObliquePt(p0, z1),
+    ]);
+    out += `<path d="${d}" fill="${fill}" fill-opacity="0.88" stroke="${stroke}" stroke-width="0.35"/>`;
+    u += du;
+  }
+  return out;
+}
+
+export function seatTileMarkup(building, { r, unit, slabH, bg = '#000000' } = {}) {
+  const step = unit != null ? unit : (slabH || 4);
+  const color = building.color || '#888888';
+  const { shown, overflow, heights, rise } = seatSlabHeights(building.slabs, step);
+  const verts = hexVertices(r);
+  if (!shown.length) {
+    return `<path d="${hexPath(r)}" fill="${bg}" stroke="${esc(color)}" stroke-width="2"/>`;
+  }
+  const faces = [[1, 2], [2, 3], [3, 4]];
+  let out = '';
+  let z = 0;
+  for (let i = 0; i < shown.length; i++) {
+    const slab = shown[i];
+    const h = heights[i];
+    const z0 = z, z1 = z + h;
+    z = z1;
+    for (const [ia, ib] of faces) {
+      const a = verts[ia], b = verts[ib];
+      const toolWall = (ia === 2 && ib === 3) ? seatToolWall(slab.tools_top, a, b, z0, z1, esc(color)) : '';
+      if (toolWall) {
+        out += toolWall;
+        continue;
+      }
+      const d = pathFromPts([
+        seatObliquePt(a, z0),
+        seatObliquePt(b, z0),
+        seatObliquePt(b, z1),
+        seatObliquePt(a, z1),
+      ]);
+      out += `<path d="${d}" fill="${slab.color}" fill-opacity="0.55" stroke="${esc(color)}" stroke-width="0.4"/>`;
+    }
+    const roof = verts.map(v => seatObliquePt(v, z1));
+    const sw = i === shown.length - 1 ? 1.6 : 0.7;
+    out += `<path d="${pathFromPts(roof)}" fill="${slab.color}" fill-opacity="0.92" stroke="${esc(color)}" stroke-width="${sw}"/>`;
+  }
+  if (overflow > 0) {
+    const tip = seatOblique(0, 0, rise + 10);
+    out += `<text x="${tip.x.toFixed(1)}" y="${tip.y.toFixed(1)}" text-anchor="middle" font-size="8" fill="#445544">+${overflow}</text>`;
+  }
+  return out;
+}
+
 export function nodeRadius(d, r = NODE_RADII) {
   if (d.type === 'project') return r.PR_MIN + (r.PR_MAX - r.PR_MIN) * (d.sizeNorm || 0);
   if (d.type === 'session') return r.SR_MIN + (r.SR_MAX - r.SR_MIN) * (d.sizeNorm || 0);

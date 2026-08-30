@@ -1,10 +1,22 @@
 // ── Edge rendering ────────────────────────────────────────────────────────────
-let currentLayout = 'force';
+let currentLayout = 'grid';
 function isSimLayout() { return currentLayout === 'force' || currentLayout === 'grid'; }
 
+function edgeEndpoint(n) {
+  if (n == null) return { x: 0, y: 0 };
+  if (typeof n === 'string' || typeof n === 'number') n = nodeById[n];
+  if (!n) return { x: 0, y: 0 };
+  if (currentLayout === 'grid' && n.type === 'session') {
+    const p = nodeById[n.project_id];
+    if (p) return { x: p.x ?? 0, y: p.y ?? 0 };
+  }
+  return { x: n.x ?? 0, y: n.y ?? 0 };
+}
+
 function edgePathD(d) {
-  const sx = d.source.x ?? 0, sy = d.source.y ?? 0;
-  const tx = d.target.x ?? 0, ty = d.target.y ?? 0;
+  const s = edgeEndpoint(d.source);
+  const t = edgeEndpoint(d.target);
+  const sx = s.x, sy = s.y, tx = t.x, ty = t.y;
   if (currentLayout === 'arc') {
     if (d.type === 'branch') {
       const mx = (sx + tx) / 2, span = Math.abs(tx - sx);
@@ -39,6 +51,19 @@ GRAPH.nodes.forEach(n => nodeById[n.id] = n);
 // ── Node rendering ────────────────────────────────────────────────────────────
 function renderNodeContent(el, d) {
   const r = nodeRadius(d);
+  if (d.type === 'project' && currentLayout === 'grid') {
+    const cellR = GLYPH_GRAPH_R;
+    const hexR = seatFootprintR(cellR, d.sizeNorm);
+    const unit = seatSlabHeight(cellR);
+    const city = window._seatCity;
+    const b = city?.buildings?.find(x => x.id === d.id) || {
+      id: d.id, color: d.color, slabs: [],
+    };
+    el.append('g').attr('class', 'seat').html(seatTileMarkup(b, {
+      r: hexR, unit, bg: KAARO_TOKENS.bg,
+    }));
+    return;
+  }
   // recencyLevel 1 ("< 2 days") is a static hairline — infinite CSS pulses
   // on a week of sessions is the compositor tax. One ring from level 2 up.
   if (d.recencyLevel === 1) {
@@ -110,8 +135,15 @@ let projLabelSel = labelLayer.selectAll('text.pl').data(GRAPH.nodes.filter(n=>n.
   .join('text').attr('class','pl').attr('text-anchor','middle').attr('fill',d=>d.color)
   .attr('font-size',9).attr('letter-spacing',1).attr('pointer-events','none').text(d=>d.label.toUpperCase());
 
+function projectLabelY(d) {
+  const r = currentLayout === 'grid'
+    ? seatFootprintR(GLYPH_GRAPH_R, d.sizeNorm)
+    : nodeRadius(d);
+  return d.y + r + 13;
+}
+
 simulation.on('tick', () => {
   edgeSel.attr('d', edgePathD);
   nodeSel.attr('transform', d=>`translate(${d.x},${d.y})`);
-  projLabelSel.attr('x',d=>d.x).attr('y',d=>d.y+nodeRadius(d)+13);
+  projLabelSel.attr('x',d=>d.x).attr('y', projectLabelY);
 });

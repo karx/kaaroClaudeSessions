@@ -747,8 +747,8 @@ mark.thr-hit-current { background:#ffaa00; color:#000000; }
 
 <div id="layout-bar">
   <a href="/" title="kaaro-sessions home" style="color:var(--k-accent);text-decoration:none;margin-right:6px;letter-spacing:0.08em">◈</a>
-  <button class="lay-btn active" data-layout="force">Force</button>
-  <button class="lay-btn" data-layout="grid">Lattice</button>
+  <button class="lay-btn" data-layout="force">Force</button>
+  <button class="lay-btn active" data-layout="grid">Lattice</button>
   <button class="lay-btn" data-layout="swimlane">Swimlane</button>
   <button class="lay-btn" data-layout="arc">Arc</button>
   <button class="lay-btn" data-layout="matrix">Matrix</button>
@@ -762,9 +762,9 @@ mark.thr-hit-current { background:#ffaa00; color:#000000; }
 <div id="legend" class="widget">
   <h3>◆ LEGEND <span class="widget-toggle" onclick="toggleWidget('legend')">−</span></h3>
   <div class="widget-body">
-  <div class="leg"><div class="dot" style="background:var(--k-bg);border:2px solid #aaa;box-sizing:border-box"></div>Project cluster</div>
-  <div class="leg"><div class="dot" style="background:#00aaff;opacity:.85"></div>Session (size = AI work)</div>
-  <div class="leg"><div class="dia" style="background:#00cccc"></div>File (size = edits)</div>
+  <div class="leg"><div class="dot" style="background:var(--k-bg);border:2px solid #aaa;box-sizing:border-box"></div>Project seat — footprint = tokens/tools</div>
+  <div class="leg"><div class="dot" style="background:#2a9d8f;opacity:.85"></div>Session depth (roof = harness · wall = tools)</div>
+  <div class="leg"><div class="dia" style="background:#00cccc"></div>Tool plumbing — files + write/edit pipes</div>
   <div class="sep"></div>
   <div class="leg"><div class="line" style="background:#00ff88;opacity:.7"></div>write op</div>
   <div class="leg"><div class="line" style="background:#ffcc00;opacity:.7"></div>edit op</div>
@@ -793,7 +793,7 @@ mark.thr-hit-current { background:#ffaa00; color:#000000; }
 <div id="controls" class="widget">
   <h3>◆ DISPLAY <span class="widget-toggle" onclick="toggleWidget('controls')">−</span></h3>
   <div class="widget-body">
-  <div class="ctrl"><input type="checkbox" id="cb-files" checked><label for="cb-files">File nodes</label></div>
+  <div class="ctrl"><input type="checkbox" id="cb-files" checked><label for="cb-files">Tool plumbing (files)</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-ro-files" checked><label for="cb-ro-files">Read-only files</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-branch" checked><label for="cb-branch">Branch lineage edges</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-reads"><label for="cb-reads">Read edges</label></div>
@@ -819,7 +819,7 @@ mark.thr-hit-current { background:#ffaa00; color:#000000; }
     <div class="sep"></div>
     <div class="sl-section-hd">◆ FORCE PHYSICS</div>
     <div class="ctrl"><input type="checkbox" id="fp-free"><label for="fp-free" title="Unpin projects — sessions and files cluster purely by co-access (best after filtering)">Free layout (no project anchor)</label></div>
-    <div class="ctrl"><input type="checkbox" id="cb-pin-grid"><label for="cb-pin-grid" title="Pin project nodes to hex-lattice seats. Lattice layout (P) turns this on so Force↔Lattice is a morph. Sessions still orbit.">Pin to lattice</label></div>
+    <div class="ctrl"><input type="checkbox" id="cb-pin-grid"><label for="cb-pin-grid" title="Pin project seats to the hex lattice. Lattice (P) uses this so Force↔Seats is a morph.">Pin to lattice</label></div>
     <div class="ctrl">
       <label for="fp-charge-s">Session charge</label>
       <input type="range" id="fp-charge-s" min="-400" max="-20" step="10" value="-130">

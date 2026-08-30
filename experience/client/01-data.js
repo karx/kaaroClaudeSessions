@@ -13,7 +13,8 @@ let W = window.innerWidth, H = window.innerHeight - TL_H;
 // (00-core.js ← experience/client-core.mjs): fmtTok, esc, TOOL_COLORS,
 // nodeRadius, hexPath, harnessWedges, harnessBreakdown, meGlyph, HARNESS_MARK,
 // HARNESS_FILL_OPACITY, EDGE_COLORS, edgeOpacity(d, MAX_WEIGHT),
-// edgeWidth(d, MAX_WEIGHT). Project glyphs scale by sizeNorm; ME glyph splits by share.
+// edgeWidth(d, MAX_WEIGHT), seatFootprintR / buildSeatCity / seatTileMarkup.
+// Project seats stack sessions; tile size is sizeNorm (tokens/tools).
 
 // Active history-view filters — consumed via sessionMatchesFilters (core).
 const SESSION_FILTERS = { harnesses: null, projects: null, from: null, to: null };

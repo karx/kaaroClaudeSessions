@@ -25,7 +25,9 @@ import { categorizeBash } from '../helpers/analyze-helpers.mjs';
 const HARNESS = 'opencode';
 
 function toIso(ms) {
-  return typeof ms === 'number' ? new Date(ms).toISOString() : null;
+  // 0 is opencode's zero-value for an unset time field, not a real epoch ms
+  // timestamp — converting it would fabricate a 1970 epoch date.
+  return typeof ms === 'number' && ms > 0 ? new Date(ms).toISOString() : null;
 }
 
 function isSessionInfo(rec) {

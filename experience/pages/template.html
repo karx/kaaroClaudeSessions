@@ -197,6 +197,12 @@ button.btn:hover { background:#403d1e; }
 #timeline::-webkit-scrollbar { height: 6px; }
 #timeline::-webkit-scrollbar-thumb { background: #403e22; border-radius: 2px; }
 #tl-svg { display: block; height: 100%; }
+#timeline.collapsed svg#tl-svg { display: none; }
+#timeline:not(.collapsed) #tl-hint { display: none; }
+#tl-hint { height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+  color: #544f2c; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; }
+#tl-hint:hover { color: #ccb088; }
+.tl-hint-key { color: #3a3620; }
 .mx-empty { color: #44422a; padding: 60px; text-align: center; font-size: 13px; }
 .mx-legend { display: flex; gap: 16px; padding: 10px 16px; border-bottom: 1px solid #2a2814;
   position: sticky; top: 0; background: var(--k-bg); z-index: 10; }
@@ -905,7 +911,10 @@ mark.thr-hit-current { background:#ffaa00; color:#000000; }
 </div>
 <div id="stats"></div>
 <div id="panel"><div id="panel-inner"><span id="panel-x" onclick="closePanel()">✕</span><div id="panel-content"></div></div></div>
-<div id="timeline"><svg id="tl-svg"></svg></div>
+<div id="timeline" class="widget collapsed">
+  <div id="tl-hint" onclick="toggleTimeline()">▸ TIMELINE <span id="tl-hint-range"></span> <span class="tl-hint-key">[T]</span></div>
+  <svg id="tl-svg"></svg>
+</div>
 
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://unpkg.com/3d-force-graph@1/dist/3d-force-graph.min.js" defer></script>

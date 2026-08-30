@@ -266,27 +266,93 @@ function updateStats() {
 updateStats();
 
 // ── Timeline ──────────────────────────────────────────────────────────────────
+// Dates before this floor never stretch the visible domain — a corrupted or
+// genuinely ancient timestamp renders clamped to the left edge instead of
+// dragging the whole strip back to 1970 and forcing a huge scrollable range.
+const TL_FLOOR_MS = Date.parse('2024-01-01T00:00:00Z');
+// Absolute width ceiling — a second line of defense alongside the floor above,
+// in case a future bug reintroduces a runaway span.
+const TL_MAX_WIDTH = 20000;
+
+let _timelineDirty = true; // true = collapsed (or never built) and needs a build on next expand
+let _tlDomainKey = null;   // memoizes the scale/tick/width build across unchanged-domain calls
+
+function isTimelineCollapsed() {
+  return document.getElementById('timeline')?.classList.contains('collapsed') ?? true;
+}
+
+function toggleTimeline() {
+  toggleWidget('timeline');
+  if (!isTimelineCollapsed() && _timelineDirty) buildTimeline();
+}
+
 function buildTimeline() {
-  const tlSvg=d3.select('#tl-svg'),tw=window.innerWidth,th=TIMELINE_H;
-  const dates=TIMELINE.map(d=>new Date(d.ts));
-  if(!dates.length) return;
-  const spanDays = Math.max(1, (d3.max(dates) - d3.min(dates)) / 864e5);
-  // Make timeline scrollable: at least 20px per day, minimum 3000px
-  const minTimelineWidth = Math.max(3000, 40 + spanDays * 20);
-  tlSvg.attr('width', minTimelineWidth).attr('height', th);
-  const xScale=d3.scaleTime().domain([d3.min(dates),d3.max(dates)]).range([40, minTimelineWidth - 40]);
-  const days=d3.timeDay.range(d3.min(dates),d3.timeDay.offset(d3.max(dates),1));
-  tlSvg.selectAll('line.tl-tick').data(days).join('line').attr('class','tl-tick').attr('x1',d=>xScale(d)).attr('x2',d=>xScale(d)).attr('y1',th-20).attr('y2',th-4).attr('stroke','#1a1a2e').attr('stroke-width',1);
-  tlSvg.selectAll('text.tl-label').data(days.filter((_,i)=>i%3===0)).join('text').attr('class','tl-label').attr('x',d=>xScale(d)).attr('y',th-22).attr('text-anchor','middle').attr('font-size',8).attr('fill',KAARO_TOKENS.dim).attr('font-family','Courier New,monospace').text(d=>d3.timeFormat('%m/%d')(d));
-  tlSvg.selectAll('line.tl-base').data([0]).join('line').attr('class','tl-base').attr('x1',40).attr('x2',minTimelineWidth-40).attr('y1',th-20).attr('y2',th-20).attr('stroke','#14142a').attr('stroke-width',1);
+  // Cheap regardless of collapsed state — keeps the collapsed hint useful.
+  const hintRange = document.getElementById('tl-hint-range');
+  if (hintRange) {
+    const dr = GRAPH.meta?.date_range;
+    hintRange.textContent = dr ? `${dr.first.slice(0,10)} → ${dr.last.slice(0,10)}` : '';
+  }
+
+  // Collapsed by default: skip the expensive build entirely until expanded.
+  if (isTimelineCollapsed()) { _timelineDirty = true; return; }
+  _timelineDirty = false;
+
+  const tlSvg=d3.select('#tl-svg'), th=TIMELINE_H;
+  if (!TIMELINE.length) return;
+
+  const validTs = TIMELINE.map(d=>+new Date(d.ts)).filter(t=>!isNaN(t));
+  if (!validTs.length) return;
+  const tMinRaw = Math.min(...validTs), tMaxRaw = Math.max(...validTs);
+  const domainMinMs = Math.max(tMinRaw, TL_FLOOR_MS);
+  const domainMaxMs = Math.max(tMaxRaw, domainMinMs + 864e5);
+  const spanDays = Math.max(1, (domainMaxMs - domainMinMs) / 864e5);
+
+  // Scrollable, ~20px/day, capped so a pathological span can't blow up the DOM.
+  const minTimelineWidth = Math.min(TL_MAX_WIDTH, Math.max(3000, 40 + spanDays * 20));
+  const xScale = d3.scaleTime().domain([new Date(domainMinMs), new Date(domainMaxMs)]).range([40, minTimelineWidth - 40]);
+
+  // Rebuild ticks/labels/width only when the domain actually changed — a live
+  // update that doesn't shift the visible date range skips this entirely.
+  const domainKey = domainMinMs+'|'+domainMaxMs+'|'+minTimelineWidth;
+  if (domainKey !== _tlDomainKey) {
+    _tlDomainKey = domainKey;
+    tlSvg.attr('width', minTimelineWidth).attr('height', th);
+
+    // Adaptive tick count decouples render cost from calendar span: a small,
+    // bounded number of "nice" day/week/month/year boundaries (d3 picks the
+    // granularity), instead of one DOM node per calendar day in the span.
+    // Sized off the *viewport*, not the scrollable content width — otherwise
+    // a wide (long-span) strip would still scale tick count with spanDays.
+    const targetTicks = Math.max(6, Math.min(40, Math.floor((window.innerWidth - 80) / 90)));
+    const ticks = xScale.ticks(targetTicks);
+    const tickFmt = xScale.tickFormat(targetTicks);
+
+    tlSvg.selectAll('line.tl-tick').data(ticks).join('line').attr('class','tl-tick')
+      .attr('x1',d=>xScale(d)).attr('x2',d=>xScale(d)).attr('y1',th-20).attr('y2',th-4)
+      .attr('stroke','#1a1a2e').attr('stroke-width',1);
+    tlSvg.selectAll('text.tl-label').data(ticks).join('text').attr('class','tl-label')
+      .attr('x',d=>xScale(d)).attr('y',th-22).attr('text-anchor','middle').attr('font-size',8)
+      .attr('fill',KAARO_TOKENS.dim).attr('font-family','Courier New,monospace').text(d=>tickFmt(d));
+    tlSvg.selectAll('line.tl-base').data([0]).join('line').attr('class','tl-base')
+      .attr('x1',40).attr('x2',minTimelineWidth-40).attr('y1',th-20).attr('y2',th-20)
+      .attr('stroke','#14142a').attr('stroke-width',1);
+  }
+
+  const clampX = xScale.range()[0];
+  const isClamped = d => { const t=+new Date(d.ts); return isNaN(t) || t < domainMinMs; };
+  const posX = d => { const t=+new Date(d.ts); return (isNaN(t) || t < domainMinMs) ? clampX : xScale(t); };
+
   const maxWork=Math.max(...TIMELINE.map(t=>t.tokens_work||1));
   tlSvg.selectAll('circle.tl-dot').data(TIMELINE,d=>d.id).join('circle').attr('class','tl-dot')
-    .attr('cx',d=>xScale(new Date(d.ts)))
+    .attr('cx',posX)
     .attr('cy',d=>{const idx=COLOR_TO_INDEX[d.color]??0;return th-28-(idx%5)*4;})
     .attr('r',d=>3+4*Math.sqrt(d.tokens_work/maxWork))
-    .attr('fill',d=>d.color).attr('fill-opacity',.85)
-    .attr('stroke',d=>d.tool_errors>=8?'#ff2244':'none').attr('stroke-width',1.5).style('cursor','pointer')
-    .on('mouseover',(ev,d)=>{tip.style.display='block';tip.innerHTML=`<strong style="color:${d.color}">${d.slug}</strong><div class="meta">${d.date_str} · ${d.project}</div><div class="meta">AI work: ${fmtTok(d.tokens_work)}</div>${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;})
+    .attr('fill',d=>d.color).attr('fill-opacity',d=>isClamped(d)?0.35:.85)
+    .attr('stroke',d=>d.tool_errors>=8?'#ff2244':isClamped(d)?'#403e22':'none')
+    .attr('stroke-dasharray',d=>isClamped(d)?'1 1':null)
+    .attr('stroke-width',1.5).style('cursor','pointer')
+    .on('mouseover',(ev,d)=>{tip.style.display='block';tip.innerHTML=`<strong style="color:${d.color}">${d.slug}</strong><div class="meta">${d.date_str} · ${d.project}</div>${isClamped(d)?'<div class="meta" style="color:#886c44">date before 2024 or unknown — pinned to left edge</div>':''}<div class="meta">AI work: ${fmtTok(d.tokens_work)}</div>${d.skills.length?'<div class="meta">/'+d.skills.join(' /')+'</div>':''}`;})
     .on('mousemove',ev=>{tip.style.left=Math.min(ev.clientX+16,W-340)+'px';tip.style.top=(ev.clientY-tip.offsetHeight-10)+'px';})
     .on('mouseout',()=>tip.style.display='none')
     .on('click',(ev,d)=>{
@@ -339,6 +405,7 @@ function applyChromeCollapsed(collapsed) {
 function collapseAllChrome() {
   const collapse = nextChromeCollapsed(chromeWidgetStates());
   applyChromeCollapsed(collapse);
+  if (!collapse && _timelineDirty) buildTimeline();
   if (collapse) {
     if (typeof closePanel === 'function') closePanel();
     document.getElementById('help-panel')?.classList.remove('open');
@@ -379,6 +446,7 @@ const SHORTCUTS_DEF = [
   { key:'g', label:'G',      desc:'3D force graph',       action:()=>setLayout('3d') },
   { key:'p', label:'P',      desc:'Hex lattice layout',   action:()=>setLayout(currentLayout==='grid'?'force':'grid') },
   { key:'h', label:'H',      desc:'Collapse / expand all panels', action:()=>collapseAllChrome() },
+  { key:'t', label:'T',      desc:'Toggle calendar timeline strip', action:()=>toggleTimeline() },
 ];
 
 function _loadSCPrefs() {

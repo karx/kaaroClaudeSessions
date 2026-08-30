@@ -93,6 +93,12 @@ test('opencode session info → session_meta with ai_title + cwd', () => {
   assert.equal(m.ts, new Date(1766698155332).toISOString());
 });
 
+test('opencode session info — time.created: 0 yields null ts, not 1970', () => {
+  // 0 is opencode's zero-value for an unset field, not a real epoch ms timestamp.
+  const nrs = recordsToNormalized([makeInfo({ time: { created: 0, updated: 0 } })]);
+  assert.equal(nrs[0].ts, null);
+});
+
 // ── messages ──────────────────────────────────────────────────────────────────
 
 test('user message → user_turn with text from embedded text part', () => {

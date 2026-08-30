@@ -388,10 +388,10 @@ export function minimapViewportRect({ worldX, worldY, worldW, worldH, boardW, bo
 }
 
 /** Inner SVG paths for one project hex. Idle = hollow; active = solid wedges. */
-export function projectGlyphMarkup(d, { r = 16, bg = '#000000' } = {}) {
+export function projectGlyphMarkup(d, { r = 16, bg = '#000000', forceSolid = false } = {}) {
   const color = d?.color || '#888888';
   const stroke = `<path d="${hexPath(r)}" fill="none" stroke="${esc(color)}" stroke-width="2"/>`;
-  if (!isProjectGlyphActive(d)) {
+  if (!forceSolid && !isProjectGlyphActive(d)) {
     return `<path d="${hexPath(r)}" fill="${bg}" stroke="${esc(color)}" stroke-width="2"/>`;
   }
   const wedges = harnessWedges(d.harnesses, r);
@@ -1403,6 +1403,33 @@ export function generateProjectShareCardSVG(data) {
  * supplies the cross-project numbers meGlyph doesn't carry (project count,
  * total tokens, date range).
  */
+const HUMANIZE_PREFIXES = [
+  /^[A-Za-z]--src-/,
+  /^[A-Za-z]--Users-[^-]+-/,
+  /^Users-[^-]+-kaaro-src-/i,
+  /^Users--+/,
+  /^users-[^-]+-/i,
+  /^Users-[^-]+-/i,
+  /^kaaro-src-/i,
+];
+
+/** Prefix-strip a project slug so a PNG never prints a home-directory path. */
+export function humanizeProjectLabel(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return '';
+  if (s.includes('/') || s.includes('\\')) {
+    s = s.replace(/\\/g, '/').split('/').filter(Boolean).pop() || s;
+  }
+  s = s.replace(/^-+/, '').replace(/-+$/, '');
+  for (let i = 0; i < 6; i++) {
+    const next = HUMANIZE_PREFIXES.reduce((acc, re) => acc.replace(re, ''), s);
+    if (next === s) break;
+    s = next;
+  }
+  if (!s || /^Users-/i.test(s)) return 'home';
+  return s;
+}
+
 export function buildUsageShareCardData(me, opts = {}) {
   const projects = (opts.projects || [])
     .slice()
@@ -1414,7 +1441,13 @@ export function buildUsageShareCardData(me, opts = {}) {
     }));
   const projRank = new Map(projects.map((p, i) => [p.id, i]));
 
-  const sessions = (opts.sessions || [])
+  const rawSessions = opts.sessions || [];
+  const tool_calls = rawSessions.reduce((n, s) => n + (s.tool_calls || 0), 0);
+  const avg_diversity = rawSessions.length
+    ? Math.round(rawSessions.reduce((n, s) => n + (s.tool_diversity || 0), 0) / rawSessions.length)
+    : 0;
+
+  const sessions = rawSessions
     .slice()
     .sort((a, b) => {
       const ra = projRank.has(a.project_id) ? projRank.get(a.project_id) : projects.length;
@@ -1424,6 +1457,7 @@ export function buildUsageShareCardData(me, opts = {}) {
     })
     .map(s => ({ color: s.color || SHARE_CARD_TOKENS.dim, diversity: s.tool_diversity || 0 }));
 
+  const topProject = projects[0]?.label || '';
   return {
     kind: 'usage',
     total_sessions: me?.total || 0,
@@ -1432,7 +1466,10 @@ export function buildUsageShareCardData(me, opts = {}) {
     dateFrom:       opts.dateFrom || '',
     dateTo:         opts.dateTo || '',
     rows: (me?.rows || []).map(r => ({ harness: r.harness, count: r.count, pct: r.pct, color: r.color })),
-    topProject: projects[0]?.label || '',
+    topProject,
+    topProjectShort: humanizeProjectLabel(topProject),
+    tool_calls,
+    avg_diversity,
     projects,
     sessions,
     me: me || null,
@@ -1493,29 +1530,27 @@ export function generateUsageShareCardSVG(data) {
     const hexR = Math.max(hexPitch * 0.6, Math.min(hexPitch * 0.92, hexPitch * (0.6 + 0.32 * p.sizeNorm)));
     return `<g transform="translate(${pos.x.toFixed(1)},${pos.y.toFixed(1)})">` +
       `<circle r="${(hexR + 3).toFixed(1)}" fill="${c.bg}"/>` +
-      projectGlyphMarkup(p, { r: hexR, bg: c.bg }) +
+      projectGlyphMarkup(p, { r: hexR, bg: c.bg, forceSolid: true }) +
       `</g>`;
   }).join('');
 
   const overflowBits = [];
   if (projOverflow > 0) overflowBits.push(`+${projOverflow} projects`);
   if (sessOverflow > 0) overflowBits.push(`+${sessOverflow} sessions`);
-  const caption = '◆ hex = project · ball = session · size = activity' +
+  const caption = `◆ hex size = consumption · ball size = tool types (avg ${data.avg_diversity || 0})` +
     (overflowBits.length ? ` · ${overflowBits.join(', ')} more` : '');
 
   // ── RIGHT: stats + legend on the left half; ME hero hex big, vertically
   // centered, in the right half of the right column.
-  const avgDiversity = shownSess.length
-    ? Math.round(shownSess.reduce((s, x) => s + x.diversity, 0) / shownSess.length)
-    : 0;
   const stats = [
-    ['SESSIONS',       String(data.total_sessions)],
-    ['PROJECTS',       String(data.project_count)],
-    ['CONSUMPTION',    fmtTok(data.tokens_total)],
-    ['AVG TOOL TYPES', String(avgDiversity)],
+    ['SESSIONS',    String(data.total_sessions)],
+    ['PROJECTS',    String(data.project_count)],
+    ['CONSUMPTION', fmtTok(data.tokens_total)],
+    ['TOOL CALLS',  String(data.tool_calls)],
+    ['HEAVIEST',    _shareTrunc(data.topProjectShort, 18)],
   ];
 
-  const legendY0 = g.bodyTop + 44 + stats.length * 50 + 20;
+  const legendY0 = 412;
   const legend = data.rows.map((row, i) => {
     const y = legendY0 + i * 18;
     return `<rect x="${g.rightPad}" y="${y - 9}" width="8" height="8" fill="${row.color}"/>` +
@@ -1543,11 +1578,12 @@ export function generateUsageShareCardSVG(data) {
 
   ${balls}
   ${hexes}
-  <text x="${fieldX0}" y="${fieldY1 + 22}" style="font-size:9px;fill:${c.dim};letter-spacing:1px;">${esc(caption)}</text>
+  <text x="${fieldX0}" y="${fieldY1 + 22}" style="font-size:9px;fill:${c.dim};">${esc(caption)}</text>
 
   ${_shareStatRows(stats, g)}
   ${legend}
   ${meGroup}
+  <text x="${meCenterX.toFixed(1)}" y="402" text-anchor="middle" style="font-size:8px;fill:${c.dim};letter-spacing:1.5px;">WEDGES = SESSIONS</text>
   ${_shareFooter(g, { tagLine: 'ALL PROJECTS · ALL TIME' })}
 </svg>`.trim();
 }

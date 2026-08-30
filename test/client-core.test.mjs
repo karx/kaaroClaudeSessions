@@ -26,6 +26,7 @@ import {
   GLYPH_GRAPH_R, glyphGraphConfig, glyphGraphPins, graphRectToMinimap,
   NODE_RADII,
   projectGlyphMarkup, projectGlyphSvg, projectGlyphFieldSvg,
+  humanizeProjectLabel,
 } from '../experience/client-core.mjs';
 
 test('fmtTok — M/k/plain formatting', () => {
@@ -195,9 +196,53 @@ test('projectGlyphMarkup — inactive is hollow; active is solid harness fill', 
   assert.ok(live.includes(HARNESS_MARK['claude-code']));
   assert.ok(/fill-opacity="1"/.test(live), 'active fill is solid');
 
+  const idleSolid = projectGlyphMarkup(
+    { color: '#ff8800', harnesses: ['claude-code', 'pi'], recencyLevel: 0 },
+    { r: 16, bg: '#000000', forceSolid: true },
+  );
+  assert.ok(idleSolid.includes(HARNESS_MARK['claude-code']), 'forceSolid paints idle hexes with harness fill');
+  assert.ok(idleSolid.includes(HARNESS_MARK.pi));
+  assert.ok(/fill-opacity="1"/.test(idleSolid), 'forceSolid fill is solid');
+
+  const idleSolidEmpty = projectGlyphMarkup(
+    { color: '#ff8800', harnesses: [], recencyLevel: 0 },
+    { r: 16, bg: '#000000', forceSolid: true },
+  );
+  assert.ok(idleSolidEmpty.includes('fill="#000000"'), 'forceSolid with no wedges stays hollow');
+  assert.ok(!idleSolidEmpty.includes(HARNESS_MARK['claude-code']));
+
   const svg = projectGlyphSvg({ color: '#ff8800', recencyLevel: 0, id: 'p1' }, { r: 8 });
   assert.ok(svg.startsWith('<svg'));
   assert.ok(svg.includes('viewBox'));
+  assert.ok(!svg.includes(HARNESS_MARK['claude-code']), 'projectGlyphSvg does not pass forceSolid');
+});
+
+test('humanizeProjectLabel — prefix-strip, not last-hyphen-token', () => {
+  const fixtures = [
+    ['Users-arshigoyal-kaaro-src-kaaroViewer', 'kaaroViewer'],
+    ['--Users-arshigoyal-kaaro-src-kaaroViewer--', 'kaaroViewer'],
+    ['-Users-arshigoyal-kaaro-src-alfred-buildathon', 'alfred-buildathon'],
+    ['kaaro-src-kaaro-sessions', 'kaaro-sessions'],
+    ['kaaro-src-alfred-buildathon', 'alfred-buildathon'],
+    ['Users-arshigoyal-kaaro-src', 'kaaro-src'],
+    ['Users-arshigoyal', 'home'],
+    ['Users-arshigoyal-kaaro-cad-civil', 'kaaro-cad-civil'],
+    ['D--src-kaaroSessions', 'kaaroSessions'],
+    ['--D--src-ebrain--', 'ebrain'],
+    ['Users--kaaro-bleisure', 'kaaro-bleisure'],
+    ['bleisure', 'bleisure'],
+    ['art-of-intent', 'art-of-intent'],
+    ['users-arshi-D--src-ebrain', 'ebrain'],
+    ['', ''],
+  ];
+  for (const [input, output] of fixtures) {
+    assert.equal(humanizeProjectLabel(input), output, JSON.stringify(input));
+  }
+  assert.equal(humanizeProjectLabel('Users-arshigoyal-kaaro-src-kaaroViewer'), 'kaaroViewer');
+  for (const [input] of fixtures) {
+    const out = humanizeProjectLabel(input);
+    if (out) assert.ok(!/^Users-/i.test(out), `${input} → ${out} must not stay a Users- slug`);
+  }
 });
 
 test('glyphCellPosition / snapToGlyphCell — inverse on the hex lattice', () => {
@@ -1164,7 +1209,7 @@ test('buildProjectShareCardData / generateProjectShareCardSVG — harness breakd
 });
 
 test('buildUsageShareCardData / generateUsageShareCardSVG — full-canvas card from meGlyph()', async () => {
-  const { buildUsageShareCardData, generateUsageShareCardSVG, buildShareText, meGlyph } = await import('../experience/client-core.mjs');
+  const { buildUsageShareCardData, generateUsageShareCardSVG, buildShareText, meGlyph, humanizeProjectLabel } = await import('../experience/client-core.mjs');
   const sessions = [
     { harness: 'claude-code' }, { harness: 'claude-code' }, { harness: 'grok' },
   ];
@@ -1173,6 +1218,10 @@ test('buildUsageShareCardData / generateUsageShareCardSVG — full-canvas card f
   assert.equal(data.kind, 'usage');
   assert.equal(data.total_sessions, 3);
   assert.equal(data.rows.length, 2);
+  assert.equal(data.tool_calls, 0);
+  assert.equal(data.avg_diversity, 0);
+  assert.equal(data.topProjectShort, '');
+  assert.equal(humanizeProjectLabel('Users-arshigoyal-kaaro-src-kaaroViewer'), 'kaaroViewer');
 
   const svg = generateUsageShareCardSVG(data);
   assert.ok(svg.startsWith('<svg'));
@@ -1180,6 +1229,11 @@ test('buildUsageShareCardData / generateUsageShareCardSVG — full-canvas card f
   assert.ok(svg.includes('2026-01-01 → 2026-08-27'));
   assert.ok(svg.includes('claude-code'));
   assert.ok(svg.includes('1.2M'), 'consumption formatted via fmtTok');
+  assert.ok(svg.includes('TOOL CALLS'));
+  assert.ok(svg.includes('HEAVIEST'));
+  assert.ok(!svg.includes('AVG TOOL TYPES'));
+  assert.ok(svg.includes('WEDGES = SESSIONS'));
+  assert.ok(svg.includes('ALL PROJECTS · ALL TIME'), 'PR 1 keeps the anonymous footer');
 
   const empty = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {}));
   assert.ok(empty.startsWith('<svg'), 'renders even with no sessions');
@@ -1187,22 +1241,26 @@ test('buildUsageShareCardData / generateUsageShareCardSVG — full-canvas card f
   const text = buildShareText(data);
   assert.ok(text.includes('3 sessions'));
   assert.ok(text.includes('5 projects'));
+  assert.ok(text.includes('My kaaroSessions canvas'), 'PR 1 keeps anonymous share text');
 });
 
 test('buildUsageShareCardData — constellation: sessions ranked by their project\'s consumption, projects keep their full render fields', async () => {
-  const { buildUsageShareCardData, meGlyph } = await import('../experience/client-core.mjs');
+  const { buildUsageShareCardData, meGlyph, humanizeProjectLabel } = await import('../experience/client-core.mjs');
   const projects = [
     { id: 'p1', label: 'small', color: '#111111', harnesses: ['pi'], sizeNorm: 0.1, tokens_total: 1000 },
     { id: 'p2', label: 'big', color: '#222222', harnesses: ['claude-code'], inFlight: true, sizeNorm: 0.9, tokens_total: 900000 },
   ];
   const sessions = [
-    { project_id: 'p1', color: '#111111', tool_diversity: 2, date_str: '2026-01-01' },
-    { project_id: 'p2', color: '#222222', tool_diversity: 6, date_str: '2026-02-01' },
+    { project_id: 'p1', color: '#111111', tool_diversity: 2, date_str: '2026-01-01', tool_calls: 10 },
+    { project_id: 'p2', color: '#222222', tool_diversity: 6, date_str: '2026-02-01', tool_calls: 20 },
     { project_id: 'p2', color: '#222222', tool_diversity: 4, date_str: '2026-01-15' },
   ];
   const data = buildUsageShareCardData(meGlyph([]), { projects, sessions });
   assert.equal(data.project_count, 2, 'falls back to projects.length when projectCount is not supplied');
   assert.equal(data.topProject, 'big', 'top project = highest tokens_total');
+  assert.equal(data.topProjectShort, humanizeProjectLabel('big'));
+  assert.equal(data.tool_calls, 30, 'sum session.tool_calls with missing fields as 0, before the ball map');
+  assert.equal(data.avg_diversity, 4, 'mean of ALL sessions tool_diversity, rounded (2+6+4)/3');
   assert.equal(data.projects[0].label, 'big', 'projects sorted by tokens_total descending');
   assert.equal(data.projects[0].inFlight, true, 'render fields (color/harnesses/inFlight/sizeNorm) survive for the hex layer');
   assert.equal(data.sessions.length, 3);
@@ -1211,12 +1269,13 @@ test('buildUsageShareCardData — constellation: sessions ranked by their projec
   assert.equal(data.sessions[0].diversity, 4, 'within a project, sessions sort by date ascending (2026-01-15 before 2026-02-01)');
   assert.equal(data.sessions[1].diversity, 6);
   assert.equal(data.sessions[2].color, '#111111');
+  assert.equal('tool_calls' in data.sessions[0], false, 'ball records stay { color, diversity }');
 });
 
 test('generateUsageShareCardSVG — constellation: one hex per project over one ball per session, ME hero big + right-half + vertically centered, overflow noted past either cap', async () => {
-  const { buildUsageShareCardData, generateUsageShareCardSVG, meGlyph } = await import('../experience/client-core.mjs');
+  const { buildUsageShareCardData, generateUsageShareCardSVG, meGlyph, HARNESS_MARK } = await import('../experience/client-core.mjs');
   const projects = Array.from({ length: 3 }, (_, i) => ({
-    id: 'p' + i, label: 'proj' + i, color: '#334455', harnesses: ['claude-code'], sizeNorm: 0.5, tokens_total: 100 - i,
+    id: 'p' + i, label: 'proj' + i, color: '#334455', harnesses: ['claude-code'], sizeNorm: 0.5, tokens_total: 100 - i, recencyLevel: 0,
   }));
   const sessions = Array.from({ length: 5 }, (_, i) => ({
     project_id: 'p0', color: '#556677', tool_diversity: i + 1, date_str: '2026-01-0' + (i + 1),
@@ -1226,9 +1285,18 @@ test('generateUsageShareCardSVG — constellation: one hex per project over one 
 
   assert.equal((svg.match(/<circle cx="[^"]*" cy="[^"]*" r="[^"]*" fill="#556677"/g) || []).length, sessions.length, 'one ball per session');
   assert.equal((svg.match(/<g transform="translate\([^)]*\)">\s*<circle[^>]*fill="#000000"/g) || []).length, projects.length, 'one backing-cleared hex group per project');
-  assert.ok(svg.includes('hex = project'));
-  assert.ok(svg.includes('ball = session'));
+  assert.ok(svg.includes('hex size = consumption'));
+  assert.ok(svg.includes('ball size = tool types'));
+  assert.ok(!svg.includes('size = activity'));
+  assert.ok(!svg.includes('hex = project · ball = session'));
   assert.ok(!svg.includes('more'), 'no overflow note under either cap');
+  assert.ok(svg.includes(HARNESS_MARK['claude-code']), 'idle recencyLevel 0 hexes still paint harness wedges on the all-time card');
+  assert.ok(svg.includes('<text x="55" y="536" style="font-size:9px;fill:#445544;">'), 'caption has no letter-spacing');
+  assert.ok(!svg.includes('<text x="55" y="536" style="font-size:9px;fill:#445544;letter-spacing:1px;">'));
+  assert.ok(svg.includes('x="1020.4" y="402"'), 'WEDGES caption sits below the medallion, not inside the ME group');
+  assert.ok(svg.includes('WEDGES = SESSIONS'));
+  assert.ok(svg.includes('text-anchor="middle"'));
+  assert.ok(svg.includes('<rect x="700" y="403"'), 'legend swatches stay at x=700, legendY0=412');
 
   // ME hero: right half of the right column, vertically centered in the body.
   const g = { width: 1200, height: 630, headerH: 80, footerH: 70, bodyTop: 80, bodyBot: 560, dividerX: 660, leftPad: 55, rightPad: 700 };
@@ -1239,7 +1307,61 @@ test('generateUsageShareCardSVG — constellation: one hex per project over one 
 
   const manyProjects = Array.from({ length: 65 }, (_, i) => ({ id: 'q' + i, label: 'q' + i, color: '#334455', tokens_total: 1 }));
   const manySessions = Array.from({ length: 205 }, () => ({ project_id: 'q0', color: '#556677', tool_diversity: 1 }));
-  const overflowSvg = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), { projects: manyProjects, sessions: manySessions }));
+  const overflowData = buildUsageShareCardData(meGlyph([]), { projects: manyProjects, sessions: manySessions });
+  const overflowSvg = generateUsageShareCardSVG(overflowData);
   assert.ok(overflowSvg.includes('+5 projects'), '65 projects, 60-cap → 5 overflow');
   assert.ok(overflowSvg.includes('+5 sessions'), '205 sessions, 200-cap → 5 overflow');
+  const caption = `◆ hex size = consumption · ball size = tool types (avg ${overflowData.avg_diversity}) · +5 projects, +5 sessions more`;
+  assert.ok(caption.length * 5.4 < 575, `caption ${caption.length} glyphs × 5.4px must fit the 575px field`);
+  assert.ok(overflowSvg.includes(caption), 'overflow still appends to the honest caption');
+  assert.ok(overflowSvg.includes('hex size = consumption'));
+  assert.ok(overflowSvg.includes('ball size = tool types'));
+  assert.ok(!overflowSvg.includes('size = activity'));
+});
+
+test('buildUsageShareCardData — avg_diversity uses the full session list, not the 200-cap shown slice', async () => {
+  const { buildUsageShareCardData, meGlyph } = await import('../experience/client-core.mjs');
+  const projects = [{ id: 'q0', label: 'q0', tokens_total: 1 }];
+  const sessions = Array.from({ length: 201 }, (_, i) => ({
+    project_id: 'q0', color: '#556677', tool_diversity: i === 200 ? 200 : 1, date_str: '2026-01-01',
+  }));
+  const data = buildUsageShareCardData(meGlyph([]), { projects, sessions });
+  assert.equal(data.avg_diversity, 2, 'round((200*1 + 200)/201) = 2; shown-slice mean would be 1');
+  assert.equal(data.sessions.length, 201);
+});
+
+test('generateUsageShareCardSVG — truthful encoding: solid idle hexes, HEAVIEST short name, TOOL CALLS exact sum', async () => {
+  const { buildUsageShareCardData, generateUsageShareCardSVG, meGlyph, HARNESS_MARK, humanizeProjectLabel } = await import('../experience/client-core.mjs');
+  const projects = [
+    { id: 'p1', label: 'Users-arshigoyal-kaaro-src-kaaroViewer', color: '#ff8800', harnesses: ['pi'], recencyLevel: 0, sizeNorm: 0.9, tokens_total: 57_800_000 },
+    { id: 'p2', label: '-Users-arshigoyal-kaaro-src-alfred-buildathon', color: '#334455', harnesses: ['claude-code'], recencyLevel: 0, sizeNorm: 0.5, tokens_total: 1000 },
+  ];
+  const sessions = [
+    { project_id: 'p1', color: '#ff8800', tool_diversity: 3, tool_calls: 4000, date_str: '2026-08-01' },
+    { project_id: 'p1', color: '#ff8800', tool_diversity: 5, tool_calls: 253, date_str: '2026-08-02' },
+  ];
+  const data = buildUsageShareCardData(meGlyph([{ harness: 'pi' }, { harness: 'pi' }]), {
+    projects, sessions, tokensTotal: 57_801_000,
+  });
+  assert.equal(data.topProject, 'Users-arshigoyal-kaaro-src-kaaroViewer');
+  assert.equal(data.topProjectShort, 'kaaroViewer');
+  assert.equal(data.topProjectShort, humanizeProjectLabel(data.topProject));
+  assert.equal(data.tool_calls, 4253);
+  assert.equal(data.avg_diversity, 4);
+
+  const svg = generateUsageShareCardSVG(data);
+  assert.ok(svg.includes(HARNESS_MARK.pi), 'recencyLevel 0 project with harnesses is solid on the usage card');
+  assert.ok(svg.includes('HEAVIEST'));
+  assert.ok(svg.includes('kaaroViewer'));
+  assert.ok(!svg.includes('Users-arshigoyal'), 'raw home-directory slug never reaches the PNG');
+  assert.ok(svg.includes('TOOL CALLS'));
+  assert.ok(svg.includes('4253'), 'TOOL CALLS is the exact sum, not fmtTok');
+  assert.ok(!svg.includes('4k'), 'fmtTok(4253) would be 4k — do not use it');
+  assert.ok(!svg.includes('AVG TOOL TYPES'));
+  assert.ok(svg.includes('hex size = consumption'));
+  assert.ok(svg.includes('ball size = tool types (avg 4)'));
+  assert.ok(!svg.includes('size = activity'));
+  assert.ok(svg.includes('WEDGES = SESSIONS'));
+  assert.ok(/<text x="1020.4" y="402" text-anchor="middle"/.test(svg));
+  assert.ok(svg.includes('ALL PROJECTS · ALL TIME'));
 });

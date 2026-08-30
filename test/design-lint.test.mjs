@@ -66,15 +66,14 @@ test('page CSS — no shadows, gradients, large radii, or slow transitions', () 
   }
 });
 
-test('home.html — ME glyph is in the layout above the three view tiles', () => {
+test('home.html — ME then city field then the three view tiles', () => {
   const html = fs.readFileSync('experience/pages/home.html', 'utf8');
   const me = html.indexOf('id="me-hero"');
   const tiles = html.indexOf('id="tiles"');
   const field = html.indexOf('id="glyph-field"');
   assert.ok(me >= 0, 'me-hero mount exists');
-  assert.ok(tiles > me, 'ME sits above the three tiles');
-  assert.ok(field === -1 || field > tiles || field < me,
-    'project field must not sit between ME and the tiles');
+  assert.ok(field > me, 'city field sits under ME');
+  assert.ok(tiles > field, 'tiles sit under the city');
   const tag = html.slice(me, html.indexOf('>', me) + 1);
   assert.equal(/hidden/.test(tag), false, 'ME is visible on first paint, not hidden until fetch');
 });

@@ -120,8 +120,13 @@
     color: var(--k-dim); font-size: 9px; letter-spacing: 0.18em;
     text-transform: uppercase; margin-bottom: 10px;
   }
-  #glyph-field .pglyph-field { display: inline-block; vertical-align: top; }
-  #glyph-field .pglyph-cell { cursor: pointer; }
+  #glyph-field .city-field { display: inline-block; vertical-align: top; width: 100%; height: auto; max-height: min(42vh, 420px); }
+  #glyph-field .city-bldg { cursor: pointer; }
+  #glyph-field .open-lattice {
+    margin-top: 10px; background: transparent; color: var(--k-accent);
+    border: 1px solid var(--k-border); padding: 6px 12px; cursor: pointer;
+    font: 10px var(--k-font); letter-spacing: 0.12em;
+  }
 
   #statusbar {
     display: flex; align-items: center; gap: 12px; padding: 0 12px;
@@ -144,6 +149,11 @@
   <div id="me-hero">
     <div class="hd">me</div>
     <div id="me-hero-mark"></div>
+  </div>
+  <div id="glyph-field" hidden>
+    <div class="hd">projects</div>
+    <div id="glyph-field-body"></div>
+    <button type="button" class="open-lattice">OPEN LATTICE</button>
   </div>
   <div id="tiles">
     <a class="tile" href="/graph" id="tile-graph">
@@ -176,10 +186,6 @@
       <span class="c-desc">Harness × kind coverage — fill a hole, ship an adapter.</span>
       <span class="t-stat" id="stat-map"></span>
     </a>
-  </div>
-  <div id="glyph-field" hidden>
-    <div class="hd">projects</div>
-    <div id="glyph-field-body"></div>
   </div>
 </div>
 
@@ -283,11 +289,34 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     const live = ordered.filter(isProjectGlyphActive).length;
     const field = document.getElementById('glyph-field');
     const body = document.getElementById('glyph-field-body');
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('kaaro-glyph-board') || '{}').placements; } catch { /* ignore */ }
+    const city = buildCityData({
+      projects: ordered, sessions: sessNodes, files: d.nodes.filter(n => n.type === 'file'),
+      edges: d.edges || [], placements: saved,
+    });
+    let selectedId = null;
+    function paintCity() {
+      if (!body) return;
+      body.innerHTML = cityFieldSvg(city, {
+        iso: true, showDiamonds: false, selectedId, bg: KAARO_TOKENS.bg, pad: 16,
+      });
+    }
     if (field && body && ordered.length) {
       field.querySelector('.hd').textContent = live + ' live · ' + ordered.length + ' projects';
-      body.innerHTML = projectGlyphFieldSvg(ordered, { r: 14, cols: Math.min(8, ordered.length), bg: KAARO_TOKENS.bg });
+      paintCity();
       field.dataset.ready = '1';
       if (chromeLive) field.hidden = false;
+      body.addEventListener('click', ev => {
+        const g = ev.target.closest('[data-pid]');
+        if (!g) { selectedId = null; paintCity(); return; }
+        ev.preventDefault(); ev.stopPropagation();
+        selectedId = g.getAttribute('data-pid');
+        paintCity();
+      });
+      body.addEventListener('dblclick', ev => {
+        if (ev.target.closest('[data-pid]')) location.href = '/graph';
+      });
     }
   }).catch(err => {
     console.error('[home] /graph-data.json failed', err);
@@ -346,8 +375,8 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
   }, 1000);
 
   document.getElementById('me-hero')?.addEventListener('click', () => { location.href = '/graph'; });
-  document.getElementById('glyph-field')?.addEventListener('click', ev => {
-    if (ev.target.closest('[data-pid]')) location.href = '/graph#grid';
+  document.getElementById('glyph-field')?.querySelector('.open-lattice')?.addEventListener('click', () => {
+    location.href = '/graph';
   });
 
   document.addEventListener('keydown', ev => {

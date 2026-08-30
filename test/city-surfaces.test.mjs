@@ -53,3 +53,21 @@ test('layout bar marks Lattice active by default', () => {
   assert.equal(force[0].includes('active'), false, 'Force is not the default chrome');
   assert.equal(grid[0].includes('active'), true, 'Lattice is the default chrome');
 });
+
+test('home.html — city hero: cityFieldSvg, click selects, OPEN LATTICE → /graph', () => {
+  const html = src('experience/pages/home.html');
+  assert.match(html, /cityFieldSvg/);
+  assert.match(html, /buildCityData/);
+  assert.match(html, /kaaro-glyph-board/);
+  assert.match(html, /OPEN LATTICE/);
+  assert.match(html, /showDiamonds:\s*false/);
+  assert.match(html, /selectedId/);
+  assert.match(html, /preventDefault/);
+  assert.match(html, /max-height:\s*min\(42vh,\s*420px\)/);
+  assert.equal(html.includes('/graph#grid'), false, 'Lattice is default; do not deep-link #grid');
+  assert.match(html, /location\.href = '\/graph'/);
+  const me = html.indexOf('id="me-hero"');
+  const field = html.indexOf('id="glyph-field"');
+  const tiles = html.indexOf('id="tiles"');
+  assert.ok(me >= 0 && field > me && tiles > field, 'ME then city then tiles');
+});

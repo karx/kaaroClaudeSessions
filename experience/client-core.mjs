@@ -1537,6 +1537,90 @@ export function workingSetForProject(projectId, { sessions = [], files = [], edg
     });
 }
 
+export function buildCityData({
+  projects = [],
+  sessions = [],
+  files = [],
+  edges = [],
+  placements = null,
+  slabCap = CITY_SLAB_CAP,
+  topFilesCap = CITY_TOP_FILES,
+  labelCount = CITY_LABEL_COUNT,
+} = {}) {
+  const ids = [...projects].map(p => p.id).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const merged = mergeGlyphPlacements(ids, placements);
+  const byId = new Map(projects.map(p => [p.id, p]));
+  const members = new Map();
+  for (const s of sessions) {
+    const pid = s.project_id;
+    if (!pid) continue;
+    if (!members.has(pid)) members.set(pid, []);
+    members.get(pid).push(s);
+  }
+  const buildings = ids.map(id => {
+    const p = byId.get(id) || { id };
+    const sess = members.get(id) || [];
+    const weights = {};
+    for (const s of sess) {
+      const h = s.harness || s.source;
+      if (!h) continue;
+      weights[h] = (weights[h] || 0) + 1;
+    }
+    const slabs = sess.slice().sort((a, b) => {
+      const ta = a.first_timestamp || a.last_activity || '';
+      const tb = b.first_timestamp || b.last_activity || '';
+      return String(ta).localeCompare(String(tb));
+    }).map(s => {
+      const harness = s.harness || s.source || '';
+      return {
+        harness,
+        color: HARNESS_MARK[harness] || p.color || '#888888',
+        date_str: s.date_str || '',
+        ts: s.first_timestamp || s.last_activity || '',
+      };
+    });
+    const topFiles = workingSetForProject(id, { sessions, files, edges, cap: topFilesCap });
+    const tool_calls = sess.reduce((n, s) => n + (s.tool_calls || 0), 0);
+    const seat = merged[id] || { col: 0, row: 0 };
+    return {
+      id,
+      label: p.label || p.id || 'project',
+      shortLabel: humanizeProjectLabel(p.label || p.id || ''),
+      color: p.color || '#888888',
+      harnesses: p.harnesses || [],
+      weights,
+      sizeNorm: p.sizeNorm || 0,
+      footprint: p.sizeNorm || 0,
+      session_count: p.session_count != null ? p.session_count : sess.length,
+      tokens_total: p.tokens_total || 0,
+      tokens_work: p.tokens_work || 0,
+      tool_calls,
+      recencyLevel: p.recencyLevel || 0,
+      last_activity: p.last_activity || null,
+      inFlight: !!p.inFlight,
+      col: seat.col,
+      row: seat.row,
+      slabs,
+      overflowSlabs: Math.max(0, slabs.length - slabCap),
+      topFiles,
+    };
+  });
+  const labelRank = buildings.slice().sort((a, b) => {
+    const dt = (b.tokens_total || 0) - (a.tokens_total || 0);
+    if (dt) return dt;
+    const ds = (b.session_count || 0) - (a.session_count || 0);
+    if (ds) return ds;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+  return {
+    kind: 'city',
+    placements: merged,
+    buildings,
+    labeledIds: labelRank.slice(0, labelCount).map(b => b.id),
+    diamondIds: buildings.filter(b => b.topFiles.length > 0).map(b => b.id),
+  };
+}
+
 export function usageEpithet({ rows, dateFrom, dateTo, topProjectShort, total_sessions }) {
   if (!total_sessions || !(rows && rows.length)) return 'empty canvas';
   const parts = [];

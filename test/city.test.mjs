@@ -8,7 +8,7 @@ import {
   roofNeighbourClearance, CITY_VISIBLE_FACES, CITY_SLAB_CAP,
   CITY_HEX_R_MIN_FRAC, CITY_HEX_R_MAX_FRAC, CITY_FIT_CELL_R_MAX,
   GLYPH_GRAPH_R, glyphCellPitch, HARNESS_MARK, harnessWedges,
-  fileBaseName, workingSetForProject,
+  fileBaseName, workingSetForProject, buildCityData, mergeGlyphPlacements,
 } from '../experience/client-core.mjs';
 
 const COS30 = Math.sqrt(3) / 2;
@@ -136,6 +136,59 @@ test('workingSetForProject — e.weight, D3 unwrap, drop read-only, cap 6', () =
   assert.equal(capped.length, 6);
   const maxWe = Math.max(...capped.map(f => f.write + f.edit));
   assert.equal(maxWe, 8);
+});
+
+test('buildCityData — seats id-asc, uncapped, weights, oldest slabs, no localStorage', () => {
+  const projects = [
+    { id: 'z', label: 'zeta', color: '#111', harnesses: ['pi'], sizeNorm: 0.2, tokens_total: 10, tokens_work: 3, session_count: 1 },
+    { id: 'a', label: 'Users-arshigoyal-kaaro-src-kaaroViewer', color: '#222', harnesses: ['pi'], sizeNorm: 0.9, tokens_total: 1000, tokens_work: 50, session_count: 21 },
+    { id: 'm', label: 'mid', color: '#333', harnesses: ['grok', 'pi'], sizeNorm: 0.4, tokens_total: 100, tokens_work: 9, session_count: 11 },
+  ];
+  const sessions = [
+    ...Array.from({ length: 10 }, (_, i) => ({
+      id: 'mb' + i, project_id: 'm', harness: 'pi', first_timestamp: `2026-01-${String(i + 1).padStart(2, '0')}`,
+    })),
+    { id: 'mg', project_id: 'm', harness: 'grok', first_timestamp: '2026-02-01' },
+    { id: 'z1', project_id: 'z', harness: 'pi', first_timestamp: '2026-01-01', tool_calls: 2 },
+    ...Array.from({ length: 21 }, (_, i) => ({
+      id: 'v' + i, project_id: 'a', harness: 'pi', first_timestamp: `2026-03-${String(i + 1).padStart(2, '0')}`,
+    })),
+  ];
+  const city = buildCityData({
+    projects, sessions,
+    placements: { a: { col: 2, row: 1 } },
+  });
+  assert.equal(city.kind, 'city');
+  assert.equal(city.buildings.length, 3);
+  assert.deepEqual(city.buildings.map(b => b.id), ['a', 'm', 'z']);
+  assert.deepEqual(city.placements.a, { col: 2, row: 1 });
+  const radial = mergeGlyphPlacements(['a', 'm', 'z'], { a: { col: 2, row: 1 } });
+  assert.deepEqual(city.placements.m, radial.m);
+  assert.deepEqual(city.placements.z, radial.z);
+
+  const unsorted = buildCityData({ projects: [projects[0], projects[1], projects[2]], sessions, placements: null });
+  const sortedSeats = mergeGlyphPlacements(['a', 'm', 'z'], null);
+  assert.deepEqual(unsorted.placements, sortedSeats);
+
+  const many = Array.from({ length: 61 }, (_, i) => ({
+    id: 'p' + String(i).padStart(2, '0'), label: 'p' + i, sizeNorm: 0.1, tokens_total: i, session_count: 1,
+  }));
+  assert.equal(buildCityData({ projects: many }).buildings.length, 61);
+
+  const viewer = city.buildings.find(b => b.id === 'a');
+  const mid = city.buildings.find(b => b.id === 'm');
+  assert.equal(viewer.footprint, viewer.sizeNorm);
+  assert.ok(viewer.sizeNorm > mid.sizeNorm, 'fat tokens, not session count, drive footprint');
+  assert.equal(viewer.tokens_work, 50);
+  assert.equal(viewer.shortLabel, 'kaaroViewer');
+  assert.equal(mid.weights.pi, 10);
+  assert.equal(mid.weights.grok, 1);
+  assert.equal(mid.slabs[0].harness, 'pi');
+  assert.equal(mid.slabs[10].harness, 'grok');
+  assert.equal(viewer.slabs.length, 21);
+  assert.equal(viewer.overflowSlabs, 9);
+  assert.equal(city.labeledIds[0], 'a');
+  assert.equal(typeof localStorage, 'undefined');
 });
 
 test('harnessWedges — weighted grok wedge is 2π/11 not π (kaaroBrain shape)', () => {

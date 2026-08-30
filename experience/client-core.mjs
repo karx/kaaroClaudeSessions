@@ -143,6 +143,68 @@ export function hexPath(r) {
   return pathFromPts(hexVertices(r));
 }
 
+const COS30 = Math.sqrt(3) / 2;
+const SIN30 = 0.5;
+export const CITY_VISIBLE_FACES = [[3, 4], [1, 2], [2, 3]];
+export const CITY_DIAMOND_OUT = 1.15;
+export const CITY_FIELD_MARGIN = 16;
+export const CITY_FIT_CELL_R_MAX = 36;
+export const CITY_SHARE_MAX_PROJECTS = 60;
+export const CITY_LABEL_HALF_W = 40;
+export const CITY_HEX_R_MIN_FRAC = 0.42;
+export const CITY_HEX_R_MAX_FRAC = 0.55;
+export const CITY_SLAB_CAP = 12;
+export const CITY_COLLISION_FRAC = 0.50;
+export const CITY_SLAB_H_MAX = 6;
+export const CITY_TOP_FILES = 6;
+export const CITY_LABEL_COUNT = 5;
+
+export function isoProject(x, y, z) {
+  return {
+    x: (x - y) * COS30,
+    y: (x + y) * SIN30 - z,
+  };
+}
+
+export function isoHexPts(r, z) {
+  return hexVertices(r).map(([x, y]) => isoProject(x, y, z));
+}
+
+function clampCity(n, lo, hi) {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+export function hexRFromCellR(cellR, sizeNorm) {
+  const n = sizeNorm || 0;
+  const span = CITY_HEX_R_MAX_FRAC - CITY_HEX_R_MIN_FRAC;
+  return clampCity(
+    cellR * (CITY_HEX_R_MIN_FRAC + span * n),
+    cellR * CITY_HEX_R_MIN_FRAC,
+    cellR * CITY_HEX_R_MAX_FRAC,
+  );
+}
+
+export function citySlabMetrics(dy, cap = CITY_SLAB_CAP) {
+  const stack = Math.min(dy * CITY_COLLISION_FRAC, cap * CITY_SLAB_H_MAX);
+  const slabH = stack / cap;
+  return { slabH, stack };
+}
+
+export function citySlabSlice(slabs, cap = CITY_SLAB_CAP) {
+  const list = slabs || [];
+  if (list.length <= cap) return { shown: list, overflow: 0, seam: false };
+  const shown = list.slice(0, cap - 1).concat(list[list.length - 1]);
+  return { shown, overflow: list.length - cap, seam: true };
+}
+
+export function roofNeighbourClearance(cellR) {
+  const { dx, dy } = glyphCellPitch(cellR);
+  const { stack } = citySlabMetrics(dy);
+  const hexR = hexRFromCellR(cellR, 1);
+  const dist = Math.hypot(dx / 2, dy - stack);
+  return { dist, twoR: 2 * hexR, ok: dist >= 2 * hexR };
+}
+
 // Harness fill on the project hex — data, not chrome (mirrors TOOL_COLORS).
 // No blue-family hues: Register A retired navy chrome; ticks/fills still encode identity.
 export const HARNESS_MARK = {

@@ -332,3 +332,56 @@ test('GET /daw — serves DAW page; query string does not 404', async () => {
     });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+// ── /tools + toolsRouter dispatch ──────────────────────────────────────────
+
+test('GET /tools — serves the built tools page', async () => {
+  const dir = join(tmpdir(), 'kaaro-tools-' + Date.now());
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'tools.html'), '<html>TOOLS PAGE</html>', 'utf8');
+  try {
+    const deps = makeDeps();
+    deps.paths.tools = join(dir, 'tools.html');
+    await withServer(deps, async (base) => {
+      assert.ok((await (await fetch(`${base}/tools`)).text()).includes('TOOLS PAGE'));
+    });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('GET /tools — 404 when not built yet', async () => {
+  await withServer(makeDeps(), async (base) => {
+    assert.equal((await fetch(`${base}/tools`)).status, 404);
+  });
+});
+
+test('/api/mcp/* and /api/skills/* are dispatched to toolsRouter when present', async () => {
+  let received = null;
+  const toolsRouter = async (req, res) => {
+    received = req.url;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('{"ok":true}');
+    return true;
+  };
+  const deps = makeDeps({ toolsRouter });
+  await withServer(deps, async (base) => {
+    const r = await fetch(`${base}/api/mcp/servers`);
+    assert.equal(r.status, 200);
+    assert.equal(received, '/api/mcp/servers');
+    const r2 = await fetch(`${base}/api/skills`);
+    assert.equal(received, '/api/skills');
+    assert.equal(r2.status, 200);
+  });
+});
+
+test('toolsRouter path not handled by the router → 404', async () => {
+  const toolsRouter = async () => false;
+  await withServer(makeDeps({ toolsRouter }), async (base) => {
+    assert.equal((await fetch(`${base}/api/mcp/bogus`)).status, 404);
+  });
+});
+
+test('toolsRouter absent → /api/mcp/* falls through to the generic 404 (no crash)', async () => {
+  await withServer(makeDeps(), async (base) => {
+    assert.equal((await fetch(`${base}/api/mcp/servers`)).status, 404);
+  });
+});

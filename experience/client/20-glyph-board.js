@@ -28,6 +28,15 @@
     return { list, placements, cfg: graphCfg() };
   }
 
+  function refreshCity() {
+    const st = boardState();
+    const sessions = GRAPH.nodes.filter(n => n.type === 'session');
+    const files = GRAPH.nodes.filter(n => n.type === 'file');
+    window._cityData = buildCityData({
+      projects: st.list, sessions, files, edges: GRAPH.edges, placements: st.placements,
+    });
+  }
+
   function persist(placements) {
     saveStore({ placements });
   }
@@ -163,6 +172,8 @@
     const snap = snapToGlyphCell(x, y, st.cfg);
     const next = moveGlyphPlacement(st.placements, id, snap.col, snap.row);
     persist(next);
+    refreshCity();
+    if (typeof joinNodes === 'function') nodeSel = joinNodes(GRAPH);
     applySeats();
     drawGridDecor();
     renderMinimap();
@@ -213,6 +224,12 @@
     return glyphGraphPins(boardState().placements, { width, height });
   };
 
+  window.refreshCity = refreshCity;
+  refreshCity();
+  if (typeof joinNodes === 'function') nodeSel = joinNodes(GRAPH);
   renderMinimap();
-  if (location.hash === '#grid') setTimeout(() => openLattice(), 0);
+  const HASH_LAYOUTS = new Set(['force', 'swimlane', 'arc', 'matrix', '3d']);
+  const hash = (location.hash || '').replace(/^#/, '');
+  if (HASH_LAYOUTS.has(hash)) setTimeout(() => setLayout(hash), 0);
+  else setTimeout(() => setLayout('grid', { forceEnter: true }), 0);
 })();

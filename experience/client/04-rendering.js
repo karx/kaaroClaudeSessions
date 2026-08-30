@@ -1,5 +1,5 @@
 // ── Edge rendering ────────────────────────────────────────────────────────────
-let currentLayout = 'force';
+let currentLayout = 'grid';
 function isSimLayout() { return currentLayout === 'force' || currentLayout === 'grid'; }
 
 function edgePathD(d) {
@@ -39,6 +39,20 @@ GRAPH.nodes.forEach(n => nodeById[n.id] = n);
 // ── Node rendering ────────────────────────────────────────────────────────────
 function renderNodeContent(el, d) {
   const r = nodeRadius(d);
+  if (d.type === 'project' && currentLayout === 'grid') {
+    const cellR = GLYPH_GRAPH_R;
+    const { dy } = glyphCellPitch(cellR);
+    const { slabH } = citySlabMetrics(dy);
+    const hexR = hexRFromCellR(cellR, d.sizeNorm);
+    const city = window._cityData;
+    const b = city?.buildings?.find(x => x.id === d.id);
+    const labeled = city?.labeledIds?.includes(d.id);
+    el.append('g').attr('class', 'city').html(cityBuildingMarkup(b || {
+      id: d.id, shortLabel: d.label, color: d.color, harnesses: d.harnesses || [],
+      weights: {}, slabs: [], topFiles: [], recencyLevel: d.recencyLevel || 0, sizeNorm: d.sizeNorm || 0,
+    }, { iso: false, r: hexR, slabH, showDiamonds: true, diamondFill: 'file', label: !!labeled }));
+    return;
+  }
   // recencyLevel 1 ("< 2 days") is a static hairline — infinite CSS pulses
   // on a week of sessions is the compositor tax. One ring from level 2 up.
   if (d.recencyLevel === 1) {

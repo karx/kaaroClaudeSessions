@@ -10,10 +10,37 @@
  * already trusts (hooks/mcp-config.mjs discovered it from a harness's own
  * config file) — this module has no opinion on where that command came from.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const STDERR_TAIL_CAP = 2000;
+
+/**
+ * Kill a spawned MCP server and its descendants. With shell:true (Windows,
+ * required for .cmd/.bat shims like npx/npm — see connectMcpServer below),
+ * child.pid is the shell's PID; plain child.kill() only terminates the
+ * shell and orphans the actual server process. `taskkill /t` kills the
+ * whole tree; posix process groups don't have this problem.
+ */
+/**
+ * shell:true builds a single cmd.exe command line from `command` verbatim —
+ * Node quotes each `args` element for us, but not `command` itself, so an
+ * unquoted spaced path (e.g. "C:\Program Files\nodejs\node.exe") breaks.
+ * Bare PATH command names (the overwhelming majority of real MCP configs —
+ * "npx", "node", "python", "uvx", …) are unaffected either way.
+ */
+function winQuoteCommand(command) {
+  if (process.platform !== 'win32' || !/\s/.test(command) || command.startsWith('"')) return command;
+  return '"' + command + '"';
+}
+
+function killProcessTree(proc) {
+  if (!proc.pid) return;
+  if (process.platform === 'win32') {
+    try { spawnSync('taskkill', ['/pid', String(proc.pid), '/t', '/f']); return; } catch { /* fall through */ }
+  }
+  try { proc.kill(); } catch { /* already gone */ }
+}
 
 /**
  * @param {object} opts
@@ -29,8 +56,13 @@ export async function connectMcpServer({
 } = {}) {
   if (!command) throw new Error('connectMcpServer: command is required');
 
-  const child = spawnFn(command, args, {
-    cwd, env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'],
+  // Windows resolves .cmd/.bat shims (npx, npm, most MCP server launchers)
+  // only through a shell — spawn('npx', …) without it fails ENOENT even
+  // when npx is on PATH. command/args here always come from a harness's
+  // own already-trusted config (hooks/mcp-config.mjs), never client input.
+  const winShell = process.platform === 'win32';
+  const child = spawnFn(winShell ? winQuoteCommand(command) : command, args, {
+    cwd, env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'], shell: winShell,
   });
 
   let dead = false;
@@ -110,7 +142,7 @@ export async function connectMcpServer({
 
   function disconnect() {
     killAllPending(new Error('MCP connection disconnected'));
-    try { child.kill(); } catch { /* already gone */ }
+    killProcessTree(child);
   }
 
   let initResult;

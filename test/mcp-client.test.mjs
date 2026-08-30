@@ -49,9 +49,12 @@ test('connectMcpServer: callTool rejects on a JSON-RPC error response', async ()
 });
 
 test('connectMcpServer: per-call timeout rejects without killing the connection', async () => {
+  // timeoutMs must comfortably cover the initialize handshake itself (which
+  // on Windows goes through an extra cmd.exe shell hop — see winQuoteCommand)
+  // while staying well under FAKE_MCP_SLOW_MS so the "slow" tool call times out.
   const conn = await connectFixture({
-    timeoutMs: 100,
-    env: { FAKE_MCP_SLOW_MS: '1000' },
+    timeoutMs: 800,
+    env: { FAKE_MCP_SLOW_MS: '3000' },
   });
   try {
     await assert.rejects(() => conn.callTool('slow', {}), /timed out/);

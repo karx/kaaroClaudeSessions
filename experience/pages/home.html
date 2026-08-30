@@ -167,6 +167,13 @@
       <div class="t-desc">Hear writes, tests, agents, failures — then shape the mix.</div>
       <div class="t-stat" id="stat-daw">awaiting first pulse</div>
     </a>
+    <a class="tile" href="/tools" id="tile-tools">
+      <span class="t-key">T</span>
+      <span class="t-sym">⚙</span>
+      <div class="t-name">Tools · MCP + Skills</div>
+      <div class="t-desc">Connect a configured MCP server, call its tools, read skill files.</div>
+      <div class="t-stat" id="stat-tools"></div>
+    </a>
   </div>
   <div id="contrib">
     <a href="/mapping" id="tile-map">
@@ -323,7 +330,13 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     }
   }).catch(err => console.error('[home] /api/kind-map failed', err));
 
-  const NAV = 'G history · N live · D sonic · M map';
+  fetchRetry('/api/mcp/servers').then(r => r.json()).then(d => {
+    const total = (d.harnesses || []).reduce((n, h) => n + h.servers.length, 0);
+    const el = document.getElementById('stat-tools');
+    if (el) el.textContent = total ? (total + ' MCP server' + (total === 1 ? '' : 's') + ' configured') : 'no MCP servers configured yet';
+  }).catch(() => { /* tools stat is optional decoration */ });
+
+  const NAV = 'G history · N live · D sonic · T tools · M map';
   let chromeLive = false;
   function revealChrome() {
     if (chromeLive) return;
@@ -355,6 +368,7 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     if (k === 'g') location.href = '/graph';
     if (k === 'n') location.href = '/now';
     if (k === 'd') location.href = '/daw';
+    if (k === 't') location.href = '/tools';
     if (k === 'm') location.href = '/mapping';
   });
 }());

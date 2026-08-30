@@ -17,6 +17,12 @@
   };
 
   // _fmtTok and _esc defined in 01-data.js
+  // highlightMatches / readableTextOn defined in experience/client-core.mjs (injected by build.mjs)
+
+  // ── Find-in-thread ─────────────────────────────────────────────────────────
+  let _query = '';
+  /** esc() every non-match run, wrap matches in <mark class="thr-hit"> when a search is active. */
+  function _hl(text) { return highlightMatches(text || '', _query, esc); }
 
   function _fmtDur(ms) {
     if (!ms) return null;
@@ -39,8 +45,9 @@
     const segs  = entries.map(([name, n]) => {
       const pct   = (n / total * 100).toFixed(2);
       const color = _C[name] || KAARO_TOKENS.dim;
+      const label = readableTextOn(color);
       return `<div class="thr-bar-seg" style="width:${pct}%;background:${color}" title="${esc(name)} × ${n}">` +
-             `<span class="thr-bar-lbl">${esc(name)}</span></div>`;
+             `<span class="thr-bar-lbl" style="color:${label}">${esc(name)}</span></div>`;
     }).join('');
     return `<div class="thr-compbar">${segs}</div>`;
   }
@@ -78,11 +85,11 @@
 
     // Multiline commands — indent continuation lines
     const lines = arg.split('\n');
-    const firstLine = esc(lines[0] || '');
+    const firstLine = _hl(lines[0] || '');
     const restLines = lines.slice(1).filter(l => l.trim());
     const moreLines = restLines.length
       ? '<div class="thr-tc-cont">' +
-          restLines.map(l => `<span class="thr-tc-contline">${esc(l)}</span>`).join('') +
+          restLines.map(l => `<span class="thr-tc-contline">${_hl(l)}</span>`).join('') +
         '</div>'
       : '';
 
@@ -92,13 +99,17 @@
       const oldFirst = (inp.old_string || '').split('\n')[0];
       const newFirst = (inp.new_string || '').split('\n')[0];
       diffHtml = `<div class="thr-tc-diff">` +
-        (oldFirst ? `<span class="thr-tc-del">- ${esc(oldFirst)}</span>` : '') +
-        (newFirst ? `<span class="thr-tc-add">+ ${esc(newFirst)}</span>` : '') +
+        (oldFirst ? `<span class="thr-tc-del">- ${_hl(oldFirst)}</span>` : '') +
+        (newFirst ? `<span class="thr-tc-add">+ ${_hl(newFirst)}</span>` : '') +
       `</div>`;
     }
 
+    // Tool identity is a small color swatch, not the text color itself — the
+    // name text stays a fixed AA-readable tone (WCAG 1.4.1: color is not the
+    // only signal, and per-tool hues are too dark on near-black to hit 4.5:1).
     return `<div class="thr-tc${err ? ' thr-tc-err' : ''}">` +
-      `<span class="thr-tc-name" style="color:${color}">${esc(n)}</span>` +
+      `<span class="thr-tc-dot" style="background:${color}"></span>` +
+      `<span class="thr-tc-name">${_hl(n)}</span>` +
       `<span class="thr-tc-arg">${firstLine}</span>` +
       (err && tc.error_text ? `<span class="thr-tc-errtxt">${esc(tc.error_text.slice(0, 120))}</span>` : '') +
     `</div>` +
@@ -132,8 +143,8 @@
     return `<details class="thr-subagent" data-agent-id="${esc(ref.agent_id || '')}">` +
       `<summary class="thr-sub-sum">` +
         `<span class="thr-sub-mark">↳</span>` +
-        `<span class="thr-sub-type">${esc(type)}</span>` +
-        `<span class="thr-sub-desc">${esc(desc)}</span>` +
+        `<span class="thr-sub-type">${_hl(type)}</span>` +
+        `<span class="thr-sub-desc">${_hl(desc)}</span>` +
         (shortId ? `<span class="thr-sub-id">${esc(shortId)}</span>` : '') +
         (toolsLine ? `<span class="thr-sub-tools">${esc(toolsLine)}</span>` : '') +
       `</summary>` +
@@ -147,8 +158,8 @@
       const toolsLine = _toolSummaryLine(s.tree?.segments?.[0]?.tool_summary);
       return `<div class="thr-roster-row">` +
         `<span class="thr-sub-mark">↳</span>` +
-        `<span class="thr-sub-type">${esc(s.agent_type || 'agent')}</span>` +
-        `<span class="thr-sub-desc">${esc(s.description || s.agent_id || '?')}</span>` +
+        `<span class="thr-sub-type">${_hl(s.agent_type || 'agent')}</span>` +
+        `<span class="thr-sub-desc">${_hl(s.description || s.agent_id || '?')}</span>` +
         (s.linked === false ? '<span class="thr-sub-unlinked">unlinked</span>' : '') +
         (toolsLine ? `<span class="thr-sub-tools">${esc(toolsLine)}</span>` : '') +
       `</div>`;
@@ -179,7 +190,7 @@
     const trunc = turn.text && turn.text.length >= 500
       ? '<span class="thr-truncated">…</span>' : '';
     const textHtml = turn.text
-      ? `<div class="thr-turn-text thr-turn-text-copy" data-thr-copy title="Click to copy" role="button" tabindex="0">${esc(turn.text)}${trunc}</div>`
+      ? `<div class="thr-turn-text thr-turn-text-copy" data-thr-copy title="Click to copy" role="button" tabindex="0">${_hl(turn.text)}${trunc}</div>`
       : '';
 
     const spawnById = new Map(
@@ -252,7 +263,10 @@
   }
 
   // ── Full render ───────────────────────────────────────────────────────────
+  let _lastData = null, _lastNode = null;
+
   function _render(data, node) {
+    _lastData = data; _lastNode = node;
     const segs  = data.segments || [];
     const color = node?.color || '#4488cc';
     const label = node?.label || (data.session_id || '').slice(0, 8) || '?';
@@ -279,28 +293,99 @@
     document.getElementById('thr-body').innerHTML =
       parts.join('') +
       (legend ? `<div class="thr-legend">${legend}</div>` : '');
+
+    _refreshHits();
   }
 
   // ── DOM ───────────────────────────────────────────────────────────────────
   const ov  = document.createElement('div');
   ov.id     = 'thread-view';
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', 'Session thread');
+  ov.tabIndex = -1;
   ov.innerHTML = `
     <div id="thr-chrome">
       <div id="thr-chrome-left">
         <span id="thr-chrome-label"></span>
         <span id="thr-chrome-ait"></span>
       </div>
-      <button id="thr-close-btn" onclick="window.closeThread()">✕</button>
+      <div id="thr-search">
+        <input id="thr-search-input" type="text" placeholder="find in thread… (/)"
+               aria-label="Search thread" autocomplete="off" spellcheck="false">
+        <span id="thr-search-count" role="status" aria-live="polite"></span>
+        <button id="thr-search-prev" class="thr-search-btn" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled>▲</button>
+        <button id="thr-search-next" class="thr-search-btn" aria-label="Next match" title="Next match (Enter)" disabled>▼</button>
+      </div>
+      <button id="thr-close-btn" onclick="window.closeThread()" aria-label="Close thread view (Esc)">✕</button>
     </div>
     <div id="thr-scroll"><div id="thr-body"></div></div>`;
   document.body.appendChild(ov);
 
   // Panel delegation — VIEW THREAD buttons
+  let _opener = null;
   document.getElementById('panel').addEventListener('click', e => {
     const btn = e.target.closest('[data-thread-open]');
     if (!btn) return;
+    _opener = btn;
     window.openThread(btn.dataset.threadOpen);
   });
+
+  // ── Find-in-thread wiring ────────────────────────────────────────────────
+  const _searchInput = document.getElementById('thr-search-input');
+  const _searchCount = document.getElementById('thr-search-count');
+  const _searchPrev  = document.getElementById('thr-search-prev');
+  const _searchNext  = document.getElementById('thr-search-next');
+  let _hits = [];
+  let _hitIdx = -1;
+  let _debounce = null;
+
+  function _updateCount() {
+    _searchCount.textContent = !_query ? ''
+      : _hits.length ? `${_hitIdx + 1} / ${_hits.length}` : 'no matches';
+    _searchPrev.disabled = _searchNext.disabled = _hits.length === 0;
+  }
+
+  // Re-collect .thr-hit nodes after every render (query change, or a fresh
+  // thread load while a search is still active) and jump to the first match.
+  function _refreshHits() {
+    _hits = Array.from(document.querySelectorAll('#thr-body .thr-hit'));
+    _hitIdx = -1;
+    if (_hits.length) _setCurrentHit(0); else _updateCount();
+  }
+
+  function _setCurrentHit(idx) {
+    if (!_hits.length) { _hitIdx = -1; _updateCount(); return; }
+    if (_hitIdx >= 0 && _hits[_hitIdx]) _hits[_hitIdx].classList.remove('thr-hit-current');
+    _hitIdx = ((idx % _hits.length) + _hits.length) % _hits.length;
+    const el = _hits[_hitIdx];
+    el.classList.add('thr-hit-current');
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    _updateCount();
+  }
+
+  function _runSearch() {
+    _query = _searchInput.value.trim();
+    if (_lastData) _render(_lastData, _lastNode);
+  }
+
+  function _clearSearch() {
+    _searchInput.value = '';
+    const had = !!_query;
+    _searchInput.blur();
+    if (had) _runSearch();
+  }
+
+  _searchInput.addEventListener('input', () => {
+    clearTimeout(_debounce);
+    _debounce = setTimeout(_runSearch, 120);
+  });
+  _searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); _setCurrentHit(_hitIdx + (e.shiftKey ? -1 : 1)); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); _clearSearch(); }
+  });
+  _searchPrev.addEventListener('click', () => _setCurrentHit(_hitIdx - 1));
+  _searchNext.addEventListener('click', () => _setCurrentHit(_hitIdx + 1));
 
   // thr-turn-text click-to-copy (user + asst). Search: data-thr-copy
   function _copyTurnText(el) {
@@ -339,7 +424,11 @@
 
   // ── Public ────────────────────────────────────────────────────────────────
   window.openThread = async function (sessionId) {
+    if (!_opener) _opener = document.activeElement;
     ov.classList.add('open');
+    _query = '';
+    _searchInput.value = '';
+    ov.focus();
     const node = typeof nodeById !== 'undefined' ? nodeById[sessionId] : null;
 
     document.getElementById('thr-chrome-label').textContent = node?.label || sessionId.slice(0, 8);
@@ -362,10 +451,23 @@
     }
   };
 
-  window.closeThread = function () { ov.classList.remove('open'); };
+  window.closeThread = function () {
+    ov.classList.remove('open');
+    _opener?.focus?.();
+    _opener = null;
+  };
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && ov.classList.contains('open')) window.closeThread();
+    if (!ov.classList.contains('open')) return;
+    if (e.key === 'Escape') {
+      if (document.activeElement === _searchInput && _query) { e.preventDefault(); _clearSearch(); return; }
+      window.closeThread();
+      return;
+    }
+    if (e.key === '/' && document.activeElement !== _searchInput) {
+      e.preventDefault();
+      _searchInput.focus();
+    }
   });
 
 })();

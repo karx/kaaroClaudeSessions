@@ -590,11 +590,11 @@ function ptsNear(a, b) {
  * harness. Omitted, null, or all-equal weights reproduce the equal-angle
  * default exactly.
  */
-export function harnessWedges(harnesses, r, weights) {
+function harnessWedgePts(harnesses, r, weights) {
   const list = uniqHarnesses(harnesses);
   if (!list.length) return [];
   const verts = hexVertices(r);
-  if (list.length === 1) return [{ harness: list[0], d: pathFromPts(verts) }];
+  if (list.length === 1) return [{ harness: list[0], pts: verts }];
   const n = list.length;
   const tau = Math.PI * 2;
   const w = weights ? list.map(h => Math.max(0, weights[h] || 0)) : list.map(() => 1);
@@ -614,8 +614,15 @@ export function harnessWedges(harnesses, r, weights) {
       if (!ptsNear(v, p0) && !ptsNear(v, p1)) pts.push(v);
     }
     if (!ptsNear(p1, pts[pts.length - 1])) pts.push(p1);
-    return { harness: h, d: pathFromPts(pts) };
+    return { harness: h, pts };
   });
+}
+
+export function harnessWedges(harnesses, r, weights) {
+  return harnessWedgePts(harnesses, r, weights).map(w => ({
+    harness: w.harness,
+    d: pathFromPts(w.pts),
+  }));
 }
 
 /**
@@ -1486,6 +1493,48 @@ export function humanizeProjectLabel(raw) {
   }
   if (!s || /^Users-/i.test(s)) return 'home';
   return s;
+}
+
+export function fileBaseName(path) {
+  const s = String(path || '').replace(/\\/g, '/');
+  const parts = s.split('/').filter(Boolean);
+  return parts.pop() || s;
+}
+
+const FILE_EDGE_TYPES = new Set(['write', 'edit', 'read']);
+
+export function workingSetForProject(projectId, { sessions = [], files = [], edges = [], cap = CITY_TOP_FILES } = {}) {
+  const memberIds = new Set(
+    sessions.filter(s => s.project_id === projectId).map(s => s.id),
+  );
+  const acc = new Map();
+  for (const e of edges) {
+    if (!FILE_EDGE_TYPES.has(e.type)) continue;
+    const src = e.source?.id ?? e.source;
+    const tgt = e.target?.id ?? e.target;
+    if (!memberIds.has(src)) continue;
+    if (!acc.has(tgt)) acc.set(tgt, { path: tgt, write: 0, edit: 0, read: 0 });
+    acc.get(tgt)[e.type] += (e.weight || 1);
+  }
+  const fileById = new Map(files.map(f => [f.id, f]));
+  return [...acc.values()]
+    .filter(f => (f.write + f.edit) > 0)
+    .sort((a, b) => {
+      const dw = (b.write + b.edit) - (a.write + a.edit);
+      if (dw) return dw;
+      if (b.read !== a.read) return b.read - a.read;
+      return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+    })
+    .slice(0, cap)
+    .map(f => {
+      const node = fileById.get(f.path);
+      return {
+        path: f.path,
+        name: node?.label || fileBaseName(f.path),
+        write: f.write, edit: f.edit, read: f.read,
+        color: node?.color || '#666666',
+      };
+    });
 }
 
 export function usageEpithet({ rows, dateFrom, dateTo, topProjectShort, total_sessions }) {

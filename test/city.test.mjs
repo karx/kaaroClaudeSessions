@@ -7,7 +7,8 @@ import {
   isoProject, isoHexPts, hexRFromCellR, citySlabMetrics, citySlabSlice,
   roofNeighbourClearance, CITY_VISIBLE_FACES, CITY_SLAB_CAP,
   CITY_HEX_R_MIN_FRAC, CITY_HEX_R_MAX_FRAC, CITY_FIT_CELL_R_MAX,
-  GLYPH_GRAPH_R, glyphCellPitch, HARNESS_MARK,
+  GLYPH_GRAPH_R, glyphCellPitch, HARNESS_MARK, harnessWedges,
+  fileBaseName, workingSetForProject,
 } from '../experience/client-core.mjs';
 
 const COS30 = Math.sqrt(3) / 2;
@@ -98,3 +99,49 @@ test('isoHexPts length 6', () => {
   assert.ok(HARNESS_MARK.pi);
   assert.equal(CITY_FIT_CELL_R_MAX, 36);
 });
+
+test('fileBaseName — Windows and POSIX', () => {
+  assert.equal(fileBaseName('C:\\foo\\bar.mjs'), 'bar.mjs');
+  assert.equal(fileBaseName('/src/kaaro/x.js'), 'x.js');
+  assert.equal(fileBaseName(''), '');
+});
+
+test('workingSetForProject — e.weight, D3 unwrap, drop read-only, cap 6', () => {
+  const sessions = [
+    { id: 'sA', project_id: 'pA' },
+    { id: 'sB', project_id: 'pB' },
+  ];
+  const edges = [
+    { source: 'sA', target: '/a.mjs', type: 'write', weight: 10 },
+    { source: { id: 'sB' }, target: { id: '/a.mjs' }, type: 'write', weight: 1 },
+    { source: 'sA', target: '/only-read.ts', type: 'read', weight: 9 },
+    { source: 'sA', target: '/b.js', type: 'edit', weight: 3 },
+    { source: 'sA', target: '/glob-miss', type: 'membership', weight: 99 },
+  ];
+  const files = [{ id: '/a.mjs', label: 'a.mjs', color: '#00cccc' }];
+  const a = workingSetForProject('pA', { sessions, files, edges, cap: 6 });
+  const b = workingSetForProject('pB', { sessions, files, edges, cap: 6 });
+  assert.equal(a.find(f => f.path === '/a.mjs').write, 10);
+  assert.equal(b.find(f => f.path === '/a.mjs').write, 1);
+  assert.ok(!a.some(f => f.path === '/only-read.ts'));
+  assert.ok(!a.some(f => f.path === '/glob-miss'));
+  assert.equal(a.find(f => f.path === '/a.mjs').color, '#00cccc');
+  assert.equal(a.find(f => f.path === '/b.js').name, 'b.js');
+  const many = Array.from({ length: 8 }, (_, i) => ({
+    source: 'sA', target: `/f${i}.js`, type: 'write', weight: 8 - i,
+  }));
+  const capped = workingSetForProject('pA', {
+    sessions, edges: many, cap: 6,
+  });
+  assert.equal(capped.length, 6);
+  const maxWe = Math.max(...capped.map(f => f.write + f.edit));
+  assert.equal(maxWe, 8);
+});
+
+test('harnessWedges — weighted grok wedge is 2π/11 not π (kaaroBrain shape)', () => {
+  const eq = harnessWedges(['grok', 'pi'], 20);
+  const wt = harnessWedges(['grok', 'pi'], 20, { pi: 10, grok: 1 });
+  assert.notEqual(wt[0].d, eq[0].d);
+  assert.ok(wt[0].d.startsWith('M'));
+});
+

@@ -1732,11 +1732,20 @@ test('generateUsageShareCardSVG — monthly pulse strip in the field gutter; cap
   const opacities = weightRects.map(r => Number(/opacity="([^"]*)"/.exec(r)[1]));
   assert.ok(opacities[1] > opacities[0], 'February (3 sessions, 0 tokens) is darker than January (1 session, huge tokens)');
   assert.equal(opacities[1], 1, 'maxN month is full opacity (0.15 + 0.85)');
-  assert.equal(opacities[0], 0.15 + 0.85 * (1 / 3));
+  assert.equal(opacities[0], Number((0.15 + 0.85 * (1 / 3)).toFixed(1)));
 
   const longSvg = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {
     sessions: [makePulseSess('2024-03-01'), makePulseSess('2026-08-01')],
     dateFrom: '2024-03-01', dateTo: '2026-08-30',
   }));
   assert.equal((longSvg.match(/<rect x="[^"]*" y="522" width="[^"]*" height="10"[^/]*\/>/g) || []).length, 24);
+
+  // n=19: (575-18)/19 = 29.315… — emit one decimal, not the raw float.
+  const n19Svg = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {
+    sessions: [makePulseSess('2025-03-01')],
+    dateFrom: '2025-03-01', dateTo: '2026-09-30',
+  }));
+  const n19Rects = n19Svg.match(/<rect x="[^"]*" y="522" width="[^"]*" height="10"[^/]*\/>/g) || [];
+  assert.equal(n19Rects.length, 19);
+  assert.ok(!n19Rects.some(r => /\d+\.\d{2}/.test(r)), 'x/width/opacity stay at one decimal when n does not divide evenly');
 });

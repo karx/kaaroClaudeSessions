@@ -1506,8 +1506,7 @@ export function buildUsageShareCardData(me, opts = {}) {
   const projRank = new Map(projects.map((p, i) => [p.id, i]));
 
   const rawSessions = opts.sessions || [];
-  // Count months before the constellation map drops date_str. Missing dates
-  // or an empty canvas yield no strip — not a populated-only bucket list.
+  // Count date_str before the constellation map drops it; skip the strip when dates or sessions are missing.
   const monthMap = _seedUsageMonths(opts.dateFrom, opts.dateTo, rawSessions.length);
   const tool_calls = rawSessions.reduce((n, s) => {
     const bucket = monthMap.get((s.date_str || '').slice(0, 7));
@@ -1655,12 +1654,13 @@ export function generateUsageShareCardSVG(data) {
   const maxN = Math.max(1, ...months.map(mo => mo.sessions));
   const stripY = fieldY1 + 8;
   const strip = months.map((mo, i) => {
-    const x = fieldX0 + i * (cellW + gap);
+    const x = Number((fieldX0 + i * (cellW + gap)).toFixed(1));
+    const w = Number(cellW.toFixed(1));
     if (mo.sessions === 0) {
-      return `<rect x="${x}" y="${stripY}" width="${cellW}" height="10" fill="none" stroke="${c.border}" stroke-width="1"/>`;
+      return `<rect x="${x}" y="${stripY}" width="${w}" height="10" fill="none" stroke="${c.border}" stroke-width="1"/>`;
     }
-    const opacity = 0.15 + 0.85 * (mo.sessions / maxN);
-    return `<rect x="${x}" y="${stripY}" width="${cellW}" height="10" fill="${c.select}" opacity="${opacity}"/>`;
+    const opacity = Number((0.15 + 0.85 * (mo.sessions / maxN)).toFixed(1));
+    return `<rect x="${x}" y="${stripY}" width="${w}" height="10" fill="${c.select}" opacity="${opacity}"/>`;
   }).join('');
   const captionY = nMonths ? fieldY1 + 28 : fieldY1 + 22;
 

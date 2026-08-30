@@ -33,6 +33,7 @@
   }
 
   function _showPreview(svgString, cardData) {
+    const box = { svg: svgString, cardData };
     const overlay = document.createElement('div');
     overlay.style.cssText =
       'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9600;' +
@@ -40,7 +41,7 @@
       "gap:14px;padding:20px;font-family:'IBM Plex Mono','Courier New',monospace;";
 
     const img = document.createElement('img');
-    img.src = 'data:image/svg+xml,' + encodeURIComponent(svgString);
+    img.src = 'data:image/svg+xml,' + encodeURIComponent(box.svg);
     img.style.cssText = `max-width:100%;max-height:70vh;border:1px solid ${KAARO_TOKENS.border};`;
 
     const row = document.createElement('div');
@@ -51,8 +52,8 @@
     shareBtn.addEventListener('click', async () => {
       shareBtn.textContent = '…';
       try {
-        const filename = `kaaro-${cardData.kind || 'share'}-card.png`;
-        const result = await shareCard(svgString, 'kaaroSessions', buildShareText(cardData), filename);
+        const filename = box.cardData.shareFilename || `kaaro-${box.cardData.kind || 'share'}-card.png`;
+        const result = await shareCard(box.svg, 'kaaroSessions', buildShareText(box.cardData), filename);
         shareBtn.textContent = result === 'shared' ? '✓ SHARED' : result === 'downloaded' ? '✓ SAVED' : '◆ SHARE / SAVE';
       } catch (_) {
         shareBtn.textContent = '⚠ FAILED';
@@ -65,6 +66,38 @@
     row.appendChild(shareBtn);
     row.appendChild(closeBtn);
     overlay.appendChild(img);
+
+    if (cardData.kind === 'usage') {
+      const nameRow = document.createElement('div');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'SIGN YOUR CARD (OPTIONAL)';
+      input.maxLength = 24;
+      input.spellcheck = false;
+      input.autocomplete = 'off';
+      input.value = box.cardData.displayName || '';
+      input.style.cssText =
+        'width:280px;background:' + KAARO_TOKENS.card +
+        ';color:' + KAARO_TOKENS.body +
+        ';border:1px solid ' + KAARO_TOKENS.border +
+        ';border-radius:0;box-shadow:none;outline:none;' +
+        "font:11px 'IBM Plex Mono','Courier New',monospace;" +
+        'letter-spacing:0.08em;padding:8px 10px;text-transform:none;';
+      function commit() {
+        const name = sanitizeDisplayName(input.value);
+        input.value = name;
+        if (name) localStorage.setItem('kaaro-display-name', name);
+        else localStorage.removeItem('kaaro-display-name');
+        box.cardData = applyDisplayName(box.cardData, name);
+        box.svg = generateUsageShareCardSVG(box.cardData);
+        img.src = 'data:image/svg+xml,' + encodeURIComponent(box.svg);
+      }
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+      nameRow.appendChild(input);
+      overlay.appendChild(nameRow);
+    }
+
     overlay.appendChild(row);
     document.body.appendChild(overlay);
   }
@@ -125,11 +158,13 @@
         const projectCount = GRAPH.nodes.filter(n => n.type === 'project').length;
         const tokensTotal = sessions.reduce((s, n) => s + (n.tokens_total || 0), 0);
         const dates = sessions.map(n => n.date_str).filter(Boolean).sort();
+        const displayName = sanitizeDisplayName(localStorage.getItem('kaaro-display-name') || '');
         const cardData = buildUsageShareCardData(meGlyph(sessions), {
           projectCount, tokensTotal,
           dateFrom: dates[0] || '', dateTo: dates[dates.length - 1] || '',
           projects: GRAPH.nodes.filter(n => n.type === 'project'),
           sessions,
+          displayName,
         });
         return { svg: generateUsageShareCardSVG(cardData), cardData };
       });

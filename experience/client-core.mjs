@@ -149,6 +149,16 @@ export const HARNESS_MARK = {
   'claude-code': '#2a9d8f', codex: '#d9534f', pi: '#ff9944', antigravity: '#44cc88',
   grok: '#cc4488', opencode: '#aacc44', copilot: '#c070b0', 'command-code': '#ffcc44',
 };
+export const HARNESS_EPITHET_LABEL = {
+  'claude-code': 'Claude',
+  'codex': 'Codex',
+  'pi': 'Pi',
+  'antigravity': 'Antigravity',
+  'grok': 'Grok',
+  'opencode': 'OpenCode',
+  'copilot': 'Copilot',
+  'command-code': 'Command Code',
+};
 export const HARNESS_FILL_OPACITY = 1;
 
 /** Solid harness fill only while the project is live (recencyLevel ≥ 1 or in flight). */
@@ -1209,11 +1219,12 @@ function _shareGeom() {
   return { width, height, headerH, footerH, bodyTop, bodyBot, dividerX, leftPad, rightPad };
 }
 
-function _shareHeader(g, { kicker, dateRight, subRight }) {
+function _shareHeader(g, { kicker, dateRight, subRight, wordmark }) {
   const c = SHARE_CARD_TOKENS;
+  const mark = esc(String(wordmark || 'KAAROSESSIONS').toUpperCase());
   return `<rect width="${g.width}" height="${g.headerH}" fill="${c.panel}"/>
   <line x1="0" y1="${g.headerH}" x2="${g.width}" y2="${g.headerH}" stroke="${c.border}" stroke-width="1"/>
-  <text x="${g.leftPad}" y="34" style="font-size:20px;font-weight:bold;fill:${c.accent};letter-spacing:3px;">KAAROSESSIONS</text>
+  <text x="${g.leftPad}" y="34" style="font-size:20px;font-weight:bold;fill:${c.accent};letter-spacing:3px;">${mark}</text>
   <text x="${g.leftPad}" y="58" style="font-size:9px;fill:${c.dim};letter-spacing:2px;">${esc(kicker || '')}</text>
   <text x="${g.width - g.leftPad}" y="34" style="font-size:12px;fill:${c.dim};text-anchor:end;">${esc(dateRight || '')}</text>
   <text x="${g.width - g.leftPad}" y="58" style="font-size:12px;fill:${c.label};text-anchor:end;">${esc(subRight || '')}</text>`;
@@ -1415,6 +1426,59 @@ export function humanizeProjectLabel(raw) {
   return s;
 }
 
+export function usageEpithet({ rows, dateFrom, dateTo, topProjectShort, total_sessions }) {
+  if (!total_sessions || !(rows && rows.length)) return 'empty canvas';
+  const parts = [];
+  if (rows.length >= 2) parts.push(`${rows.length}-harness operator`);
+  if (rows[0].pct >= 50) {
+    const id = rows[0].harness;
+    parts.push(`${HARNESS_EPITHET_LABEL[id] || id}-native`);
+  }
+  if (dateFrom && dateTo) {
+    const y1 = +dateFrom.slice(0, 4), m1 = +dateFrom.slice(5, 7);
+    const y2 = +dateTo.slice(0, 4), m2 = +dateTo.slice(5, 7);
+    const elapsed = (y2 - y1) * 12 + (m2 - m1);
+    if (elapsed >= 2) parts.push(`${elapsed} months`);
+    else if (elapsed === 1) parts.push('1 month');
+    else {
+      const days = Math.round(
+        (Date.parse(dateTo + 'T00:00:00Z') - Date.parse(dateFrom + 'T00:00:00Z')) / 86400000,
+      );
+      if (days >= 1) parts.push(`${days} days`);
+    }
+  }
+  if (topProjectShort) parts.push(`heaviest world: ${_shareTrunc(topProjectShort, 18)}`);
+  return parts.join(' · ');
+}
+
+export function sanitizeDisplayName(raw) {
+  return String(raw || '')
+    .trim()
+    .replace(/[^A-Za-z0-9 ._\-]/g, '')
+    .replace(/ +/g, ' ')
+    .slice(0, 24)
+    .trim();
+}
+
+export function usageShareFilename(displayName, dateTo) {
+  const slug = String(displayName || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  if (!slug) return 'kaaro-usage-card.png';
+  const ym = (dateTo && /^\d{4}-\d{2}/.test(dateTo)) ? dateTo.slice(0, 7) : '';
+  return ym ? `kaaro-${slug}-${ym}.png` : `kaaro-${slug}.png`;
+}
+
+export function applyDisplayName(data, name) {
+  const displayName = sanitizeDisplayName(name);
+  return {
+    ...data,
+    displayName,
+    shareFilename: usageShareFilename(displayName, data.dateTo),
+  };
+}
+
 /**
  * Full-canvas ("ME") card assembler — "Project & Session Constellation":
  * the left field layers two marks — a hex per project (foreground landmark,
@@ -1458,18 +1522,27 @@ export function buildUsageShareCardData(me, opts = {}) {
     .map(s => ({ color: s.color || SHARE_CARD_TOKENS.dim, diversity: s.tool_diversity || 0 }));
 
   const topProject = projects[0]?.label || '';
+  const topProjectShort = humanizeProjectLabel(topProject);
+  const rows = (me?.rows || []).map(r => ({ harness: r.harness, count: r.count, pct: r.pct, color: r.color }));
+  const dateFrom = opts.dateFrom || '';
+  const dateTo = opts.dateTo || '';
+  const total_sessions = me?.total || 0;
+  const displayName = sanitizeDisplayName(opts.displayName);
   return {
     kind: 'usage',
-    total_sessions: me?.total || 0,
+    total_sessions,
     project_count:  opts.projectCount || projects.length,
     tokens_total:   opts.tokensTotal || 0,
-    dateFrom:       opts.dateFrom || '',
-    dateTo:         opts.dateTo || '',
-    rows: (me?.rows || []).map(r => ({ harness: r.harness, count: r.count, pct: r.pct, color: r.color })),
+    dateFrom,
+    dateTo,
+    rows,
     topProject,
-    topProjectShort: humanizeProjectLabel(topProject),
+    topProjectShort,
     tool_calls,
     avg_diversity,
+    displayName,
+    epithet: usageEpithet({ rows, dateFrom, dateTo, topProjectShort, total_sessions }),
+    shareFilename: usageShareFilename(displayName, dateTo),
     projects,
     sessions,
     me: me || null,
@@ -1573,7 +1646,7 @@ export function generateUsageShareCardSVG(data) {
   return `<svg width="${g.width}" height="${g.height}" xmlns="http://www.w3.org/2000/svg">
   <defs><style>text { font-family: 'IBM Plex Mono', 'Courier New', monospace; }</style></defs>
   <rect width="${g.width}" height="${g.height}" fill="${c.bg}"/>
-  ${_shareHeader(g, { kicker: 'FULL USAGE CANVAS · INTELLIGENCE TRACE', dateRight: dateRange })}
+  ${_shareHeader(g, { kicker: 'FULL USAGE CANVAS · INTELLIGENCE TRACE', dateRight: dateRange, wordmark: data.displayName || undefined })}
   ${_shareDivider(g)}
 
   ${balls}
@@ -1584,7 +1657,7 @@ export function generateUsageShareCardSVG(data) {
   ${legend}
   ${meGroup}
   <text x="${meCenterX.toFixed(1)}" y="402" text-anchor="middle" style="font-size:8px;fill:${c.dim};letter-spacing:1.5px;">WEDGES = SESSIONS</text>
-  ${_shareFooter(g, { tagLine: 'ALL PROJECTS · ALL TIME' })}
+  ${_shareFooter(g, { tagLine: data.epithet })}
 </svg>`.trim();
 }
 
@@ -1597,10 +1670,15 @@ export function buildShareText(data) {
     ].join('\n');
   }
   if (data.kind === 'usage') {
-    return [
-      `📊 My kaaroSessions canvas`,
-      `${data.total_sessions} sessions · ${data.project_count} projects · ${fmtTok(data.tokens_total)} tokens`,
-    ].join('\n');
+    const name = String(data.displayName || '').toLowerCase();
+    const title = name
+      ? `📊 ${name.endsWith('s') ? name + "'" : name + "'s"} kaaroSessions canvas`
+      : '📊 My kaaroSessions canvas';
+    const lines = [title];
+    if (data.epithet) lines.push(data.epithet);
+    lines.push(`${data.total_sessions} sessions · ${data.project_count} projects · ${fmtTok(data.tokens_total)} tokens`);
+    if (data.dateFrom || data.dateTo) lines.push(`${data.dateFrom} → ${data.dateTo}`);
+    return lines.join('\n');
   }
   const windowCount = (data.context_resets || 0) + 1;
   const lines = [

@@ -1233,15 +1233,21 @@ test('buildUsageShareCardData / generateUsageShareCardSVG — full-canvas card f
   assert.ok(svg.includes('HEAVIEST'));
   assert.ok(!svg.includes('AVG TOOL TYPES'));
   assert.ok(svg.includes('WEDGES = SESSIONS'));
-  assert.ok(svg.includes('ALL PROJECTS · ALL TIME'), 'PR 1 keeps the anonymous footer');
+  assert.ok(svg.includes('2-harness operator · Claude-native · 7 months'), 'footer is the usage epithet');
+  assert.ok(!svg.includes('ALL PROJECTS · ALL TIME'));
+  assert.ok(svg.includes('letter-spacing:3px;">KAAROSESSIONS</text>'), 'unsigned wordmark stays the product');
 
   const empty = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {}));
   assert.ok(empty.startsWith('<svg'), 'renders even with no sessions');
+  assert.ok(empty.includes('empty canvas'));
 
   const text = buildShareText(data);
   assert.ok(text.includes('3 sessions'));
   assert.ok(text.includes('5 projects'));
-  assert.ok(text.includes('My kaaroSessions canvas'), 'PR 1 keeps anonymous share text');
+  assert.ok(text.includes('My kaaroSessions canvas'), 'unnamed share text stays first-person');
+  assert.ok(text.includes('2-harness operator · Claude-native · 7 months'));
+  assert.ok(text.includes('2026-01-01 → 2026-08-27'));
+  assert.ok(!/https?:\/\//.test(text), 'no fabricated public URL');
 });
 
 test('buildUsageShareCardData — constellation: sessions ranked by their project\'s consumption, projects keep their full render fields', async () => {
@@ -1363,5 +1369,241 @@ test('generateUsageShareCardSVG — truthful encoding: solid idle hexes, HEAVIES
   assert.ok(!svg.includes('size = activity'));
   assert.ok(svg.includes('WEDGES = SESSIONS'));
   assert.ok(/<text x="1020.4" y="402" text-anchor="middle"/.test(svg));
-  assert.ok(svg.includes('ALL PROJECTS · ALL TIME'));
+  assert.ok(svg.includes('Pi-native · heaviest world: kaaroViewer'));
+  assert.ok(!svg.includes('ALL PROJECTS · ALL TIME'));
 });
+
+test('HARNESS_EPITHET_LABEL — short portrait names, not registry labels', async () => {
+  const { HARNESS_EPITHET_LABEL } = await import('../experience/client-core.mjs');
+  assert.deepEqual(HARNESS_EPITHET_LABEL, {
+    'claude-code': 'Claude',
+    'codex': 'Codex',
+    'pi': 'Pi',
+    'antigravity': 'Antigravity',
+    'grok': 'Grok',
+    'opencode': 'OpenCode',
+    'copilot': 'Copilot',
+    'command-code': 'Command Code',
+  });
+});
+
+test('usageEpithet — deterministic portrait sentence', async () => {
+  const { usageEpithet } = await import('../experience/client-core.mjs');
+  const dumpRows = [
+    { harness: 'pi', pct: 57 },
+    { harness: 'claude-code', pct: 10 },
+    { harness: 'codex', pct: 8 },
+    { harness: 'command-code', pct: 8 },
+    { harness: 'grok', pct: 7 },
+    { harness: 'copilot', pct: 6 },
+  ];
+  assert.equal(
+    usageEpithet({
+      rows: dumpRows, dateFrom: '2025-03-01', dateTo: '2026-08-30',
+      topProjectShort: 'kaaroViewer', total_sessions: 90,
+    }),
+    '6-harness operator · Pi-native · 17 months · heaviest world: kaaroViewer',
+  );
+  assert.equal(usageEpithet({ total_sessions: 0, rows: [] }), 'empty canvas');
+  assert.equal(usageEpithet({ total_sessions: 90, rows: [] }), 'empty canvas');
+  assert.equal(usageEpithet({ total_sessions: 90, rows: null }), 'empty canvas');
+  assert.equal(
+    usageEpithet({
+      rows: [{ harness: 'claude-code', pct: 100 }],
+      total_sessions: 5,
+      topProjectShort: 'ebrain',
+    }),
+    'Claude-native · heaviest world: ebrain',
+  );
+  assert.equal(
+    usageEpithet({
+      rows: [{ harness: 'pi', pct: 60 }, { harness: 'claude-code', pct: 40 }],
+      dateFrom: '2026-05-01', dateTo: '2026-08-01',
+      total_sessions: 10,
+    }),
+    '2-harness operator · Pi-native · 3 months',
+  );
+  assert.equal(
+    usageEpithet({
+      rows: [{ harness: 'pi', pct: 50 }, { harness: 'claude-code', pct: 50 }],
+      total_sessions: 10,
+    }),
+    '2-harness operator · Pi-native',
+  );
+  const sameMonth = usageEpithet({
+    rows: [{ harness: 'pi', pct: 100 }],
+    dateFrom: '2026-08-01', dateTo: '2026-08-30',
+    total_sessions: 3,
+  });
+  assert.ok(sameMonth.includes('29 days'), sameMonth);
+  assert.ok(!sameMonth.includes('0 months'), sameMonth);
+  assert.equal(sameMonth, 'Pi-native · 29 days');
+  assert.equal(
+    usageEpithet({
+      rows: [{ harness: 'pi', pct: 100 }],
+      dateFrom: '2026-01-01', dateTo: '',
+      total_sessions: 3,
+    }),
+    'Pi-native',
+  );
+  assert.equal(
+    usageEpithet({
+      rows: [{ harness: 'pi', pct: 100 }],
+      dateFrom: '', dateTo: '2026-08-30',
+      total_sessions: 3,
+    }),
+    'Pi-native',
+  );
+  const long = 'abcdefghijklmnopqrstuvwxyz0123456789abcd';
+  assert.equal(long.length, 40);
+  assert.equal(
+    usageEpithet({
+      rows: [{ harness: 'pi', pct: 100 }],
+      total_sessions: 1,
+      topProjectShort: long,
+    }),
+    'Pi-native · heaviest world: abcdefghijklmnopq…',
+  );
+  assert.equal(
+    usageEpithet({
+      rows: [{ harness: 'pi', pct: 49 }, { harness: 'claude-code', pct: 26 }, { harness: 'grok', pct: 25 }],
+      total_sessions: 10,
+    }),
+    '3-harness operator',
+  );
+});
+
+test('sanitizeDisplayName — allow-list, collapse, 24-char cap', async () => {
+  const { sanitizeDisplayName } = await import('../experience/client-core.mjs');
+  assert.equal(sanitizeDisplayName('  Arshi  '), 'Arshi');
+  assert.equal(sanitizeDisplayName('Arshi <script>'), 'Arshi script');
+  assert.equal(sanitizeDisplayName('A   B'), 'A B');
+  assert.equal(sanitizeDisplayName('abcdefghijklmnopqrstuvwxyz'), 'abcdefghijklmnopqrstuvwx');
+  assert.equal(sanitizeDisplayName('...'), '...');
+  assert.equal(sanitizeDisplayName(''), '');
+  assert.equal(sanitizeDisplayName(null), '');
+  assert.equal(sanitizeDisplayName('Arshi_Goyal-1'), 'Arshi_Goyal-1');
+});
+
+test('usageShareFilename — slug + optional year-month, anonymous fallback', async () => {
+  const { usageShareFilename } = await import('../experience/client-core.mjs');
+  assert.equal(usageShareFilename('', '2026-08-30'), 'kaaro-usage-card.png');
+  assert.equal(usageShareFilename(undefined, '2026-08-30'), 'kaaro-usage-card.png');
+  assert.equal(usageShareFilename('Arshi', '2026-08-30'), 'kaaro-arshi-2026-08.png');
+  assert.equal(usageShareFilename('Arshi', ''), 'kaaro-arshi.png');
+  assert.equal(usageShareFilename('...', '2026-08-30'), 'kaaro-usage-card.png');
+});
+
+test('applyDisplayName — sanitizes, refreshes filename, leaves epithet', async () => {
+  const { applyDisplayName } = await import('../experience/client-core.mjs');
+  const data = {
+    kind: 'usage',
+    dateTo: '2026-08-30',
+    epithet: 'Pi-native',
+    displayName: '',
+    shareFilename: 'kaaro-usage-card.png',
+  };
+  const named = applyDisplayName(data, 'Arshi');
+  assert.equal(named.displayName, 'Arshi');
+  assert.equal(named.shareFilename, 'kaaro-arshi-2026-08.png');
+  assert.equal(named.epithet, 'Pi-native');
+  assert.equal(named.kind, 'usage');
+  const dots = applyDisplayName(data, '...');
+  assert.equal(dots.displayName, '...');
+  assert.equal(dots.shareFilename, 'kaaro-usage-card.png', '"..." slugs to an anonymous file');
+});
+
+test('buildUsageShareCardData — displayName / epithet / shareFilename are pass-in only', async () => {
+  const { buildUsageShareCardData, meGlyph, sanitizeDisplayName } = await import('../experience/client-core.mjs');
+  const sessions = [
+    { harness: 'pi' }, { harness: 'pi' }, { harness: 'claude-code' },
+  ];
+  const unsigned = buildUsageShareCardData(meGlyph(sessions), {
+    dateFrom: '2025-03-01', dateTo: '2026-08-30',
+    projects: [{ id: 'p1', label: 'kaaroViewer', tokens_total: 100 }],
+  });
+  assert.equal(unsigned.displayName, '');
+  assert.equal(unsigned.shareFilename, 'kaaro-usage-card.png');
+  assert.equal(unsigned.epithet, '2-harness operator · Pi-native · 17 months · heaviest world: kaaroViewer');
+
+  const named = buildUsageShareCardData(meGlyph(sessions), {
+    dateFrom: '2025-03-01', dateTo: '2026-08-30',
+    projects: [{ id: 'p1', label: 'kaaroViewer', tokens_total: 100 }],
+    displayName: '  Arshi!!!  ',
+  });
+  assert.equal(named.displayName, sanitizeDisplayName('  Arshi!!!  '));
+  assert.equal(named.displayName, 'Arshi');
+  assert.equal(named.shareFilename, 'kaaro-arshi-2026-08.png');
+  assert.equal(named.epithet, unsigned.epithet, 'name does not change the epithet');
+  assert.equal(typeof localStorage, 'undefined', 'assembler has no localStorage to read');
+});
+
+test('generateUsageShareCardSVG / buildShareText — named vs unnamed wordmark, possessive, filename', async () => {
+  const {
+    buildUsageShareCardData, generateUsageShareCardSVG, generateShareCardSVG, generateProjectShareCardSVG,
+    buildShareCardData, buildProjectShareCardData, buildShareText, applyDisplayName, meGlyph,
+  } = await import('../experience/client-core.mjs');
+  const me = meGlyph([{ harness: 'pi' }, { harness: 'pi' }, { harness: 'claude-code' }]);
+  const opts = {
+    projectCount: 20, tokensTotal: 144_800_000,
+    dateFrom: '2025-03-01', dateTo: '2026-08-30',
+    projects: [{ id: 'p1', label: 'kaaroViewer', tokens_total: 1 }],
+    sessions: [{ project_id: 'p1', tool_calls: 1, tool_diversity: 1 }],
+  };
+  const unsigned = buildUsageShareCardData(me, opts);
+  const unsignedSvg = generateUsageShareCardSVG(unsigned);
+  assert.ok(unsignedSvg.includes('letter-spacing:3px;">KAAROSESSIONS</text>'));
+  assert.ok(unsignedSvg.includes('FULL USAGE CANVAS · INTELLIGENCE TRACE'));
+  assert.ok(unsignedSvg.includes('◆ KAAROSESSIONS'));
+  assert.ok(unsignedSvg.includes(unsigned.epithet));
+  const unsignedText = buildShareText(unsigned);
+  assert.equal(
+    unsignedText,
+    [
+      '📊 My kaaroSessions canvas',
+      unsigned.epithet,
+      '3 sessions · 20 projects · 144.8M tokens',
+      '2025-03-01 → 2026-08-30',
+    ].join('\n'),
+  );
+  assert.equal(unsigned.shareFilename, 'kaaro-usage-card.png');
+
+  const named = buildUsageShareCardData(me, { ...opts, displayName: 'Arshi' });
+  const namedSvg = generateUsageShareCardSVG(named);
+  assert.ok(namedSvg.includes('letter-spacing:3px;">ARSHI</text>'), 'signed wordmark replaces KAAROSESSIONS');
+  assert.ok(!namedSvg.includes('letter-spacing:3px;">KAAROSESSIONS</text>'));
+  assert.ok(namedSvg.includes('FULL USAGE CANVAS · INTELLIGENCE TRACE'), 'kicker stays the product');
+  assert.ok(namedSvg.includes('◆ KAAROSESSIONS'), 'footer keeps product identity');
+  assert.equal(
+    buildShareText(named),
+    [
+      "📊 arshi's kaaroSessions canvas",
+      named.epithet,
+      '3 sessions · 20 projects · 144.8M tokens',
+      '2025-03-01 → 2026-08-30',
+    ].join('\n'),
+  );
+  assert.equal(named.shareFilename, 'kaaro-arshi-2026-08.png');
+
+  const james = applyDisplayName(named, 'James');
+  assert.ok(buildShareText(james).startsWith("📊 james' kaaroSessions canvas"));
+  const renamedSvg = generateUsageShareCardSVG(james);
+  assert.ok(renamedSvg.includes('letter-spacing:3px;">JAMES</text>'), 'overlay rename rasters the signed wordmark without rebuild');
+  assert.equal(james.epithet, named.epithet);
+
+  const noDates = buildUsageShareCardData(meGlyph([{ harness: 'claude-code' }]), {});
+  const noDateText = buildShareText(noDates);
+  assert.ok(!noDateText.includes('→'), 'date line omitted when both dates empty');
+  assert.equal(noDates.epithet, 'Claude-native');
+  assert.ok(noDateText.includes('Claude-native'));
+  assert.equal(
+    buildShareText({ kind: 'usage', epithet: '', total_sessions: 1, project_count: 1, tokens_total: 0 }),
+    '📊 My kaaroSessions canvas\n1 sessions · 1 projects · 0 tokens',
+  );
+
+  const sessionSvg = generateShareCardSVG(buildShareCardData({ id: 's1', label: 's', harness: 'grok' }));
+  assert.ok(sessionSvg.includes('letter-spacing:3px;">KAAROSESSIONS</text>'), 'session card keeps product wordmark');
+  const projectSvg = generateProjectShareCardSVG(buildProjectShareCardData({ id: 'p1', label: 'p' }));
+  assert.ok(projectSvg.includes('letter-spacing:3px;">KAAROSESSIONS</text>'), 'project card keeps product wordmark');
+});
+

@@ -387,7 +387,7 @@ export function minimapViewportRect({ worldX, worldY, worldW, worldH, boardW, bo
   };
 }
 
-/** Inner SVG paths for one project hex. Idle = hollow; active = solid wedges. */
+/** Inner SVG paths for one project hex. Idle = hollow unless forceSolid; active / forceSolid = solid wedges. */
 export function projectGlyphMarkup(d, { r = 16, bg = '#000000', forceSolid = false } = {}) {
   const color = d?.color || '#888888';
   const stroke = `<path d="${hexPath(r)}" fill="none" stroke="${esc(color)}" stroke-width="2"/>`;
@@ -1388,21 +1388,6 @@ export function generateProjectShareCardSVG(data) {
 </svg>`.trim();
 }
 
-/**
- * Full-canvas ("ME") card assembler — "Project & Session Constellation":
- * the left field layers two marks — a hex per project (foreground landmark,
- * wedge-filled by harness) over a ball per session (background texture,
- * colored by its project) — so both the project *and* the individual-session
- * count read as the intelligence report, not one traded off for the other.
- * The ME glyph is the hero, big and vertically centered in the right column.
- *
- * `me` is the output of meGlyph(sessions); `opts.projects` / `opts.sessions`
- * are the raw graph project/session-node arrays (see
- * experience/graph-pipeline.mjs); sessions rank by their project's
- * consumption so a project's balls cluster near its own hex; `opts` also
- * supplies the cross-project numbers meGlyph doesn't carry (project count,
- * total tokens, date range).
- */
 const HUMANIZE_PREFIXES = [
   /^[A-Za-z]--src-/,
   /^[A-Za-z]--Users-[^-]+-/,
@@ -1430,6 +1415,21 @@ export function humanizeProjectLabel(raw) {
   return s;
 }
 
+/**
+ * Full-canvas ("ME") card assembler — "Project & Session Constellation":
+ * the left field layers two marks — a hex per project (foreground landmark,
+ * wedge-filled by harness) over a ball per session (background texture,
+ * colored by its project) — so both the project *and* the individual-session
+ * count read as the intelligence report, not one traded off for the other.
+ * The ME glyph is the hero, big and vertically centered in the right column.
+ *
+ * `me` is the output of meGlyph(sessions); `opts.projects` / `opts.sessions`
+ * are the raw graph project/session-node arrays (see
+ * experience/graph-pipeline.mjs); sessions rank by their project's
+ * consumption so a project's balls cluster near its own hex; `opts` also
+ * supplies the cross-project numbers meGlyph doesn't carry (project count,
+ * total tokens, date range).
+ */
 export function buildUsageShareCardData(me, opts = {}) {
   const projects = (opts.projects || [])
     .slice()

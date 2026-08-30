@@ -1289,10 +1289,9 @@ test('generateUsageShareCardSVG — constellation: one hex per project over one 
   const data = buildUsageShareCardData(meGlyph([{ harness: 'claude-code' }]), { projects, sessions });
   const svg = generateUsageShareCardSVG(data);
 
-  assert.equal((svg.match(/<circle cx="[^"]*" cy="[^"]*" r="[^"]*" fill="#556677"/g) || []).length, sessions.length, 'one ball per session');
-  assert.equal((svg.match(/<g transform="translate\([^)]*\)">\s*<circle[^>]*fill="#000000"/g) || []).length, projects.length, 'one backing-cleared hex group per project');
-  assert.ok(svg.includes('hex size = consumption'));
-  assert.ok(svg.includes('ball size = tool types'));
+  assert.ok(!svg.includes('opacity="0.65"'), 'session balls are gone');
+  assert.ok(svg.includes('footprint = consumption'));
+  assert.ok(svg.includes('height = sessions'));
   assert.ok(!svg.includes('size = activity'));
   assert.ok(!svg.includes('hex = project · ball = session'));
   assert.ok(!svg.includes('more'), 'no overflow note under either cap');
@@ -1316,12 +1315,11 @@ test('generateUsageShareCardSVG — constellation: one hex per project over one 
   const overflowData = buildUsageShareCardData(meGlyph([]), { projects: manyProjects, sessions: manySessions });
   const overflowSvg = generateUsageShareCardSVG(overflowData);
   assert.ok(overflowSvg.includes('+5 projects'), '65 projects, 60-cap → 5 overflow');
-  assert.ok(overflowSvg.includes('+5 sessions'), '205 sessions, 200-cap → 5 overflow');
-  const caption = `◆ hex size = consumption · ball size = tool types (avg ${overflowData.avg_diversity}) · +5 projects, +5 sessions more`;
+  const caption = '◆ footprint = consumption · height = sessions · diamonds = working set · +5 projects more';
   assert.ok(caption.length * 5.4 < 575, `caption ${caption.length} glyphs × 5.4px must fit the 575px field`);
-  assert.ok(overflowSvg.includes(caption), 'overflow still appends to the honest caption');
-  assert.ok(overflowSvg.includes('hex size = consumption'));
-  assert.ok(overflowSvg.includes('ball size = tool types'));
+  assert.ok(overflowSvg.includes('+5 projects more'), 'overflow still appends to the city caption');
+  assert.ok(overflowSvg.includes('footprint = consumption'));
+  assert.ok(overflowSvg.includes('height = sessions'));
   assert.ok(!overflowSvg.includes('size = activity'));
 });
 
@@ -1364,8 +1362,9 @@ test('generateUsageShareCardSVG — truthful encoding: solid idle hexes, HEAVIES
   assert.ok(svg.includes('4253'), 'TOOL CALLS is the exact sum, not fmtTok');
   assert.ok(!svg.includes('4k'), 'fmtTok(4253) would be 4k — do not use it');
   assert.ok(!svg.includes('AVG TOOL TYPES'));
-  assert.ok(svg.includes('hex size = consumption'));
-  assert.ok(svg.includes('ball size = tool types (avg 4)'));
+  assert.ok(svg.includes('footprint = consumption'));
+  assert.ok(svg.includes('height = sessions'));
+  assert.ok(svg.includes('diamonds = working set'));
   assert.ok(!svg.includes('size = activity'));
   assert.ok(svg.includes('WEDGES = SESSIONS'));
   assert.ok(/<text x="1020.4" y="402" text-anchor="middle"/.test(svg));
@@ -1698,8 +1697,8 @@ test('generateUsageShareCardSVG — monthly pulse strip in the field gutter; cap
   assert.ok(!svg.includes('<text x="55" y="536"'), 'old fieldY1+22 caption slot is vacated');
 
   // Constellation + PR 1 encoding still hold alongside the strip.
-  assert.ok(svg.includes('hex size = consumption'));
-  assert.ok(svg.includes('ball size = tool types'));
+  assert.ok(svg.includes('footprint = consumption'));
+  assert.ok(svg.includes('height = sessions'));
   assert.ok(!svg.includes('size = activity'));
   assert.ok(svg.includes('HEAVIEST'));
   assert.ok(svg.includes('TOOL CALLS'));
@@ -1708,7 +1707,7 @@ test('generateUsageShareCardSVG — monthly pulse strip in the field gutter; cap
   assert.ok(/<text x="1020.4" y="402" text-anchor="middle"/.test(svg));
   assert.ok(svg.includes(HARNESS_MARK['claude-code']), 'forceSolid idle hexes still paint');
   assert.ok(svg.includes('Claude-native'), 'stacked on PR 2: footer is the epithet, not ALL PROJECTS');
-  assert.equal((svg.match(/<circle cx="[^"]*" cy="[^"]*" r="[^"]*" fill="#556677"/g) || []).length, sessions.length, 'strip does not replace the constellation');
+  assert.ok(!svg.includes('opacity="0.65"'), 'strip does not revive session balls');
 
   const emptySvg = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {}));
   assert.equal((emptySvg.match(/<rect x="[^"]*" y="522" width="[^"]*" height="10"/g) || []).length, 0, 'empty canvas → no strip');

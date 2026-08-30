@@ -1915,7 +1915,16 @@ export function applyDisplayName(data, name) {
  * total tokens, date range).
  */
 export function buildUsageShareCardData(me, opts = {}) {
-  const projects = (opts.projects || [])
+  const rawProjects = opts.projects || [];
+  const rawSessions = opts.sessions || [];
+  const city = buildCityData({
+    projects: rawProjects,
+    sessions: rawSessions,
+    files: opts.files || [],
+    edges: opts.edges || [],
+    placements: opts.placements || null,
+  });
+  const projects = rawProjects
     .slice()
     .sort((a, b) => (b.tokens_total || 0) - (a.tokens_total || 0))
     .map(p => ({
@@ -1925,7 +1934,6 @@ export function buildUsageShareCardData(me, opts = {}) {
     }));
   const projRank = new Map(projects.map((p, i) => [p.id, i]));
 
-  const rawSessions = opts.sessions || [];
   // Count date_str before the constellation map drops it; skip the strip when dates or sessions are missing.
   const monthMap = _seedUsageMonths(opts.dateFrom, opts.dateTo, rawSessions.length);
   const tool_calls = rawSessions.reduce((n, s) => {
@@ -1976,6 +1984,7 @@ export function buildUsageShareCardData(me, opts = {}) {
     months,
     projects,
     sessions,
+    city,
     me: me || null,
   };
 }
@@ -2022,48 +2031,35 @@ export function generateUsageShareCardSVG(data) {
   const c = SHARE_CARD_TOKENS;
   const g = _shareGeom();
 
-  // ── LEFT: project hexes over a session-ball texture, same center — both
-  // counts (25 projects, 122 sessions) are legible in one field.
   const fieldX0 = g.leftPad, fieldX1 = g.dividerX - 30;
-  const fieldY0 = g.bodyTop + 20, fieldY1 = g.bodyBot - 46;
-  const centerX = (fieldX0 + fieldX1) / 2;
-  const centerY = (fieldY0 + fieldY1) / 2;
-  const targetR = Math.min(fieldX1 - fieldX0, fieldY1 - fieldY0) / 2 * 0.92;
+  const fieldY1 = g.bodyBot - 46;
 
-  const sessions = data.sessions || [];
-  const shownSess = sessions.slice(0, MOSAIC_MAX_SESSIONS);
-  const sessOverflow = sessions.length - shownSess.length;
-  const ballPitch = _fillRadius(shownSess.length, targetR, { minR: 5, maxR: 16 });
-  const maxDiversity = Math.max(1, ...shownSess.map(s => s.diversity));
-  const balls = shownSess.map((s, i) => {
-    const cell = glyphSpiralCell(i);
-    const pos = glyphCellPosition(cell.col, cell.row, { r: ballPitch, originX: centerX, originY: centerY });
-    const norm = s.diversity / maxDiversity;
-    const ballR = Math.max(ballPitch * 0.25, ballPitch * (0.3 + 0.35 * norm));
-    return `<circle cx="${pos.x.toFixed(1)}" cy="${pos.y.toFixed(1)}" r="${ballR.toFixed(1)}" fill="${s.color}" opacity="0.65"/>`;
+  const city = data.city || { buildings: [], labeledIds: [], diamondIds: [] };
+  const shownBldgs = (city.buildings || []).slice(0, CITY_SHARE_MAX_PROJECTS);
+  const shownIds = shownBldgs.map(b => b.id);
+  const fit = fitCityToField(city, { x0: fieldX0, y0: g.bodyTop + 20, x1: fieldX1, y1: fieldY1, shownIds });
+  const cityGroups = shownBldgs.slice().sort((a, b) => {
+    const pa = fit.pins[a.id], pb = fit.pins[b.id];
+    const ya = pa ? pa.y : 0, yb = pb ? pb.y : 0;
+    if (ya !== yb) return ya - yb;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  }).map(b => {
+    const pin = fit.pins[b.id];
+    if (!pin) return '';
+    const markup = cityBuildingMarkup(b, {
+      iso: true,
+      r: fit.hexRById[b.id],
+      slabH: fit.slabH,
+      showDiamonds: (city.diamondIds || []).includes(b.id),
+      diamondFill: 'building',
+      label: (city.labeledIds || []).includes(b.id),
+    });
+    return `<g transform="translate(${pin.x.toFixed(1)},${pin.y.toFixed(1)})">${markup}</g>`;
   }).join('');
 
-  const projects = data.projects || [];
-  const shownProj = projects.slice(0, CONSTELLATION_MAX_PROJECTS);
-  const projOverflow = projects.length - shownProj.length;
-  const hexPitch = _fillRadius(shownProj.length, targetR, { minR: 16, maxR: 34 });
-  // Painted after the balls, each with a solid backing disc, so hexes read
-  // as clean foreground landmarks instead of blending into the ball texture.
-  const hexes = shownProj.map((p, i) => {
-    const cell = glyphSpiralCell(i);
-    const pos = glyphCellPosition(cell.col, cell.row, { r: hexPitch, originX: centerX, originY: centerY });
-    const hexR = Math.max(hexPitch * 0.6, Math.min(hexPitch * 0.92, hexPitch * (0.6 + 0.32 * p.sizeNorm)));
-    return `<g transform="translate(${pos.x.toFixed(1)},${pos.y.toFixed(1)})">` +
-      `<circle r="${(hexR + 3).toFixed(1)}" fill="${c.bg}"/>` +
-      projectGlyphMarkup(p, { r: hexR, bg: c.bg, forceSolid: true }) +
-      `</g>`;
-  }).join('');
-
-  const overflowBits = [];
-  if (projOverflow > 0) overflowBits.push(`+${projOverflow} projects`);
-  if (sessOverflow > 0) overflowBits.push(`+${sessOverflow} sessions`);
-  const caption = `◆ hex size = consumption · ball size = tool types (avg ${data.avg_diversity || 0})` +
-    (overflowBits.length ? ` · ${overflowBits.join(', ')} more` : '');
+  const projOverflow = Math.max(0, (city.buildings || []).length - CITY_SHARE_MAX_PROJECTS);
+  const caption = '◆ footprint = consumption · height = sessions · diamonds = working set' +
+    (projOverflow > 0 ? ` · +${projOverflow} projects more` : '');
 
   // Pulse strip in the 46px gutter under the field. Empty months are
   // hairline holes; fill encodes session count, not tokens.
@@ -2120,8 +2116,7 @@ export function generateUsageShareCardSVG(data) {
   ${_shareHeader(g, { kicker: 'FULL USAGE CANVAS · INTELLIGENCE TRACE', dateRight: dateRange, wordmark: data.displayName || undefined })}
   ${_shareDivider(g)}
 
-  ${balls}
-  ${hexes}
+  ${cityGroups}
   ${strip}
   <text x="${fieldX0}" y="${captionY}" style="font-size:9px;fill:${c.dim};">${esc(caption)}</text>
 

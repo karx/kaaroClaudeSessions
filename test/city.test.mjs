@@ -192,6 +192,18 @@ test('buildCityData — seats id-asc, uncapped, weights, oldest slabs, no localS
   assert.equal(typeof localStorage, 'undefined');
 });
 
+test('buildUsageShareCardData forwards raw sessions into city (not diversity balls)', async () => {
+  const { buildUsageShareCardData, meGlyph } = await import('../experience/client-core.mjs');
+  const data = buildUsageShareCardData(meGlyph([{ harness: 'pi' }]), {
+    projects: [{ id: 'p', label: 'p', harnesses: ['pi'], sizeNorm: 0.4, tokens_total: 9 }],
+    sessions: [{ id: 's1', project_id: 'p', harness: 'pi', first_timestamp: '2026-01-01', tool_calls: 3 }],
+  });
+  assert.equal(data.city.buildings[0].weights.pi, 1);
+  assert.equal(data.city.buildings[0].slabs[0].harness, 'pi');
+  assert.equal(data.city.buildings[0].tool_calls, 3);
+  assert.equal('diversity' in data.sessions[0], true);
+});
+
 function makeCityBuilding(id, col, row, extras = {}) {
   const slabs = extras.slabs || Array.from({ length: extras.nSlabs || 12 }, () => (
     { harness: 'pi', color: '#ff9944' }

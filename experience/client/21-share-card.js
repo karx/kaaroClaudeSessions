@@ -159,11 +159,16 @@
         const tokensTotal = sessions.reduce((s, n) => s + (n.tokens_total || 0), 0);
         const dates = sessions.map(n => n.date_str).filter(Boolean).sort();
         const displayName = sanitizeDisplayName(localStorage.getItem('kaaro-display-name') || '');
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem('kaaro-glyph-board') || '{}').placements; } catch { /* ignore */ }
         const cardData = buildUsageShareCardData(meGlyph(sessions), {
           projectCount, tokensTotal,
           dateFrom: dates[0] || '', dateTo: dates[dates.length - 1] || '',
           projects: GRAPH.nodes.filter(n => n.type === 'project'),
           sessions,
+          files: GRAPH.nodes.filter(n => n.type === 'file'),
+          edges: GRAPH.edges,
+          placements: saved,
           displayName,
         });
         return { svg: generateUsageShareCardSVG(cardData), cardData };

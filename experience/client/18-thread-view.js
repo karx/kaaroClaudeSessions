@@ -1,7 +1,12 @@
 // ── Thread View — Session Context Arc ─────────────────────────────────────
-// Full-screen overlay. Each context window is a segment block with:
+// Full-screen overlay, centered reading column (oldest turn at top, newest
+// at bottom — same order the transcript was recorded in). Each context
+// window is a segment block with:
 //   • a stacked composition bar (tool proportions at a glance)
 //   • every turn: user messages, assistant reasoning, tool calls with inputs
+// While open on an active session, a live tail below the transcript
+// aggregates incoming tool_call/words/cognition pulses off window._beatRing
+// (14-pulse-audio.js) — see _startLive/_liveTick.
 // Entry: window.openThread(sessionId)   Exit: Escape or ✕
 
 (function () {
@@ -309,6 +314,8 @@
       <div id="thr-chrome-left">
         <span id="thr-chrome-label"></span>
         <span id="thr-chrome-ait"></span>
+        <span id="thr-chrome-order" title="Transcript order">oldest → newest</span>
+        <span id="thr-live-badge" class="thr-live-badge" title="Live tool activity on this session">● LIVE</span>
       </div>
       <div id="thr-search">
         <input id="thr-search-input" type="text" placeholder="find in thread… (/)"
@@ -319,7 +326,7 @@
       </div>
       <button id="thr-close-btn" onclick="window.closeThread()" aria-label="Close thread view (Esc)">✕</button>
     </div>
-    <div id="thr-scroll"><div id="thr-body"></div></div>`;
+    <div id="thr-scroll"><div id="thr-content"><div id="thr-body"></div><div id="thr-live"></div></div></div>`;
   document.body.appendChild(ov);
 
   // Panel delegation — VIEW THREAD buttons
@@ -422,6 +429,91 @@
     _copyTurnText(el);
   });
 
+  // ── Live tail (active session) ───────────────────────────────────────────
+  // Reads window._beatRing (14-pulse-audio.js), which every live SSE pulse
+  // is pushed onto regardless of audio mute state — see window.playPulse.
+  // ev.slug is session_id.slice(0,8); sessionId.startsWith(ev.slug) matches it.
+  const _liveEl    = document.getElementById('thr-live');
+  const _liveBadge = document.getElementById('thr-live-badge');
+  let _liveSessionId  = null;
+  let _liveIdx        = 0;
+  let _liveTimer       = null;
+  let _liveHeaderShown = false;
+  let _liveLastSeenAt  = 0;
+  const LIVE_POLL_MS  = 600;
+  const LIVE_IDLE_MS  = 15_000; // no pulse in this long → drop the LIVE badge
+
+  function _liveRowHtml(ev) {
+    const time = _timeLabel(ev.ts);
+    if (ev.type === 'tokens') return ''; // folded into the badge only — too noisy as rows
+    if (ev.type === 'tool_call') {
+      const color = _C[ev.tool] || '#3a5070';
+      const where = ev.where ? ev.where.replace(/\\/g, '/').split('/').pop() : '';
+      return `<div class="thr-live-row">` +
+        `<span class="thr-tc-dot" style="background:${color}"></span>` +
+        `<span class="thr-tc-name">${esc(ev.tool || 'tool')}</span>` +
+        `<span class="thr-tc-arg">${esc(where)}</span>` +
+        `<span class="thr-live-ts">${time}</span>` +
+      `</div>`;
+    }
+    if (ev.type === 'words') {
+      return `<div class="thr-live-row thr-live-words">` +
+        `<span class="thr-actor thr-actor-asst">ASST</span>` +
+        `<span class="thr-turn-text">${esc(ev.preview || '')}</span>` +
+        `<span class="thr-live-ts">${time}</span>` +
+      `</div>`;
+    }
+    // cognition pulses: human_turn, compact, permission, mode_shift, tool_error, api_error, …
+    return `<div class="thr-live-row thr-live-cog">` +
+      `<span class="thr-live-cog-lbl">${esc(ev.type)}</span>` +
+      `<span class="thr-live-ts">${time}</span>` +
+    `</div>`;
+  }
+
+  function _setLiveBadge(on) { _liveBadge.classList.toggle('on', on); }
+
+  function _liveTick() {
+    const ring = window._beatRing || [];
+    if (_liveIdx > ring.length) _liveIdx = 0; // ring truncated/reset under us
+    let appended = '';
+    for (; _liveIdx < ring.length; _liveIdx++) {
+      const ev = ring[_liveIdx];
+      if (!ev.slug || !_liveSessionId || !_liveSessionId.startsWith(ev.slug)) continue;
+      const row = _liveRowHtml(ev);
+      if (row) appended += row;
+      _liveLastSeenAt = Date.now();
+    }
+    if (appended) {
+      if (!_liveHeaderShown) {
+        _liveEl.insertAdjacentHTML('beforeend', '<div class="thr-live-hd"><span class="thr-live-dot"></span>LIVE — incoming activity</div>');
+        _liveHeaderShown = true;
+      }
+      const scrollEl = document.getElementById('thr-scroll');
+      const wasAtBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 48;
+      _liveEl.insertAdjacentHTML('beforeend', appended);
+      if (wasAtBottom) scrollEl.scrollTop = scrollEl.scrollHeight;
+    }
+    if (_liveLastSeenAt) _setLiveBadge(Date.now() - _liveLastSeenAt < LIVE_IDLE_MS);
+  }
+
+  function _startLive(sessionId) {
+    _stopLive();
+    _liveSessionId  = sessionId;
+    _liveIdx        = (window._beatRing || []).length; // only pulses from here forward
+    _liveHeaderShown = false;
+    _liveLastSeenAt  = 0;
+    _liveEl.innerHTML = '';
+    _setLiveBadge(false);
+    _liveTimer = setInterval(_liveTick, LIVE_POLL_MS);
+  }
+
+  function _stopLive() {
+    if (_liveTimer) clearInterval(_liveTimer);
+    _liveTimer = null;
+    _liveSessionId = null;
+    _setLiveBadge(false);
+  }
+
   // ── Public ────────────────────────────────────────────────────────────────
   window.openThread = async function (sessionId) {
     if (!_opener) _opener = document.activeElement;
@@ -429,6 +521,7 @@
     _query = '';
     _searchInput.value = '';
     ov.focus();
+    _startLive(sessionId);
     const node = typeof nodeById !== 'undefined' ? nodeById[sessionId] : null;
 
     document.getElementById('thr-chrome-label').textContent = node?.label || sessionId.slice(0, 8);
@@ -453,6 +546,7 @@
 
   window.closeThread = function () {
     ov.classList.remove('open');
+    _stopLive();
     _opener?.focus?.();
     _opener = null;
   };

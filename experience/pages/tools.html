@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kaaro-sessions — tools</title>
+<style>
+%%TOKENS_CSS%%
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--k-bg);
+    color: var(--k-body);
+    font: 12px var(--k-font);
+    line-height: 1.35;
+    display: grid;
+    grid-template-rows: 28px 1fr 18px;
+    overflow: hidden;
+  }
+
+  /* ── Topbar ─────────────────────────────────────────────────────────── */
+  #topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 12px;
+    background: var(--k-panel);
+    border-bottom: 1px solid var(--k-border);
+    user-select: none;
+  }
+  #topbar .title { color: var(--k-accent); letter-spacing: 0.1em; font-weight: 700; }
+  #topbar .nav a { color: var(--k-dim); text-decoration: none; margin-left: 12px; letter-spacing: 0.08em; }
+  #topbar .nav a:hover { color: var(--k-label); }
+  #topbar .nav a.here { color: var(--k-label); }
+  #topbar .spacer { flex: 1; }
+  #warn-badge { color: var(--k-err); letter-spacing: 0.08em; font-size: 10px; }
+
+  /* ── Main ───────────────────────────────────────────────────────────── */
+  #main {
+    overflow-y: auto; padding: 12px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start;
+  }
+  @media (max-width: 900px) { #main { grid-template-columns: 1fr; } }
+
+  .section-hd { color: var(--k-label); text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; margin-bottom: 8px; }
+  .harness-block { margin-bottom: 12px; }
+  .harness-name { color: var(--k-dim); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; margin-bottom: 4px; }
+  .harness-empty { color: var(--k-dim); font-size: 10px; padding: 2px 0 2px 4px; }
+
+  /* MCP server rows */
+  .srv { background: var(--k-panel); border: 1px solid var(--k-border); padding: 6px 8px; margin-bottom: 4px; cursor: pointer; }
+  .srv .row1 { display: flex; align-items: baseline; gap: 8px; }
+  .srv .name { color: var(--k-select); font-weight: 700; }
+  .srv .scope { color: var(--k-dim); font-size: 9px; text-transform: uppercase; }
+  .srv .cmd { color: var(--k-dim); font-size: 10px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+  .srv .status { font-size: 10px; letter-spacing: 0.06em; }
+  .srv .status.connected  { color: var(--k-geo); }
+  .srv .status.connecting { color: var(--k-label); }
+  .srv .status.error      { color: var(--k-err); }
+  .srv .status.idle       { color: var(--k-dim); }
+  .srv .status.remote     { color: var(--k-dim); }
+  .srv-detail { margin-top: 6px; border-top: 1px solid var(--k-border); padding-top: 6px; cursor: default; }
+  .srv-err { color: var(--k-err); font-size: 10px; margin-top: 4px; }
+
+  .tool-row { padding: 3px 0; border-top: 1px solid var(--k-border); }
+  .tool-row:first-child { border-top: none; }
+  .tool-hd { display: flex; align-items: baseline; gap: 6px; cursor: pointer; }
+  .tool-hd .tname { color: var(--k-accent); }
+  .tool-hd .tdesc { color: var(--k-dim); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tool-call { margin-top: 4px; padding-left: 12px; }
+  .tool-call textarea {
+    width: 100%; background: var(--k-card); color: var(--k-body); border: 1px solid var(--k-border);
+    font: 10px var(--k-font); padding: 4px; resize: vertical; min-height: 44px;
+  }
+  .tool-call .actions { display: flex; gap: 6px; margin-top: 4px; align-items: center; }
+  .tool-result { margin-top: 4px; padding: 6px; background: var(--k-card); border: 1px solid var(--k-border); font-size: 10px; white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow-y: auto; }
+  .tool-result.err { color: var(--k-err); }
+
+  /* Skills */
+  .skill { background: var(--k-panel); border: 1px solid var(--k-border); padding: 6px 8px; margin-bottom: 4px; cursor: pointer; }
+  .skill .sname { color: var(--k-select); font-weight: 700; }
+  .skill .sdesc { color: var(--k-dim); font-size: 10px; margin-top: 2px; }
+  .skill-detail { margin-top: 6px; border-top: 1px solid var(--k-border); padding-top: 6px; cursor: default; }
+  .skill-body { white-space: pre-wrap; font-size: 11px; color: var(--k-body); max-height: 320px; overflow-y: auto; }
+  .skill-files { margin-top: 6px; font-size: 10px; color: var(--k-dim); }
+  .skill-files .f { color: var(--k-label); cursor: pointer; margin-right: 8px; }
+  .skill-files .f:hover { color: var(--k-accent); }
+  .skill-asset { margin-top: 4px; padding: 6px; background: var(--k-card); border: 1px solid var(--k-border); font-size: 10px; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+
+  /* ── Status bar ─────────────────────────────────────────────────────── */
+  #statusbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 12px;
+    background: var(--k-panel); border-top: 1px solid var(--k-border);
+    color: var(--k-dim); font-size: 10px; letter-spacing: 0.05em;
+    user-select: none; white-space: nowrap; overflow: hidden;
+  }
+  #statusbar .err { color: var(--k-err); }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <span class="title"><a href="/" title="kaaro-sessions home" style="color:var(--k-accent);text-decoration:none">◈</a> TOOLS</span>
+  <span class="nav">
+    <a href="/graph">graph</a>
+    <a href="/now">now</a>
+    <a href="/daw">daw</a>
+  </span>
+  <span class="spacer"></span>
+  <span id="warn-badge"></span>
+</div>
+
+<div id="main">
+  <div>
+    <div class="section-hd">◆ MCP SERVERS</div>
+    <div id="mcp-list"></div>
+  </div>
+  <div>
+    <div class="section-hd">◆ SKILLS</div>
+    <div id="skills-list"></div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <span id="sys">boot</span>
+</div>
+
+<script>
+%%CLIENT_CORE%%
+
+(function () {
+  'use strict';
+
+  const $mcpList    = document.getElementById('mcp-list');
+  const $skillsList = document.getElementById('skills-list');
+  const $sys        = document.getElementById('sys');
+  const $warn       = document.getElementById('warn-badge');
+
+  function sys(text, isErr) { $sys.textContent = text; $sys.className = isErr ? 'err' : ''; }
+  function cssEsc(s) { return String(s).replace(/(["\\])/g, '\\$1'); }
+
+  let mcpData = null;    // /api/mcp/servers payload
+  let skillsData = null; // /api/skills payload
+
+  // key = harness::name::scope — matches surface/mcp-sessions.mjs's connectionId shape once connected
+  const servers = new Map(); // key -> { entry, status, connectionId, tools, error, openTool, calling, result }
+  const skills  = new Map(); // key(harness::dirName) -> { entry, open, status, content, error, openAsset, assetContent }
+
+  function serverKey(harness, name, scope) { return harness + '::' + name + '::' + scope; }
+  function skillKey(harness, dirName) { return harness + '::' + dirName; }
+
+  // ── MCP servers ─────────────────────────────────────────────────────
+
+  function renderMcp() {
+    if (!mcpData) { $mcpList.innerHTML = '<div class="harness-empty">loading…</div>'; return; }
+    $mcpList.innerHTML = mcpData.harnesses.map(h => {
+      const rows = h.servers.length
+        ? h.servers.map(entry => renderServerRow(h.harness, entry)).join('')
+        : '<div class="harness-empty">— none configured —</div>';
+      return '<div class="harness-block"><div class="harness-name">' + esc(h.harness) + '</div>' + rows + '</div>';
+    }).join('');
+  }
+
+  function renderServerRow(harness, entry) {
+    const key = serverKey(harness, entry.name, entry.scope);
+    const st = servers.get(key) || { entry, status: entry.type === 'remote' ? 'remote' : 'idle' };
+    servers.set(key, st);
+
+    const statusLabel = {
+      idle: '○ configured', connecting: '◌ connecting…', connected: '● connected',
+      error: '⚠ error', remote: '— remote (unsupported)',
+    }[st.status] || st.status;
+
+    let detail = '';
+    if (st.status === 'error' && st.error) detail = '<div class="srv-err">' + esc(st.error) + '</div>';
+    if (st.status === 'connected') {
+      detail = '<div class="srv-detail">' +
+        (st.tools.length ? st.tools.map(t => renderToolRow(key, t)).join('') : '<div class="harness-empty">no tools exposed</div>') +
+        '<div class="actions" style="margin-top:6px"><button class="k-btn" data-act="disconnect" data-key="' + esc(key) + '">disconnect</button></div>' +
+      '</div>';
+    }
+
+    return '<div class="srv" data-key="' + esc(key) + '" data-act-row="' + (entry.type === 'remote' ? 'noop' : 'toggle') + '">' +
+      '<div class="row1">' +
+        '<span class="name">' + esc(entry.name) + '</span>' +
+        '<span class="scope">' + esc(entry.scope) + '</span>' +
+        '<span class="status ' + st.status + '">' + statusLabel + '</span>' +
+        '<span class="cmd">' + esc(entry.command || entry.url || '—') +
+          (entry.args && entry.args.length ? ' ' + esc(entry.args.join(' ')) : '') + '</span>' +
+      '</div>' + detail +
+    '</div>';
+  }
+
+  function renderToolRow(srvKey, tool) {
+    const st = servers.get(srvKey);
+    const isOpen = st.openTool === tool.name;
+    let callBlock = '';
+    if (isOpen) {
+      const result = st.result;
+      callBlock = '<div class="tool-call">' +
+        '<textarea data-tool-args data-key="' + esc(srvKey) + '" data-tool="' + esc(tool.name) + '">{}</textarea>' +
+        '<div class="actions">' +
+          '<button class="k-btn" data-act="call" data-key="' + esc(srvKey) + '" data-tool="' + esc(tool.name) + '">call</button>' +
+          (st.calling === tool.name ? '<span style="color:var(--k-dim)">calling…</span>' : '') +
+        '</div>' +
+        (result && result.tool === tool.name ?
+          '<div class="tool-result' + (result.error ? ' err' : '') + '">' + esc(result.text) + '</div>' : '') +
+      '</div>';
+    }
+    return '<div class="tool-row">' +
+      '<div class="tool-hd" data-act="tool-toggle" data-key="' + esc(srvKey) + '" data-tool="' + esc(tool.name) + '">' +
+        '<span class="tname">' + esc(tool.name) + '</span>' +
+        '<span class="tdesc">' + esc(tool.description || '') + '</span>' +
+      '</div>' + callBlock +
+    '</div>';
+  }
+
+  async function connectServer(key) {
+    const st = servers.get(key);
+    if (!st || st.status === 'connecting' || st.status === 'connected' || st.status === 'remote') return;
+    st.status = 'connecting'; renderMcp();
+    try {
+      const r = await fetch('/api/mcp/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ harness: st.entry.harness, name: st.entry.name }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || ('HTTP ' + r.status));
+      st.status = 'connected'; st.connectionId = body.connectionId; st.tools = body.tools || [];
+      sys('connected to ' + st.entry.name + ' (' + st.tools.length + ' tools)');
+    } catch (err) {
+      st.status = 'error'; st.error = String(err.message || err);
+      sys('connect failed: ' + st.error, true);
+    }
+    renderMcp();
+  }
+
+  async function disconnectServer(key) {
+    const st = servers.get(key);
+    if (!st || !st.connectionId) return;
+    try {
+      await fetch('/api/mcp/disconnect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionId: st.connectionId }),
+      });
+    } catch { /* best-effort — server may already be gone */ }
+    st.status = 'idle'; st.connectionId = null; st.tools = []; st.openTool = null; st.result = null;
+    renderMcp();
+  }
+
+  async function callTool(key, toolName) {
+    const st = servers.get(key);
+    if (!st || !st.connectionId) return;
+    const ta = $mcpList.querySelector('textarea[data-tool-args][data-key="' + cssEsc(key) + '"][data-tool="' + cssEsc(toolName) + '"]');
+    let args = {};
+    if (ta && ta.value.trim()) {
+      try { args = JSON.parse(ta.value); }
+      catch (e) { st.result = { tool: toolName, error: true, text: 'invalid JSON arguments: ' + e.message }; renderMcp(); return; }
+    }
+    st.calling = toolName; renderMcp();
+    try {
+      const r = await fetch('/api/mcp/call', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionId: st.connectionId, tool: toolName, arguments: args }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || ('HTTP ' + r.status));
+      st.result = { tool: toolName, error: false, text: JSON.stringify(body.result, null, 2) };
+    } catch (err) {
+      st.result = { tool: toolName, error: true, text: String(err.message || err) };
+    }
+    st.calling = null;
+    renderMcp();
+  }
+
+  $mcpList.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (btn) {
+      const key = btn.dataset.key, tool = btn.dataset.tool, act = btn.dataset.act;
+      if (act === 'call') { callTool(key, tool); return; }
+      if (act === 'disconnect') { disconnectServer(key); return; }
+      if (act === 'tool-toggle') {
+        const st = servers.get(key);
+        st.openTool = st.openTool === tool ? null : tool;
+        renderMcp();
+      }
+      return;
+    }
+    if (e.target.closest('textarea') || e.target.closest('.srv-detail')) return;
+    const row = e.target.closest('.srv');
+    if (row && row.dataset.actRow !== 'noop') connectServer(row.dataset.key);
+  });
+
+  // ── Skills ──────────────────────────────────────────────────────────
+
+  function renderSkills() {
+    if (!skillsData) { $skillsList.innerHTML = '<div class="harness-empty">loading…</div>'; return; }
+    $skillsList.innerHTML = skillsData.harnesses.map(h => {
+      const rows = h.skills.length
+        ? h.skills.map(entry => renderSkillRow(h.harness, entry)).join('')
+        : '<div class="harness-empty">— none found —</div>';
+      return '<div class="harness-block"><div class="harness-name">' + esc(h.harness) + '</div>' + rows + '</div>';
+    }).join('');
+  }
+
+  function renderSkillRow(harness, entry) {
+    const key = skillKey(harness, entry.dirName);
+    const st = skills.get(key) || { entry, open: false };
+    skills.set(key, st);
+
+    let detail = '';
+    if (st.open) {
+      if (st.status === 'error') detail = '<div class="skill-detail srv-err">' + esc(st.error) + '</div>';
+      else if (!st.content) detail = '<div class="skill-detail harness-empty">loading…</div>';
+      else {
+        const files = (st.content.files || []).map(f =>
+          '<span class="f" data-act="asset-toggle" data-key="' + esc(key) + '" data-file="' + esc(f) + '">' + esc(f) + '</span>'
+        ).join('');
+        detail = '<div class="skill-detail">' +
+          '<div class="skill-body">' + esc(st.content.body || '') + '</div>' +
+          (files ? '<div class="skill-files">files: ' + files + '</div>' : '') +
+          (st.openAsset ? '<div class="skill-asset">' + esc(st.assetContent || '') + '</div>' : '') +
+        '</div>';
+      }
+    }
+
+    return '<div class="skill" data-key="' + esc(key) + '">' +
+      '<div class="sname">' + esc(entry.name) + '</div>' +
+      (entry.description ? '<div class="sdesc">' + esc(entry.description) + '</div>' : '') +
+      detail +
+    '</div>';
+  }
+
+  async function toggleSkill(key) {
+    const st = skills.get(key);
+    if (!st) return;
+    st.open = !st.open;
+    if (st.open && !st.content && st.status !== 'error') {
+      st.status = 'loading'; renderSkills();
+      try {
+        const r = await fetch('/api/skills/' + encodeURIComponent(st.entry.harness) + '/' + encodeURIComponent(st.entry.dirName));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        st.content = await r.json(); st.status = 'ok';
+      } catch (err) { st.status = 'error'; st.error = String(err.message || err); }
+    }
+    renderSkills();
+  }
+
+  async function toggleAsset(key, filename) {
+    const st = skills.get(key);
+    if (!st) return;
+    if (st.openAsset === filename) { st.openAsset = null; renderSkills(); return; }
+    st.openAsset = filename; st.assetContent = 'loading…'; renderSkills();
+    try {
+      const r = await fetch('/api/skills/' + encodeURIComponent(st.entry.harness) + '/' + encodeURIComponent(st.entry.dirName) +
+        '/file/' + encodeURIComponent(filename));
+      st.assetContent = r.ok ? await r.text() : ('error: HTTP ' + r.status);
+    } catch (err) { st.assetContent = 'error: ' + String(err.message || err); }
+    renderSkills();
+  }
+
+  $skillsList.addEventListener('click', (e) => {
+    const asset = e.target.closest('[data-act="asset-toggle"]');
+    if (asset) { toggleAsset(asset.dataset.key, asset.dataset.file); return; }
+    if (e.target.closest('.skill-detail')) return;
+    const row = e.target.closest('.skill');
+    if (row) toggleSkill(row.dataset.key);
+  });
+
+  // ── Boot ────────────────────────────────────────────────────────────
+
+  async function fetchServers() {
+    try {
+      const r = await fetch('/api/mcp/servers');
+      mcpData = await r.json();
+      renderMcp();
+    } catch { $warn.textContent = '⚠ cannot reach /api/mcp — is serve.mjs running?'; }
+  }
+
+  async function fetchSkills() {
+    try {
+      const r = await fetch('/api/skills');
+      skillsData = await r.json();
+      renderSkills();
+    } catch { /* skills panel is secondary — no hard failure */ }
+  }
+
+  sys('loading configured MCP servers + skills…');
+  Promise.all([fetchServers(), fetchSkills()]).then(() => sys('ready'));
+}());
+</script>
+</body>
+</html>

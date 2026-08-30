@@ -13,6 +13,8 @@ import { HARNESS_REGISTRY, getHarness } from '../hooks/registry.mjs';
 import { snapshotActive } from './active-state.mjs';
 import { buildKindMap } from './kind-map-build.mjs';
 
+const TOOLS_PATH_RE = /^\/api\/(mcp|skills)(\/|$)/;
+
 const JSON_HEADERS = {
   'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
   'Access-Control-Allow-Origin': '*',
@@ -29,13 +31,27 @@ const JSON_HEADERS = {
  * @param {{ snapshot: Function }} [deps.kindMapStore]
  * @param {(payload: object) => string} [deps.renderKindMapPage] — experience widget; injected by serve.mjs
  * @param {(payload: object) => string} [deps.renderKindMapSnippet]
+ * @param {(req, res) => Promise<boolean>} [deps.toolsRouter] — surface/mcp-routes.mjs createToolsRouter(); handles /api/mcp/* + /api/skills/*
  * @returns {(req: import('http').IncomingMessage, res: import('http').ServerResponse) => void}
  */
-export function createRequestHandler({ hub, activeState, getStatus, paths, resolveSessionFile, buildTrace, kindMapStore = null, renderKindMapPage, renderKindMapSnippet } = {}) {
+export function createRequestHandler({
+  hub, activeState, getStatus, paths, resolveSessionFile, buildTrace,
+  kindMapStore = null, renderKindMapPage, renderKindMapSnippet, toolsRouter = null,
+} = {}) {
   return (req, res) => {
     const pathOnly = req.url.split('?')[0];
     if (pathOnly === '/events') {
       hub.addClient(res, req);
+      return;
+    }
+
+    if (toolsRouter && TOOLS_PATH_RE.test(pathOnly)) {
+      toolsRouter(req, res).then((handled) => {
+        if (!handled) { res.writeHead(404); res.end('Not found'); }
+      }).catch((err) => {
+        if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      });
       return;
     }
 
@@ -155,6 +171,14 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
       if (!fs.existsSync(paths.now)) { res.writeHead(404); res.end('now.html missing'); return; }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       res.end(fs.readFileSync(paths.now));
+      return;
+    }
+
+    // ── Tools page (/tools): live MCP servers + skill files ─────────────────────
+    if (req.url === '/tools') {
+      if (!paths.tools || !fs.existsSync(paths.tools)) { res.writeHead(404); res.end('tools.html missing'); return; }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      res.end(fs.readFileSync(paths.tools));
       return;
     }
 

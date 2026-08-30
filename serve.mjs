@@ -26,6 +26,8 @@ import { createHub } from './surface/sse-hub.mjs';
 import { createPulseEmitter } from './surface/pulse-emitter.mjs';
 import { createRebuilder } from './surface/rebuild-orchestrator.mjs';
 import { createRequestHandler } from './surface/http-routes.mjs';
+import { createMcpSessions } from './surface/mcp-sessions.mjs';
+import { createToolsRouter } from './surface/mcp-routes.mjs';
 import { createKindMapStore } from './surface/kind-map-store.mjs';
 import { buildKindMap } from './surface/kind-map-build.mjs';
 import { createTraceService } from './surface/trace-service.mjs';
@@ -73,6 +75,13 @@ const kindMapStore = createKindMapStore({
   buildBaseline: () => buildKindMap({ local: true, eventTypes: EVENT_TYPES }),
 });
 const { tailAndPulse } = createPulseEmitter({ hub, activeState, kindMap: kindMapStore });
+
+// ── Tools page (live MCP servers + skill files) ───────────────────────────────
+
+const mcpSessions = createMcpSessions();
+const toolsRouter = createToolsRouter({ sessions: mcpSessions });
+const MCP_IDLE_REAP_MS = 5 * 60_000;
+setInterval(() => mcpSessions.reapIdle(), MCP_IDLE_REAP_MS).unref();
 
 // ── Rebuild pipeline ──────────────────────────────────────────────────────────
 
@@ -154,11 +163,13 @@ const server = http.createServer(createRequestHandler({
     data: DATA_PATH,
     daw:  path.join(__dirname, 'daw-builder.html'),
     now:  path.join(__dirname, 'now.html'), // built artifact (token-substituted)
+    tools: path.join(__dirname, 'tools.html'), // built artifact (token-substituted)
     signals: path.join(__dirname, 'signals-data.json'), // policy signals (analyze run)
   },
   resolveSessionFile,
   buildTrace,
   kindMapStore,
+  toolsRouter,
   renderKindMapPage: (payload) => renderKindMapPage(payload, {
     tokensCss: tokensToCss(),
     live: true,
@@ -190,3 +201,12 @@ server.on('error', e => {
   }
   throw e;
 });
+
+// ── Shutdown: never leave a spawned MCP server process orphaned ──────────────
+
+function shutdown() {
+  mcpSessions.killAll();
+  process.exit(0);
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

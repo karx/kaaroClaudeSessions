@@ -263,7 +263,8 @@ export function reconstructTraceFromNRs(nrs, opts = {}) {
         const name = nr.tool || 'unknown';
         seg.tool_summary[name] = (seg.tool_summary[name] || 0) + 1;
         seg.tool_calls++;
-        if (name === 'Agent' || name === 'Task') seg.subagent_count++;
+        if (['Agent', 'Task', 'spawn_subagent', 'invoke_subagent'].includes(name)) seg.subagent_count++;
+
         hasContent = true;
 
         const tc = {

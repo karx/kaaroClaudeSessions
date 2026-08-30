@@ -219,15 +219,16 @@ test('GET /api/trace/:id — 400 empty, 404 unresolved, 404 trace-incapable, 200
     assert.equal((await fetch(`${base}/api/trace/unknown-id`)).status, 404);
   });
 
-  // trace-incapable harness (antigravity: degenerate turns) → 404 + explanation
+  // trace-incapable harness → 404 + explanation
   const incapable = makeDeps({
-    resolveSessionFile: () => ({ filePath: 'f', projectId: 'p', sessionId: 's', harness: 'antigravity' }),
+    resolveSessionFile: () => ({ filePath: 'f', projectId: 'p', sessionId: 's', harness: 'tokenless' }),
   });
   await withServer(incapable, async (base) => {
     const r = await fetch(`${base}/api/trace/s`);
     assert.equal(r.status, 404);
     assert.ok((await r.text()).includes('not supported'));
   });
+
 
   const capable = makeDeps({
     resolveSessionFile: () => ({ filePath: 'f', projectId: 'p', sessionId: 's', harness: 'claude-code' }),

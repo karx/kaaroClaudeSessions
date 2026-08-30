@@ -173,3 +173,77 @@ test('adapter + reducer golden regression matches parseAntigravityRecords', () =
     assert.deepEqual(viaParse[f], viaPipeline[f], `mismatch on ${f}`);
   }
 });
+
+test('extended tool result types emit tool_result NR', () => {
+  const extendedResultTypes = [
+    ['REPLACE_FILE_CONTENT', 'replace_file_content'],
+    ['MULTI_REPLACE_FILE_CONTENT', 'multi_replace_file_content'],
+    ['WRITE_TO_FILE', 'write_to_file'],
+    ['FETCH_URL', 'read_url_content'],
+    ['SCHEDULE_TASK', 'schedule'],
+    ['GENERATE_IMAGE', 'generate_image'],
+  ];
+  for (const [type, expectedTool] of extendedResultTypes) {
+    const records = [{ source: 'MODEL', type, status: 'DONE', created_at: '2026-06-09T10:00:00Z', content: 'ok' }];
+    const nrs = recordsToNormalized(records);
+    const tr = nrs.find(r => r.kind === 'tool_result');
+    assert.ok(tr, `${type} should emit tool_result NR`);
+    assert.equal(tr.tool, expectedTool, `${type} should map to ${expectedTool}`);
+    assert.equal(tr.error, false);
+  }
+});
+
+test('detectWorkspace parses TargetFile from write_to_file and multi_replace_file_content', () => {
+  const records = [{
+    source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE',
+    created_at: '2026-06-09T10:00:00Z',
+    tool_calls: [
+      { name: 'write_to_file', args: { TargetFile: '"D:/src/myproject/src/index.js"' } },
+      { name: 'multi_replace_file_content', args: { TargetFile: '"D:/src/myproject/src/utils.js"' } },
+    ],
+  }];
+  const cwd = detectWorkspace(records);
+  assert.equal(cwd, 'D:/src/myproject/src');
+});
+
+test('PLANNER_RESPONSE emits content_block NR for text content', () => {
+  const records = [{
+    source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE',
+    created_at: '2026-06-09T10:00:00Z',
+    content: 'I will analyze the codebase files.',
+    tool_calls: [{ name: 'view_file', args: { AbsolutePath: '"D:/src/a.js"' } }],
+  }];
+  const nrs = recordsToNormalized(records);
+  const cb = nrs.find(r => r.kind === 'content_block');
+  assert.ok(cb, 'should emit content_block NR for text response');
+  assert.equal(cb.block_type, 'text');
+  assert.equal(cb.text, 'I will analyze the codebase files.');
+});
+
+test('CONVERSATION_HISTORY emits context_reset NR', () => {
+  const records = [{
+    source: 'SYSTEM', type: 'CONVERSATION_HISTORY', status: 'DONE',
+    created_at: '2026-06-09T10:00:00Z',
+  }];
+  const nrs = recordsToNormalized(records);
+  const cr = nrs.find(r => r.kind === 'context_reset');
+  assert.ok(cr, 'CONVERSATION_HISTORY should emit context_reset NR');
+});
+
+test('invoke_subagent tool call increments subagent_count in reducer', () => {
+  const records = [
+    {
+      source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE',
+      created_at: '2026-06-09T10:00:00Z',
+      tool_calls: [{ name: 'invoke_subagent', args: { TypeName: '"research"' } }],
+    },
+  ];
+  const session = reduceSession(recordsToNormalized(records), {
+    session_id: SESSION_ID,
+    harness: 'antigravity',
+    capabilities: { size_proxy: 'tool_calls' },
+  });
+  assert.equal(session.subagent_count, 1);
+});
+
+

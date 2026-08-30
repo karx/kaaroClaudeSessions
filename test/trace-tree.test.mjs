@@ -20,6 +20,8 @@ import { recordsToNormalized as grokToNorm } from '../hooks/adapters/grok.mjs';
 import { recordsToNormalized as piToNorm }   from '../hooks/adapters/pi.mjs';
 import { recordsToNormalized as ocToNorm }   from '../hooks/adapters/opencode.mjs';
 import { recordsToNormalized as cpToNorm }   from '../hooks/adapters/copilot.mjs';
+import { recordsToNormalized as agToNorm }   from '../hooks/adapters/antigravity.mjs';
+
 
 // ── CC fixture helpers (ported from context-tree.test.mjs) ────────────────────
 
@@ -351,3 +353,29 @@ test('pi/opencode/copilot NR streams reconstruct sane trees', () => {
   assert.equal(cpTree.segments[0].tool_calls, 1);
   assert.ok(cpTree.segments[0].turns.some(t => t.role === 'assistant'));
 });
+
+
+test('antigravity NR streams reconstruct sane trace tree', () => {
+
+
+  const nrs = agToNorm([
+    {
+      source: 'USER_EXPLICIT', type: 'USER_INPUT', status: 'DONE', created_at: '2026-06-09T10:00:00Z',
+      content: '<USER_REQUEST>\nFix the simulation layout bugs\n</USER_REQUEST>',
+    },
+    {
+      source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE', created_at: '2026-06-09T10:00:05Z',
+      content: 'Inspecting simulation logic.',
+      tool_calls: [{ name: 'view_file', args: { AbsolutePath: '"D:/src/03-simulation.js"' } }],
+    },
+  ]);
+  const tree = reconstructTraceFromNRs(nrs);
+  assert.equal(tree.segments.length, 1);
+  assert.equal(tree.segments[0].user_turns, 1);
+  assert.equal(tree.segments[0].assistant_turns, 1);
+  assert.equal(tree.segments[0].tool_calls, 1);
+  const asst = tree.segments[0].turns.find(t => t.role === 'assistant');
+  assert.ok(asst);
+  assert.equal(asst.text, 'Inspecting simulation logic.');
+});
+

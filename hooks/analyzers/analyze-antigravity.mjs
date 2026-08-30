@@ -29,6 +29,7 @@ import {
   detectWorkspace,
   extractModelChange,
   extractUserMessage,
+  extractAiTitle,
 } from '../helpers/antigravity-helpers.mjs';
 
 export {
@@ -38,6 +39,7 @@ export {
   detectWorkspace,
   extractModelChange,
   extractUserMessage,
+  extractAiTitle,
 };
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -85,9 +87,11 @@ export function parseAntigravityRecords(records, sessionId) {
     harness:         'antigravity',
     capabilities:    { size_proxy: 'tool_calls' },
   });
+  session.ai_title = extractAiTitle(records);
   applyAntigravityWorkspace(session, records);
   return session;
 }
+
 
 // ── Session scan ──────────────────────────────────────────────────────────────
 

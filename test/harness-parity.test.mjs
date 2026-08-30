@@ -259,18 +259,20 @@ const CAP_SESSION_BUILDERS = {
   'antigravity': () => {
     const records = [
       { step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', status: 'DONE',
-        created_at: 't1', content: '<USER_REQUEST>rich</USER_REQUEST>' },
-      { step_index: 1, source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE',
-        created_at: 't2', content: 'ok',
-        tool_calls: [{ name: 'run_command', args: { CommandLine: '"git status"' } }] },
+        created_at: 't1', content: '<USER_REQUEST>rich prompt for capability parity test</USER_REQUEST>' },
+      { step_index: 1, source: 'SYSTEM', type: 'CONVERSATION_HISTORY', status: 'DONE', created_at: 't2' },
+      { step_index: 2, source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE',
+        created_at: 't3', content: 'ok',
+        tool_calls: [
+          { name: 'run_command', args: { CommandLine: '"git status"' } },
+          { name: 'invoke_subagent', args: { TypeName: '"research"' } },
+        ] },
     ];
-    const s = reduceSession(agToNorm(records), {
-      session_id: 'cap-ag', project_id: null, project_label: null,
-      harness: 'antigravity', capabilities: { size_proxy: 'tool_calls' },
-    });
+    const s = parseAntigravityRecords(records, 'cap-ag');
     enrichSession(s);
     return s;
   },
+
 
   'grok': () => {
     const records = [

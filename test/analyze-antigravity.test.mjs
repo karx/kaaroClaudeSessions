@@ -8,7 +8,9 @@ import {
   detectWorkspace,
   extractModelChange,
   extractUserMessage,
+  extractAiTitle,
 } from '../hooks/analyzers/analyze-antigravity.mjs';
+
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -226,6 +228,29 @@ test('extractUserMessage', async t => {
     assert.equal(extractUserMessage(null), null);
   });
 });
+
+// ── extractAiTitle ────────────────────────────────────────────────────────────
+
+test('extractAiTitle', async t => {
+  await t.test('derives title from first user request', () => {
+    const records = [
+      rec.userInput('Set up the database connection pool with retries and SSL'),
+    ];
+    assert.equal(extractAiTitle(records), 'Set up the database connection pool with retries and SSL');
+  });
+  await t.test('returns null when no valid user request found', () => {
+    const records = [rec.plannerResponse([])];
+    assert.equal(extractAiTitle(records), null);
+  });
+  await t.test('truncates long title to 60 chars with ellipsis', () => {
+    const longPrompt = 'Implement a comprehensive real-time streaming parser for multi-harness sessions across all repositories';
+    const records = [rec.userInput(longPrompt)];
+    const title = extractAiTitle(records);
+    assert.ok(title.endsWith('…'));
+    assert.ok(title.length <= 61);
+  });
+});
+
 
 // ── detectWorkspace ───────────────────────────────────────────────────────────
 

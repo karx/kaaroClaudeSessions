@@ -92,8 +92,9 @@ function buildStaticPage(templateName, outName, label) {
   console.log(`Written: ${outPath}  (${(html.length / 1024).toFixed(0)} KB) — ${label}`);
 }
 
-function buildNow()  { buildStaticPage('now.html',  'now.html',  'Mission Control'); }
-function buildHome() { buildStaticPage('home.html', 'home.html', 'Landing'); }
+function buildNow()   { buildStaticPage('now.html',   'now.html',   'Mission Control'); }
+function buildHome()  { buildStaticPage('home.html',  'home.html',  'Landing'); }
+function buildTools() { buildStaticPage('tools.html', 'tools.html', 'Tools'); }
 
 function buildKindMapPage() {
   const html = renderKindMapPage(buildKindMap({ eventTypes: EVENT_TYPES }), {
@@ -239,6 +240,7 @@ function run() {
   buildDaw();
   buildNow();
   buildHome();
+  buildTools();
   buildKindMapPage();
 }
 

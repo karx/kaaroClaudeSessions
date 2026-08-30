@@ -9,7 +9,7 @@ window.bootComplete = function() {
   const sess = GRAPH.nodes.filter(n => n.type === 'session').length;
   const file = GRAPH.nodes.filter(n => n.type === 'file').length;
   document.getElementById('boot-l2').textContent =
-    `> ${proj} projects · ${sess} sessions · ${file} files`;
+    `> ${proj} projects · ${sess} sessions · ${file} working-set files`;
   document.getElementById('boot-l3').textContent = '> ready.';
   setTimeout(() => {
     el.classList.add('fade');

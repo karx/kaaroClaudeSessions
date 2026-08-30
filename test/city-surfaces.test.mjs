@@ -71,3 +71,23 @@ test('home.html — city hero: cityFieldSvg, click selects, OPEN LATTICE → /gr
   const tiles = html.indexOf('id="tiles"');
   assert.ok(me >= 0 && field > me && tiles > field, 'ME then city then tiles');
 });
+
+test('working-set nodes start off; legend names consumption not inventory', () => {
+  const html = src('experience/pages/template.html');
+  const box = html.match(/<input type="checkbox" id="cb-files"[^>]*>/);
+  assert.ok(box, 'cb-files exists');
+  assert.equal(/\bchecked\b/.test(box[0]), false, '#cb-files is off by default');
+  assert.match(html, /Working-set nodes/);
+  assert.match(html, /Working set \(write\+edit\) — not a full tree/);
+  assert.match(html, /footprint = consumption · height = sessions/);
+  assert.match(html, /Session \(size = consumption\)/);
+  const ro = html.match(/<input type="checkbox" id="cb-ro-files"[^>]*>/);
+  assert.ok(ro && /\bchecked\b/.test(ro[0]), '#cb-ro-files stays checked');
+});
+
+test('boot line and landing tile say working-set / forensic, not inventory', () => {
+  assert.match(src('experience/client/00-boot.js'), /working-set files/);
+  const home = src('experience/pages/home.html');
+  assert.match(home, /Force graph is forensic/);
+  assert.equal(home.includes('Sessions, projects, files — what was worked on'), false);
+});

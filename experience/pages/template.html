@@ -729,9 +729,9 @@ mark.thr-hit-current { background:#ffaa00; color:#000000; }
 <div id="legend" class="widget">
   <h3>◆ LEGEND <span class="widget-toggle" onclick="toggleWidget('legend')">−</span></h3>
   <div class="widget-body">
-  <div class="leg"><div class="dot" style="background:var(--k-bg);border:2px solid #aaa;box-sizing:border-box"></div>Project cluster</div>
-  <div class="leg"><div class="dot" style="background:#00aaff;opacity:.85"></div>Session (size = AI work)</div>
-  <div class="leg"><div class="dia" style="background:#00cccc"></div>File (size = edits)</div>
+  <div class="leg"><div class="dot" style="background:var(--k-bg);border:2px solid #aaa;box-sizing:border-box"></div>Project footprint = consumption · height = sessions</div>
+  <div class="leg"><div class="dot" style="background:#00aaff;opacity:.85"></div>Session (size = consumption)</div>
+  <div class="leg"><div class="dia" style="background:#00cccc"></div>Working set (write+edit) — not a full tree</div>
   <div class="sep"></div>
   <div class="leg"><div class="line" style="background:#00ff88;opacity:.7"></div>write op</div>
   <div class="leg"><div class="line" style="background:#ffcc00;opacity:.7"></div>edit op</div>
@@ -760,7 +760,7 @@ mark.thr-hit-current { background:#ffaa00; color:#000000; }
 <div id="controls" class="widget">
   <h3>◆ DISPLAY <span class="widget-toggle" onclick="toggleWidget('controls')">−</span></h3>
   <div class="widget-body">
-  <div class="ctrl"><input type="checkbox" id="cb-files" checked><label for="cb-files">File nodes</label></div>
+  <div class="ctrl"><input type="checkbox" id="cb-files"><label for="cb-files">Working-set nodes</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-ro-files" checked><label for="cb-ro-files">Read-only files</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-branch" checked><label for="cb-branch">Branch lineage edges</label></div>
   <div class="ctrl"><input type="checkbox" id="cb-reads"><label for="cb-reads">Read edges</label></div>

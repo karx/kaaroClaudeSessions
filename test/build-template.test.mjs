@@ -144,6 +144,7 @@ test('experience/client/*.js only uses %%PLACEHOLDER%% tokens build.mjs actually
   const KNOWN = new Set([
     '%%CLIENT_CORE%%', '%%GRAPH_JSON%%', '%%TIMELINE_JSON%%', '%%COLOR_INDEX_JSON%%',
     '%%IN_FLIGHT_COLOR%%', '%%TRACE_HARNESSES%%', '%%TOKENS_CSS%%', '%%KAARO_TOKENS%%',
+    '%%WORD_CLOUD%%',
   ]);
   const dir = 'experience/client';
   const offenders = [];
@@ -154,4 +155,44 @@ test('experience/client/*.js only uses %%PLACEHOLDER%% tokens build.mjs actually
     }
   }
   assert.deepEqual(offenders, [], `stray placeholder-shaped text (will be spliced by build.mjs): ${offenders.join(', ')}`);
+});
+
+test('00-word-cloud.js is graph-only %%WORD_CLOUD%%; DAW list does not concatenate it', async () => {
+  const fs = await import('node:fs');
+  const { stripExports, applySubstitutions } = await import('../build.mjs');
+  const placeholder = fs.readFileSync('experience/client/00-word-cloud.js', 'utf8');
+  assert.ok(placeholder.includes('%%WORD_CLOUD%%'));
+  assert.ok(!placeholder.includes('%%CLIENT_CORE%%'), 'word-cloud module is not the shared core');
+
+  const stripped = stripExports(fs.readFileSync('experience/word-cloud.mjs', 'utf8'));
+  assert.match(stripped, /^function buildWordCloud/m);
+  assert.doesNotMatch(stripped, /^export function buildWordCloud/m);
+  const injected = applySubstitutions(placeholder, { '%%WORD_CLOUD%%': stripped });
+  assert.ok(injected.includes('function buildWordCloud'));
+  assert.ok(!injected.includes('%%WORD_CLOUD%%'));
+  assert.ok(!injected.includes('export function buildWordCloud'));
+
+  const buildSrc = fs.readFileSync('build.mjs', 'utf8');
+  assert.ok(/'%%WORD_CLOUD%%':\s*loadWordCloud\(\)/.test(buildSrc), 'graph substitution map injects the word-cloud module');
+  const dawFn = buildSrc.slice(buildSrc.indexOf('function buildDaw('));
+  const dawBody = dawFn.slice(0, dawFn.indexOf('\nfunction '));
+  assert.ok(dawBody.includes('00-core.js'));
+  assert.ok(!dawBody.includes('00-word-cloud.js'), 'DAW must not concatenate 00-word-cloud.js');
+  assert.ok(!dawBody.includes('%%WORD_CLOUD%%'), 'DAW substitution map has no WORD_CLOUD key');
+});
+
+test('built DAW artifact contains no leftover %%PLACEHOLDER%% (when present)', async () => {
+  const fs = await import('node:fs');
+  if (!fs.existsSync('daw-builder.html')) return;
+  const html = fs.readFileSync('daw-builder.html', 'utf8');
+  const leftover = html.match(/%%[A-Z_]+%%/g) || [];
+  assert.deepEqual(leftover, [], `daw-builder.html leftover placeholders: ${leftover.join(', ')}`);
+});
+
+test('built graph artifact contains stripped buildWordCloud (when present)', async () => {
+  const fs = await import('node:fs');
+  if (!fs.existsSync('graph.html')) return;
+  const html = fs.readFileSync('graph.html', 'utf8');
+  assert.ok(html.includes('function buildWordCloud'), 'graph bundle received the word-cloud primitive');
+  assert.ok(!html.includes('export function buildWordCloud'), 'stripExports ran');
 });

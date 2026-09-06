@@ -129,6 +129,10 @@
     color: var(--k-dim); font-size: 10px; letter-spacing: 0.05em;
     user-select: none; white-space: nowrap; overflow: hidden;
   }
+  #support-nudge {
+    margin-left: auto; color: var(--k-dim); text-decoration: none; letter-spacing: 0.08em;
+  }
+  #support-nudge:hover { color: var(--k-accent); }
 </style>
 </head>
 <body>
@@ -185,6 +189,7 @@
 
 <div id="statusbar">
   <span id="sys">boot</span>
+  <a id="support-nudge" href="/support" title="the github version is free">$</a>
 </div>
 
 <script>
@@ -323,7 +328,8 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
     }
   }).catch(err => console.error('[home] /api/kind-map failed', err));
 
-  const NAV = 'G history · N live · D sonic · M map';
+  const thanks = new URLSearchParams(location.search).get('support') === 'thanks';
+  const NAV = thanks ? 'thank you' : 'G history · N live · D sonic · M map';
   let chromeLive = false;
   function revealChrome() {
     if (chromeLive) return;
@@ -351,6 +357,8 @@ const KAARO_TOKENS = %%KAARO_TOKENS%%;
   });
 
   document.addEventListener('keydown', ev => {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if (ev.target.closest('input, textarea, [contenteditable]')) return;
     const k = ev.key.toLowerCase();
     if (k === 'g') location.href = '/graph';
     if (k === 'n') location.href = '/now';

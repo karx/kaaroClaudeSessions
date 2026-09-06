@@ -409,6 +409,8 @@ function renderHelpPanel() {
     '<div class="help-row"><span class="help-key">Drag</span><span class="help-desc">Pan · reposition node (force/lattice snap)</span></div>',
     '<div class="help-row"><span class="help-key">Scroll</span><span class="help-desc">Zoom in / out</span></div>',
     '<div class="help-row"><span class="help-key">Click</span><span class="help-desc">Select and inspect</span></div>',
+    '<div class="help-sep"></div>',
+    '<div class="help-row"><span class="help-key">$</span><span class="help-desc">Optional support · github is free</span><span class="help-fixed">—</span></div>',
     '<div class="help-footer" id="help-close">[ CLOSE ]</div>',
   ].join('');
   el.querySelectorAll('.help-toggle').forEach(btn => {

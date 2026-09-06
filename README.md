@@ -44,6 +44,7 @@ npx kaaro-sessions --no-open     # skip auto browser open
 - `/graph` — the history view (force graph, swimlane, arc, matrix, 3D)
 - `/now` — Mission Control: per-harness live rollup, session cards, recent actions
 - `/daw` — Live Pulse DAW Builder: pure event stream + audio rule editor
+- `/support` — optional one-time support checkout (`?amount=1`–`10`); GitHub/`npx` stays free
 
 ## Scripts
 
@@ -88,11 +89,27 @@ npx kaaro-sessions --no-open     # skip auto browser open
 - [Harness support matrix](docs/harnesses.md)
 - [Codex harness guide](docs/CODEX.md)
 
+## Support
+
+The GitHub clone and `npx kaaro-sessions` are free. A dim `$` sits in the
+statusbar on every view (home, graph, now, DAW). Press `$` or click it to
+open an optional Pay What You Want checkout ($1–$10) hosted by
+[Dodo Payments](https://dodopayments.com). Session transcripts never leave
+this machine.
+
+```bash
+# from a running local server
+open http://localhost:3333/support          # choose the amount at checkout
+open http://localhost:3333/support?amount=5 # $5
+```
+
 ## Privacy
 
-All data is read locally from your machine and served only to `127.0.0.1`.
-Nothing is sent to any external service. The generated `sessions-data.json`,
-`graph.html`, and `graph-data.json` are gitignored — don't commit them.
+All session data is read locally from your machine and served only to
+`127.0.0.1`. Nothing from the observability pipeline is sent to any external
+service. The generated `sessions-data.json`, `graph.html`, and
+`graph-data.json` are gitignored — don't commit them. Optional Support checkout
+is a user-initiated navigation to Dodo Payments and does not upload transcripts.
 
 ## License
 

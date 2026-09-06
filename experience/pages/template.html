@@ -145,6 +145,10 @@ button.btn { background:#2a2812; border:1px solid #50402a; color:#ccb088;
 button.btn:hover { background:#403d1e; }
 .sl-section-hd { color:var(--k-accent); font-size:9px; letter-spacing:2px; margin:8px 0 6px 0; }
 #stats { position: fixed; bottom: 60px; left: 0; right: 0; color: #403e22; font-size: 9px; letter-spacing: 1.5px; pointer-events: none; padding: 0 14px; text-transform: uppercase; height: 14px; line-height: 14px; background: rgba(4,4,10,0.9); border-top: 1px solid #1c1b0a; }
+#support-nudge { position: fixed; bottom: 60px; right: 0; z-index: 201; height: 14px; line-height: 14px;
+  padding: 0 14px 0 10px; background: rgba(4,4,10,0.9); border-top: 1px solid #1c1b0a;
+  color: #403e22; font-size: 9px; letter-spacing: 1.5px; text-decoration: none; text-transform: uppercase; }
+#support-nudge:hover { color: var(--k-accent); }
 #panel { position: fixed; top: 0; right: 0; bottom: 154px; width: 0;
   background: rgba(8,8,16,.96); border-left: 1px solid transparent;
   overflow: hidden; z-index: 740; transition: width 180ms ease, border-color 180ms ease; }
@@ -937,6 +941,7 @@ mark.thr-hit-current { background:#ffaa00; color:#000000; }
   </div>
 </div>
 <div id="stats"></div>
+<a id="support-nudge" href="/support" title="the github version is free">$</a>
 <div id="panel"><div id="panel-inner"><span id="panel-x" onclick="closePanel()">✕</span><div id="panel-content"></div></div></div>
 <div id="timeline"><svg id="tl-svg"></svg></div>
 

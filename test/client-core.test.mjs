@@ -1243,3 +1243,157 @@ test('generateUsageShareCardSVG — constellation: one hex per project over one 
   assert.ok(overflowSvg.includes('+5 projects'), '65 projects, 60-cap → 5 overflow');
   assert.ok(overflowSvg.includes('+5 sessions'), '205 sessions, 200-cap → 5 overflow');
 });
+
+test('usageWorldLine — this-dump shape, empty canvas, long heaviest trunc 18', async () => {
+  const { usageWorldLine } = await import('../experience/client-core.mjs');
+  assert.equal(
+    usageWorldLine({
+      topProjectShort: 'kaaroViewer',
+      project_count: 25,
+      total_sessions: 121,
+      dateFrom: '2025-03-01',
+      dateTo: '2026-09-06',
+    }),
+    'kaaroViewer · 25 worlds · 121 runs · 2025-03 → 2026-09',
+  );
+  assert.equal(usageWorldLine({}), '');
+  assert.equal(
+    usageWorldLine({ topProjectShort: 'Users-arshigoyal-kaaro-src-kaaroViewer', project_count: 1, total_sessions: 1 }),
+    'Users-arshigoyal-… · 1 world · 1 run',
+  );
+});
+
+test('buildUsageShareCardData stores word-signal bags/items and world_line; missing opts stay empty', async () => {
+  const { buildUsageShareCardData, meGlyph, usageWorldLine } = await import('../experience/client-core.mjs');
+  const empty = buildUsageShareCardData(meGlyph([]), {});
+  assert.deepEqual(empty.intent_topic, []);
+  assert.deepEqual(empty.actions, []);
+  assert.deepEqual(empty.intent_items, []);
+  assert.deepEqual(empty.actions_items, []);
+  assert.equal(empty.world_line, '');
+  assert.equal(empty.tool_calls, 0);
+
+  const intent_topic = [{ t: 'rfc', n: 4, w: 1 }];
+  const actions = [{ t: 'read_file', n: 8, w: 1 }];
+  const intent_items = [{ t: 'rfc', n: 4, w: 1, x: 0.5, y: 0.5, fontPx: 11, label: 'rfc' }];
+  const actions_items = [{ t: 'read_file', n: 8, w: 1, x: 0.4, y: 0.6, fontPx: 10, label: 'read_file' }];
+  const sessions = [
+    { project_id: 'p1', harness: 'pi', color: '#111', tool_diversity: 2, tool_calls: 10, date_str: '2026-01-01' },
+    { project_id: 'p1', harness: 'pi', color: '#111', tool_diversity: 1, tool_calls: 3, date_str: '2026-02-01' },
+  ];
+  const projects = [{ id: 'p1', label: 'kaaroViewer', color: '#222', tokens_total: 1000 }];
+  const data = buildUsageShareCardData(meGlyph(sessions), {
+    projects, sessions, dateFrom: '2026-01-01', dateTo: '2026-09-06',
+    intent_topic, actions, intent_items, actions_items,
+  });
+  assert.equal(data.tool_calls, 13);
+  assert.equal(data.intent_topic, intent_topic);
+  assert.equal(data.actions, actions);
+  assert.equal(data.intent_items, intent_items);
+  assert.equal(data.actions_items, actions_items);
+  assert.equal(data.world_line, usageWorldLine({
+    topProjectShort: 'kaaroViewer',
+    project_count: 1,
+    total_sessions: 2,
+    dateFrom: '2026-01-01',
+    dateTo: '2026-09-06',
+  }));
+});
+
+test('generateUsageShareCardSVG — TOOL CALLS exact sum, world line header, cropped field, two clipped polars', async () => {
+  const { buildUsageShareCardData, generateUsageShareCardSVG, meGlyph } = await import('../experience/client-core.mjs');
+  const { wordSignalItems } = await import('../experience/word-cloud.mjs');
+  const PNG_SIGNAL_OPTS = { cap: 28, fontMin: 9, fontMax: 11, trunc: 10 };
+  const intent_topic = [{ t: 'project', n: 6, w: 1 }, { t: 'rfc', n: 4, w: 0.6 }];
+  const actions = [{ t: 'read_file', n: 12, w: 1 }, { t: 'bash', n: 5, w: 0.4 }];
+  const data = buildUsageShareCardData(meGlyph([{ harness: 'pi', tool_calls: 7 }]), {
+    projectCount: 2,
+    tokensTotal: 1000,
+    dateFrom: '2025-03-01',
+    dateTo: '2026-09-06',
+    projects: [{ id: 'p1', label: 'kaaroViewer', color: '#334455', tokens_total: 900 }],
+    sessions: [{ project_id: 'p1', color: '#556677', tool_diversity: 3, tool_calls: 17, date_str: '2026-01-01' }],
+    intent_topic,
+    actions,
+    intent_items: wordSignalItems(intent_topic, PNG_SIGNAL_OPTS),
+    actions_items: wordSignalItems(actions, PNG_SIGNAL_OPTS),
+  });
+  const svg = generateUsageShareCardSVG(data);
+
+  assert.ok(svg.includes('TOOL CALLS'), 'usage card prints TOOL CALLS');
+  assert.ok(svg.includes('>17<') || svg.includes('>17</text>'), 'TOOL CALLS is the exact session sum, not fmtTok');
+  assert.ok(!svg.includes('AVG TOOL TYPES'), 'diversity is in the balls, not a sixth stat');
+  assert.ok(svg.includes('kaaroViewer · 2 worlds · 1 run · 2025-03 → 2026-09'), 'world line is dateRight');
+  assert.ok(svg.includes('2025-03-01 → 2026-09-06'), 'ISO range moves to subRight');
+
+  assert.ok(svg.includes('INTENT'));
+  assert.ok(svg.includes('ACTIONS'));
+  assert.ok(svg.includes('project'));
+  assert.ok(svg.includes('rfc'));
+  assert.ok(svg.includes('read_file'));
+  assert.ok(svg.includes('bash'));
+  assert.ok(svg.includes('text-anchor="middle"'));
+  assert.ok(svg.includes('width="283"'));
+  assert.ok(svg.includes('height="132"'));
+  assert.ok(svg.includes('x="55"') && svg.includes('x="347"'), 'two panes, 9px gap at 338–347');
+  assert.ok(svg.includes('y="408"'), 'polar discs sit in the vacated band');
+  assert.ok(svg.includes('y="372"'), 'constellation caption sits under the cropped field');
+  assert.ok(!svg.includes('y="522"'), 'no pulse-strip rects on the usage PNG');
+  assert.equal((svg.match(/<svg[^>]*width="283"/g) || []).length, 2, 'each pane is a nested svg clip');
+
+  const empty = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph([]), {}));
+  assert.ok(empty.includes('no terms'));
+});
+
+test('generateUsageShareCardSVG — INTENT is intent_topic (chrome-off); chrome-on items would paint review', async () => {
+  const { buildUsageShareCardData, generateUsageShareCardSVG, meGlyph } = await import('../experience/client-core.mjs');
+  const { buildWordCloud, wordSignalItems, WORD_SIGNAL_MIN_DF } = await import('../experience/word-cloud.mjs');
+  const PNG_SIGNAL_OPTS = { cap: 28, fontMin: 9, fontMax: 11, trunc: 10 };
+
+  const sessions = [
+    { ai_title: 'Review the share card rfc', tools: { read: { calls: 4 } }, tool_calls: 4 },
+    { ai_title: 'Review the share card rfc', tools: { read: { calls: 4 } }, tool_calls: 4 },
+    { ai_title: 'Review the share card rfc', first_user_message: 'uniquehapax only here', tools: { read: { calls: 4 } }, tool_calls: 4 },
+  ];
+  const bags = buildWordCloud({ sessions });
+  const intent_topic = (bags.intent_topic || []).filter(t => t.n >= WORD_SIGNAL_MIN_DF);
+  const actions = (bags.actions || []).filter(t => t.n >= WORD_SIGNAL_MIN_DF);
+  const svg = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph(sessions), {
+    sessions,
+    intent_topic,
+    actions,
+    intent_items: wordSignalItems(intent_topic, PNG_SIGNAL_OPTS),
+    actions_items: wordSignalItems(actions, PNG_SIGNAL_OPTS),
+  }));
+
+  const intentPane = svg.slice(svg.indexOf('INTENT'), svg.indexOf('ACTIONS'));
+  const actionsPane = svg.slice(svg.indexOf('ACTIONS'));
+  assert.ok(!/review/i.test(intentPane), 'PNG INTENT must not hero agent-chrome verbs');
+  assert.ok(/share|card|rfc/.test(intentPane), 'topics survive AGENT_CHROME');
+  assert.ok(actionsPane.includes('read'), 'ACTIONS may contain read as a tool name');
+  assert.ok(!svg.includes('uniquehapax'), 'hapax n=1 is floored off the leaving artifact');
+
+  const chromeOn = generateUsageShareCardSVG(buildUsageShareCardData(meGlyph(sessions), {
+    intent_items: wordSignalItems(bags.intent, PNG_SIGNAL_OPTS),
+    actions_items: wordSignalItems(bags.actions, PNG_SIGNAL_OPTS),
+  }));
+  const chromeIntent = chromeOn.slice(chromeOn.indexOf('INTENT'), chromeOn.indexOf('ACTIONS'));
+  assert.ok(/review/i.test(chromeIntent), 'renderer paints whatever items it is given — caller must pass intent_topic');
+});
+
+test('buildShareText usage branch carries world line and tool-call count', async () => {
+  const { buildUsageShareCardData, buildShareText, meGlyph } = await import('../experience/client-core.mjs');
+  const data = buildUsageShareCardData(meGlyph([{ harness: 'pi' }]), {
+    projectCount: 25,
+    tokensTotal: 148_944_377,
+    dateFrom: '2025-03-01',
+    dateTo: '2026-09-06',
+    projects: [{ id: 'p1', label: 'kaaroViewer', tokens_total: 1 }],
+    sessions: Array.from({ length: 3 }, () => ({ project_id: 'p1', tool_calls: 10 })),
+  });
+  const text = buildShareText(data);
+  assert.ok(text.includes(data.world_line));
+  assert.ok(text.includes('30 tool calls'));
+  assert.ok(text.includes('148.9M tokens'));
+  assert.ok(!/https?:\/\//.test(text), 'still no fabricated URL');
+});

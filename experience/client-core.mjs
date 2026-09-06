@@ -1165,6 +1165,22 @@ function _shareTrunc(s, max) {
 }
 
 /**
+ * Header world-line for the usage PNG / share sheet.
+ * Heaviest is truncated to 18 so it cannot collide with a 24-char wordmark.
+ */
+export function usageWorldLine({ topProjectShort, project_count, total_sessions, dateFrom, dateTo } = {}) {
+  const bits = [];
+  if (topProjectShort) bits.push(_shareTrunc(topProjectShort, 18));
+  if (project_count) bits.push(`${project_count} world${project_count === 1 ? '' : 's'}`);
+  if (total_sessions) bits.push(`${total_sessions} run${total_sessions === 1 ? '' : 's'}`);
+  const a = dateFrom ? String(dateFrom).slice(0, 7) : '';
+  const b = dateTo   ? String(dateTo).slice(0, 7)   : '';
+  if (a && b) bits.push(`${a} → ${b}`);
+  else if (a || b) bits.push(a || b);
+  return bits.join(' · ');
+}
+
+/**
  * Highest-count [name, count] entry from a tool_summary object, or null.
  * The single "which tool dominated this window" rule — shared by the share
  * card's context strip and the panel's context-window strips
@@ -1414,7 +1430,8 @@ export function buildUsageShareCardData(me, opts = {}) {
     }));
   const projRank = new Map(projects.map((p, i) => [p.id, i]));
 
-  const sessions = (opts.sessions || [])
+  const rawSessions = opts.sessions || [];
+  const sessions = rawSessions
     .slice()
     .sort((a, b) => {
       const ra = projRank.has(a.project_id) ? projRank.get(a.project_id) : projects.length;
@@ -1424,18 +1441,36 @@ export function buildUsageShareCardData(me, opts = {}) {
     })
     .map(s => ({ color: s.color || SHARE_CARD_TOKENS.dim, diversity: s.tool_diversity || 0 }));
 
+  const total_sessions = me?.total || 0;
+  const project_count = opts.projectCount || projects.length;
+  const dateFrom = opts.dateFrom || '';
+  const dateTo = opts.dateTo || '';
+  const topProject = projects[0]?.label || '';
+
   return {
     kind: 'usage',
-    total_sessions: me?.total || 0,
-    project_count:  opts.projectCount || projects.length,
+    total_sessions,
+    project_count,
     tokens_total:   opts.tokensTotal || 0,
-    dateFrom:       opts.dateFrom || '',
-    dateTo:         opts.dateTo || '',
+    dateFrom,
+    dateTo,
     rows: (me?.rows || []).map(r => ({ harness: r.harness, count: r.count, pct: r.pct, color: r.color })),
-    topProject: projects[0]?.label || '',
+    topProject,
     projects,
     sessions,
     me: me || null,
+    tool_calls: rawSessions.reduce((n, s) => n + (s.tool_calls || 0), 0),
+    intent_topic:  opts.intent_topic  || [],
+    actions:       opts.actions       || [],
+    intent_items:  opts.intent_items  || [],
+    actions_items: opts.actions_items || [],
+    world_line: usageWorldLine({
+      topProjectShort: topProject,
+      project_count,
+      total_sessions,
+      dateFrom,
+      dateTo,
+    }),
   };
 }
 
@@ -1456,14 +1491,35 @@ function _fillRadius(n, targetRadius, { minR = 4, maxR = 30 } = {}) {
 const MOSAIC_MAX_SESSIONS = 200;     // ring-8 capacity (1 + 3*8*9 = 217)
 const CONSTELLATION_MAX_PROJECTS = 60; // ring-4 capacity (1 + 3*4*5 = 61)
 
+function _signalFill(w, c) {
+  if (w >= 0.7) return c.data;
+  if (w >= 0.4) return c.label;
+  if (w >= 0.2) return c.body;
+  return c.dim;
+}
+
+/** Nested clipped polar from pre-rendered wordSignalItems. No goldenPoint copy. */
+function _usageSignalPane(items, { x, y, w, h, heading, c }) {
+  const hd = `<text x="${x}" y="396" style="font-size:8px;fill:${c.dim};letter-spacing:1.5px;">${esc(heading)}</text>`;
+  let inner;
+  if (!items || !items.length) {
+    inner = `<text text-anchor="middle" x="${(w / 2).toFixed(1)}" y="${(h / 2).toFixed(1)}" font-size="9" fill="${c.dim}">no terms</text>`;
+  } else {
+    inner = items.map(item =>
+      `<text text-anchor="middle" x="${(Number(item.x) * w).toFixed(1)}" y="${(Number(item.y) * h).toFixed(1)}" font-size="${Number(item.fontPx).toFixed(1)}" fill="${_signalFill(item.w, c)}">${esc(item.label)}</text>`
+    ).join('');
+  }
+  return hd + `<svg x="${x}" y="${y}" width="${w}" height="${h}">${inner}</svg>`;
+}
+
 export function generateUsageShareCardSVG(data) {
   const c = SHARE_CARD_TOKENS;
   const g = _shareGeom();
 
-  // ── LEFT: project hexes over a session-ball texture, same center — both
-  // counts (25 projects, 122 sessions) are legible in one field.
+  // ── LEFT: constellation cropped to y1=360 so the vacated band holds
+  // INTENT / ACTIONS polars. Helper defaults for other callers stay put.
   const fieldX0 = g.leftPad, fieldX1 = g.dividerX - 30;
-  const fieldY0 = g.bodyTop + 20, fieldY1 = g.bodyBot - 46;
+  const fieldY0 = g.bodyTop + 20, fieldY1 = 360;
   const centerX = (fieldX0 + fieldX1) / 2;
   const centerY = (fieldY0 + fieldY1) / 2;
   const targetR = Math.min(fieldX1 - fieldX0, fieldY1 - fieldY0) / 2 * 0.92;
@@ -1505,14 +1561,11 @@ export function generateUsageShareCardSVG(data) {
 
   // ── RIGHT: stats + legend on the left half; ME hero hex big, vertically
   // centered, in the right half of the right column.
-  const avgDiversity = shownSess.length
-    ? Math.round(shownSess.reduce((s, x) => s + x.diversity, 0) / shownSess.length)
-    : 0;
   const stats = [
-    ['SESSIONS',       String(data.total_sessions)],
-    ['PROJECTS',       String(data.project_count)],
-    ['CONSUMPTION',    fmtTok(data.tokens_total)],
-    ['AVG TOOL TYPES', String(avgDiversity)],
+    ['SESSIONS',    String(data.total_sessions)],
+    ['PROJECTS',    String(data.project_count)],
+    ['CONSUMPTION', fmtTok(data.tokens_total)],
+    ['TOOL CALLS',  String(data.tool_calls || 0)],
   ];
 
   const legendY0 = g.bodyTop + 44 + stats.length * 50 + 20;
@@ -1534,16 +1587,24 @@ export function generateUsageShareCardSVG(data) {
     `</g>`;
 
   const dateRange = (data.dateFrom || data.dateTo) ? `${data.dateFrom} → ${data.dateTo}` : '';
+  const intentPane = _usageSignalPane(data.intent_items, {
+    x: 55, y: 408, w: 283, h: 132, heading: 'INTENT', c,
+  });
+  const actionsPane = _usageSignalPane(data.actions_items, {
+    x: 347, y: 408, w: 283, h: 132, heading: 'ACTIONS', c,
+  });
 
   return `<svg width="${g.width}" height="${g.height}" xmlns="http://www.w3.org/2000/svg">
   <defs><style>text { font-family: 'IBM Plex Mono', 'Courier New', monospace; }</style></defs>
   <rect width="${g.width}" height="${g.height}" fill="${c.bg}"/>
-  ${_shareHeader(g, { kicker: 'FULL USAGE CANVAS · INTELLIGENCE TRACE', dateRight: dateRange })}
+  ${_shareHeader(g, { kicker: 'FULL USAGE CANVAS · INTELLIGENCE TRACE', dateRight: data.world_line || '', subRight: dateRange })}
   ${_shareDivider(g)}
 
   ${balls}
   ${hexes}
-  <text x="${fieldX0}" y="${fieldY1 + 22}" style="font-size:9px;fill:${c.dim};letter-spacing:1px;">${esc(caption)}</text>
+  <text x="${fieldX0}" y="372" style="font-size:9px;fill:${c.dim};">${esc(caption)}</text>
+  ${intentPane}
+  ${actionsPane}
 
   ${_shareStatRows(stats, g)}
   ${legend}
@@ -1561,10 +1622,13 @@ export function buildShareText(data) {
     ].join('\n');
   }
   if (data.kind === 'usage') {
-    return [
+    const lines = [
       `📊 My kaaroSessions canvas`,
-      `${data.total_sessions} sessions · ${data.project_count} projects · ${fmtTok(data.tokens_total)} tokens`,
-    ].join('\n');
+    ];
+    if (data.world_line) lines.push(data.world_line);
+    lines.push(`${data.total_sessions} sessions · ${data.project_count} projects · ${fmtTok(data.tokens_total)} tokens · ${data.tool_calls || 0} tool calls`);
+    if (data.dateFrom || data.dateTo) lines.push(`${data.dateFrom} → ${data.dateTo}`);
+    return lines.join('\n');
   }
   const windowCount = (data.context_resets || 0) + 1;
   const lines = [

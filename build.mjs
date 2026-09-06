@@ -68,6 +68,10 @@ function loadClientCore() {
   return stripExports(fs.readFileSync(path.join(CWD, 'experience', 'client-core.mjs'), 'utf8'));
 }
 
+function loadWordCloud() {
+  return stripExports(fs.readFileSync(path.join(CWD, 'experience', 'word-cloud.mjs'), 'utf8'));
+}
+
 // Substitutions shared by every page artifact (Register A tokens).
 function tokenSubs() {
   return {
@@ -217,6 +221,7 @@ function run() {
   // ── Substitute %%PLACEHOLDERS%% — single-pass via applySubstitutions ─────────
   const injectedJS = applySubstitutions(clientJS, {
     '%%CLIENT_CORE%%':      loadClientCore(),
+    '%%WORD_CLOUD%%':       loadWordCloud(),
     '%%GRAPH_JSON%%':       JSON.stringify({ nodes, edges, meta: data.meta }),
     '%%TIMELINE_JSON%%':    JSON.stringify(timeline),
     '%%COLOR_INDEX_JSON%%': JSON.stringify(COLOR_TO_INDEX),

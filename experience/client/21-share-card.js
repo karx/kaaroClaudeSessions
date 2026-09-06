@@ -121,15 +121,27 @@
     meBtn.addEventListener('click', e => {
       e.preventDefault();
       _runShare(meBtn, async () => {
+        const PNG_SIGNAL_OPTS = { cap: 28, fontMin: 9, fontMax: 11, trunc: 10 };
         const sessions = GRAPH.nodes.filter(n => n.type === 'session');
         const projectCount = GRAPH.nodes.filter(n => n.type === 'project').length;
         const tokensTotal = sessions.reduce((s, n) => s + (n.tokens_total || 0), 0);
         const dates = sessions.map(n => n.date_str).filter(Boolean).sort();
+        const cloud = typeof buildWordCloud === 'function'
+          ? buildWordCloud({ sessions }, { limit: 40 })
+          : { intent_topic: [], actions: [] };
+        const minDf = typeof WORD_SIGNAL_MIN_DF === 'number' ? WORD_SIGNAL_MIN_DF : 3;
+        // INTENT = intent_topic (agent words off). Never pass cloud.intent.
+        const intent_topic = (cloud.intent_topic || []).filter(t => t.n >= minDf);
+        const actions      = (cloud.actions || []).filter(t => t.n >= minDf);
         const cardData = buildUsageShareCardData(meGlyph(sessions), {
           projectCount, tokensTotal,
           dateFrom: dates[0] || '', dateTo: dates[dates.length - 1] || '',
           projects: GRAPH.nodes.filter(n => n.type === 'project'),
           sessions,
+          intent_topic,
+          actions,
+          intent_items:  typeof wordSignalItems === 'function' ? wordSignalItems(intent_topic, PNG_SIGNAL_OPTS) : [],
+          actions_items: typeof wordSignalItems === 'function' ? wordSignalItems(actions, PNG_SIGNAL_OPTS) : [],
         });
         return { svg: generateUsageShareCardSVG(cardData), cardData };
       });

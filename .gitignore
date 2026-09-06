@@ -1,3 +1,6 @@
+.env
+.env.*
+!.env.example
 /sessions-data.json
 /signals-data.json
 /live-feed-*.json

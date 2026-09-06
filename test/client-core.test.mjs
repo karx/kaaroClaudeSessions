@@ -13,7 +13,7 @@ import {
   escapeRegExp, highlightMatches, countMatches,
   relativeLuminance, readableTextOn,
   nodeRadius, edgeOpacity, edgeWidth, EDGE_COLORS,
-  connectEvents, createBootQueue, resolveControlVisibility, fetchRetry,
+  connectEvents, bindSupportNudge, createBootQueue, resolveControlVisibility, fetchRetry,
   nextChromeCollapsed, confirmLayoutReset,
   hexPath, harnessWedges, harnessBreakdown, HARNESS_MARK, HARNESS_FILL_OPACITY,
   meGlyph, meGlyphMarkup, meGlyphSvg, meGlyphCardHtml,
@@ -638,6 +638,11 @@ test('connectEvents — wires handlers with JSON parsing and status callbacks', 
   FakeES.last.onopen();
   FakeES.last.onerror();
   assert.deepEqual(states, ['open', 'reconnecting']);
+});
+
+test('bindSupportNudge — no-op in Node (no document)', () => {
+  assert.equal(typeof bindSupportNudge, 'function');
+  assert.doesNotThrow(() => bindSupportNudge());
 });
 
 test('fetchRetry — resolves on first try without retrying', async () => {

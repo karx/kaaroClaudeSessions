@@ -319,6 +319,29 @@ test('GET / — falls back to the graph while home is not built yet', async () =
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('GET /support — 302 to Dodo PWYW checkout, amount clamped to $1–$10', async () => {
+  await withServer(makeDeps(), async (base) => {
+    const choose = await fetch(`${base}/support`, { redirect: 'manual' });
+    assert.equal(choose.status, 302);
+    const chooseLoc = choose.headers.get('location');
+    assert.ok(chooseLoc.startsWith('https://checkout.dodopayments.com/buy/pdt_'));
+    assert.equal(chooseLoc.includes('paymentAmount='), false);
+    assert.ok(chooseLoc.includes('redirect_url='));
+
+    const five = await fetch(`${base}/support?amount=5`, { redirect: 'manual' });
+    assert.equal(five.status, 302);
+    assert.match(five.headers.get('location'), /paymentAmount=5/);
+
+    const over = await fetch(`${base}/support?amount=99`, { redirect: 'manual' });
+    assert.match(over.headers.get('location'), /paymentAmount=10/);
+
+    const under = await fetch(`${base}/support?amount=0`, { redirect: 'manual' });
+    assert.match(under.headers.get('location'), /paymentAmount=1/);
+
+    assert.equal((await fetch(`${base}/support?amount=nope`)).status, 400);
+  });
+});
+
 test('GET /daw — serves DAW page; query string does not 404', async () => {
   const dir = join(tmpdir(), 'kaaro-daw-' + Date.now());
   mkdirSync(dir, { recursive: true });

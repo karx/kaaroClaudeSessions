@@ -114,6 +114,10 @@
     user-select: none; white-space: nowrap; overflow: hidden;
   }
   #statusbar .err { color: var(--k-err); }
+  #support-nudge {
+    margin-left: auto; color: var(--k-dim); text-decoration: none; letter-spacing: 0.08em;
+  }
+  #support-nudge:hover { color: var(--k-accent); }
 </style>
 </head>
 <body>
@@ -139,6 +143,7 @@
 
 <div id="statusbar">
   <span id="sys">boot</span>
+  <a id="support-nudge" href="/support" title="the github version is free">$</a>
 </div>
 
 <script>

@@ -1096,6 +1096,26 @@ export function connectEvents(opts, ES) {
 }
 
 /**
+ * Silent support nudge: `$` opens `/support` (Pay What You Want, $1–$10).
+ * Bound once per page. Ignores typing in fields. No-op in Node tests.
+ */
+export function bindSupportNudge() {
+  if (typeof document === 'undefined') return;
+  if (document.documentElement.dataset.supportNudge === '1') return;
+  document.documentElement.dataset.supportNudge = '1';
+  document.addEventListener('keydown', ev => {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if (ev.target.closest && ev.target.closest('input, textarea, select, [contenteditable]')) return;
+    if (ev.key === '$') {
+      ev.preventDefault();
+      location.href = '/support';
+    }
+  });
+}
+
+if (typeof document !== 'undefined') bindSupportNudge();
+
+/**
  * fetch() with one retry after a short delay. Covers the transient
  * connection-reset a burst of simultaneous requests can trigger at page
  * load (observed on Windows/Firefox — Chrome silently retries these,

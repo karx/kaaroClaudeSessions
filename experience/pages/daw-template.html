@@ -13,6 +13,8 @@ body { background: var(--k-bg); color: var(--k-body); font-family: 'IBM Plex Mon
 #sound-btn, #audio-settings-btn, #audio-panel,
 #daw-widget, #pulse-ticker, #ticker-pin,
 #stats, #panel, #legend, #controls, #layout-bar, #glyph-dock { display: none !important; }
+footer #support-nudge { color: var(--k-dim); text-decoration: none; letter-spacing: 0.08em; margin-left: 10px; }
+footer #support-nudge:hover { color: var(--k-accent); }
 
 /* ── Root layout ──────────────────────────────────────────────────────────── */
 #daw-root { position: fixed; inset: 0; display: flex; flex-direction: column; }
@@ -259,6 +261,7 @@ select.hdr-sel {
     <span style="margin-left:auto;color:var(--k-dim);">
       ESC=live · wheel=scrub · click block → capture to MAP · S=solo · Ctrl+M=mute
     </span>
+    <a id="support-nudge" href="/support" title="the github version is free">$</a>
   </footer>
 
 </div><!-- /#daw-root -->

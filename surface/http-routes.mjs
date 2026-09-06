@@ -12,6 +12,7 @@ import path from 'path';
 import { HARNESS_REGISTRY, getHarness } from '../hooks/registry.mjs';
 import { snapshotActive } from './active-state.mjs';
 import { buildKindMap } from './kind-map-build.mjs';
+import { clampSupportCents, supportCheckoutUrl } from './support.mjs';
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json', 'Cache-Control': 'no-cache',
@@ -117,6 +118,29 @@ export function createRequestHandler({ hub, activeState, getStatus, paths, resol
       if (!tree) { res.writeHead(500); res.end('reconstruction failed'); return; }
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(tree));
+      return;
+    }
+
+    if (pathOnly === '/support') {
+      const u = new URL(req.url, 'http://127.0.0.1');
+      const raw = u.searchParams.get('amount');
+      let amount_cents = null;
+      if (raw != null && raw !== '') {
+        const dollars = Number(raw);
+        if (!Number.isFinite(dollars)) {
+          res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('amount must be a number of dollars from 1 to 10');
+          return;
+        }
+        amount_cents = clampSupportCents(Math.round(dollars * 100));
+      }
+      const host = req.headers.host || '127.0.0.1:3333';
+      const redirect_url = `http://${host}/?support=thanks`;
+      res.writeHead(302, {
+        Location: supportCheckoutUrl({ amount_cents, redirect_url }),
+        'Cache-Control': 'no-store',
+      });
+      res.end();
       return;
     }
 
